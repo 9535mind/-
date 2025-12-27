@@ -16,6 +16,8 @@ import enrollments from './routes/enrollments'
 import payments from './routes/payments'
 import certificates from './routes/certificates'
 import admin from './routes/admin'
+import pages from './routes/pages'
+import pagesMy from './routes/pages-my'
 
 const app = new Hono<{ Bindings: Bindings }>()
 
@@ -34,6 +36,10 @@ app.route('/api/payments', payments)
 app.route('/api/certificates', certificates)
 app.route('/api/admin', admin)
 
+// 페이지 라우트
+app.route('/', pages)
+app.route('/', pagesMy)
+
 // 홈페이지
 app.get('/', (c) => {
   return c.html(`
@@ -45,6 +51,9 @@ app.get('/', (c) => {
         <title>마인드스토리 원격평생교육원</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+        <script src="/static/js/auth.js"></script>
+        <script src="/static/js/utils.js"></script>
     </head>
     <body class="bg-gray-50">
         <!-- 헤더 -->
@@ -52,16 +61,19 @@ app.get('/', (c) => {
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div class="flex justify-between items-center py-4">
                     <div class="flex items-center">
-                        <h1 class="text-2xl font-bold text-indigo-600">마인드스토리 원격평생교육원</h1>
+                        <a href="/" class="text-2xl font-bold text-indigo-600">마인드스토리 원격평생교육원</a>
                     </div>
                     <nav class="hidden md:flex space-x-8">
                         <a href="#courses" class="text-gray-700 hover:text-indigo-600">과정 안내</a>
-                        <a href="#about" class="text-gray-700 hover:text-indigo-600">교육원 소개</a>
                         <a href="/my-courses" class="text-gray-700 hover:text-indigo-600">내 강의실</a>
                     </nav>
-                    <div class="flex items-center space-x-4">
-                        <button onclick="showLogin()" class="text-gray-700 hover:text-indigo-600">로그인</button>
-                        <button onclick="showRegister()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">회원가입</button>
+                    <div id="headerAuthButtons" class="flex items-center space-x-4">
+                        <a href="/login" class="text-gray-700 hover:text-indigo-600">로그인</a>
+                        <a href="/register" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">회원가입</a>
+                    </div>
+                    <div id="headerUserMenu" class="flex items-center space-x-4" style="display:none">
+                        <span class="text-gray-700" id="headerUserName"></span>
+                        <button onclick="handleLogout()" class="text-gray-700 hover:text-indigo-600">로그아웃</button>
                     </div>
                 </div>
             </div>
@@ -226,16 +238,11 @@ app.get('/', (c) => {
                 window.location.href = \`/courses/\${id}\`
             }
             
-            function showLogin() {
-                alert('로그인 페이지는 개발 중입니다.')
-            }
-            
-            function showRegister() {
-                alert('회원가입 페이지는 개발 중입니다.')
-            }
-            
-            // 페이지 로드 시 과정 목록 로드
-            document.addEventListener('DOMContentLoaded', loadCourses)
+            // 페이지 로드 시 실행
+            document.addEventListener('DOMContentLoaded', () => {
+                loadCourses()
+                updateHeader()
+            })
         </script>
     </body>
     </html>
