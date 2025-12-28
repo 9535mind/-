@@ -216,84 +216,240 @@ pages.get('/login', (c) => {
 })
 
 /**
-/**
  * 회원가입 페이지 - 3가지 방법 (이메일, 카카오, 전화번호)
-*/
+ */
 pages.get('/register', (c) => {
   return c.html(`
     ${getCommonHead('회원가입')}
     ${getHeader()}
     
-    <div class="min-h-screen flex items-center justify-center py-12 px-4 bg-gray-50">
-        <div class="max-w-2xl w-full">
-            <h2 class="text-center text-3xl font-bold text-gray-900 mb-2">회원가입</h2>
-            <p class="text-center text-sm text-gray-600 mb-8">
-                이미 계정이 있으신가요? <a href="/login" class="text-indigo-600">로그인하기</a>
-            </p>
-            
-            <div id="methodSelect" class="grid md:grid-cols-3 gap-4 mb-8">
-                <button onclick="showForm('email')" class="p-6 border-2 rounded-lg hover:border-indigo-500 hover:bg-indigo-50">
-                    <i class="fas fa-envelope text-4xl text-indigo-600 mb-3"></i>
-                    <div class="font-semibold">이메일</div>
-                </button>
-                <button onclick="showForm('kakao')" class="p-6 border-2 rounded-lg hover:border-yellow-400 hover:bg-yellow-50">
-                    <img src="https://developers.kakao.com/assets/img/about/logos/kakaolink/kakaolink_btn_small.png" class="w-12 h-12 mx-auto mb-3">
-                    <div class="font-semibold">카카오</div>
-                </button>
-                <button onclick="showForm('phone')" class="p-6 border-2 rounded-lg hover:border-green-500 hover:bg-green-50">
-                    <i class="fas fa-mobile-alt text-4xl text-green-600 mb-3"></i>
-                    <div class="font-semibold">전화번호</div>
-                </button>
+    <div class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-2xl w-full space-y-8">
+            <div>
+                <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
+                    회원가입
+                </h2>
+                <p class="mt-2 text-center text-sm text-gray-600">
+                    이미 계정이 있으신가요?
+                    <a href="/login" class="font-medium text-indigo-600 hover:text-indigo-500">
+                        로그인하기
+                    </a>
+                </p>
             </div>
             
-            <div id="emailForm" style="display:none" class="bg-white p-6 rounded-lg shadow">
-                <button onclick="backToSelect()" class="text-sm text-gray-600 mb-4">← 다른 방법 선택</button>
-                <form id="emailReg" class="space-y-4">
-                    <input id="em" type="email" placeholder="이메일" required class="w-full px-3 py-2 border rounded-lg">
-                    <input id="pw" type="password" placeholder="비밀번호 (6자 이상)" required minlength="6" class="w-full px-3 py-2 border rounded-lg">
-                    <input id="pw2" type="password" placeholder="비밀번호 확인" required minlength="6" class="w-full px-3 py-2 border rounded-lg">
-                    <input id="nm" type="text" placeholder="이름" required class="w-full px-3 py-2 border rounded-lg">
-                    <label class="flex items-center text-sm">
-                        <input id="t1" type="checkbox" required class="mr-2"> 이용약관 동의 (필수)
-                    </label>
-                    <label class="flex items-center text-sm">
-                        <input id="p1" type="checkbox" required class="mr-2"> 개인정보처리방침 동의 (필수)
-                    </label>
-                    <button type="submit" class="w-full py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">가입하기</button>
+            <!-- 회원가입 방법 선택 -->
+            <div id="registerMethodSelection" class="mt-8">
+                <h3 class="text-center text-lg font-semibold text-gray-900 mb-6">회원가입 방법을 선택해주세요</h3>
+                <div class="grid md:grid-cols-3 gap-4">
+                    <!-- 이메일 회원가입 -->
+                    <button onclick="selectRegisterMethod('email')" 
+                        class="register-method-btn flex flex-col items-center justify-center p-6 border-2 border-gray-300 rounded-lg hover:border-indigo-500 hover:bg-indigo-50 transition-all">
+                        <i class="fas fa-envelope text-4xl text-indigo-600 mb-3"></i>
+                        <span class="text-lg font-semibold text-gray-900">이메일</span>
+                        <span class="text-sm text-gray-500 mt-1">이메일로 가입</span>
+                    </button>
+                    
+                    <!-- 카카오 회원가입 -->
+                    <button onclick="selectRegisterMethod('kakao')" 
+                        class="register-method-btn flex flex-col items-center justify-center p-6 border-2 border-gray-300 rounded-lg hover:border-yellow-400 hover:bg-yellow-50 transition-all">
+                        <img src="https://developers.kakao.com/assets/img/about/logos/kakaolink/kakaolink_btn_small.png" 
+                             alt="Kakao" class="w-12 h-12 mb-3">
+                        <span class="text-lg font-semibold text-gray-900">카카오</span>
+                        <span class="text-sm text-gray-500 mt-1">카카오로 간편 가입</span>
+                    </button>
+                    
+                    <!-- 전화번호 회원가입 -->
+                    <button onclick="selectRegisterMethod('phone')" 
+                        class="register-method-btn flex flex-col items-center justify-center p-6 border-2 border-gray-300 rounded-lg hover:border-green-500 hover:bg-green-50 transition-all">
+                        <i class="fas fa-mobile-alt text-4xl text-green-600 mb-3"></i>
+                        <span class="text-lg font-semibold text-gray-900">전화번호</span>
+                        <span class="text-sm text-gray-500 mt-1">휴대폰 본인인증</span>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- 이메일 회원가입 폼 -->
+            <div id="emailRegisterForm" style="display:none">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-lg font-semibold text-gray-900">
+                        <i class="fas fa-envelope text-indigo-600 mr-2"></i>이메일 회원가입
+                    </h3>
+                    <button onclick="goBackToMethodSelection()" class="text-sm text-gray-600 hover:text-gray-900">
+                        <i class="fas fa-arrow-left mr-1"></i>다른 방법 선택
+                    </button>
+                </div>
+                <form id="emailForm" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">이메일 *</label>
+                        <input id="email_email" type="email" required
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">비밀번호 * (6자 이상)</label>
+                        <input id="email_password" type="password" required minlength="6"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">비밀번호 확인 *</label>
+                        <input id="email_password_confirm" type="password" required minlength="6"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">이름 *</label>
+                        <input id="email_name" type="text" required
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">휴대폰 번호 (선택)</label>
+                        <input id="email_phone" type="tel" placeholder="01012345678"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">생년월일 (선택)</label>
+                        <div class="grid grid-cols-3 gap-2">
+                            <select id="email_birth_year" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+                                <option value="">년도</option>
+                            </select>
+                            <select id="email_birth_month" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+                                <option value="">월</option>
+                            </select>
+                            <select id="email_birth_day" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+                                <option value="">일</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="space-y-2 pt-4 border-t">
+                        <label class="flex items-center">
+                            <input id="email_terms_agreed" type="checkbox" required class="mr-2 w-4 h-4">
+                            <span class="text-sm text-gray-700">(필수) <a href="/terms" class="text-indigo-600 hover:underline" target="_blank">이용약관</a>에 동의합니다</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input id="email_privacy_agreed" type="checkbox" required class="mr-2 w-4 h-4">
+                            <span class="text-sm text-gray-700">(필수) <a href="/privacy" class="text-indigo-600 hover:underline" target="_blank">개인정보처리방침</a>에 동의합니다</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input id="email_marketing_agreed" type="checkbox" class="mr-2 w-4 h-4">
+                            <span class="text-sm text-gray-700">(선택) 마케팅 정보 수신에 동의합니다</span>
+                        </label>
+                    </div>
+                    <button type="submit"
+                        class="w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        <i class="fas fa-envelope mr-2"></i>이메일로 가입하기
+                    </button>
                 </form>
             </div>
             
-            <div id="kakaoForm" style="display:none" class="bg-white p-6 rounded-lg shadow text-center">
-                <button onclick="backToSelect()" class="text-sm text-gray-600 mb-4">← 다른 방법 선택</button>
-                <p class="mb-4">카카오 계정으로 간편하게 가입하실 수 있습니다.</p>
-                <button onclick="location.href='/api/auth/kakao/login'" class="px-8 py-3 rounded-lg" style="background:#FEE500">
-                    카카오로 시작하기
-                </button>
+            <!-- 카카오 회원가입 (간편 가입) -->
+            <div id="kakaoRegisterForm" style="display:none">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-lg font-semibold text-gray-900">
+                        <img src="https://developers.kakao.com/assets/img/about/logos/kakaolink/kakaolink_btn_small.png" 
+                             alt="Kakao" class="w-6 h-6 inline mr-2">카카오 간편 가입
+                    </h3>
+                    <button onclick="goBackToMethodSelection()" class="text-sm text-gray-600 hover:text-gray-900">
+                        <i class="fas fa-arrow-left mr-1"></i>다른 방법 선택
+                    </button>
+                </div>
+                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+                    <p class="text-gray-700 mb-4">카카오 계정으로 간편하게 가입하실 수 있습니다.</p>
+                    <p class="text-sm text-gray-600 mb-6">카카오 계정 정보를 활용하여 빠르게 가입이 완료됩니다.</p>
+                    <button onclick="registerWithKakao()" type="button"
+                        class="w-full md:w-auto px-8 py-3 border border-transparent rounded-md shadow-sm text-sm font-medium text-gray-900 hover:opacity-90 transition-opacity"
+                        style="background-color: #FEE500;">
+                        <img src="https://developers.kakao.com/assets/img/about/logos/kakaolink/kakaolink_btn_small.png" 
+                             alt="Kakao" class="w-5 h-5 inline mr-2">
+                        카카오로 시작하기
+                    </button>
+                </div>
             </div>
             
-            <div id="phoneForm" style="display:none" class="bg-white p-6 rounded-lg shadow">
-                <button onclick="backToSelect()" class="text-sm text-gray-600 mb-4">← 다른 방법 선택</button>
-                <form id="phoneReg" class="space-y-4">
-                    <div class="flex gap-2">
-                        <input id="ph" type="tel" placeholder="01012345678" required class="flex-1 px-3 py-2 border rounded-lg">
-                        <button type="button" onclick="verify()" class="px-4 py-2 bg-green-600 text-white rounded-lg">인증요청</button>
+            <!-- 전화번호 회원가입 -->
+            <div id="phoneRegisterForm" style="display:none">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-lg font-semibold text-gray-900">
+                        <i class="fas fa-mobile-alt text-green-600 mr-2"></i>전화번호 회원가입
+                    </h3>
+                    <button onclick="goBackToMethodSelection()" class="text-sm text-gray-600 hover:text-gray-900">
+                        <i class="fas fa-arrow-left mr-1"></i>다른 방법 선택
+                    </button>
+                </div>
+                <form id="phoneForm" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">휴대폰 번호 *</label>
+                        <div class="flex gap-2">
+                            <input id="phone_number" type="tel" required placeholder="01012345678"
+                                class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500">
+                            <button type="button" onclick="requestPhoneVerification()" id="requestVerifyBtn"
+                                class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 whitespace-nowrap">
+                                인증요청
+                            </button>
+                        </div>
                     </div>
-                    <div id="codeSection" style="display:none" class="flex gap-2">
-                        <input id="code" type="text" placeholder="인증번호" required class="flex-1 px-3 py-2 border rounded-lg">
-                        <button type="button" onclick="checkCode()" class="px-4 py-2 bg-green-600 text-white rounded-lg">확인</button>
+                    <div id="verificationCodeSection" style="display:none">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">인증번호 *</label>
+                        <div class="flex gap-2">
+                            <input id="verification_code" type="text" required placeholder="6자리 인증번호"
+                                class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500">
+                            <button type="button" onclick="verifyPhoneCode()" id="verifyCodeBtn"
+                                class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 whitespace-nowrap">
+                                확인
+                            </button>
+                        </div>
+                        <p id="verificationTimer" class="text-sm text-red-600 mt-1"></p>
                     </div>
-                    <div id="phoneData" style="display:none">
-                        <div class="bg-green-50 p-3 rounded mb-4">✓ 인증 완료</div>
-                        <input id="pnm" type="text" placeholder="이름" required class="w-full px-3 py-2 border rounded-lg mb-4">
-                        <input id="ppw" type="password" placeholder="비밀번호" required minlength="6" class="w-full px-3 py-2 border rounded-lg mb-4">
-                        <input id="ppw2" type="password" placeholder="비밀번호 확인" required minlength="6" class="w-full px-3 py-2 border rounded-lg mb-4">
-                        <label class="flex items-center text-sm mb-2">
-                            <input id="pt1" type="checkbox" required class="mr-2"> 이용약관 동의
-                        </label>
-                        <label class="flex items-center text-sm mb-4">
-                            <input id="pp1" type="checkbox" required class="mr-2"> 개인정보처리방침 동의
-                        </label>
-                        <button type="submit" class="w-full py-3 bg-green-600 text-white rounded-lg">가입하기</button>
+                    <div id="phoneVerifiedSection" style="display:none">
+                        <div class="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+                            <p class="text-sm text-green-700">
+                                <i class="fas fa-check-circle mr-1"></i>휴대폰 인증이 완료되었습니다.
+                            </p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">이름 *</label>
+                            <input id="phone_name" type="text" required
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">비밀번호 * (6자 이상)</label>
+                            <input id="phone_password" type="password" required minlength="6"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">비밀번호 확인 *</label>
+                            <input id="phone_password_confirm" type="password" required minlength="6"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">생년월일 (선택)</label>
+                            <div class="grid grid-cols-3 gap-2">
+                                <select id="phone_birth_year" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500">
+                                    <option value="">년도</option>
+                                </select>
+                                <select id="phone_birth_month" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500">
+                                    <option value="">월</option>
+                                </select>
+                                <select id="phone_birth_day" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500">
+                                    <option value="">일</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="space-y-2 pt-4 border-t">
+                            <label class="flex items-center">
+                                <input id="phone_terms_agreed" type="checkbox" required class="mr-2 w-4 h-4">
+                                <span class="text-sm text-gray-700">(필수) <a href="/terms" class="text-green-600 hover:underline" target="_blank">이용약관</a>에 동의합니다</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input id="phone_privacy_agreed" type="checkbox" required class="mr-2 w-4 h-4">
+                                <span class="text-sm text-gray-700">(필수) <a href="/privacy" class="text-green-600 hover:underline" target="_blank">개인정보처리방침</a>에 동의합니다</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input id="phone_marketing_agreed" type="checkbox" class="mr-2 w-4 h-4">
+                                <span class="text-sm text-gray-700">(선택) 마케팅 정보 수신에 동의합니다</span>
+                            </label>
+                        </div>
+                        <button type="submit"
+                            class="w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                            <i class="fas fa-mobile-alt mr-2"></i>전화번호로 가입하기
+                        </button>
                     </div>
                 </form>
             </div>
@@ -301,33 +457,119 @@ pages.get('/register', (c) => {
     </div>
 
     <script>
-        if(AuthManager.isLoggedIn()) location.href='/my-courses'
-        function showForm(t){document.getElementById('methodSelect').style.display='none';document.getElementById(t+'Form').style.display='block'}
-        function backToSelect(){document.getElementById('methodSelect').style.display='grid';['email','kakao','phone'].forEach(t=>document.getElementById(t+'Form').style.display='none')}
-        
-        document.getElementById('emailReg').onsubmit=async e=>{
-            e.preventDefault()
-            const em=document.getElementById('em').value,pw=document.getElementById('pw').value,pw2=document.getElementById('pw2').value,nm=document.getElementById('nm').value
-            if(pw!==pw2)return showToast('비밀번호 불일치','error')
-            try{
-                const r=await axios.post('/api/auth/register',{email:em,password:pw,name:nm,terms_agreed:document.getElementById('t1').checked,privacy_agreed:document.getElementById('p1').checked,marketing_agreed:false})
-                if(r.data.success){showToast('가입 완료','success');setTimeout(()=>location.href='/login',1500)}
-            }catch(e){showToast(e.response?.data?.error||'가입 실패','error')}
+        // 이미 로그인된 경우 리다이렉트
+        if (AuthManager.isLoggedIn()) {
+            window.location.href = '/my-courses'
+        }
+
+        // 회원가입 방법 선택
+        function selectRegisterMethod(method) {
+            document.getElementById('registerMethodSelection').style.display = 'none'
+            
+            if (method === 'email') {
+                document.getElementById('emailRegisterForm').style.display = 'block'
+                initBirthDateSelectors('email')
+            } else if (method === 'kakao') {
+                document.getElementById('kakaoRegisterForm').style.display = 'block'
+            } else if (method === 'phone') {
+                document.getElementById('phoneRegisterForm').style.display = 'block'
+                initBirthDateSelectors('phone')
+            }
         }
         
-        function verify(){document.getElementById('codeSection').style.display='flex';showToast('인증번호: 123456','success')}
-        function checkCode(){if(document.getElementById('code').value==='123456'){document.getElementById('codeSection').style.display='none';document.getElementById('phoneData').style.display='block';showToast('인증 완료','success')}else{showToast('인증번호 불일치','error')}}
-        
-        document.getElementById('phoneReg').onsubmit=async e=>{
-            e.preventDefault()
-            const ph=document.getElementById('ph').value,nm=document.getElementById('pnm').value,pw=document.getElementById('ppw').value,pw2=document.getElementById('ppw2').value
-            if(pw!==pw2)return showToast('비밀번호 불일치','error')
-            try{
-                const em=ph+'@phone.mindstory.co.kr'
-                const r=await axios.post('/api/auth/register',{email:em,password:pw,name:nm,phone:ph,terms_agreed:document.getElementById('pt1').checked,privacy_agreed:document.getElementById('pp1').checked,marketing_agreed:false})
-                if(r.data.success){showToast('가입 완료','success');setTimeout(()=>location.href='/login',1500)}
-            }catch(e){showToast(e.response?.data?.error||'가입 실패','error')}
+        // 방법 선택으로 돌아가기
+        function goBackToMethodSelection() {
+            document.getElementById('registerMethodSelection').style.display = 'block'
+            document.getElementById('emailRegisterForm').style.display = 'none'
+            document.getElementById('kakaoRegisterForm').style.display = 'none'
+            document.getElementById('phoneRegisterForm').style.display = 'none'
         }
+        
+        // 카카오 회원가입
+        function registerWithKakao() {
+            window.location.href = '/api/auth/kakao/login';
+        }
+        
+        // 생년월일 드롭다운 초기화
+        function initBirthDateSelectors(prefix) {
+            const birthYearSelect = document.getElementById(prefix + '_birth_year')
+            const birthMonthSelect = document.getElementById(prefix + '_birth_month')
+            const birthDaySelect = document.getElementById(prefix + '_birth_day')
+            
+            // 60세 기준 (현재년도 - 60 ~ 현재년도 - 18)
+            const currentYear = new Date().getFullYear()
+            for (let year = currentYear - 60; year <= currentYear - 18; year++) {
+                const option = document.createElement('option')
+                option.value = year
+                option.textContent = year + '년'
+                birthYearSelect.appendChild(option)
+            }
+            
+            for (let month = 1; month <= 12; month++) {
+                const option = document.createElement('option')
+                option.value = month.toString().padStart(2, '0')
+                option.textContent = month + '월'
+                birthMonthSelect.appendChild(option)
+            }
+            
+            for (let day = 1; day <= 31; day++) {
+                const option = document.createElement('option')
+                option.value = day.toString().padStart(2, '0')
+                option.textContent = day + '일'
+                birthDaySelect.appendChild(option)
+            }
+        }
+        
+        // 이메일 회원가입
+        document.getElementById('emailForm').addEventListener('submit', async (e) => {
+            e.preventDefault()
+            
+            const email = document.getElementById('email_email').value
+            const password = document.getElementById('email_password').value
+            const password_confirm = document.getElementById('email_password_confirm').value
+            const name = document.getElementById('email_name').value
+            const phone = document.getElementById('email_phone').value
+            const terms_agreed = document.getElementById('email_terms_agreed').checked
+            const privacy_agreed = document.getElementById('email_privacy_agreed').checked
+            const marketing_agreed = document.getElementById('email_marketing_agreed').checked
+            
+            // 비밀번호 확인
+            if (password !== password_confirm) {
+                showToast('비밀번호가 일치하지 않습니다.', 'error')
+                return
+            }
+            
+            // 생년월일 조합
+            const year = document.getElementById('email_birth_year').value
+            const month = document.getElementById('email_birth_month').value
+            const day = document.getElementById('email_birth_day').value
+            const birth_date = (year && month && day) ? \`\${year}-\${month}-\${day}\` : null
+            
+            const data = {
+                email: document.getElementById('email').value,
+                password: document.getElementById('password').value,
+                name: document.getElementById('name').value,
+                phone: document.getElementById('phone').value || undefined,
+                birth_date: birthDate,
+                terms_agreed: document.getElementById('terms_agreed').checked,
+                privacy_agreed: document.getElementById('privacy_agreed').checked,
+                marketing_agreed: document.getElementById('marketing_agreed').checked
+            }
+            
+            try {
+                const response = await axios.post('/api/auth/register', data)
+                
+                if (response.data.success) {
+                    showToast('회원가입이 완료되었습니다. 로그인해주세요.', 'success')
+                    setTimeout(() => {
+                        window.location.href = '/login'
+                    }, 1500)
+                }
+            } catch (error) {
+                const message = error.response?.data?.error || '회원가입에 실패했습니다.'
+                showToast(message, 'error')
+            }
+        })
     </script>
     
     ${getFooter()}
@@ -336,6 +578,9 @@ pages.get('/register', (c) => {
 })
 
 /**
+ * GET /courses/:id
+ * 과정 상세 페이지
+ */
 pages.get('/courses/:id', async (c) => {
   const courseId = c.req.param('id')
   
