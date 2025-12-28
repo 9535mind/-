@@ -21,7 +21,10 @@ import admin from './routes/admin'
 import pages from './routes/pages'
 import pagesMy from './routes/pages-my'
 import pagesAbout from './routes/pages-about'
+import pagesAdmin from './routes/pages-admin'
 import popups from './routes/popups'
+import videos from './routes/videos'
+import progress from './routes/progress'
 
 const app = new Hono<{ Bindings: Bindings }>()
 
@@ -41,12 +44,15 @@ app.route('/api/payments-v2', paymentsV2)  // 토스페이먼츠 연동
 app.route('/api/certificates', certificates)
 app.route('/api/admin', admin)
 app.route('/api/popups', popups)
+app.route('/api/videos', videos)  // 영상 관리
+app.route('/api/progress', progress)  // 진도율 추적
 
 // 페이지 라우트
 app.route('/', pages)
 app.route('/', pagesMy)
 app.route('/', pagesAbout)
 app.route('/', pagesPayment)  // 결제 페이지
+app.route('/admin', pagesAdmin)  // 관리자 페이지
 
 // 홈페이지
 app.get('/', (c) => {

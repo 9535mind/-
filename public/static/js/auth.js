@@ -1,129 +1,104 @@
 /**
- * 인증 관련 유틸리티
+ * 인증 관련 공통 함수
  */
 
-// 세션 토큰 저장/조회
-const AuthManager = {
-  // 로그인 상태 확인
-  isLoggedIn() {
-    return !!localStorage.getItem('session_token')
-  },
-
-  // 세션 토큰 저장
-  saveSession(token, user) {
-    localStorage.setItem('session_token', token)
-    localStorage.setItem('user', JSON.stringify(user))
-  },
-
-  // 세션 토큰 가져오기
-  getToken() {
-    return localStorage.getItem('session_token')
-  },
-
-  // 사용자 정보 가져오기
-  getUser() {
-    const userStr = localStorage.getItem('user')
-    return userStr ? JSON.parse(userStr) : null
-  },
-
-  // 로그아웃
-  logout() {
-    localStorage.removeItem('session_token')
-    localStorage.removeItem('user')
-  },
-
-  // 관리자 여부 확인
-  isAdmin() {
-    const user = this.getUser()
-    return user && user.role === 'admin'
-  },
-
-  // API 요청 헤더 생성
-  getAuthHeaders() {
-    const token = this.getToken()
-    return token ? { 'Authorization': `Bearer ${token}` } : {}
-  }
+// 세션 토큰 가져오기
+function getSessionToken() {
+  return localStorage.getItem('session_token') || sessionStorage.getItem('session_token');
 }
 
-// Axios 인터셉터 설정
-if (typeof axios !== 'undefined') {
-  // 요청 인터셉터 - 자동으로 토큰 추가
-  axios.interceptors.request.use(config => {
-    const token = AuthManager.getToken()
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
-    return config
-  })
-
-  // 응답 인터셉터 - 401 에러 시 로그인 페이지로
-  axios.interceptors.response.use(
-    response => response,
-    error => {
-      if (error.response && error.response.status === 401) {
-        AuthManager.logout()
-        if (window.location.pathname !== '/login') {
-          window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname)
-        }
-      }
-      return Promise.reject(error)
-    }
-  )
-}
-
-// 페이지 로드 시 로그인 필수 체크
-function requireAuth() {
-  if (!AuthManager.isLoggedIn()) {
-    window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname)
-    return false
-  }
-  return true
-}
-
-// 관리자 권한 필수 체크
-function requireAdmin() {
-  if (!AuthManager.isLoggedIn()) {
-    window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname)
-    return false
-  }
-  if (!AuthManager.isAdmin()) {
-    alert('관리자 권한이 필요합니다.')
-    window.location.href = '/'
-    return false
-  }
-  return true
-}
-
-// 헤더 업데이트 (로그인 상태 표시)
-function updateHeader() {
-  const headerAuthButtons = document.getElementById('headerAuthButtons')
-  const headerUserMenu = document.getElementById('headerUserMenu')
-  
-  if (!headerAuthButtons || !headerUserMenu) return
-
-  if (AuthManager.isLoggedIn()) {
-    const user = AuthManager.getUser()
-    headerAuthButtons.style.display = 'none'
-    headerUserMenu.style.display = 'flex'
-    
-    const userName = document.getElementById('headerUserName')
-    if (userName) {
-      userName.textContent = user.name
-    }
+// 세션 토큰 저장
+function setSessionToken(token, remember = false) {
+  if (remember) {
+    localStorage.setItem('session_token', token);
   } else {
-    headerAuthButtons.style.display = 'flex'
-    headerUserMenu.style.display = 'none'
+    sessionStorage.setItem('session_token', token);
   }
 }
 
-// 로그아웃 처리
-async function handleLogout() {
+// 세션 토큰 삭제
+function clearSessionToken() {
+  localStorage.removeItem('session_token');
+  sessionStorage.removeItem('session_token');
+}
+
+// 로그아웃
+async function logout() {
+  const token = getSessionToken();
+  if (token) {
+    try {
+      await axios.post('/api/auth/logout', {}, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  }
+  
+  clearSessionToken();
+  window.location.href = '/login';
+}
+
+// 현재 사용자 정보 가져오기
+async function getCurrentUser() {
+  const token = getSessionToken();
+  if (!token) {
+    window.location.href = '/login';
+    return null;
+  }
+
   try {
-    await axios.post('/api/auth/logout')
+    const response = await axios.get('/api/auth/me', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    if (response.data.success) {
+      return response.data.data;
+    } else {
+      clearSessionToken();
+      window.location.href = '/login';
+      return null;
+    }
   } catch (error) {
-    console.error('Logout error:', error)
-  } finally {
-    AuthManager.logout()
-    window.location.href = '/'
+    console.error('Get user error:', error);
+    clearSessionToken();
+    window.location.href = '/login';
+    return null;
+  }
+}
+
+// 관리자 권한 확인
+async function requireAdmin() {
+  const user = await getCurrentUser();
+  if (!user || user.role !== 'admin') {
+    alert('관리자 권한이 필요합니다.');
+    window.location.href = '/';
+    return null;
+  }
+  return user;
+}
+
+// API 요청 헬퍼 (자동으로 토큰 포함)
+async function apiRequest(method, url, data = null) {
+  const token = getSessionToken();
+  const config = {
+    method,
+    url,
+    headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+  };
+
+  if (data) {
+    config.data = data;
+  }
+
+  try {
+    const response = await axios(config);
+    return response.data;
+  } catch (error) {
+    if (error.response?.status === 401) {
+      clearSessionToken();
+      window.location.href = '/login';
+    }
+    throw error;
   }
 }

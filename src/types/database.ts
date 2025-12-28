@@ -5,7 +5,8 @@
 // Cloudflare Bindings
 export type Bindings = {
   DB: D1Database;
-  // STORAGE: R2Bucket; // Uncomment when R2 is needed
+  VIDEO_STORAGE: R2Bucket;  // For course videos
+  STORAGE: R2Bucket;        // For PDFs, certificates, documents
 }
 
 // User Types

@@ -3,15 +3,15 @@
 -- ============================================
 
 -- 1. 관리자 계정 생성
--- 비밀번호: admin123 (실제 운영시 해시 처리 필요)
+-- 비밀번호: admin123 (SHA-256 해시)
 INSERT INTO users (email, password, name, phone, role, status, terms_agreed, privacy_agreed) VALUES 
-('admin@mindstory.co.kr', 'admin123', '관리자', '01012345678', 'admin', 'active', 1, 1);
+('admin@mindstory.co.kr', '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9', '박종석 (관리자)', '062-959-9535', 'admin', 'active', 1, 1);
 
--- 2. 테스트 학생 계정
+-- 2. 테스트 학생 계정 (비밀번호: test123)
 INSERT INTO users (email, password, name, phone, role, status, phone_verified, phone_verified_at, birth_date, terms_agreed, privacy_agreed) VALUES 
-('student1@example.com', 'test123', '김학생', '01011112222', 'student', 'active', 1, CURRENT_TIMESTAMP, '1990-01-15', 1, 1),
-('student2@example.com', 'test123', '이수강', '01022223333', 'student', 'active', 1, CURRENT_TIMESTAMP, '1992-05-20', 1, 1),
-('student3@example.com', 'test123', '박교육', '01033334444', 'student', 'active', 0, NULL, '1988-09-10', 1, 1);
+('student1@example.com', 'ecd71870d1963316a97e3ac3408c9835ad8cf0f3c1bc703527c30265534f75ae', '김민수', '01011112222', 'student', 'active', 1, CURRENT_TIMESTAMP, '1990-01-15', 1, 1),
+('student2@example.com', 'ecd71870d1963316a97e3ac3408c9835ad8cf0f3c1bc703527c30265534f75ae', '이영희', '01022223333', 'student', 'active', 1, CURRENT_TIMESTAMP, '1992-05-20', 1, 1),
+('student3@example.com', 'ecd71870d1963316a97e3ac3408c9835ad8cf0f3c1bc703527c30265534f75ae', '박철수', '01033334444', 'student', 'active', 0, NULL, '1988-09-10', 1, 1);
 
 -- 3. 샘플 과정 생성
 INSERT INTO courses (title, description, thumbnail_url, course_type, duration_days, total_lessons, total_duration_minutes, completion_progress_rate, price, discount_price, is_free, status, published_at, display_order, is_featured) VALUES 
