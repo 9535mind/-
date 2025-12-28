@@ -383,4 +383,150 @@ pages.get('/register', (c) => {
   `)
 })
 
+/**
+ * GET /courses/:id
+ * 과정 상세 페이지
+ */
+pages.get('/courses/:id', async (c) => {
+  const courseId = c.req.param('id')
+  
+  return c.html(`
+    ${getCommonHead('과정 상세')}
+    ${getHeader()}
+    
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div id="courseDetail">
+            <div class="text-center py-12">
+                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+                <p class="mt-4 text-gray-600">과정 정보를 불러오는 중...</p>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        async function loadCourseDetail() {
+            try {
+                const response = await axios.get('/api/courses/${courseId}')
+                const { course, lessons, enrollment } = response.data.data
+                
+                const detailHtml = \`
+                    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                        <!-- 과정 헤더 -->
+                        <div class="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-8">
+                            <div class="max-w-4xl mx-auto">
+                                <h1 class="text-4xl font-bold mb-4">\${course.title}</h1>
+                                <p class="text-xl text-indigo-100">\${course.description || ''}</p>
+                            </div>
+                        </div>
+                        
+                        <!-- 과정 정보 -->
+                        <div class="p-8">
+                            <div class="max-w-4xl mx-auto">
+                                <!-- 기본 정보 -->
+                                <div class="grid md:grid-cols-3 gap-6 mb-8">
+                                    <div class="bg-gray-50 p-4 rounded-lg text-center">
+                                        <i class="fas fa-calendar text-3xl text-indigo-600 mb-2"></i>
+                                        <p class="text-sm text-gray-600">수강 기간</p>
+                                        <p class="text-xl font-bold text-gray-900">\${course.duration_days}일</p>
+                                    </div>
+                                    <div class="bg-gray-50 p-4 rounded-lg text-center">
+                                        <i class="fas fa-book text-3xl text-indigo-600 mb-2"></i>
+                                        <p class="text-sm text-gray-600">총 차시</p>
+                                        <p class="text-xl font-bold text-gray-900">\${course.total_lessons}강</p>
+                                    </div>
+                                    <div class="bg-gray-50 p-4 rounded-lg text-center">
+                                        <i class="fas fa-clock text-3xl text-indigo-600 mb-2"></i>
+                                        <p class="text-sm text-gray-600">학습 시간</p>
+                                        <p class="text-xl font-bold text-gray-900">\${Math.floor(course.total_duration_minutes / 60)}시간</p>
+                                    </div>
+                                </div>
+                                
+                                <!-- 가격 정보 -->
+                                <div class="bg-indigo-50 p-6 rounded-lg mb-8">
+                                    <div class="flex justify-between items-center">
+                                        <div>
+                                            <p class="text-gray-600 mb-2">수강료</p>
+                                            \${course.is_free ? 
+                                                '<p class="text-3xl font-bold text-green-600">무료</p>' :
+                                                \`<div>
+                                                    \${course.discount_price ? 
+                                                        \`<p class="text-gray-400 line-through text-lg">\${course.price.toLocaleString()}원</p>
+                                                        <p class="text-3xl font-bold text-indigo-600">\${course.discount_price.toLocaleString()}원</p>\` :
+                                                        \`<p class="text-3xl font-bold text-indigo-600">\${course.price.toLocaleString()}원</p>\`
+                                                    }
+                                                </div>\`
+                                            }
+                                        </div>
+                                        <button onclick="enrollCourse(\${course.id})" class="bg-indigo-600 text-white px-8 py-3 rounded-lg font-bold text-lg hover:bg-indigo-700 transition">
+                                            \${enrollment ? '학습하기' : '수강 신청'}
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <!-- 커리큘럼 -->
+                                <div class="mb-8">
+                                    <h2 class="text-2xl font-bold text-gray-900 mb-4">
+                                        <i class="fas fa-list mr-2"></i>커리큘럼
+                                    </h2>
+                                    <div class="space-y-2">
+                                        \${lessons.map((lesson, index) => \`
+                                            <div class="bg-white border border-gray-200 rounded-lg p-4 hover:border-indigo-300 transition">
+                                                <div class="flex justify-between items-center">
+                                                    <div class="flex items-center">
+                                                        <span class="bg-indigo-100 text-indigo-600 font-bold w-8 h-8 rounded-full flex items-center justify-center mr-3">
+                                                            \${index + 1}
+                                                        </span>
+                                                        <span class="font-semibold text-gray-900">\${lesson.title}</span>
+                                                    </div>
+                                                    <span class="text-gray-500 text-sm">
+                                                        <i class="fas fa-clock mr-1"></i>\${lesson.duration_minutes}분
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        \`).join('')}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                \`
+                
+                document.getElementById('courseDetail').innerHTML = detailHtml
+                
+            } catch (error) {
+                console.error('Failed to load course:', error)
+                document.getElementById('courseDetail').innerHTML = \`
+                    <div class="text-center py-12">
+                        <i class="fas fa-exclamation-circle text-5xl text-red-500 mb-4"></i>
+                        <p class="text-xl text-gray-700">과정 정보를 불러오는데 실패했습니다.</p>
+                        <button onclick="window.location.href='/'" class="mt-4 bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700">
+                            홈으로 돌아가기
+                        </button>
+                    </div>
+                \`
+            }
+        }
+        
+        function enrollCourse(courseId) {
+            if (!AuthManager.isLoggedIn()) {
+                showToast('로그인이 필요합니다.', 'error')
+                setTimeout(() => {
+                    window.location.href = '/login?redirect=/courses/' + courseId
+                }, 1000)
+                return
+            }
+            
+            window.location.href = '/payment/checkout/' + courseId
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            loadCourseDetail()
+        })
+    </script>
+    
+    ${getFooter()}
+    ${getCommonFoot()}
+  `)
+})
+
 export default pages

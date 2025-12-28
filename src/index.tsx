@@ -192,24 +192,24 @@ app.get('/', (c) => {
                     </div>
                     <div class="text-center p-6 bg-white rounded-lg shadow-lg hover:shadow-xl transition">
                         <div class="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 btn-success">
-                            <i class="fas fa-certificate text-3xl text-white"></i>
+                            <i class="fas fa-award text-3xl text-white"></i>
                         </div>
-                        <h4 class="text-xl font-bold mb-3">수료증 발급</h4>
-                        <p class="text-gray-600">과정 수료 후<br>공식 수료증 발급</p>
+                        <h4 class="text-xl font-bold mb-3">민간자격증</h4>
+                        <p class="text-gray-600">수료 후 자격증<br>취득 가능 (별도 신청)</p>
                     </div>
                     <div class="text-center p-6 bg-white rounded-lg shadow-lg hover:shadow-xl transition">
                         <div class="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 btn-warning">
-                            <i class="fas fa-user-graduate text-3xl text-white"></i>
+                            <i class="fas fa-chalkboard-teacher text-3xl text-white"></i>
                         </div>
-                        <h4 class="text-xl font-bold mb-3">전문가 강의</h4>
-                        <p class="text-gray-600">현장 20년 경력<br>전문가 직강</p>
+                        <h4 class="text-xl font-bold mb-3">박종석 대표 직강</h4>
+                        <p class="text-gray-600">20년 현장 경험<br>실전 노하우 전수</p>
                     </div>
                     <div class="text-center p-6 bg-white rounded-lg shadow-lg hover:shadow-xl transition">
                         <div class="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 btn-primary">
-                            <i class="fas fa-clock text-3xl text-white"></i>
+                            <i class="fas fa-redo text-3xl text-white"></i>
                         </div>
-                        <h4 class="text-xl font-bold mb-3">평생 수강</h4>
-                        <p class="text-gray-600">수강 기간 내<br>무제한 반복 학습</p>
+                        <h4 class="text-xl font-bold mb-3">반복 학습</h4>
+                        <p class="text-gray-600">수강 기간 내<br>무제한 복습 가능</p>
                     </div>
                 </div>
             </div>
