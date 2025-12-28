@@ -12,6 +12,7 @@ import { Bindings } from './types/database'
 // 라우트 임포트
 import auth from './routes/auth'
 import authKakao from './routes/auth-kakao'
+import authGoogle from './routes/auth-google'
 import courses from './routes/courses'
 import enrollments from './routes/enrollments'
 import payments from './routes/payments'
@@ -41,6 +42,7 @@ app.use('/static/*', serveStatic({ root: './public' }))
 // API 라우트
 app.route('/api/auth', auth)
 app.route('/api/auth/kakao', authKakao)  // 카카오 소셜 로그인
+app.route('/api/auth/google', authGoogle)  // 구글 소셜 로그인
 app.route('/api/courses', courses)
 app.route('/api/enrollments', enrollments)
 app.route('/api/payments', payments)
