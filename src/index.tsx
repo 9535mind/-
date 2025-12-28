@@ -76,14 +76,26 @@ app.get('/', (c) => {
         <script src="/static/js/utils.js"></script>
         <script src="/static/js/popup.js"></script>
         <style>
-            .hero-gradient {
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            /* 새로운 색상 팔레트 */
+            :root {
+                --color-primary: #007bff;      /* 밝은 파란색 */
+                --color-success: #28a745;      /* 생생한 초록색 */
+                --color-warning: #ffc107;      /* 따뜻한 오렌지 */
+                --color-primary-hover: #0056b3;
+                --color-success-hover: #218838;
+                --color-warning-hover: #e0a800;
             }
+            
+            .hero-gradient {
+                background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            }
+            
             .section-image {
                 background-size: cover;
                 background-position: center;
                 position: relative;
             }
+            
             .section-image::before {
                 content: '';
                 position: absolute;
@@ -93,6 +105,29 @@ app.get('/', (c) => {
                 bottom: 0;
                 background: rgba(0, 0, 0, 0.4);
             }
+            
+            /* 버튼 스타일 */
+            .btn-primary {
+                background-color: var(--color-primary);
+                color: white;
+            }
+            .btn-primary:hover {
+                background-color: var(--color-primary-hover);
+            }
+            .btn-success {
+                background-color: var(--color-success);
+                color: white;
+            }
+            .btn-success:hover {
+                background-color: var(--color-success-hover);
+            }
+            .btn-warning {
+                background-color: var(--color-warning);
+                color: #333;
+            }
+            .btn-warning:hover {
+                background-color: var(--color-warning-hover);
+            }
         </style>
     </head>
     <body class="bg-gray-50">
@@ -101,26 +136,26 @@ app.get('/', (c) => {
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div class="flex justify-between items-center py-4">
                     <div class="flex items-center">
-                        <a href="/" class="text-2xl font-bold text-indigo-600">마인드스토리 원격평생교육원</a>
+                        <a href="/" class="text-2xl font-bold" style="color: var(--color-primary);">마인드스토리 원격평생교육원</a>
                     </div>
                     <nav class="hidden md:flex space-x-8">
-                        <a href="#courses" class="text-gray-700 hover:text-indigo-600">과정 안내</a>
-                        <a href="/my-courses" class="text-gray-700 hover:text-indigo-600">내 강의실</a>
+                        <a href="#courses" class="text-gray-700 transition-colors duration-200" style="hover:color: var(--color-primary);" onmouseover="this.style.color='var(--color-primary)'" onmouseout="this.style.color=''">과정 안내</a>
+                        <a href="/my-courses" class="text-gray-700 transition-colors duration-200" onmouseover="this.style.color='var(--color-primary)'" onmouseout="this.style.color=''">내 강의실</a>
                     </nav>
                     <div id="headerAuthButtons" class="flex items-center space-x-4">
-                        <a href="/login" class="text-gray-700 hover:text-indigo-600">로그인</a>
-                        <a href="/register" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">회원가입</a>
+                        <a href="/login" class="text-gray-700 transition-colors duration-200" onmouseover="this.style.color='var(--color-primary)'" onmouseout="this.style.color=''">로그인</a>
+                        <a href="/register" class="btn-primary px-4 py-2 rounded-lg transition-colors duration-200">회원가입</a>
                     </div>
                     <div id="headerUserMenu" class="flex items-center space-x-4" style="display:none">
                         <span class="text-gray-700" id="headerUserName"></span>
-                        <button onclick="handleLogout()" class="text-gray-700 hover:text-indigo-600">로그아웃</button>
+                        <button onclick="handleLogout()" class="text-gray-700 transition-colors duration-200" onmouseover="this.style.color='var(--color-primary)'" onmouseout="this.style.color=''">로그아웃</button>
                     </div>
                 </div>
             </div>
         </header>
 
         <!-- 히어로 섹션 -->
-        <section class="section-image hero-gradient text-white py-32" style="background-image: url('https://sspark.genspark.ai/cfimages?u1=GpzsP270adFPwXaD%2BYwIzrfBmETVsvQS5z67l363YSNqETRqi0zj7sby8VC2yfLfIItR30RR3q6kh0N4sUPr20%2Be%2BW3HQKRrG%2BmOziLRaw4F2UjCwPvbUUdKB9fTpS3WiNRULKfRFEDR%2F3d9hHi6C5gW1O6SRINdW37Dl1%2FrolzTPa7jNkcVSLFWvYxQgSvmeDMunE3ABARm1IqqCkJYZpXujY1gPyxYv1yG3kTE4IEZGtOXydg8ej6NZC0aDcDdkcyxQq4DAB3XmR9%2B%2BGloxHUXfGe%2FGjQxvRB4vGLr&u2=z9hMHoXbXLvAxQI4&width=1024');">
+        <section class="section-image hero-gradient text-white py-32" style="background-image: url('https://www.genspark.ai/api/files/s/zktGaoUn?cache_control=3600');">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
                 <h2 class="text-5xl md:text-6xl font-bold mb-6 drop-shadow-lg">
                     마음을 이해하고 성장하는 여정
@@ -133,7 +168,7 @@ app.get('/', (c) => {
                     전문가와 함께하는 온라인 평생교육
                 </p>
                 <div class="flex justify-center gap-4">
-                    <button onclick="scrollToCourses()" class="bg-yellow-400 text-gray-900 px-10 py-4 rounded-lg font-bold text-lg hover:bg-yellow-300 transition shadow-xl transform hover:scale-105">
+                    <button onclick="scrollToCourses()" class="btn-warning px-10 py-4 rounded-lg font-bold text-lg hover:bg-yellow-300 transition shadow-xl transform hover:scale-105">
                         <i class="fas fa-graduation-cap mr-2"></i>
                         과정 둘러보기
                     </button>
@@ -150,7 +185,7 @@ app.get('/', (c) => {
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div class="grid md:grid-cols-2 gap-12 items-center">
                     <div>
-                        <img src="https://sspark.genspark.ai/cfimages?u1=pJKVys7yKdnM7hp9Wm3raUxJVc6L6GNtJjJWWMEZQAc7K75FcNOfMTelNoPz85QDddQimZvu3lvWUr%2BFfjQismPV0bi58B5jh1gDTZIsYCl8fz9D684GuYJ1pStO18ebcpnygXn7JLJcMrXx52X9xsTmkP1ApZp%2BnJQbUClahmdRchjiKIzbmw%3D%3D&u2=ol5ROhpVIu0sDFZT&width=1024" alt="교육 현장 - 전문 코칭 멘토링" class="rounded-lg shadow-2xl hover:shadow-3xl transition-shadow duration-300">
+                        <img src="https://www.genspark.ai/api/files/s/Y73JXeVz?cache_control=3600" alt="교육 현장 - 전문 코칭 멘토링" class="rounded-lg shadow-2xl hover:shadow-3xl transition-shadow duration-300">
                     </div>
                     <div>
                         <h3 class="text-4xl font-bold mb-6 text-gray-900">마인드스토리와 함께하는<br>특별한 성장 여정</h3>
@@ -161,7 +196,7 @@ app.get('/', (c) => {
                         <div class="space-y-4">
                             <div class="flex items-start">
                                 <div class="flex-shrink-0">
-                                    <div class="flex items-center justify-center h-12 w-12 rounded-md bg-indigo-500 text-white">
+                                    <div class="flex items-center justify-center h-12 w-12 rounded-md btn-primary">
                                         <i class="fas fa-check text-xl"></i>
                                     </div>
                                 </div>
@@ -172,7 +207,7 @@ app.get('/', (c) => {
                             </div>
                             <div class="flex items-start">
                                 <div class="flex-shrink-0">
-                                    <div class="flex items-center justify-center h-12 w-12 rounded-md bg-purple-500 text-white">
+                                    <div class="flex items-center justify-center h-12 w-12 rounded-md btn-success">
                                         <i class="fas fa-users text-xl"></i>
                                     </div>
                                 </div>
@@ -183,7 +218,7 @@ app.get('/', (c) => {
                             </div>
                             <div class="flex items-start">
                                 <div class="flex-shrink-0">
-                                    <div class="flex items-center justify-center h-12 w-12 rounded-md bg-pink-500 text-white">
+                                    <div class="flex items-center justify-center h-12 w-12 rounded-md btn-warning">
                                         <i class="fas fa-certificate text-xl"></i>
                                     </div>
                                 </div>
@@ -204,28 +239,28 @@ app.get('/', (c) => {
                 <h3 class="text-4xl font-bold text-center mb-16">왜 마인드스토리인가요?</h3>
                 <div class="grid md:grid-cols-4 gap-8">
                     <div class="text-center p-6 bg-white rounded-lg shadow-lg hover:shadow-xl transition">
-                        <div class="w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <div class="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 btn-primary">
                             <i class="fas fa-video text-3xl text-white"></i>
                         </div>
                         <h4 class="text-xl font-bold mb-3">언제 어디서나</h4>
                         <p class="text-gray-600">PC, 모바일, 태블릿<br>어디서든 학습 가능</p>
                     </div>
                     <div class="text-center p-6 bg-white rounded-lg shadow-lg hover:shadow-xl transition">
-                        <div class="w-20 h-20 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <div class="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 btn-success">
                             <i class="fas fa-certificate text-3xl text-white"></i>
                         </div>
                         <h4 class="text-xl font-bold mb-3">수료증 발급</h4>
                         <p class="text-gray-600">과정 수료 후<br>공식 수료증 발급</p>
                     </div>
                     <div class="text-center p-6 bg-white rounded-lg shadow-lg hover:shadow-xl transition">
-                        <div class="w-20 h-20 bg-gradient-to-br from-pink-500 to-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <div class="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 btn-warning">
                             <i class="fas fa-user-graduate text-3xl text-white"></i>
                         </div>
                         <h4 class="text-xl font-bold mb-3">전문가 강의</h4>
                         <p class="text-gray-600">현장 20년 경력<br>전문가 직강</p>
                     </div>
                     <div class="text-center p-6 bg-white rounded-lg shadow-lg hover:shadow-xl transition">
-                        <div class="w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <div class="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 btn-primary">
                             <i class="fas fa-clock text-3xl text-white"></i>
                         </div>
                         <h4 class="text-xl font-bold mb-3">평생 수강</h4>
@@ -389,7 +424,7 @@ app.get('/', (c) => {
                                             </div>\`
                                         }
                                     </div>
-                                    <button onclick="viewCourse(\${course.id})" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition">
+                                    <button onclick="viewCourse(\${course.id})" class="btn-primary px-4 py-2 rounded-lg transition">
                                         자세히 보기
                                     </button>
                                 </div>
