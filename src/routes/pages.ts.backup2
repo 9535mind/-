@@ -462,38 +462,7 @@ pages.get('/register', (c) => {
             window.location.href = '/my-courses'
         }
 
-        // ===== 유효성 검사 함수 =====
-
-        // 이메일 형식 검증
-        function validateEmail(email) {
-            const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-            return re.test(email)
-        }
-
-        // 전화번호 형식 검증 (010-xxxx-xxxx or 01012345678)
-        function validatePhone(phone) {
-            const re = /^01[0-9]{8,9}$/
-            return re.test(phone.replace(/-/g, ''))
-        }
-
-        // 비밀번호 강도 검증 (6자 이상, 영문+숫자 포함)
-        function validatePassword(password) {
-            if (password.length < 6) {
-                return { valid: false, message: '비밀번호는 6자 이상이어야 합니다.' }
-            }
-            
-            const hasLetter = /[a-zA-Z]/.test(password)
-            const hasNumber = /[0-9]/.test(password)
-            
-            if (!hasLetter || !hasNumber) {
-                return { valid: false, message: '비밀번호는 영문과 숫자를 포함해야 합니다.' }
-            }
-            
-            return { valid: true }
-        }
-
-        // ===== 회원가입 방법 선택 =====
-
+        // 회원가입 방법 선택
         function selectRegisterMethod(method) {
             document.getElementById('registerMethodSelection').style.display = 'none'
             
@@ -507,51 +476,25 @@ pages.get('/register', (c) => {
                 initBirthDateSelectors('phone')
             }
         }
-
+        
+        // 방법 선택으로 돌아가기
         function goBackToMethodSelection() {
             document.getElementById('registerMethodSelection').style.display = 'block'
             document.getElementById('emailRegisterForm').style.display = 'none'
             document.getElementById('kakaoRegisterForm').style.display = 'none'
             document.getElementById('phoneRegisterForm').style.display = 'none'
-            
-            // 입력 폼 초기화
-            resetForms()
         }
-
-        function resetForms() {
-            document.getElementById('emailForm').reset()
-            document.getElementById('phoneForm').reset()
-            document.getElementById('verificationCodeSection').style.display = 'none'
-            document.getElementById('phoneVerifiedSection').style.display = 'none'
-            window.phoneVerified = false
-            if (window.verificationTimer) {
-                clearInterval(window.verificationTimer)
-            }
-        }
-
-        // ===== 카카오 회원가입 =====
-
+        
+        // 카카오 회원가입
         function registerWithKakao() {
-            window.location.href = '/api/auth/kakao/login'
+            window.location.href = '/api/auth/kakao/login';
         }
-
-        // ===== 생년월일 드롭다운 초기화 =====
-
+        
+        // 생년월일 드롭다운 초기화
         function initBirthDateSelectors(prefix) {
             const birthYearSelect = document.getElementById(prefix + '_birth_year')
             const birthMonthSelect = document.getElementById(prefix + '_birth_month')
             const birthDaySelect = document.getElementById(prefix + '_birth_day')
-            
-            // 기존 옵션 제거 (첫 번째 옵션 제외)
-            while (birthYearSelect.options.length > 1) {
-                birthYearSelect.remove(1)
-            }
-            while (birthMonthSelect.options.length > 1) {
-                birthMonthSelect.remove(1)
-            }
-            while (birthDaySelect.options.length > 1) {
-                birthDaySelect.remove(1)
-            }
             
             // 60세 기준 (현재년도 - 60 ~ 현재년도 - 18)
             const currentYear = new Date().getFullYear()
@@ -576,50 +519,23 @@ pages.get('/register', (c) => {
                 birthDaySelect.appendChild(option)
             }
         }
-
-        // ===== 이메일 회원가입 =====
-
+        
+        // 이메일 회원가입
         document.getElementById('emailForm').addEventListener('submit', async (e) => {
             e.preventDefault()
             
-            const email = document.getElementById('email_email').value.trim()
+            const email = document.getElementById('email_email').value
             const password = document.getElementById('email_password').value
             const password_confirm = document.getElementById('email_password_confirm').value
-            const name = document.getElementById('email_name').value.trim()
-            const phone = document.getElementById('email_phone').value.trim()
+            const name = document.getElementById('email_name').value
+            const phone = document.getElementById('email_phone').value
             const terms_agreed = document.getElementById('email_terms_agreed').checked
             const privacy_agreed = document.getElementById('email_privacy_agreed').checked
             const marketing_agreed = document.getElementById('email_marketing_agreed').checked
             
-            // 유효성 검사
-            if (!validateEmail(email)) {
-                showToast('올바른 이메일 형식이 아닙니다.', 'error')
-                return
-            }
-            
-            const passwordCheck = validatePassword(password)
-            if (!passwordCheck.valid) {
-                showToast(passwordCheck.message, 'error')
-                return
-            }
-            
+            // 비밀번호 확인
             if (password !== password_confirm) {
                 showToast('비밀번호가 일치하지 않습니다.', 'error')
-                return
-            }
-            
-            if (!name) {
-                showToast('이름을 입력해주세요.', 'error')
-                return
-            }
-            
-            if (phone && !validatePhone(phone)) {
-                showToast('올바른 전화번호 형식이 아닙니다. (예: 01012345678)', 'error')
-                return
-            }
-            
-            if (!terms_agreed || !privacy_agreed) {
-                showToast('필수 약관에 동의해주세요.', 'error')
                 return
             }
             
@@ -630,160 +546,14 @@ pages.get('/register', (c) => {
             const birth_date = (year && month && day) ? \`\${year}-\${month}-\${day}\` : null
             
             const data = {
-                email: email,
-                password: password,
-                name: name,
-                phone: phone || null,
-                birth_date: birth_date,
-                terms_agreed: terms_agreed,
-                privacy_agreed: privacy_agreed,
-                marketing_agreed: marketing_agreed
-            }
-            
-            try {
-                const response = await axios.post('/api/auth/register', data)
-                
-                if (response.data.success) {
-                    showToast('회원가입이 완료되었습니다. 로그인해주세요.', 'success')
-                    setTimeout(() => {
-                        window.location.href = '/login'
-                    }, 1500)
-                }
-            } catch (error) {
-                const message = error.response?.data?.error || '회원가입에 실패했습니다.'
-                showToast(message, 'error')
-            }
-        })
-
-        // ===== 전화번호 회원가입 =====
-
-        // 전화번호 인증 요청
-        window.phoneVerified = false
-        window.verificationTimer = null
-
-        async function requestPhoneVerification() {
-            const phone = document.getElementById('phone_number').value.trim()
-            
-            if (!validatePhone(phone)) {
-                showToast('올바른 전화번호 형식이 아닙니다. (예: 01012345678)', 'error')
-                return
-            }
-            
-            // 테스트 모드: 인증번호 123456
-            showToast('인증번호가 발송되었습니다. (테스트: 123456)', 'success')
-            
-            // 인증번호 입력 섹션 표시
-            document.getElementById('verificationCodeSection').style.display = 'block'
-            document.getElementById('requestVerifyBtn').disabled = true
-            document.getElementById('requestVerifyBtn').textContent = '발송완료'
-            document.getElementById('requestVerifyBtn').classList.remove('bg-green-600', 'hover:bg-green-700')
-            document.getElementById('requestVerifyBtn').classList.add('bg-gray-400', 'cursor-not-allowed')
-            
-            // 3분 타이머 시작
-            let timeLeft = 180 // 3분 = 180초
-            const timerDisplay = document.getElementById('verificationTimer')
-            
-            if (window.verificationTimer) {
-                clearInterval(window.verificationTimer)
-            }
-            
-            window.verificationTimer = setInterval(() => {
-                timeLeft--
-                const minutes = Math.floor(timeLeft / 60)
-                const seconds = timeLeft % 60
-                timerDisplay.textContent = \`남은 시간: \${minutes}:\${seconds.toString().padStart(2, '0')}\`
-                
-                if (timeLeft <= 0) {
-                    clearInterval(window.verificationTimer)
-                    timerDisplay.textContent = '인증 시간이 만료되었습니다. 다시 요청해주세요.'
-                    document.getElementById('requestVerifyBtn').disabled = false
-                    document.getElementById('requestVerifyBtn').textContent = '재발송'
-                    document.getElementById('requestVerifyBtn').classList.remove('bg-gray-400', 'cursor-not-allowed')
-                    document.getElementById('requestVerifyBtn').classList.add('bg-green-600', 'hover:bg-green-700')
-                }
-            }, 1000)
-        }
-
-        // 인증번호 확인
-        function verifyPhoneCode() {
-            const code = document.getElementById('verification_code').value.trim()
-            
-            if (!code) {
-                showToast('인증번호를 입력해주세요.', 'error')
-                return
-            }
-            
-            // 테스트 모드: 인증번호 123456
-            if (code === '123456') {
-                window.phoneVerified = true
-                clearInterval(window.verificationTimer)
-                document.getElementById('verificationCodeSection').style.display = 'none'
-                document.getElementById('phoneVerifiedSection').style.display = 'block'
-                showToast('휴대폰 인증이 완료되었습니다.', 'success')
-            } else {
-                showToast('인증번호가 일치하지 않습니다. (테스트: 123456)', 'error')
-            }
-        }
-
-        // 전화번호 회원가입 제출
-        document.getElementById('phoneForm').addEventListener('submit', async (e) => {
-            e.preventDefault()
-            
-            if (!window.phoneVerified) {
-                showToast('휴대폰 인증을 완료해주세요.', 'error')
-                return
-            }
-            
-            const phone = document.getElementById('phone_number').value.trim()
-            const name = document.getElementById('phone_name').value.trim()
-            const password = document.getElementById('phone_password').value
-            const password_confirm = document.getElementById('phone_password_confirm').value
-            const terms_agreed = document.getElementById('phone_terms_agreed').checked
-            const privacy_agreed = document.getElementById('phone_privacy_agreed').checked
-            const marketing_agreed = document.getElementById('phone_marketing_agreed').checked
-            
-            // 유효성 검사
-            const passwordCheck = validatePassword(password)
-            if (!passwordCheck.valid) {
-                showToast(passwordCheck.message, 'error')
-                return
-            }
-            
-            if (password !== password_confirm) {
-                showToast('비밀번호가 일치하지 않습니다.', 'error')
-                return
-            }
-            
-            if (!name) {
-                showToast('이름을 입력해주세요.', 'error')
-                return
-            }
-            
-            if (!terms_agreed || !privacy_agreed) {
-                showToast('필수 약관에 동의해주세요.', 'error')
-                return
-            }
-            
-            // 생년월일 조합
-            const year = document.getElementById('phone_birth_year').value
-            const month = document.getElementById('phone_birth_month').value
-            const day = document.getElementById('phone_birth_day').value
-            const birth_date = (year && month && day) ? \`\${year}-\${month}-\${day}\` : null
-            
-            // 전화번호로 이메일 생성
-            const email = phone + '@phone.mindstory.co.kr'
-            
-            const data = {
-                email: email,
-                password: password,
-                name: name,
-                phone: phone,
-                birth_date: birth_date,
-                terms_agreed: terms_agreed,
-                privacy_agreed: privacy_agreed,
-                marketing_agreed: marketing_agreed,
-                phone_verified: true,
-                phone_verified_at: new Date().toISOString()
+                email: document.getElementById('email').value,
+                password: document.getElementById('password').value,
+                name: document.getElementById('name').value,
+                phone: document.getElementById('phone').value || undefined,
+                birth_date: birthDate,
+                terms_agreed: document.getElementById('terms_agreed').checked,
+                privacy_agreed: document.getElementById('privacy_agreed').checked,
+                marketing_agreed: document.getElementById('marketing_agreed').checked
             }
             
             try {

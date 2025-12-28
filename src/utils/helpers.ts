@@ -127,8 +127,14 @@ export function isValidPhone(phone: string): boolean {
  */
 export async function getCurrentUser(c: Context) {
   // 쿠키나 헤더에서 세션 토큰 추출
-  const sessionToken = c.req.header('Authorization')?.replace('Bearer ', '') || 
-                       c.req.cookie('session_token')
+  const authHeader = c.req.header('Authorization')
+  const cookieHeader = c.req.header('Cookie')
+  let cookieToken = null
+  if (cookieHeader) {
+    const match = cookieHeader.match(/session_token=([^;]+)/)
+    if (match) cookieToken = match[1]
+  }
+  const sessionToken = authHeader?.replace('Bearer ', '') || cookieToken
   
   if (!sessionToken) {
     return null

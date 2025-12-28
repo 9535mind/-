@@ -105,6 +105,8 @@ courses.get('/:id', optionalAuth, async (c) => {
 
   } catch (error) {
     console.error('Get course error:', error)
+    console.error('Error details:', error instanceof Error ? error.message : String(error))
+    console.error('Stack:', error instanceof Error ? error.stack : '')
     return c.json(errorResponse('서버 오류가 발생했습니다.'), 500)
   }
 })
