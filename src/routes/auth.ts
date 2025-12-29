@@ -127,6 +127,15 @@ auth.post('/login', async (c) => {
       return c.json(errorResponse('이메일 또는 비밀번호가 일치하지 않습니다.'), 401)
     }
 
+    // 소셜 로그인 사용자 확인
+    if (user.social_provider) {
+      const providerName = user.social_provider === 'google' ? 'Google' : 
+                          user.social_provider === 'kakao' ? '카카오' : user.social_provider
+      return c.json(errorResponse(
+        `이 계정은 ${providerName}로 가입되었습니다. "${providerName}로 계속하기" 버튼을 사용해주세요.`
+      ), 400)
+    }
+
     // 비밀번호 검증
     const isValidPassword = await verifyPassword(password, user.password)
     if (!isValidPassword) {

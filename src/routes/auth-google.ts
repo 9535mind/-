@@ -9,7 +9,8 @@ import {
   successResponse, 
   errorResponse, 
   generateSessionToken,
-  addDays
+  addDays,
+  hashPassword
 } from '../utils/helpers'
 
 const authGoogle = new Hono<{ Bindings: Bindings }>()
@@ -153,8 +154,9 @@ authGoogle.get('/callback', async (c) => {
         `)
       }
       
-      // 신규 회원 가입 (password는 랜덤 생성, 소셜 로그인에서는 사용 안 함)
-      const randomPassword = Math.random().toString(36).substring(2, 15)
+      // 신규 회원 가입 (password는 랜덤 생성 후 해시, 소셜 로그인에서는 사용 안 함)
+      const randomPassword = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+      const hashedPassword = await hashPassword(randomPassword)
       
       const result = await DB.prepare(`
         INSERT INTO users (
@@ -163,7 +165,7 @@ authGoogle.get('/callback', async (c) => {
         ) VALUES (?, ?, ?, 'google', ?, ?, 'student', 'active', 1, 1, 0)
       `).bind(
         email,
-        randomPassword, // 소셜 로그인에서는 사용하지 않는 비밀번호
+        hashedPassword, // 해시된 비밀번호 (소셜 로그인에서는 사용하지 않음)
         googleUser.name,
         googleUser.id,
         googleUser.picture || null
