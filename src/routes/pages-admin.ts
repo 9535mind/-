@@ -9,6 +9,14 @@ import { Bindings } from '../types/database'
 const pagesAdmin = new Hono<{ Bindings: Bindings }>()
 
 /**
+ * GET /admin
+ * 관리자 메인 페이지 → 대시보드로 리디렉트
+ */
+pagesAdmin.get('/', (c) => {
+  return c.redirect('/admin/dashboard')
+})
+
+/**
  * GET /admin/dashboard
  * 관리자 대시보드 - 통계 및 개요
  */
