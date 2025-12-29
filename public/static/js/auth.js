@@ -141,6 +141,7 @@ function updateHeader() {
   const userMenu = document.getElementById('headerUserMenu')
   const userName = document.getElementById('headerUserName')
   const adminLink = document.getElementById('adminLink')
+  const adminModeSwitch = document.getElementById('adminModeSwitch')
 
   if (AuthManager.isLoggedIn()) {
     const user = AuthManager.getUser()
@@ -149,14 +150,19 @@ function updateHeader() {
     if (userMenu) userMenu.style.display = 'flex'
     if (userName && user) userName.textContent = user.name + ' 님'
     
-    // 관리자 링크 표시
-    if (adminLink && user && user.role === 'admin') {
-      adminLink.style.display = 'inline-block'
+    // 관리자인 경우 모드 전환 버튼 표시
+    if (user && user.role === 'admin') {
+      // 이전 adminLink는 숨김 (모드 전환 버튼으로 대체)
+      if (adminLink) adminLink.style.display = 'none'
+      
+      // 관리자 모드 전환 버튼 표시
+      if (adminModeSwitch) adminModeSwitch.style.display = 'flex'
     }
   } else {
     if (authButtons) authButtons.style.display = 'flex'
     if (userMenu) userMenu.style.display = 'none'
     if (adminLink) adminLink.style.display = 'none'
+    if (adminModeSwitch) adminModeSwitch.style.display = 'none'
   }
 }
 

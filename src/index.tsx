@@ -74,9 +74,9 @@ app.get('/', (c) => {
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
-        <script src="/static/js/auth.js?v=2025122913"></script>
-        <script src="/static/js/utils.js?v=2025122913"></script>
-        <script src="/static/js/popup.js?v=2025122913"></script>
+        <script src="/static/js/auth.js?v=2025122914"></script>
+        <script src="/static/js/utils.js?v=2025122914"></script>
+        <script src="/static/js/popup.js?v=2025122914"></script>
         <style>
             /* 새로운 색상 팔레트 */
             :root {
@@ -140,10 +140,19 @@ app.get('/', (c) => {
                     <div class="flex items-center">
                         <a href="/" class="text-2xl font-bold" style="color: var(--color-primary);">마인드스토리 원격평생교육원</a>
                     </div>
-                    <nav class="hidden md:flex space-x-8">
+                    <nav class="hidden md:flex space-x-8 items-center">
+                        <a href="/" class="text-gray-700 transition-colors duration-200" onmouseover="this.style.color='var(--color-primary)'" onmouseout="this.style.color=''">홈</a>
                         <a href="#courses" class="text-gray-700 transition-colors duration-200" style="hover:color: var(--color-primary);" onmouseover="this.style.color='var(--color-primary)'" onmouseout="this.style.color=''">과정 안내</a>
                         <a href="/my-courses" class="text-gray-700 transition-colors duration-200" onmouseover="this.style.color='var(--color-primary)'" onmouseout="this.style.color=''">내 강의실</a>
-                        <a href="/admin" id="adminLink" class="text-gray-700 transition-colors duration-200" style="display:none" onmouseover="this.style.color='var(--color-primary)'" onmouseout="this.style.color=''">관리자</a>
+                        
+                        <!-- 관리자 모드 전환 버튼 -->
+                        <div id="adminModeSwitch" class="flex items-center space-x-2" style="display:none">
+                            <span class="text-gray-500 text-sm">|</span>
+                            <a href="/admin/dashboard" class="btn-primary px-4 py-2 rounded-lg text-sm transition-colors duration-200">
+                                <i class="fas fa-user-shield mr-1"></i>
+                                관리자 모드
+                            </a>
+                        </div>
                     </nav>
                     <div id="headerAuthButtons" class="flex items-center space-x-4">
                         <a href="/login" class="text-gray-700 transition-colors duration-200" onmouseover="this.style.color='var(--color-primary)'" onmouseout="this.style.color=''">로그인</a>

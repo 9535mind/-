@@ -15,10 +15,19 @@ const getHeader = () => `
             <div class="flex items-center">
                 <a href="/" class="text-2xl font-bold text-indigo-600">마인드스토리 원격평생교육원</a>
             </div>
-            <nav class="hidden md:flex space-x-8">
+            <nav class="hidden md:flex space-x-8 items-center">
+                <a href="/" class="text-gray-700 hover:text-indigo-600">홈</a>
                 <a href="/#courses" class="text-gray-700 hover:text-indigo-600">과정 안내</a>
                 <a href="/my-courses" class="text-gray-700 hover:text-indigo-600">내 강의실</a>
-                <a href="/admin" class="text-gray-700 hover:text-indigo-600" id="adminLink" style="display:none">관리자</a>
+                
+                <!-- 관리자 모드 전환 버튼 -->
+                <div id="adminModeSwitch" class="flex items-center space-x-2" style="display:none">
+                    <span class="text-gray-500 text-sm">|</span>
+                    <a href="/admin/dashboard" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700 transition-colors duration-200">
+                        <i class="fas fa-user-shield mr-1"></i>
+                        관리자 모드
+                    </a>
+                </div>
             </nav>
             <div id="headerAuthButtons" class="flex items-center space-x-4">
                 <a href="/login" class="text-gray-700 hover:text-indigo-600">로그인</a>
@@ -77,8 +86,8 @@ const getCommonHead = (title: string) => `
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
-    <script src="/static/js/auth.js?v=2025122913"></script>
-    <script src="/static/js/utils.js?v=2025122913"></script>
+    <script src="/static/js/auth.js?v=2025122914"></script>
+    <script src="/static/js/utils.js?v=2025122914"></script>
 </head>
 <body class="bg-gray-50">
 `

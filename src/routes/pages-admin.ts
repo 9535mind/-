@@ -42,6 +42,9 @@ pagesAdmin.get('/dashboard', async (c) => {
                         관리자 대시보드
                     </h1>
                     <div class="flex items-center space-x-4">
+                        <a href="/" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition-colors">
+                            <i class="fas fa-users mr-1"></i>수강생 모드
+                        </a>
                         <span id="adminName">로딩중...</span>
                         <button onclick="logout()" class="bg-white text-purple-700 px-4 py-2 rounded hover:bg-gray-100">
                             <i class="fas fa-sign-out-alt mr-1"></i>로그아웃
@@ -196,6 +199,9 @@ pagesAdmin.get('/courses', async (c) => {
                         강좌 관리
                     </h1>
                     <div class="flex items-center space-x-4">
+                        <a href="/" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition-colors">
+                            <i class="fas fa-users mr-1"></i>수강생 모드
+                        </a>
                         <span id="adminName">로딩중...</span>
                         <button onclick="logout()" class="bg-white text-purple-700 px-4 py-2 rounded hover:bg-gray-100">
                             <i class="fas fa-sign-out-alt mr-1"></i>로그아웃
