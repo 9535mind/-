@@ -102,7 +102,10 @@ pagesMy.get('/my-courses', (c) => {
                 
                 try {
                     const url = status === 'all' ? '/api/enrollments/my' : \`/api/enrollments/my?status=\${status}\`
-                    const response = await axios.get(url)
+                    const token = AuthManager.getSessionToken()
+                    const response = await axios.get(url, {
+                        headers: token ? { 'Authorization': \`Bearer \${token}\` } : {}
+                    })
                     const enrollments = response.data.data
                     
                     if (enrollments.length === 0) {
