@@ -36,8 +36,8 @@ const app = new Hono<{ Bindings: Bindings }>()
 app.use('*', logger())
 app.use('/api/*', cors())
 
-// 정적 파일 서빙
-app.use('/static/*', serveStatic({ root: './public' }))
+// 정적 파일 서빙 (Cloudflare Pages용 - root 제거)
+app.use('/static/*', serveStatic())
 
 // API 라우트
 app.route('/api/auth', auth)

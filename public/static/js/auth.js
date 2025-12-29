@@ -2,6 +2,38 @@
  * 인증 관련 공통 함수
  */
 
+// AuthManager 클래스
+class AuthManager {
+  static saveSession(token, user) {
+    localStorage.setItem('session_token', token)
+    localStorage.setItem('user', JSON.stringify(user))
+  }
+
+  static getSessionToken() {
+    return localStorage.getItem('session_token') || sessionStorage.getItem('session_token')
+  }
+
+  static getUser() {
+    const userJson = localStorage.getItem('user')
+    return userJson ? JSON.parse(userJson) : null
+  }
+
+  static isLoggedIn() {
+    return !!this.getSessionToken()
+  }
+
+  static isAdmin() {
+    const user = this.getUser()
+    return user && user.role === 'admin'
+  }
+
+  static clearSession() {
+    localStorage.removeItem('session_token')
+    localStorage.removeItem('user')
+    sessionStorage.removeItem('session_token')
+  }
+}
+
 // 세션 토큰 가져오기
 function getSessionToken() {
   return localStorage.getItem('session_token') || sessionStorage.getItem('session_token');
@@ -101,4 +133,38 @@ async function apiRequest(method, url, data = null) {
     }
     throw error;
   }
+}
+
+// 헤더 업데이트 (로그인 상태 표시)
+function updateHeader() {
+  const authButtons = document.getElementById('headerAuthButtons')
+  const userMenu = document.getElementById('headerUserMenu')
+  const userName = document.getElementById('headerUserName')
+
+  if (AuthManager.isLoggedIn()) {
+    const user = AuthManager.getUser()
+    if (authButtons) authButtons.style.display = 'none'
+    if (userMenu) userMenu.style.display = 'flex'
+    if (userName && user) userName.textContent = user.name + ' 님'
+  } else {
+    if (authButtons) authButtons.style.display = 'flex'
+    if (userMenu) userMenu.style.display = 'none'
+  }
+}
+
+// 로그아웃 처리
+async function handleLogout() {
+  const token = AuthManager.getSessionToken()
+  if (token) {
+    try {
+      await axios.post('/api/auth/logout', {}, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+    } catch (error) {
+      console.error('Logout error:', error)
+    }
+  }
+
+  AuthManager.clearSession()
+  window.location.href = '/login'
 }
