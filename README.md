@@ -499,7 +499,8 @@ pm2 logs mindstory-lms --nostream
 ## 📚 문서 가이드
 
 ### 운영자용
-- **회원 탈퇴 가이드**: `docs/WITHDRAWAL_FEATURE.md` - 탈퇴 기능 완전 가이드 (NEW)
+- **종합 테스트 계획서**: `docs/COMPREHENSIVE_TESTING_PLAN.md` - 5-7시간 테스트 일정 및 체크리스트 ⭐ NEW!
+- **회원 탈퇴 가이드**: `docs/WITHDRAWAL_FEATURE.md` - 탈퇴 기능 완전 가이드
 - **최종 보고서**: `docs/FINAL_REPORT.md` - 프로젝트 전체 현황 및 다음 단계
 - **종합 체크리스트**: `docs/COMPREHENSIVE_CHECKLIST.md` - 운영 전 필수 확인사항
 - **결제 연동**: `docs/PAYMENT_INTEGRATION.md` - PG사 연동 가이드
@@ -507,6 +508,8 @@ pm2 logs mindstory-lms --nostream
 
 ### 개발자용
 - **README**: 프로젝트 개요 및 빠른 시작
+- **개발 계획서**: `docs/REVERSE_DEVELOPMENT_PLAN.md` - 역기획 문서 (재사용 템플릿)
+- **종합 시스템 점검**: `docs/COMPREHENSIVE_SYSTEM_AUDIT.md` - 전체 시스템 점검 보고서
 - **API 문서**: 각 route 파일 주석 참고
 - **데이터베이스 스키마**: `migrations/` 디렉토리
 
