@@ -395,8 +395,15 @@ app.get('/', (c) => {
             
             // 페이지 로드 시 실행
             document.addEventListener('DOMContentLoaded', () => {
+                console.log('[메인 페이지] DOMContentLoaded 이벤트 발생')
+                console.log('[메인 페이지] localStorage 확인:', {
+                    session_token: localStorage.getItem('session_token') ? '존재' : '없음',
+                    user: localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')) : null
+                })
+                
                 loadCourses()
                 updateHeader()
+                
                 // 팝업 로드
                 PopupManager.loadPopups('home')
             })

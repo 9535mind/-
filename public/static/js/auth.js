@@ -142,17 +142,31 @@ function updateHeader() {
   const userName = document.getElementById('headerUserName')
   const adminLink = document.getElementById('adminLink')
 
+  console.log('[updateHeader] 시작')
+  console.log('[updateHeader] adminLink 요소:', adminLink)
+
   if (AuthManager.isLoggedIn()) {
     const user = AuthManager.getUser()
+    console.log('[updateHeader] 로그인 사용자:', user)
+    console.log('[updateHeader] 사용자 역할:', user?.role)
+    
     if (authButtons) authButtons.style.display = 'none'
     if (userMenu) userMenu.style.display = 'flex'
     if (userName && user) userName.textContent = user.name + ' 님'
     
     // 관리자 링크 표시
     if (adminLink && user && user.role === 'admin') {
+      console.log('[updateHeader] ✅ 관리자 링크 표시!')
       adminLink.style.display = 'inline-block'
+    } else {
+      console.log('[updateHeader] ⚠️ 관리자 링크 표시 실패:', {
+        adminLink: !!adminLink,
+        user: !!user,
+        role: user?.role
+      })
     }
   } else {
+    console.log('[updateHeader] 로그인하지 않음')
     if (authButtons) authButtons.style.display = 'flex'
     if (userMenu) userMenu.style.display = 'none'
     if (adminLink) adminLink.style.display = 'none'
