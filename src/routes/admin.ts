@@ -194,4 +194,176 @@ admin.get('/certificates', requireAdmin, async (c) => {
   return c.json(successResponse(result.results))
 })
 
+/**
+ * 강좌 관리 API
+ */
+
+// 강좌 목록 (관리자용)
+admin.get('/courses', requireAdmin, async (c) => {
+  const { DB } = c.env
+
+  try {
+    const courses = await DB.prepare(`
+      SELECT c.*, COUNT(e.id) as enrolled_count
+      FROM courses c
+      LEFT JOIN enrollments e ON c.id = e.course_id
+      GROUP BY c.id
+      ORDER BY c.created_at DESC
+    `).all()
+
+    return c.json(successResponse(courses.results))
+  } catch (error) {
+    console.error('Get courses error:', error)
+    return c.json(errorResponse('강좌 목록 조회 실패'), 500)
+  }
+})
+
+// 강좌 생성
+admin.post('/courses', requireAdmin, async (c) => {
+  const { DB } = c.env
+
+  try {
+    const body = await c.req.json()
+    const {
+      title,
+      description,
+      thumbnail_url,
+      course_type = 'general',
+      duration_days = 30,
+      price = 0,
+      discount_price = 0,
+      is_free = 0,
+      is_featured = 0,
+      status = 'active'
+    } = body
+
+    // 필수 필드 검증
+    if (!title || !description) {
+      return c.json(errorResponse('필수 항목을 입력해주세요'), 400)
+    }
+
+    const result = await DB.prepare(`
+      INSERT INTO courses (
+        title, description, thumbnail_url, course_type, duration_days,
+        price, discount_price, is_free, is_featured, status,
+        created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+    `).bind(
+      title,
+      description,
+      thumbnail_url || null,
+      course_type,
+      duration_days,
+      price,
+      discount_price,
+      is_free,
+      is_featured,
+      status
+    ).run()
+
+    return c.json(successResponse({
+      id: result.meta.last_row_id,
+      message: '강좌가 등록되었습니다'
+    }))
+  } catch (error) {
+    console.error('Create course error:', error)
+    return c.json(errorResponse('강좌 등록 실패'), 500)
+  }
+})
+
+// 강좌 수정
+admin.put('/courses/:id', requireAdmin, async (c) => {
+  const { DB } = c.env
+  const courseId = c.req.param('id')
+
+  try {
+    const body = await c.req.json()
+    const {
+      title,
+      description,
+      thumbnail_url,
+      course_type,
+      duration_days,
+      price,
+      discount_price,
+      is_free,
+      is_featured,
+      status
+    } = body
+
+    // 필수 필드 검증
+    if (!title || !description) {
+      return c.json(errorResponse('필수 항목을 입력해주세요'), 400)
+    }
+
+    const result = await DB.prepare(`
+      UPDATE courses SET
+        title = ?,
+        description = ?,
+        thumbnail_url = ?,
+        course_type = ?,
+        duration_days = ?,
+        price = ?,
+        discount_price = ?,
+        is_free = ?,
+        is_featured = ?,
+        status = ?,
+        updated_at = datetime('now')
+      WHERE id = ?
+    `).bind(
+      title,
+      description,
+      thumbnail_url || null,
+      course_type,
+      duration_days,
+      price,
+      discount_price,
+      is_free,
+      is_featured,
+      status,
+      courseId
+    ).run()
+
+    if (result.meta.changes === 0) {
+      return c.json(errorResponse('강좌를 찾을 수 없습니다'), 404)
+    }
+
+    return c.json(successResponse({ message: '강좌가 수정되었습니다' }))
+  } catch (error) {
+    console.error('Update course error:', error)
+    return c.json(errorResponse('강좌 수정 실패'), 500)
+  }
+})
+
+// 강좌 삭제
+admin.delete('/courses/:id', requireAdmin, async (c) => {
+  const { DB } = c.env
+  const courseId = c.req.param('id')
+
+  try {
+    // 수강생 확인
+    const enrollments = await DB.prepare(`
+      SELECT COUNT(*) as count FROM enrollments WHERE course_id = ?
+    `).bind(courseId).first()
+
+    if (enrollments && enrollments.count > 0) {
+      return c.json(errorResponse('수강생이 있는 강좌는 삭제할 수 없습니다'), 400)
+    }
+
+    // 강좌 삭제
+    const result = await DB.prepare(`
+      DELETE FROM courses WHERE id = ?
+    `).bind(courseId).run()
+
+    if (result.meta.changes === 0) {
+      return c.json(errorResponse('강좌를 찾을 수 없습니다'), 404)
+    }
+
+    return c.json(successResponse({ message: '강좌가 삭제되었습니다' }))
+  } catch (error) {
+    console.error('Delete course error:', error)
+    return c.json(errorResponse('강좌 삭제 실패'), 500)
+  }
+})
+
 export default admin
