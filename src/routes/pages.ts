@@ -847,9 +847,11 @@ pages.get('/courses/:id', async (c) => {
     </div>
     
     <script>
+        const courseId = '${courseId}'
+        
         async function loadCourseDetail() {
             try {
-                const response = await axios.get('/api/courses/${courseId}')
+                const response = await axios.get(\`/api/courses/\${courseId}\`)
                 const { course, lessons, enrollment } = response.data.data
                 
                 const detailHtml = \`
