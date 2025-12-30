@@ -2006,3 +2006,284 @@ pagesAdmin.get('/enrollments', async (c) => {
 })
 
 export default pagesAdmin
+
+/**
+ * GET /admin/videos
+ * 영상 라이브러리 관리 페이지
+ */
+pagesAdmin.get('/videos', async (c) => {
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="ko">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>영상 라이브러리 - 마인드스토리 LMS</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <link href="/static/style.css" rel="stylesheet">
+    </head>
+    <body class="bg-gray-100">
+        <!-- 관리자 헤더 -->
+        <nav class="bg-purple-700 text-white p-4">
+            <div class="container mx-auto flex justify-between items-center">
+                <h1 class="text-2xl font-bold">
+                    <i class="fas fa-video mr-2"></i>영상 라이브러리
+                </h1>
+                <div class="flex items-center space-x-4">
+                    <span id="adminName" class="text-sm"></span>
+                    <a href="/admin/dashboard" class="hover:text-purple-200">
+                        <i class="fas fa-home mr-1"></i>관리자 홈
+                    </a>
+                    <button onclick="handleLogout()" class="hover:text-purple-200">
+                        <i class="fas fa-sign-out-alt mr-1"></i>로그아웃
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <div class="container mx-auto p-6">
+            <!-- 상단 통계 -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="bg-purple-100 rounded-full p-4 mr-4">
+                            <i class="fas fa-video text-purple-600 text-2xl"></i>
+                        </div>
+                        <div>
+                            <p class="text-gray-500 text-sm">총 영상 수</p>
+                            <p id="totalVideos" class="text-3xl font-bold text-gray-800">0</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="bg-green-100 rounded-full p-4 mr-4">
+                            <i class="fas fa-check-circle text-green-600 text-2xl"></i>
+                        </div>
+                        <div>
+                            <p class="text-gray-500 text-sm">활성 영상</p>
+                            <p id="activeVideos" class="text-3xl font-bold text-gray-800">0</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="bg-blue-100 rounded-full p-4 mr-4">
+                            <i class="fas fa-clock text-blue-600 text-2xl"></i>
+                        </div>
+                        <div>
+                            <p class="text-gray-500 text-sm">총 재생 시간</p>
+                            <p id="totalDuration" class="text-3xl font-bold text-gray-800">0분</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 영상 목록 -->
+            <div class="bg-white rounded-lg shadow">
+                <div class="p-6 border-b flex justify-between items-center">
+                    <h2 class="text-xl font-bold text-gray-800">
+                        <i class="fas fa-list mr-2 text-purple-600"></i>영상 목록
+                    </h2>
+                    <div class="flex space-x-2">
+                        <input type="text" id="searchInput" placeholder="영상 검색..." 
+                            class="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500">
+                        <button onclick="loadVideos()" class="bg-purple-700 text-white px-4 py-2 rounded-lg hover:bg-purple-800">
+                            <i class="fas fa-sync-alt mr-1"></i>새로고침
+                        </button>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="py-3 px-4 text-left text-sm font-semibold text-gray-700">썸네일</th>
+                                <th class="py-3 px-4 text-left text-sm font-semibold text-gray-700">영상 제목</th>
+                                <th class="py-3 px-4 text-left text-sm font-semibold text-gray-700">강좌</th>
+                                <th class="py-3 px-4 text-left text-sm font-semibold text-gray-700">차시</th>
+                                <th class="py-3 px-4 text-left text-sm font-semibold text-gray-700">재생 시간</th>
+                                <th class="py-3 px-4 text-left text-sm font-semibold text-gray-700">업로드 일시</th>
+                                <th class="py-3 px-4 text-left text-sm font-semibold text-gray-700">상태</th>
+                                <th class="py-3 px-4 text-center text-sm font-semibold text-gray-700">관리</th>
+                            </tr>
+                        </thead>
+                        <tbody id="videoList">
+                            <tr>
+                                <td colspan="8" class="text-center py-8 text-gray-500">
+                                    <i class="fas fa-spinner fa-spin text-4xl mb-2"></i>
+                                    <p>로딩 중...</p>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+        <script src="/static/js/auth.js"></script>
+        <script>
+            let allVideos = [];
+
+            // 페이지 로드 시 초기화
+            document.addEventListener('DOMContentLoaded', async () => {
+                await requireAdmin();
+                const user = await getCurrentUser();
+                document.getElementById('adminName').textContent = user.name + ' 님';
+                
+                loadVideos();
+                
+                // 검색 기능
+                document.getElementById('searchInput').addEventListener('input', filterVideos);
+            });
+
+            // 영상 목록 로드
+            async function loadVideos() {
+                try {
+                    const response = await apiRequest('GET', '/api/admin/videos');
+                    
+                    if (response.success) {
+                        allVideos = response.data;
+                        renderVideos(allVideos);
+                        updateStatistics(allVideos);
+                    } else {
+                        showError('영상 목록을 불러오는데 실패했습니다.');
+                    }
+                } catch (error) {
+                    console.error('Load videos error:', error);
+                    showError('영상 목록을 불러오는데 실패했습니다.');
+                }
+            }
+
+            // 영상 목록 렌더링
+            function renderVideos(videos) {
+                const tbody = document.getElementById('videoList');
+                
+                if (!videos || videos.length === 0) {
+                    tbody.innerHTML = \`
+                        <tr>
+                            <td colspan="8" class="text-center py-8 text-gray-500">
+                                <i class="fas fa-video-slash text-4xl mb-2"></i>
+                                <p>등록된 영상이 없습니다.</p>
+                            </td>
+                        </tr>
+                    \`;
+                    return;
+                }
+
+                tbody.innerHTML = videos.map(video => {
+                    const statusBadge = video.status === 'active' 
+                        ? '<span class="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">활성</span>'
+                        : '<span class="px-2 py-1 bg-gray-100 text-gray-800 rounded-full text-xs font-semibold">비활성</span>';
+                    
+                    const freePreview = video.is_free_preview 
+                        ? '<span class="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs ml-1">무료</span>'
+                        : '';
+                    
+                    return \`
+                        <tr class="border-b hover:bg-gray-50">
+                            <td class="py-3 px-4">
+                                <div class="w-20 h-14 bg-gray-200 rounded flex items-center justify-center">
+                                    <i class="fas fa-video text-gray-400 text-2xl"></i>
+                                </div>
+                            </td>
+                            <td class="py-3 px-4">
+                                <p class="font-semibold text-gray-800">\${video.lesson_title}</p>
+                                <p class="text-sm text-gray-500">\${video.description || '설명 없음'}</p>
+                            </td>
+                            <td class="py-3 px-4">
+                                <p class="text-gray-800">\${video.course_title}</p>
+                            </td>
+                            <td class="py-3 px-4">
+                                <p class="text-gray-800">\${video.lesson_number}차시</p>
+                            </td>
+                            <td class="py-3 px-4">
+                                <p class="text-gray-800">\${video.video_duration_minutes || 0}분</p>
+                            </td>
+                            <td class="py-3 px-4">
+                                <p class="text-sm text-gray-600">\${formatDate(video.created_at)}</p>
+                            </td>
+                            <td class="py-3 px-4">
+                                \${statusBadge}\${freePreview}
+                            </td>
+                            <td class="py-3 px-4 text-center">
+                                <button onclick="viewVideo(\${video.lesson_id})" class="text-purple-600 hover:text-purple-800 mr-2" title="재생">
+                                    <i class="fas fa-play-circle"></i>
+                                </button>
+                                <button onclick="editLesson(\${video.course_id}, \${video.lesson_id})" class="text-blue-600 hover:text-blue-800 mr-2" title="수정">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button onclick="deleteVideo(\${video.lesson_id})" class="text-red-600 hover:text-red-800" title="삭제">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    \`;
+                }).join('');
+            }
+
+            // 통계 업데이트
+            function updateStatistics(videos) {
+                document.getElementById('totalVideos').textContent = videos.length;
+                document.getElementById('activeVideos').textContent = videos.filter(v => v.status === 'active').length;
+                
+                const totalMinutes = videos.reduce((sum, v) => sum + (parseInt(v.video_duration_minutes) || 0), 0);
+                document.getElementById('totalDuration').textContent = totalMinutes + '분';
+            }
+
+            // 영상 검색
+            function filterVideos() {
+                const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+                const filtered = allVideos.filter(video => 
+                    video.lesson_title.toLowerCase().includes(searchTerm) ||
+                    video.course_title.toLowerCase().includes(searchTerm)
+                );
+                renderVideos(filtered);
+            }
+
+            // 영상 재생
+            function viewVideo(lessonId) {
+                window.open(\`/lessons/\${lessonId}\`, '_blank');
+            }
+
+            // 차시 수정
+            function editLesson(courseId, lessonId) {
+                window.location.href = \`/admin/courses/\${courseId}/lessons\`;
+            }
+
+            // 영상 삭제
+            async function deleteVideo(lessonId) {
+                if (!confirm('정말로 이 영상을 삭제하시겠습니까?')) return;
+                
+                try {
+                    const response = await apiRequest('DELETE', \`/api/admin/lessons/\${lessonId}\`);
+                    
+                    if (response.success) {
+                        alert('영상이 삭제되었습니다.');
+                        loadVideos();
+                    } else {
+                        alert('삭제 실패: ' + (response.message || '알 수 없는 오류'));
+                    }
+                } catch (error) {
+                    console.error('Delete error:', error);
+                    alert('삭제 중 오류가 발생했습니다.');
+                }
+            }
+
+            // 날짜 포맷
+            function formatDate(dateString) {
+                if (!dateString) return '-';
+                const date = new Date(dateString);
+                return date.toLocaleDateString('ko-KR') + ' ' + date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+            }
+
+            // 에러 메시지
+            function showError(message) {
+                alert(message);
+            }
+        </script>
+    </body>
+    </html>
+  `)
+})

@@ -367,3 +367,39 @@ admin.delete('/courses/:id', requireAdmin, async (c) => {
 })
 
 export default admin
+
+/**
+ * GET /api/admin/videos
+ * 모든 영상 목록 조회 (관리자 전용)
+ */
+adminRoutes.get('/videos', async (c) => {
+  try {
+    const { DB } = c.env
+
+    const result = await DB.prepare(`
+      SELECT 
+        l.id as lesson_id,
+        l.lesson_number,
+        l.title as lesson_title,
+        l.description,
+        l.video_url,
+        l.video_provider,
+        l.video_duration_minutes,
+        l.is_free_preview,
+        l.status,
+        l.created_at,
+        c.id as course_id,
+        c.title as course_title
+      FROM lessons l
+      JOIN courses c ON l.course_id = c.id
+      WHERE l.content_type = 'video' AND l.video_url IS NOT NULL
+      ORDER BY l.created_at DESC
+    `).all()
+
+    return c.json(successResponse(result.results))
+
+  } catch (error) {
+    console.error('Get videos error:', error)
+    return c.json(errorResponse('서버 오류가 발생했습니다.'), 500)
+  }
+})
