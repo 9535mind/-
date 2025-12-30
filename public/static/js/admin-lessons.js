@@ -594,3 +594,59 @@ function updateUploadedInfo(data) {
   const duration = data.duration ? `${data.duration}분` : '알 수 없음';
   document.getElementById('uploadedFileInfo').textContent = `크기: ${fileSize}MB | 재생시간: ${duration}`;
 }
+
+/**
+ * AI 기반 차시 설명 자동 생성
+ */
+async function generateLessonDescription() {
+  const titleInput = document.getElementById('lessonTitle');
+  const descriptionTextarea = document.getElementById('lessonDescription');
+  
+  const title = titleInput.value.trim();
+  
+  if (!title) {
+    alert('먼저 차시 제목을 입력해주세요.');
+    titleInput.focus();
+    return;
+  }
+  
+  // 로딩 상태 표시
+  const originalText = descriptionTextarea.value;
+  descriptionTextarea.value = '🤖 AI가 차시 설명을 생성하고 있습니다...\n\n차시 제목을 기반으로 관련성 높은 설명을 작성 중입니다.';
+  descriptionTextarea.disabled = true;
+  
+  try {
+    // 강좌 정보 가져오기 (컨텍스트 제공)
+    const courseId = window.location.pathname.split('/')[3];
+    let courseTitle = '강좌';
+    
+    try {
+      const courseResponse = await apiRequest('GET', `/api/courses/${courseId}`);
+      if (courseResponse.success && courseResponse.data.course) {
+        courseTitle = courseResponse.data.course.title;
+      }
+    } catch (e) {
+      console.log('강좌 정보 로드 실패, 기본값 사용');
+    }
+    
+    const response = await apiRequest('POST', '/api/ai/generate-lesson-description', {
+      title: title,
+      courseTitle: courseTitle,
+      context: 'lesson'
+    });
+    
+    if (response.success && response.data.description) {
+      descriptionTextarea.value = response.data.description;
+    } else {
+      throw new Error(response.message || 'AI 설명 생성에 실패했습니다.');
+    }
+  } catch (error) {
+    console.error('Generate lesson description error:', error);
+    alert('AI 설명 생성에 실패했습니다.\n\n원인:\n' + 
+          (error.message || '서버 오류가 발생했습니다.') + '\n\n직접 입력해주세요.');
+    descriptionTextarea.value = originalText; // 원래 텍스트 복구
+  } finally {
+    descriptionTextarea.disabled = false;
+    descriptionTextarea.focus();
+  }
+}

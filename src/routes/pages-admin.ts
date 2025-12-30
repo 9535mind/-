@@ -1401,11 +1401,20 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
 
                         <!-- 차시 설명 -->
                         <div class="md:col-span-2">
-                            <label class="block text-sm font-medium text-gray-700 mb-2">
-                                차시 설명
-                            </label>
-                            <textarea id="lessonDescription" rows="4"
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="block text-sm font-medium text-gray-700">
+                                    차시 설명
+                                </label>
+                                <button type="button" onclick="generateLessonDescription()" 
+                                    class="text-sm bg-gradient-to-r from-purple-600 to-pink-600 text-white px-3 py-1 rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all">
+                                    <i class="fas fa-magic mr-1"></i>AI로 설명 생성
+                                </button>
+                            </div>
+                            <textarea id="lessonDescription" rows="4" placeholder="차시에 대한 설명을 입력하거나 AI로 생성하세요..."
                                 class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"></textarea>
+                            <p class="text-xs text-gray-500 mt-1">
+                                💡 <strong>팁:</strong> 차시 제목을 먼저 입력한 후 AI 생성 버튼을 클릭하세요.
+                            </p>
                         </div>
 
                         <!-- 무료 미리보기 -->
