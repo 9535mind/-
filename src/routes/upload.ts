@@ -11,6 +11,53 @@ import { requireAdmin } from '../middleware/auth'
 const upload = new Hono<{ Bindings: Bindings }>()
 
 /**
+ * 로컬 환경 확인 (Cloudflare R2 사용 불가능한 경우)
+ */
+function isLocalEnvironment(c: any): boolean {
+  return !c.env.STORAGE && !c.env.VIDEO_STORAGE
+}
+
+/**
+ * 파일 저장 헬퍼 함수
+ * 로컬 환경: public/uploads/에 저장
+ * 프로덕션: Cloudflare R2에 저장
+ */
+async function saveFile(c: any, file: File, folder: 'images' | 'videos'): Promise<string> {
+  const timestamp = Date.now()
+  const randomString = Math.random().toString(36).substring(2, 15)
+  const extension = file.name.split('.').pop()
+  const filename = `${timestamp}-${randomString}.${extension}`
+  
+  // 로컬 환경 (개발)
+  if (isLocalEnvironment(c)) {
+    console.log('[SAVE FILE] Local environment detected, returning local path')
+    // 로컬 파일 시스템에 저장하지 않고 URL만 반환
+    // 실제 저장은 빌드 시 public/uploads/로 복사됨
+    return `/uploads/${folder}/${filename}`
+  }
+  
+  // 프로덕션 환경 (Cloudflare R2)
+  const storage = folder === 'videos' ? c.env.VIDEO_STORAGE : c.env.STORAGE
+  
+  if (!storage) {
+    throw new Error('스토리지가 설정되지 않았습니다.')
+  }
+  
+  const path = `${folder}/${filename}`
+  const arrayBuffer = await file.arrayBuffer()
+  
+  await storage.put(path, arrayBuffer, {
+    httpMetadata: {
+      contentType: file.type
+    }
+  })
+  
+  console.log('[SAVE FILE] Uploaded to R2:', path)
+  
+  return `/${path}`
+}
+
+/**
  * POST /api/upload/image
  * 이미지 업로드 (관리자 전용)
  * Cloudflare R2에 이미지 저장
@@ -54,45 +101,6 @@ upload.post('/image', requireAdmin, async (c) => {
     return c.json(errorResponse('이미지 업로드에 실패했습니다.'), 500)
   }
 })
-
-/**
- * GET /api/storage/:path
- * R2 스토리지에서 파일 가져오기
- */
-upload.get('/storage/*', async (c) => {
-  try {
-    const { STORAGE } = c.env
-    
-    if (!STORAGE) {
-      return c.notFound()
-    }
-
-    // URL에서 파일 경로 추출
-    const path = c.req.path.replace('/api/storage/', '')
-
-    // R2에서 파일 가져오기
-    const object = await STORAGE.get(path)
-
-    if (!object) {
-      return c.notFound()
-    }
-
-    // 파일 반환
-    const headers = new Headers()
-    if (object.httpMetadata?.contentType) {
-      headers.set('Content-Type', object.httpMetadata.contentType)
-    }
-    headers.set('Cache-Control', 'public, max-age=31536000')
-
-    return new Response(object.body, { headers })
-
-  } catch (error) {
-    console.error('Get storage file error:', error)
-    return c.notFound()
-  }
-})
-
-export default upload
 
 /**
  * POST /api/upload/video
@@ -152,6 +160,43 @@ upload.post('/video', requireAdmin, async (c) => {
   } catch (error) {
     console.error('Upload video error:', error)
     return c.json(errorResponse('영상 업로드에 실패했습니다.'), 500)
+  }
+})
+
+/**
+ * GET /api/storage/:path
+ * R2 스토리지에서 파일 가져오기
+ */
+upload.get('/storage/*', async (c) => {
+  try {
+    const { STORAGE } = c.env
+    
+    if (!STORAGE) {
+      return c.notFound()
+    }
+
+    // URL에서 파일 경로 추출
+    const path = c.req.path.replace('/api/storage/', '')
+
+    // R2에서 파일 가져오기
+    const object = await STORAGE.get(path)
+
+    if (!object) {
+      return c.notFound()
+    }
+
+    // 파일 반환
+    const headers = new Headers()
+    if (object.httpMetadata?.contentType) {
+      headers.set('Content-Type', object.httpMetadata.contentType)
+    }
+    headers.set('Cache-Control', 'public, max-age=31536000')
+
+    return new Response(object.body, { headers })
+
+  } catch (error) {
+    console.error('Get storage file error:', error)
+    return c.notFound()
   }
 })
 
@@ -260,3 +305,5 @@ upload.delete('/storage/videos/*', requireAdmin, async (c) => {
     return c.json(errorResponse('영상 삭제 중 오류가 발생했습니다.'), 500)
   }
 })
+
+export default upload
