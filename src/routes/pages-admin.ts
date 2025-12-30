@@ -798,7 +798,14 @@ pagesAdmin.get('/users', async (c) => {
                         </td>
                         <td class="py-3 px-4">\${formatDate(user.created_at)}</td>
                         <td class="py-3 px-4 text-center">
-                            <a href="/admin/users/\${user.id}" class="text-purple-600 hover:text-purple-800 mx-1">
+                            <button onclick="resetPassword(\${user.id}, '\${user.name}')" 
+                                    class="text-orange-600 hover:text-orange-800 mx-1" 
+                                    title="비밀번호 초기화">
+                                <i class="fas fa-key"></i>
+                            </button>
+                            <a href="/admin/users/\${user.id}" 
+                               class="text-purple-600 hover:text-purple-800 mx-1"
+                               title="상세 보기">
                                 <i class="fas fa-eye"></i>
                             </a>
                         </td>
@@ -839,6 +846,90 @@ pagesAdmin.get('/users', async (c) => {
                 if (!dateString) return '-';
                 const date = new Date(dateString);
                 return date.toLocaleDateString('ko-KR');
+            }
+            
+            // 비밀번호 초기화 함수
+            async function resetPassword(userId, userName) {
+                const options = [
+                    { text: '🔑 수동 초기화', value: 'manual' },
+                    { text: '🤖 AI 자동 생성', value: 'ai' }
+                ];
+                
+                const selected = confirm(\`\${userName} 님의 비밀번호를 초기화하시겠습니까?\n\n확인: 수동 초기화 (password123)\n취소: AI 자동 생성\`);
+                
+                const mode = selected ? 'manual' : 'ai';
+                
+                try {
+                    const token = AuthManager.getSessionToken();
+                    const response = await axios.post(\`/api/admin/users/\${userId}/reset-password\`, 
+                        { mode },
+                        { headers: { 'Authorization': \`Bearer \${token}\` } }
+                    );
+                    
+                    if (response.data.success) {
+                        const newPassword = response.data.data.new_password;
+                        
+                        // 비밀번호 표시 모달
+                        const modalHtml = \`
+                            <div id="passwordModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                                <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+                                    <div class="text-center mb-6">
+                                        <div class="bg-green-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                                            <i class="fas fa-check text-green-600 text-3xl"></i>
+                                        </div>
+                                        <h2 class="text-2xl font-bold text-gray-900 mb-2">비밀번호 초기화 완료</h2>
+                                        <p class="text-gray-600">\${userName} 님의 새 비밀번호</p>
+                                    </div>
+                                    
+                                    <div class="bg-gray-50 rounded-lg p-4 mb-6">
+                                        <div class="flex items-center justify-between">
+                                            <code class="text-2xl font-mono font-bold text-purple-600">\${newPassword}</code>
+                                            <button onclick="copyPassword('\${newPassword}')" 
+                                                    class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700">
+                                                <i class="fas fa-copy mr-2"></i>복사
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                                        <p class="text-sm text-yellow-800">
+                                            <i class="fas fa-exclamation-triangle mr-2"></i>
+                                            <strong>중요:</strong> 이 비밀번호를 학생에게 안전하게 전달해주세요.
+                                        </p>
+                                    </div>
+                                    
+                                    <button onclick="closePasswordModal()" 
+                                            class="w-full bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700 font-semibold">
+                                        확인
+                                    </button>
+                                </div>
+                            </div>
+                        \`;
+                        
+                        document.body.insertAdjacentHTML('beforeend', modalHtml);
+                    } else {
+                        alert('비밀번호 초기화에 실패했습니다: ' + (response.data.error || '알 수 없는 오류'));
+                    }
+                } catch (error) {
+                    console.error('Reset password error:', error);
+                    alert('비밀번호 초기화 중 오류가 발생했습니다: ' + (error.response?.data?.error || error.message));
+                }
+            }
+            
+            function copyPassword(password) {
+                navigator.clipboard.writeText(password).then(() => {
+                    showToast('비밀번호가 클립보드에 복사되었습니다!', 'success');
+                }).catch(err => {
+                    console.error('Copy failed:', err);
+                    alert('복사 실패: ' + err.message);
+                });
+            }
+            
+            function closePasswordModal() {
+                const modal = document.getElementById('passwordModal');
+                if (modal) {
+                    modal.remove();
+                }
             }
         </script>
     </body>
