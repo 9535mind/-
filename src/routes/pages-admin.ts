@@ -30,7 +30,7 @@ pagesAdmin.get('/dashboard', async (c) => {
         <title>관리자 대시보드 - 마인드스토리 LMS</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
-        <link href="/static/styles.css" rel="stylesheet">
+        <link href="/static/style.css" rel="stylesheet">
     </head>
     <body class="bg-gray-100">
         <!-- 관리자 헤더 -->
@@ -187,7 +187,7 @@ pagesAdmin.get('/courses', async (c) => {
         <title>강좌 관리 - 마인드스토리 LMS</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
-        <link href="/static/styles.css" rel="stylesheet">
+        <link href="/static/style.css" rel="stylesheet">
     </head>
     <body class="bg-gray-100">
         <!-- 관리자 헤더 -->
@@ -1125,7 +1125,7 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
         <title>차시 관리 - 마인드스토리 LMS</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
-        <link href="/static/styles.css" rel="stylesheet">
+        <link href="/static/style.css" rel="stylesheet">
     </head>
     <body class="bg-gray-100">
         <!-- 관리자 헤더 -->
