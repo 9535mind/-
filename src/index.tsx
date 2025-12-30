@@ -41,6 +41,7 @@ app.use('/api/*', cors())
 
 // 정적 파일 서빙 (Cloudflare Pages용 - root 제거)
 app.use('/static/*', serveStatic())
+app.use('/uploads/*', serveStatic()) // 업로드된 파일 서빙
 
 // API 라우트
 app.route('/api/auth', auth)

@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Video Test</title>
+</head>
+<body>
+    <h1>Video Test Page</h1>
+    <video controls width="640" height="360">
+        <source src="/uploads/videos/test_video.mp4" type="video/mp4">
+        Your browser does not support the video tag.
+    </video>
+    <script>
+        console.log('Test video page loaded');
+        const video = document.querySelector('video');
+        video.addEventListener('loadeddata', () => {
+            console.log('Video loaded successfully!');
+        });
+        video.addEventListener('error', (e) => {
+            console.error('Video error:', e);
+        });
+    </script>
+</body>
+</html>
