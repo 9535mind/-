@@ -1403,9 +1403,6 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
             </div>
         </div>
 
-        <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
-        <script src="/static/js/auth.js"></script>
-        <script src="/static/js/admin-lessons.js"></script>
         <script>
             const courseId = ${courseId};
             let allLessons = [];
@@ -1451,27 +1448,34 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
 
             // 차시 목록 로드
             async function loadLessons() {
+              console.log('[DEBUG] loadLessons() 호출됨, courseId:', courseId);
               try {
                 const response = await apiRequest('GET', \`/api/courses/\${courseId}/lessons\`);
+                console.log('[DEBUG] API 응답:', response);
                 
                 if (response.success) {
                   allLessons = response.data;
+                  console.log('[DEBUG] 차시 목록:', allLessons);
                   document.getElementById('lessonCount').textContent = allLessons.length;
                   renderLessons(allLessons);
                 } else {
+                  console.error('[DEBUG] API 실패:', response);
                   showError('차시 목록을 불러오는데 실패했습니다.');
                 }
               } catch (error) {
-                console.error('Load lessons error:', error);
+                console.error('[DEBUG] Load lessons error:', error);
                 showError('차시 목록을 불러오는데 실패했습니다.');
               }
             }
 
             // 차시 목록 렌더링
             function renderLessons(lessons) {
+              console.log('[DEBUG] renderLessons() 호출됨, lessons:', lessons);
               const container = document.getElementById('lessonList');
+              console.log('[DEBUG] lessonList container:', container);
               
               if (!lessons || lessons.length === 0) {
+                console.log('[DEBUG] 차시가 없음, 빈 메시지 표시');
                 container.innerHTML = \`
                   <div class="text-center py-8 text-gray-500">
                     <i class="fas fa-inbox text-4xl mb-2"></i>
@@ -1483,6 +1487,8 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
                 \`;
                 return;
               }
+              
+              console.log('[DEBUG] 차시 렌더링 중, 개수:', lessons.length);
 
               container.innerHTML = lessons.map(lesson => \`
                 <div class="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
@@ -1650,6 +1656,10 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
               alert(message);
             }
         </script>
+        
+        <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+        <script src="/static/js/auth.js"></script>
+        <script src="/static/js/admin-lessons.js"></script>
     </body>
     </html>
   `)
