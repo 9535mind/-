@@ -228,12 +228,12 @@ pages.get('/login', (c) => {
                             // 리다이렉트 파라미터가 있으면 해당 페이지로
                             window.location.href = redirect
                         } else {
-                            // 관리자는 관리자 대시보드, 일반 사용자는 내 강의실
+                            // 관리자는 관리자 대시보드, 일반 사용자는 홈
                             const user = response.data.data.user
                             if (user.role === 'admin') {
                                 window.location.href = '/admin/dashboard'
                             } else {
-                                window.location.href = '/my-courses'
+                                window.location.href = '/'
                             }
                         }
                     }, 500)
@@ -950,17 +950,22 @@ pages.get('/courses/:id', async (c) => {
                                     </h2>
                                     <div class="space-y-2">
                                         \${lessons.map((lesson, index) => \`
-                                            <div class="bg-white border border-gray-200 rounded-lg p-4 hover:border-indigo-300 transition">
+                                            <div onclick="goToLesson(\${course.id}, \${lesson.id}, \${lesson.is_free_preview}, \${enrollment ? true : false})" 
+                                                 class="bg-white border border-gray-200 rounded-lg p-4 hover:border-indigo-300 transition cursor-pointer">
                                                 <div class="flex justify-between items-center">
-                                                    <div class="flex items-center">
+                                                    <div class="flex items-center flex-1">
                                                         <span class="bg-indigo-100 text-indigo-600 font-bold w-8 h-8 rounded-full flex items-center justify-center mr-3">
                                                             \${index + 1}
                                                         </span>
-                                                        <span class="font-semibold text-gray-900">\${lesson.title}</span>
+                                                        <span class="font-semibold text-gray-900 flex-1">\${lesson.title}</span>
+                                                        \${lesson.is_free_preview ? '<span class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-semibold ml-2">무료</span>' : ''}
                                                     </div>
-                                                    <span class="text-gray-500 text-sm">
-                                                        <i class="fas fa-clock mr-1"></i>\${lesson.duration_minutes}분
-                                                    </span>
+                                                    <div class="flex items-center">
+                                                        <span class="text-gray-500 text-sm mr-3">
+                                                            <i class="fas fa-clock mr-1"></i>\${lesson.video_duration_minutes || 0}분
+                                                        </span>
+                                                        <i class="fas fa-play-circle text-indigo-600 text-2xl"></i>
+                                                    </div>
                                                 </div>
                                             </div>
                                         \`).join('')}
@@ -984,6 +989,23 @@ pages.get('/courses/:id', async (c) => {
                         </button>
                     </div>
                 \`
+            }
+        }
+        
+        function goToLesson(courseId, lessonId, isFreePreview, isEnrolled) {
+            // 무료 미리보기이거나 수강 중이면 바로 이동
+            if (isFreePreview || isEnrolled) {
+                window.location.href = \`/courses/\${courseId}/lessons/\${lessonId}\`
+            } else {
+                // 수강 신청 필요
+                if (!AuthManager.isLoggedIn()) {
+                    showToast('로그인이 필요합니다.', 'error')
+                    setTimeout(() => {
+                        window.location.href = '/login?redirect=/courses/' + courseId
+                    }, 1000)
+                } else {
+                    showToast('수강 신청이 필요합니다.', 'warning')
+                }
             }
         }
         
