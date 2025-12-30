@@ -1231,14 +1231,70 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
                                 class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500">
                         </div>
 
-                        <!-- 영상 URL -->
+                        <!-- 영상 설정 (탭 형식) -->
                         <div class="md:col-span-2">
-                            <label class="block text-sm font-medium text-gray-700 mb-2">
-                                영상 URL (YouTube Private 링크)
+                            <label class="block text-sm font-medium text-gray-700 mb-3">
+                                영상 설정 <span class="text-red-500">*</span>
                             </label>
-                            <input type="url" id="lessonVideoUrl" placeholder="https://youtube.com/watch?v=..."
-                                class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500">
-                            <p class="text-sm text-gray-500 mt-1">* YouTube Private 영상 링크를 입력하세요</p>
+                            
+                            <!-- 탭 메뉴 -->
+                            <div class="flex border-b mb-4">
+                                <button type="button" id="youtubeTab" onclick="switchVideoTab('youtube')"
+                                    class="px-4 py-2 font-medium border-b-2 border-purple-600 text-purple-600 video-tab active">
+                                    <i class="fab fa-youtube mr-2"></i>YouTube
+                                </button>
+                                <button type="button" id="uploadTab" onclick="switchVideoTab('upload')"
+                                    class="px-4 py-2 font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 video-tab">
+                                    <i class="fas fa-upload mr-2"></i>직접 업로드
+                                </button>
+                            </div>
+
+                            <!-- YouTube 탭 -->
+                            <div id="youtubeTabContent" class="video-tab-content">
+                                <input type="url" id="lessonVideoUrl" placeholder="https://youtube.com/watch?v=..."
+                                    class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500">
+                                <p class="text-sm text-gray-500 mt-2">
+                                    <i class="fas fa-info-circle mr-1"></i>
+                                    YouTube 영상 링크를 입력하세요 (공개/비공개 모두 가능)
+                                </p>
+                            </div>
+
+                            <!-- 직접 업로드 탭 -->
+                            <div id="uploadTabContent" class="video-tab-content hidden">
+                                <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                                    <input type="file" id="videoFileInput" accept="video/mp4,video/webm,video/quicktime,video/x-msvideo" 
+                                        class="hidden" onchange="handleVideoFileSelect(event)">
+                                    <label for="videoFileInput" class="cursor-pointer">
+                                        <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-4"></i>
+                                        <p class="text-gray-600 mb-2">클릭하여 영상 파일을 선택하거나</p>
+                                        <p class="text-gray-600 mb-2">파일을 드래그 앤 드롭하세요</p>
+                                        <p class="text-sm text-gray-500">MP4, WebM, MOV, AVI (최대 500MB)</p>
+                                    </label>
+                                </div>
+                                
+                                <!-- 업로드 진행률 -->
+                                <div id="uploadProgress" class="mt-4 hidden">
+                                    <div class="flex items-center justify-between mb-2">
+                                        <span class="text-sm font-medium text-gray-700" id="uploadFileName"></span>
+                                        <span class="text-sm text-gray-600" id="uploadPercent">0%</span>
+                                    </div>
+                                    <div class="w-full bg-gray-200 rounded-full h-2">
+                                        <div id="uploadProgressBar" class="bg-purple-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                                    </div>
+                                </div>
+
+                                <!-- 업로드 완료 정보 -->
+                                <div id="uploadedInfo" class="mt-4 hidden">
+                                    <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                                        <div class="flex items-center">
+                                            <i class="fas fa-check-circle text-green-600 mr-2"></i>
+                                            <span class="text-sm font-medium text-green-800">업로드 완료</span>
+                                        </div>
+                                        <p class="text-sm text-green-700 mt-1" id="uploadedFileName"></p>
+                                        <input type="hidden" id="uploadedVideoKey">
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- 차시 설명 -->
@@ -1283,6 +1339,7 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script src="/static/js/auth.js"></script>
+        <script src="/static/js/admin-lessons.js"></script>
         <script>
             const courseId = ${courseId};
             let allLessons = [];
@@ -1446,12 +1503,21 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
               e.preventDefault();
               
               const lessonId = document.getElementById('lessonId').value;
+              
+              // 영상 데이터 가져오기 (admin-lessons.js의 함수 호출)
+              const videoData = getVideoData();
+              if (!videoData) {
+                return; // 영상 데이터 검증 실패
+              }
+              
               const formData = {
                 course_id: parseInt(courseId),
                 title: document.getElementById('lessonTitle').value,
                 lesson_number: parseInt(document.getElementById('lessonOrder').value),
                 video_duration_minutes: parseInt(document.getElementById('lessonDuration').value) || 0,
-                video_url: document.getElementById('lessonVideoUrl').value || null,
+                video_provider: videoData.video_provider,
+                video_url: videoData.video_url,
+                video_id: videoData.video_id,
                 description: document.getElementById('lessonDescription').value || null,
                 is_free_preview: document.getElementById('lessonIsFree').checked ? 1 : 0,
                 status: document.getElementById('lessonIsActive').checked ? 'active' : 'inactive'

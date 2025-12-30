@@ -46,12 +46,30 @@ class MindstoryVideoPlayer {
   }
 
   createPlayer(startPosition = 0) {
-    const videoUrl = this.videoData.video_provider === 'r2' 
-      ? `/api/videos/stream/${this.videoData.video_key}`
-      : this.videoData.video_url;
-
-    this.container.innerHTML = `
-      <div class="video-player-wrapper">
+    const isYouTube = this.videoData.video_provider === 'youtube';
+    const isR2 = this.videoData.video_provider === 'r2';
+    
+    let videoPlayerHTML = '';
+    
+    if (isYouTube) {
+      // YouTube iframe 플레이어
+      videoPlayerHTML = `
+        <iframe 
+          id="youtube-player"
+          class="w-full rounded-lg shadow-lg aspect-video"
+          src="${this.videoData.video_url}?enablejsapi=1&start=${Math.floor(startPosition)}"
+          frameborder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowfullscreen
+        ></iframe>
+      `;
+    } else {
+      // R2 또는 일반 비디오
+      const videoUrl = isR2 
+        ? `/api/videos/stream/${this.videoData.video_key || this.videoData.video_url}`
+        : this.videoData.video_url;
+      
+      videoPlayerHTML = `
         <video 
           id="mindstory-video" 
           class="video-js w-full rounded-lg shadow-lg"
@@ -63,6 +81,12 @@ class MindstoryVideoPlayer {
           <source src="${videoUrl}" type="video/mp4">
           브라우저가 비디오 재생을 지원하지 않습니다.
         </video>
+      `;
+    }
+
+    this.container.innerHTML = `
+      <div class="video-player-wrapper">
+        ${videoPlayerHTML}
         
         <div id="video-overlay" class="hidden absolute inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
           <div class="text-white text-center">

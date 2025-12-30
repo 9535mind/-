@@ -60,8 +60,71 @@ videos.post('/upload-url', requireAuth, async (c) => {
 })
 
 /**
+ * POST /api/videos/upload
+ * 직접 영상 파일 업로드 (멀티파트 폼)
+ */
+videos.post('/upload', requireAuth, async (c) => {
+  try {
+    const user = c.get('user')
+    
+    if (user.role !== 'admin') {
+      return c.json(errorResponse('관리자 권한이 필요합니다.'), 403)
+    }
+
+    // 멀티파트 폼 데이터 파싱
+    const formData = await c.req.formData()
+    const file = formData.get('video') as File
+    
+    if (!file) {
+      return c.json(errorResponse('영상 파일이 필요합니다.'), 400)
+    }
+
+    // 파일 확장자 체크
+    const validTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo']
+    if (!validTypes.includes(file.type)) {
+      return c.json(errorResponse('지원하지 않는 파일 형식입니다. (MP4, WebM, MOV, AVI만 가능)'), 400)
+    }
+
+    // 파일 크기 체크 (500MB 제한)
+    const maxSize = 500 * 1024 * 1024
+    if (file.size > maxSize) {
+      return c.json(errorResponse('파일 크기는 500MB를 초과할 수 없습니다.'), 400)
+    }
+
+    // 고유한 파일명 생성
+    const timestamp = Date.now()
+    const randomId = Math.random().toString(36).substring(2, 15)
+    const extension = file.name.substring(file.name.lastIndexOf('.'))
+    const uniqueFilename = `videos/${timestamp}-${randomId}${extension}`
+
+    // ArrayBuffer로 변환
+    const fileData = await file.arrayBuffer()
+
+    // R2에 업로드
+    const { VIDEO_STORAGE } = c.env
+    await VIDEO_STORAGE.put(uniqueFilename, fileData, {
+      httpMetadata: {
+        contentType: file.type
+      }
+    })
+
+    return c.json(successResponse({
+      video_key: uniqueFilename,
+      filename: file.name,
+      size: file.size,
+      content_type: file.type,
+      message: '영상이 업로드되었습니다.'
+    }))
+
+  } catch (error) {
+    console.error('Video upload error:', error)
+    return c.json(errorResponse('영상 업로드에 실패했습니다.'), 500)
+  }
+})
+
+/**
  * PUT /api/videos/upload/:key
- * 실제 영상 파일 업로드
+ * 실제 영상 파일 업로드 (청크 방식)
  */
 videos.put('/upload/:key', requireAuth, async (c) => {
   try {
