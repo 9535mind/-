@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>차시 67 영상 테스트</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 900px; 
+            margin: 50px auto; 
+            padding: 20px;
+        }
+        video { 
+            width: 100%; 
+            max-width: 800px; 
+            border: 2px solid #333;
+            border-radius: 8px;
+        }
+        .info {
+            background: #f0f0f0;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .log {
+            background: #fff;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-top: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎬 차시 67: 메타인지란 무엇인가?</h1>
+    
+    <div class="info">
+        <p><strong>영상 파일:</strong> metacognition-lesson1.mp4</p>
+        <p><strong>파일 크기:</strong> 27MB</p>
+        <p><strong>길이:</strong> 2분 25초</p>
+    </div>
+    
+    <h2>영상 플레이어</h2>
+    <video id="mainVideo" controls controlsList="nodownload">
+        <source src="/uploads/videos/metacognition-lesson1.mp4" type="video/mp4">
+        브라우저가 영상 재생을 지원하지 않습니다.
+    </video>
+    
+    <div class="info">
+        <p id="status">상태: 대기 중...</p>
+        <p id="duration">영상 길이: -</p>
+        <p id="currentTime">현재 시간: 0초</p>
+        <p id="buffered">버퍼링: -</p>
+    </div>
+    
+    <h3>디버그 로그</h3>
+    <div class="log" id="log"></div>
+    
+    <script>
+        const video = document.getElementById('mainVideo');
+        const log = document.getElementById('log');
+        const status = document.getElementById('status');
+        const durationEl = document.getElementById('duration');
+        const currentTimeEl = document.getElementById('currentTime');
+        const bufferedEl = document.getElementById('buffered');
+        
+        function addLog(message, color = 'black') {
+            const now = new Date().toLocaleTimeString();
+            log.innerHTML += `<div style="color: ${color}">[${now}] ${message}</div>`;
+            log.scrollTop = log.scrollHeight;
+        }
+        
+        // Video Events
+        video.addEventListener('loadstart', () => {
+            addLog('📥 loadstart - 영상 로드 시작', 'blue');
+            status.textContent = '상태: 로딩 중...';
+        });
+        
+        video.addEventListener('progress', () => {
+            const buffered = video.buffered;
+            if (buffered.length > 0) {
+                const bufferedEnd = buffered.end(buffered.length - 1);
+                const percent = (bufferedEnd / video.duration * 100).toFixed(1);
+                bufferedEl.textContent = `버퍼링: ${bufferedEnd.toFixed(1)}초 / ${video.duration.toFixed(1)}초 (${percent}%)`;
+                addLog(`📊 progress - 버퍼링: ${percent}%`, 'green');
+            }
+        });
+        
+        video.addEventListener('loadedmetadata', () => {
+            addLog('📋 loadedmetadata - 메타데이터 로드 완료', 'green');
+            durationEl.textContent = `영상 길이: ${video.duration.toFixed(1)}초`;
+        });
+        
+        video.addEventListener('loadeddata', () => {
+            addLog('✅ loadeddata - 영상 데이터 로드 완료', 'green');
+            status.textContent = '상태: 로드 완료';
+        });
+        
+        video.addEventListener('canplay', () => {
+            addLog('▶️ canplay - 재생 가능', 'green');
+            status.textContent = '상태: 재생 가능';
+        });
+        
+        video.addEventListener('canplaythrough', () => {
+            addLog('✅ canplaythrough - 끊김 없이 재생 가능', 'green');
+        });
+        
+        video.addEventListener('play', () => {
+            addLog('▶️ play - 재생 시작', 'purple');
+            status.textContent = '상태: 재생 중';
+        });
+        
+        video.addEventListener('pause', () => {
+            addLog('⏸️ pause - 일시정지', 'orange');
+            status.textContent = '상태: 일시정지';
+        });
+        
+        video.addEventListener('timeupdate', () => {
+            currentTimeEl.textContent = `현재 시간: ${video.currentTime.toFixed(1)}초`;
+        });
+        
+        video.addEventListener('ended', () => {
+            addLog('🏁 ended - 재생 완료', 'green');
+            status.textContent = '상태: 재생 완료';
+        });
+        
+        video.addEventListener('error', (e) => {
+            const error = video.error;
+            let errorMsg = '알 수 없는 오류';
+            
+            if (error) {
+                switch(error.code) {
+                    case 1: errorMsg = 'MEDIA_ERR_ABORTED - 사용자가 중단'; break;
+                    case 2: errorMsg = 'MEDIA_ERR_NETWORK - 네트워크 오류'; break;
+                    case 3: errorMsg = 'MEDIA_ERR_DECODE - 디코딩 오류'; break;
+                    case 4: errorMsg = 'MEDIA_ERR_SRC_NOT_SUPPORTED - 지원되지 않는 형식'; break;
+                }
+                errorMsg += ` (코드: ${error.code})`;
+            }
+            
+            addLog(`❌ ERROR - ${errorMsg}`, 'red');
+            status.textContent = `상태: 오류 - ${errorMsg}`;
+        });
+        
+        video.addEventListener('stalled', () => {
+            addLog('⚠️ stalled - 데이터 가져오기 중단', 'orange');
+        });
+        
+        video.addEventListener('waiting', () => {
+            addLog('⏳ waiting - 버퍼링 대기 중', 'orange');
+            status.textContent = '상태: 버퍼링 중...';
+        });
+        
+        // 초기 로그
+        addLog('🚀 페이지 로드 완료', 'blue');
+        addLog(`📹 비디오 src: ${video.currentSrc || video.querySelector('source').src}`, 'blue');
+    </script>
+</body>
+</html>
