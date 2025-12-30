@@ -889,6 +889,11 @@ pages.get('/courses/:id', async (c) => {
                 const response = await axios.get(\`/api/courses/\${courseId}\`)
                 const { course, lessons, enrollment } = response.data.data
                 
+                // 현재 사용자 확인
+                const currentUser = AuthManager.getCurrentUser()
+                const isAdmin = currentUser && currentUser.role === 'admin'
+                const hasAccess = isAdmin || enrollment
+                
                 const detailHtml = \`
                     <div class="bg-white rounded-lg shadow-lg overflow-hidden">
                         <!-- 과정 헤더 -->
@@ -937,9 +942,16 @@ pages.get('/courses/:id', async (c) => {
                                                 </div>\`
                                             }
                                         </div>
-                                        <button onclick="enrollCourse(\${course.id})" class="bg-indigo-600 text-white px-8 py-3 rounded-lg font-bold text-lg hover:bg-indigo-700 transition">
-                                            \${enrollment ? '학습하기' : '수강 신청'}
-                                        </button>
+                                        \${isAdmin ? 
+                                            \`<button onclick="goToLesson(\${course.id}, \${lessons[0]?.id || 0}, true, true)" 
+                                                     class="bg-purple-600 text-white px-8 py-3 rounded-lg font-bold text-lg hover:bg-purple-700 transition">
+                                                <i class="fas fa-user-shield mr-2"></i>관리자 모드로 학습하기
+                                            </button>\` :
+                                            \`<button onclick="enrollCourse(\${course.id})" 
+                                                     class="bg-indigo-600 text-white px-8 py-3 rounded-lg font-bold text-lg hover:bg-indigo-700 transition">
+                                                \${enrollment ? '학습하기' : '수강 신청'}
+                                            </button>\`
+                                        }
                                     </div>
                                 </div>
                                 

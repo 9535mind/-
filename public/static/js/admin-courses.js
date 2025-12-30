@@ -103,6 +103,19 @@ function showThumbnailPreview(url) {
   preview.classList.remove('hidden');
 }
 
+// URL 입력 시 미리보기
+function previewThumbnailUrl(url) {
+  if (!url || url.length < 10) {
+    document.getElementById('thumbnailPreview').classList.add('hidden');
+    return;
+  }
+  
+  // URL 유효성 검사 (http 또는 https로 시작)
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    showThumbnailPreview(url);
+  }
+}
+
 // 페이지 로드 시 초기화
 document.addEventListener('DOMContentLoaded', async () => {
   // 관리자 권한 확인
