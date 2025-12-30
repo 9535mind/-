@@ -288,7 +288,7 @@ function uploadVideoFileAsync(file) {
       reject(new Error('네트워크 오류'));
     });
 
-    xhr.open('POST', '/api/videos/upload');
+    xhr.open('POST', '/api/upload/video');
     xhr.setRequestHeader('Authorization', 'Bearer ' + token);
     xhr.send(formData);
   });
@@ -363,7 +363,7 @@ async function uploadVideoFile(file) {
   try {
     // FormData 생성
     const formData = new FormData();
-    formData.append('video', file);
+    formData.append('file', file);
 
     // XMLHttpRequest로 업로드 (진행률 추적)
     const xhr = new XMLHttpRequest();
@@ -383,16 +383,24 @@ async function uploadVideoFile(file) {
         const response = JSON.parse(xhr.responseText);
         if (response.success) {
           // 업로드 완료
-          uploadedVideoKey = response.data.video_key;
+          uploadedVideoKey = response.data.url; // video_key → url
           document.getElementById('uploadedVideoKey').value = uploadedVideoKey;
           document.getElementById('uploadedFileName').textContent = file.name;
+          
+          // 재생 시간 자동 설정
+          if (response.data.duration) {
+            const durationInput = document.getElementById('videoDuration');
+            if (durationInput) {
+              durationInput.value = response.data.duration;
+            }
+          }
           
           progressContainer.classList.add('hidden');
           uploadedInfo.classList.remove('hidden');
           
-          console.log('영상 업로드 완료:', uploadedVideoKey);
+          console.log('영상 업로드 완료:', uploadedVideoKey, '재생시간:', response.data.duration, '분');
         } else {
-          throw new Error(response.error || '업로드 실패');
+          throw new Error(response.message || '업로드 실패');
         }
       } else {
         throw new Error('업로드 실패: HTTP ' + xhr.status);
@@ -406,7 +414,7 @@ async function uploadVideoFile(file) {
     });
 
     // 요청 전송
-    xhr.open('POST', '/api/videos/upload');
+    xhr.open('POST', '/api/upload/video');
     xhr.setRequestHeader('Authorization', 'Bearer ' + token);
     xhr.send(formData);
 
