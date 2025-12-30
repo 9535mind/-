@@ -1792,6 +1792,12 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
                       </div>
                     </div>
                     <div class="flex space-x-2">
+                      \${lesson.video_url ? \`
+                        <a href="/courses/\${courseId}/lessons/\${lesson.id}" target="_blank" 
+                           class="text-green-600 hover:text-green-800" title="영상 재생">
+                          <i class="fas fa-play-circle"></i>
+                        </a>
+                      \` : ''}
                       <button onclick="editLesson(\${lesson.id})" class="text-blue-600 hover:text-blue-800" title="수정">
                         <i class="fas fa-edit"></i>
                       </button>

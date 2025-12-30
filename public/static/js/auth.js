@@ -18,6 +18,10 @@ class AuthManager {
     return userJson ? JSON.parse(userJson) : null
   }
 
+  static getCurrentUser() {
+    return this.getUser()
+  }
+
   static isLoggedIn() {
     return !!this.getSessionToken()
   }
