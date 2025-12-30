@@ -1214,10 +1214,25 @@ pages.get('/courses/:courseId/lessons/:lessonId', async (c) => {
                             controls 
                             controlsList="nodownload"
                             oncontextmenu="return false;"
-                            onended="handleVideoEnd()">
-                            <source src="\${videoUrl}" type="video/mp4">
-                            Your browser does not support the video tag.
+                            onended="handleVideoEnd()"
+                            onerror="console.error('[VIDEO] Error loading video:', this.error)"
+                            onloadeddata="console.log('[VIDEO] Video loaded successfully')"
+                            oncanplay="console.log('[VIDEO] Video can play')">
+                            <source src="\${videoUrl}" type="video/mp4" onerror="console.error('[VIDEO] Source error')">
+                            <p class="text-red-500">브라우저가 영상 재생을 지원하지 않습니다.</p>
+                            <p class="text-sm text-gray-500">영상 URL: \${videoUrl}</p>
                         </video>
+                        <script>
+                            const video = document.getElementById('lessonVideo');
+                            console.log('[VIDEO] Video element created, src:', '\${videoUrl}');
+                            video.addEventListener('loadstart', () => console.log('[VIDEO] Load started'));
+                            video.addEventListener('progress', () => console.log('[VIDEO] Loading progress'));
+                            video.addEventListener('error', (e) => {
+                                console.error('[VIDEO] Video error event:', e);
+                                console.error('[VIDEO] Error code:', video.error?.code);
+                                console.error('[VIDEO] Error message:', video.error?.message);
+                            });
+                        </script>
                     \`
                 }
             } else {
