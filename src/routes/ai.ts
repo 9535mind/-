@@ -207,4 +207,99 @@ ${topic ? `주제: ${topic}` : ''}
   }
 })
 
+/**
+ * POST /api/ai/generate-description
+ * AI 기반 강좌 설명 생성 (관리자 전용)
+ */
+ai.post('/generate-description', requireAdmin, async (c) => {
+  try {
+    const body = await c.req.json<{ title: string }>()
+    const { title } = body
+
+    if (!title) {
+      return c.json(errorResponse('강좌명을 입력해주세요.'), 400)
+    }
+
+    // OpenAI API 키 확인
+    const apiKey = c.env.OPENAI_API_KEY
+    const baseURL = c.env.OPENAI_BASE_URL || 'https://www.genspark.ai/api/llm_proxy/v1'
+
+    if (!apiKey) {
+      return c.json(errorResponse('OpenAI API 키가 설정되지 않았습니다.'), 400)
+    }
+
+    const prompt = `다음 강좌명에 대한 매력적인 강좌 설명을 작성해주세요:
+
+강좌명: ${title}
+
+요구사항:
+- 200-300자 내외로 작성
+- 강좌의 목적과 주요 학습 내용 포함
+- 수강 대상과 기대 효과 포함
+- 전문적이면서도 친근한 톤
+- 명확하고 간결한 문장
+
+JSON 형식으로 응답:
+{
+  "description": "강좌 설명"
+}`
+
+    const response = await fetch(`${baseURL}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: '당신은 온라인 교육 과정 설명 전문가입니다. 주어진 강좌명에 대해 매력적이고 명확한 설명을 작성합니다.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 500
+      })
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('OpenAI API error:', errorText)
+      return c.json(errorResponse('AI 생성에 실패했습니다.'), 500)
+    }
+
+    const data = await response.json()
+    const content = data.choices[0]?.message?.content
+
+    if (!content) {
+      return c.json(errorResponse('AI 응답을 받지 못했습니다.'), 500)
+    }
+
+    // JSON 파싱
+    let description
+    try {
+      // 코드 블록 제거
+      const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/)
+      const jsonStr = jsonMatch ? jsonMatch[1] : content
+
+      const parsed = JSON.parse(jsonStr)
+      description = parsed.description
+    } catch (e) {
+      // JSON 파싱 실패 시 전체 텍스트를 설명으로 사용
+      description = content.trim()
+    }
+
+    return c.json(successResponse({ description }, 'AI 기반 설명이 생성되었습니다.'))
+
+  } catch (error) {
+    console.error('Generate description error:', error)
+    return c.json(errorResponse('서버 오류가 발생했습니다.'), 500)
+  }
+})
+
 export default ai

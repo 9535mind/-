@@ -282,11 +282,19 @@ function openNewCourseModal() {
   document.getElementById('courseForm').reset();
   document.getElementById('courseId').value = '';
   
+  // 썸네일 미리보기 숨김
+  document.getElementById('thumbnailPreview').classList.add('hidden');
+  
   // 차시 미리보기 섹션 숨김 (새 강좌는 차시가 없음)
   document.getElementById('lessonPreviewSection').classList.add('hidden');
   
   document.getElementById('courseModal').classList.remove('hidden');
   document.getElementById('courseModal').classList.add('flex');
+  
+  // 모달 드래그 기능 초기화 (admin-courses-drag.js에서 처리)
+  if (typeof initModalDrag === 'function') {
+    initModalDrag();
+  }
 }
 
 // 강좌 수정 모달
@@ -295,11 +303,15 @@ async function editCourse(courseId) {
     const response = await apiRequest('GET', `/api/courses/${courseId}`);
     
     if (response.success) {
-      const course = response.data;
+      // API 응답 구조: response.data.course (not response.data directly)
+      const course = response.data.course || response.data;
       
-      document.getElementById('modalTitle').textContent = '강좌 수정';
+      console.log('[DEBUG] editCourse - course:', course);
+      console.log('[DEBUG] editCourse - course.title:', course.title);
+      
+      document.getElementById('modalTitle').textContent = `강좌 수정: ${course.title}`;
       document.getElementById('courseId').value = course.id;
-      document.getElementById('courseTitle').value = course.title;
+      document.getElementById('courseTitle').value = course.title || '';
       document.getElementById('courseDescription').value = course.description || '';
       document.getElementById('courseThumbnail').value = course.thumbnail_url || '';
       document.getElementById('courseType').value = course.course_type || 'general';
@@ -310,6 +322,11 @@ async function editCourse(courseId) {
       document.getElementById('courseIsFeatured').checked = course.is_featured === 1;
       document.getElementById('courseStatus').value = course.status || 'active';
       
+      // 썸네일 미리보기 표시
+      if (course.thumbnail_url) {
+        showThumbnailPreview(course.thumbnail_url);
+      }
+      
       // 차시 미리보기 섹션 표시
       document.getElementById('lessonPreviewSection').classList.remove('hidden');
       
@@ -318,6 +335,11 @@ async function editCourse(courseId) {
       
       document.getElementById('courseModal').classList.remove('hidden');
       document.getElementById('courseModal').classList.add('flex');
+      
+      // 모달 드래그 기능 초기화 (admin-courses-drag.js에서 처리)
+      if (typeof initModalDrag === 'function') {
+        initModalDrag();
+      }
     }
   } catch (error) {
     console.error('Edit course error:', error);
@@ -669,5 +691,43 @@ async function loadCourseLessons(courseId) {
         </button>
       </div>
     `;
+  }
+}
+
+// AI 기반 강좌 설명 생성
+async function generateDescription() {
+  const titleInput = document.getElementById('courseTitle');
+  const descriptionTextarea = document.getElementById('courseDescription');
+  
+  const title = titleInput.value.trim();
+  
+  if (!title) {
+    alert('먼저 강좌명을 입력해주세요.');
+    titleInput.focus();
+    return;
+  }
+  
+  // 로딩 상태 표시
+  const originalText = descriptionTextarea.value;
+  descriptionTextarea.value = '🤖 AI가 설명을 생성하고 있습니다...';
+  descriptionTextarea.disabled = true;
+  
+  try {
+    const response = await apiRequest('POST', '/api/ai/generate-description', {
+      title: title,
+      context: 'course' // 강좌 설명임을 명시
+    });
+    
+    if (response.success && response.data.description) {
+      descriptionTextarea.value = response.data.description;
+    } else {
+      throw new Error(response.message || 'AI 설명 생성에 실패했습니다.');
+    }
+  } catch (error) {
+    console.error('Generate description error:', error);
+    alert('AI 설명 생성에 실패했습니다.\n\n' + (error.message || '서버 오류가 발생했습니다.') + '\n\n직접 입력해주세요.');
+    descriptionTextarea.value = originalText; // 원래 텍스트 복구
+  } finally {
+    descriptionTextarea.disabled = false;
   }
 }

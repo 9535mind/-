@@ -290,10 +290,11 @@ pagesAdmin.get('/courses', async (c) => {
 
         <!-- 강좌 등록/수정 모달 -->
         <div id="courseModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
-            <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-                <div class="p-6 border-b flex justify-between items-center">
+            <div id="courseModalContent" class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto" style="position: relative;">
+                <div id="modalHeader" class="p-6 border-b flex justify-between items-center cursor-move bg-purple-50">
                     <h2 class="text-2xl font-bold text-gray-800">
                         <i class="fas fa-edit mr-2"></i><span id="modalTitle">새 강좌 등록</span>
+                        <span class="text-sm text-gray-500 ml-2">(드래그하여 이동 가능)</span>
                     </h2>
                     <button onclick="closeCourseModal()" class="text-gray-500 hover:text-gray-700">
                         <i class="fas fa-times text-2xl"></i>
@@ -314,10 +315,16 @@ pagesAdmin.get('/courses', async (c) => {
 
                         <!-- 설명 -->
                         <div class="md:col-span-2">
-                            <label class="block text-sm font-medium text-gray-700 mb-2">
-                                강좌 설명 <span class="text-red-500">*</span>
-                            </label>
-                            <textarea id="courseDescription" rows="4" required
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="block text-sm font-medium text-gray-700">
+                                    강좌 설명 <span class="text-red-500">*</span>
+                                </label>
+                                <button type="button" onclick="generateDescription()" 
+                                    class="text-sm bg-gradient-to-r from-purple-600 to-pink-600 text-white px-3 py-1 rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all">
+                                    <i class="fas fa-magic mr-1"></i>AI로 설명 생성
+                                </button>
+                            </div>
+                            <textarea id="courseDescription" rows="4" required placeholder="강좌에 대한 설명을 입력하거나 AI로 생성하세요..."
                                 class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"></textarea>
                         </div>
 
@@ -561,6 +568,7 @@ pagesAdmin.get('/courses', async (c) => {
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script src="/static/js/auth.js"></script>
         <script src="/static/js/admin-courses.js"></script>
+        <script src="/static/js/admin-courses-drag.js"></script>
     </body>
     </html>
   `)
