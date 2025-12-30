@@ -1167,8 +1167,12 @@ pages.get('/courses/:courseId/lessons/:lessonId', async (c) => {
                         </div>
                     \`
                 } else {
-                    // R2 저장소 영상
-                    const videoUrl = \`/api/storage/\${currentLesson.video_url}\`
+                    // 로컬 또는 R2 저장소 영상
+                    // video_url이 /uploads/로 시작하면 로컬 파일, 아니면 R2
+                    let videoUrl = currentLesson.video_url
+                    if (!videoUrl.startsWith('/uploads/') && !videoUrl.startsWith('http')) {
+                        videoUrl = \`/api/storage/\${videoUrl}\`
+                    }
                     videoHtml = \`
                         <video 
                             id="lessonVideo"

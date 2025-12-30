@@ -44,3 +44,6 @@ pids/
 *.bak
 *.tar.gz
 *.zip
+
+# Local uploads (development only - production uses R2)
+public/uploads/

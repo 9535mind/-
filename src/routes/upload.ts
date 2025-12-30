@@ -17,12 +17,6 @@ const upload = new Hono<{ Bindings: Bindings }>()
  */
 upload.post('/image', requireAdmin, async (c) => {
   try {
-    const { STORAGE } = c.env
-    
-    if (!STORAGE) {
-      return c.json(errorResponse('스토리지가 설정되지 않았습니다.'), 500)
-    }
-
     // FormData에서 파일 가져오기
     const formData = await c.req.formData()
     const file = formData.get('file') as File | null
@@ -43,28 +37,14 @@ upload.post('/image', requireAdmin, async (c) => {
       return c.json(errorResponse('파일 크기는 5MB 이하여야 합니다.'), 400)
     }
 
-    // 파일명 생성 (타임스탬프 + 랜덤 문자열)
-    const timestamp = Date.now()
-    const randomStr = Math.random().toString(36).substring(2, 8)
-    const extension = file.name.split('.').pop() || 'jpg'
-    const filename = `images/${timestamp}-${randomStr}.${extension}`
+    // 환경에 맞게 파일 저장 (로컬 또는 R2)
+    const imageUrl = await saveFile(c, file, 'images')
 
-    // R2에 업로드
-    const arrayBuffer = await file.arrayBuffer()
-    await STORAGE.put(filename, arrayBuffer, {
-      httpMetadata: {
-        contentType: file.type
-      }
-    })
-
-    // 공개 URL 생성 (실제 프로덕션에서는 Custom Domain 사용)
-    // 로컬 개발: 임시 URL
-    // 프로덕션: https://storage.yourdomain.com/filename
-    const imageUrl = `/api/storage/${filename}`
+    console.log(`[Upload] 이미지 업로드 완료: ${imageUrl}`)
 
     return c.json(successResponse({
       url: imageUrl,
-      filename: filename,
+      filename: imageUrl,
       size: file.size,
       type: file.type
     }, '이미지가 업로드되었습니다.'))
@@ -121,12 +101,6 @@ export default upload
  */
 upload.post('/video', requireAdmin, async (c) => {
   try {
-    const { VIDEO_STORAGE } = c.env
-    
-    if (!VIDEO_STORAGE) {
-      return c.json(errorResponse('영상 스토리지가 설정되지 않았습니다.'), 500)
-    }
-
     // FormData에서 파일 가져오기
     const formData = await c.req.formData()
     const file = formData.get('file') as File | null
@@ -150,41 +124,25 @@ upload.post('/video', requireAdmin, async (c) => {
       return c.json(errorResponse('파일 크기는 500MB 이하여야 합니다.'), 400)
     }
 
-    // 파일명 생성 (타임스탬프 + 랜덤 문자열)
-    const timestamp = Date.now()
-    const randomStr = Math.random().toString(36).substring(2, 15)
-    const extension = fileExtension.substring(1) || 'mp4'
-    const filename = `videos/${timestamp}-${randomStr}.${extension}`
-
     console.log('[VIDEO UPLOAD] Starting upload:', {
       originalName: file.name,
       size: file.size,
       type: file.type,
-      filename: filename
+      isLocal: isLocalEnvironment(c)
     })
 
-    // R2에 업로드
-    const arrayBuffer = await file.arrayBuffer()
-    await VIDEO_STORAGE.put(filename, arrayBuffer, {
-      httpMetadata: {
-        contentType: file.type || 'video/mp4'
-      }
-    })
+    // 환경에 맞게 파일 저장 (로컬 또는 R2)
+    const videoUrl = await saveFile(c, file, 'videos')
 
-    console.log('[VIDEO UPLOAD] Upload successful:', filename)
+    console.log('[VIDEO UPLOAD] Upload successful:', videoUrl)
 
     // 영상 메타데이터 추출 (재생 시간)
     // TODO: 실제 영상 파일에서 duration 추출 (현재는 파일 크기로 추정)
-    // Cloudflare Workers에서는 FFmpeg를 실행할 수 없으므로,
-    // 클라이언트에서 추출하거나 외부 서비스 사용 필요
     const estimatedDuration = Math.ceil(file.size / (1024 * 1024)) // 임시: 1MB당 1분으로 추정
-
-    // 공개 URL 생성
-    const videoUrl = filename // R2 상대 경로 저장 (GET /api/storage/videos/:filename으로 접근)
 
     return c.json(successResponse({
       url: videoUrl,
-      filename: filename,
+      filename: videoUrl,
       size: file.size,
       type: file.type,
       duration: estimatedDuration,
