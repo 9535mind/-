@@ -166,6 +166,9 @@ async function loadCourses() {
 
 // 강좌 목록 렌더링
 function renderCourses(courses) {
+  console.log('[DEBUG] renderCourses 호출됨, 강좌 수:', courses?.length);
+  console.log('[DEBUG] 첫 번째 강좌:', courses?.[0]);
+  
   const tbody = document.getElementById('courseList');
   
   if (!courses || courses.length === 0) {
@@ -181,6 +184,7 @@ function renderCourses(courses) {
   }
 
   tbody.innerHTML = courses.map(course => {
+    console.log('[DEBUG] 강좌 렌더링:', course.id, course.title);
     const price = course.is_free ? '무료' : 
                   (course.discount_price ? 
                     `<span class="line-through text-gray-400">${course.price?.toLocaleString()}원</span> ${course.discount_price?.toLocaleString()}원` : 
@@ -563,6 +567,7 @@ function goToLessonManagement() {
 let expandedCourses = {}; // 펼쳐진 강좌 ID 추적
 
 async function toggleCourseDetails(courseId, event) {
+  console.log('[DEBUG] toggleCourseDetails 호출됨, courseId:', courseId, 'type:', typeof courseId);
   event.preventDefault();
   event.stopPropagation();
   
@@ -596,9 +601,12 @@ async function toggleCourseDetails(courseId, event) {
  * 특정 강좌의 차시 목록 로드
  */
 async function loadCourseLessons(courseId) {
+  console.log('[DEBUG] loadCourseLessons 호출됨, courseId:', courseId);
   const previewContainer = document.getElementById(`lesson-preview-${courseId}`);
+  console.log('[DEBUG] previewContainer:', previewContainer);
   
   try {
+    console.log('[DEBUG] API 요청:', `/api/courses/${courseId}/lessons`);
     const response = await apiRequest('GET', `/api/courses/${courseId}/lessons`);
     
     if (response.success && response.data) {
