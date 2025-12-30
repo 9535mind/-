@@ -183,6 +183,11 @@ function renderCourses(courses) {
             <div>
               <p class="font-semibold text-gray-800">${course.title}</p>
               <p class="text-sm text-gray-600">${course.course_type === 'certificate' ? '수료증 과정' : '일반 과정'}</p>
+              <!-- 펼침/접기 버튼 -->
+              <button onclick="toggleCourseDetails(${course.id}, event)" class="mt-2 text-xs text-purple-600 hover:text-purple-800 flex items-center">
+                <i id="toggle-icon-${course.id}" class="fas fa-chevron-down mr-1"></i>
+                <span id="toggle-text-${course.id}">강좌 내용 보기</span>
+              </button>
             </div>
           </div>
         </td>
@@ -200,6 +205,28 @@ function renderCourses(courses) {
           <button onclick="deleteCourse(${course.id})" class="text-red-600 hover:text-red-800" title="삭제">
             <i class="fas fa-trash"></i>
           </button>
+        </td>
+      </tr>
+      <!-- 강좌 상세 내용 (차시 목록) -->
+      <tr id="course-details-${course.id}" class="hidden">
+        <td colspan="6" class="bg-gray-50 py-4 px-8">
+          <div class="border-l-4 border-purple-600 pl-4">
+            <div class="flex justify-between items-center mb-3">
+              <h4 class="font-semibold text-gray-800">
+                <i class="fas fa-list-ol mr-2 text-purple-600"></i>
+                차시 목록
+              </h4>
+              <button onclick="manageContent(${course.id})" class="text-xs bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700">
+                <i class="fas fa-cog mr-1"></i>차시 관리
+              </button>
+            </div>
+            <div id="lesson-preview-${course.id}" class="text-sm">
+              <div class="text-center py-4 text-gray-500">
+                <i class="fas fa-spinner fa-spin mr-2"></i>
+                차시 목록 로딩 중...
+              </div>
+            </div>
+          </div>
         </td>
       </tr>
     `;
@@ -501,5 +528,112 @@ function goToLessonManagement() {
   const courseId = document.getElementById('courseId').value;
   if (courseId) {
     window.location.href = `/admin/courses/${courseId}/lessons`;
+  }
+}
+
+/**
+ * 강좌 상세 내용 펼침/접기
+ */
+let expandedCourses = {}; // 펼쳐진 강좌 ID 추적
+
+async function toggleCourseDetails(courseId, event) {
+  event.preventDefault();
+  event.stopPropagation();
+  
+  const detailsRow = document.getElementById(`course-details-${courseId}`);
+  const toggleIcon = document.getElementById(`toggle-icon-${courseId}`);
+  const toggleText = document.getElementById(`toggle-text-${courseId}`);
+  
+  // 펼침/접기 토글
+  if (detailsRow.classList.contains('hidden')) {
+    // 펼치기
+    detailsRow.classList.remove('hidden');
+    toggleIcon.classList.remove('fa-chevron-down');
+    toggleIcon.classList.add('fa-chevron-up');
+    toggleText.textContent = '강좌 내용 숨기기';
+    
+    // 차시 목록 로드 (처음 펼칠 때만)
+    if (!expandedCourses[courseId]) {
+      await loadCourseLessons(courseId);
+      expandedCourses[courseId] = true;
+    }
+  } else {
+    // 접기
+    detailsRow.classList.add('hidden');
+    toggleIcon.classList.remove('fa-chevron-up');
+    toggleIcon.classList.add('fa-chevron-down');
+    toggleText.textContent = '강좌 내용 보기';
+  }
+}
+
+/**
+ * 특정 강좌의 차시 목록 로드
+ */
+async function loadCourseLessons(courseId) {
+  const previewContainer = document.getElementById(`lesson-preview-${courseId}`);
+  
+  try {
+    const response = await apiRequest('GET', `/api/courses/${courseId}/lessons`);
+    
+    if (response.success && response.data) {
+      const lessons = response.data;
+      
+      if (lessons.length === 0) {
+        previewContainer.innerHTML = `
+          <div class="text-center py-4 text-gray-500">
+            <i class="fas fa-inbox text-2xl mb-2"></i>
+            <p>등록된 차시가 없습니다.</p>
+            <button onclick="manageContent(${courseId})" class="mt-2 text-purple-600 hover:text-purple-800 text-sm">
+              <i class="fas fa-plus mr-1"></i>차시 추가하기
+            </button>
+          </div>
+        `;
+        return;
+      }
+      
+      // 차시 목록 렌더링
+      previewContainer.innerHTML = `
+        <div class="space-y-2">
+          ${lessons.map((lesson, index) => `
+            <div class="flex items-start p-3 bg-white rounded border hover:border-purple-400 transition-colors">
+              <div class="flex-shrink-0 w-8 h-8 bg-purple-100 text-purple-700 rounded-full flex items-center justify-center font-semibold mr-3">
+                ${lesson.lesson_number}
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="font-medium text-gray-800 truncate">${lesson.title}</p>
+                <div class="flex items-center space-x-3 mt-1 text-xs text-gray-500">
+                  ${lesson.video_duration_minutes ? `<span><i class="fas fa-clock mr-1"></i>${lesson.video_duration_minutes}분</span>` : ''}
+                  ${lesson.video_url ? '<span class="text-green-600"><i class="fas fa-video mr-1"></i>영상</span>' : '<span class="text-gray-400"><i class="fas fa-video-slash mr-1"></i>영상 없음</span>'}
+                  ${lesson.is_free_preview === 1 ? '<span class="text-green-600"><i class="fas fa-unlock mr-1"></i>무료</span>' : ''}
+                  ${lesson.status !== 'active' ? '<span class="text-gray-400"><i class="fas fa-eye-slash mr-1"></i>비공개</span>' : ''}
+                </div>
+              </div>
+              <button onclick="window.location.href='/admin/courses/${courseId}/lessons'" class="ml-2 text-gray-400 hover:text-purple-600" title="차시 수정">
+                <i class="fas fa-edit"></i>
+              </button>
+            </div>
+          `).join('')}
+        </div>
+        <div class="mt-4 text-center">
+          <button onclick="manageContent(${courseId})" class="text-sm text-purple-600 hover:text-purple-800">
+            <i class="fas fa-arrow-right mr-1"></i>
+            전체 차시 관리 페이지로 이동
+          </button>
+        </div>
+      `;
+    } else {
+      throw new Error(response.error || '차시 목록을 불러올 수 없습니다.');
+    }
+  } catch (error) {
+    console.error('Load lessons error:', error);
+    previewContainer.innerHTML = `
+      <div class="text-center py-4 text-red-500">
+        <i class="fas fa-exclamation-circle mr-2"></i>
+        차시 목록을 불러오는데 실패했습니다.
+        <button onclick="loadCourseLessons(${courseId})" class="block mx-auto mt-2 text-sm text-purple-600 hover:text-purple-800">
+          <i class="fas fa-redo mr-1"></i>다시 시도
+        </button>
+      </div>
+    `;
   }
 }
