@@ -499,3 +499,53 @@ admin.post('/users/:userId/reset-password', requireAdmin, async (c) => {
 })
 
 export default admin
+
+// 회원 상세 조회
+admin.get('/users/:userId', requireAdmin, async (c) => {
+  const { DB } = c.env
+  const userId = c.req.param('userId')
+
+  try {
+    // 회원 기본 정보
+    const user = await DB.prepare(`
+      SELECT id, email, name, phone, phone_verified, birth_date, role, status,
+             terms_agreed, privacy_agreed, marketing_agreed, 
+             created_at, updated_at, last_login_at
+      FROM users
+      WHERE id = ?
+    `).bind(userId).first()
+
+    if (!user) {
+      return c.json(errorResponse('회원을 찾을 수 없습니다'), 404)
+    }
+
+    // 수강 통계
+    const enrollStats = await DB.prepare(`
+      SELECT 
+        COUNT(*) as total_enrollments,
+        SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active_enrollments,
+        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_enrollments
+      FROM enrollments
+      WHERE user_id = ?
+    `).bind(userId).first()
+
+    // 결제 통계
+    const paymentStats = await DB.prepare(`
+      SELECT 
+        COUNT(*) as total_payments,
+        SUM(CASE WHEN status = 'completed' THEN final_amount ELSE 0 END) as total_paid,
+        MAX(paid_at) as last_payment_date
+      FROM payments
+      WHERE user_id = ?
+    `).bind(userId).first()
+
+    return c.json(successResponse({
+      ...user,
+      enrollments: enrollStats || { total_enrollments: 0, active_enrollments: 0, completed_enrollments: 0 },
+      payments: paymentStats || { total_payments: 0, total_paid: 0, last_payment_date: null }
+    }))
+  } catch (error) {
+    console.error('Get user detail error:', error)
+    return c.json(errorResponse('회원 정보 조회 실패'), 500)
+  }
+})

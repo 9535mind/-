@@ -803,6 +803,11 @@ pagesAdmin.get('/users', async (c) => {
                                     title="비밀번호 초기화">
                                 <i class="fas fa-key"></i>
                             </button>
+                            <a href="/admin/users/\${user.id}/classroom" 
+                               class="text-blue-600 hover:text-blue-800 mx-1"
+                               title="내강의실 보기">
+                                <i class="fas fa-chalkboard-teacher"></i>
+                            </a>
                             <a href="/admin/users/\${user.id}" 
                                class="text-purple-600 hover:text-purple-800 mx-1"
                                title="상세 보기">
@@ -2514,6 +2519,602 @@ pagesAdmin.get('/videos', async (c) => {
             // 에러 메시지
             function showError(message) {
                 alert(message);
+            }
+        </script>
+    </body>
+    </html>
+  `)
+})
+
+/**
+ * GET /admin/users/:userId/classroom
+ * 관리자용 학생 내강의실 보기
+ */
+pagesAdmin.get('/users/:userId/classroom', async (c) => {
+  const userId = c.req.param('userId')
+  
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="ko">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>학생 내강의실 - 마인드스토리 LMS</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+    </head>
+    <body class="bg-gray-100">
+        <!-- 관리자 헤더 -->
+        <nav class="bg-purple-700 text-white shadow-lg">
+            <div class="max-w-7xl mx-auto px-4 py-4">
+                <div class="flex justify-between items-center">
+                    <h1 class="text-2xl font-bold">
+                        <i class="fas fa-chalkboard-teacher mr-2"></i>
+                        학생 내강의실
+                    </h1>
+                    <div class="flex items-center space-x-4">
+                        <span id="adminName">로딩중...</span>
+                        <a href="/admin/users" class="bg-white text-purple-700 px-4 py-2 rounded hover:bg-gray-100">
+                            <i class="fas fa-arrow-left mr-1"></i>회원 관리로
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- 학생 정보 카드 -->
+        <div class="max-w-7xl mx-auto px-4 py-8">
+            <div class="bg-white rounded-lg shadow p-6 mb-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-2xl font-bold text-gray-800 mb-2" id="studentName">로딩중...</h2>
+                        <p class="text-gray-600" id="studentEmail">-</p>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-3xl font-bold text-purple-600" id="totalCourses">0</div>
+                        <div class="text-gray-600">수강 중인 강좌</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 탭 메뉴 -->
+            <div class="bg-white rounded-lg shadow mb-6">
+                <div class="flex border-b">
+                    <button onclick="showTab('ongoing')" id="tab-ongoing" 
+                            class="flex-1 px-6 py-4 text-center font-semibold border-b-2 border-purple-600 text-purple-600">
+                        <i class="fas fa-play-circle mr-2"></i>수강 중
+                    </button>
+                    <button onclick="showTab('completed')" id="tab-completed" 
+                            class="flex-1 px-6 py-4 text-center font-semibold text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-check-circle mr-2"></i>수강 완료
+                    </button>
+                    <button onclick="showTab('all')" id="tab-all" 
+                            class="flex-1 px-6 py-4 text-center font-semibold text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-list mr-2"></i>전체
+                    </button>
+                </div>
+            </div>
+
+            <!-- 강좌 목록 -->
+            <div id="courseList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="col-span-full text-center py-12">
+                    <i class="fas fa-spinner fa-spin text-4xl text-gray-400 mb-4"></i>
+                    <p class="text-gray-500">로딩중...</p>
+                </div>
+            </div>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+        <script src="/static/js/auth.js"></script>
+        <script>
+            const userId = ${userId};
+            let currentTab = 'ongoing';
+            let allEnrollments = [];
+
+            document.addEventListener('DOMContentLoaded', async () => {
+                const admin = await requireAdmin();
+                if (!admin) return;
+                document.getElementById('adminName').textContent = admin.name;
+                
+                await loadStudentInfo();
+                await loadEnrollments();
+            });
+
+            async function loadStudentInfo() {
+                try {
+                    const token = AuthManager.getSessionToken();
+                    const response = await axios.get(\`/api/admin/users/\${userId}\`, {
+                        headers: { 'Authorization': \`Bearer \${token}\` }
+                    });
+                    
+                    if (response.data.success) {
+                        const student = response.data.data;
+                        document.getElementById('studentName').textContent = student.name;
+                        document.getElementById('studentEmail').textContent = student.email;
+                    }
+                } catch (error) {
+                    console.error('Failed to load student info:', error);
+                }
+            }
+
+            async function loadEnrollments() {
+                try {
+                    const token = AuthManager.getSessionToken();
+                    const response = await axios.get(\`/api/admin/enrollments?user_id=\${userId}&limit=100\`, {
+                        headers: { 'Authorization': \`Bearer \${token}\` }
+                    });
+                    
+                    if (response.data.success) {
+                        allEnrollments = response.data.data;
+                        document.getElementById('totalCourses').textContent = 
+                            allEnrollments.filter(e => e.status === 'active').length;
+                        renderEnrollments();
+                    }
+                } catch (error) {
+                    console.error('Failed to load enrollments:', error);
+                    document.getElementById('courseList').innerHTML = 
+                        '<div class="col-span-full text-center py-12 text-red-500">수강 목록을 불러오는데 실패했습니다.</div>';
+                }
+            }
+
+            function showTab(tab) {
+                currentTab = tab;
+                
+                // 탭 스타일 업데이트
+                document.querySelectorAll('[id^="tab-"]').forEach(btn => {
+                    btn.classList.remove('border-purple-600', 'text-purple-600');
+                    btn.classList.add('text-gray-500');
+                });
+                document.getElementById(\`tab-\${tab}\`).classList.add('border-purple-600', 'text-purple-600');
+                document.getElementById(\`tab-\${tab}\`).classList.remove('text-gray-500');
+                
+                renderEnrollments();
+            }
+
+            function renderEnrollments() {
+                let filtered = allEnrollments;
+                
+                if (currentTab === 'ongoing') {
+                    filtered = allEnrollments.filter(e => e.status === 'active');
+                } else if (currentTab === 'completed') {
+                    filtered = allEnrollments.filter(e => e.status === 'completed');
+                }
+                
+                const container = document.getElementById('courseList');
+                
+                if (filtered.length === 0) {
+                    let message = '수강 중인 강좌가 없습니다.';
+                    if (currentTab === 'completed') message = '수강 완료된 강좌가 없습니다.';
+                    if (currentTab === 'all') message = '등록된 강좌가 없습니다.';
+                    
+                    container.innerHTML = \`
+                        <div class="col-span-full text-center py-12">
+                            <i class="fas fa-graduation-cap text-6xl text-gray-300 mb-4"></i>
+                            <p class="text-gray-500 text-lg">\${message}</p>
+                        </div>
+                    \`;
+                    return;
+                }
+                
+                container.innerHTML = filtered.map(enrollment => \`
+                    <div class="bg-white rounded-lg shadow hover:shadow-lg transition overflow-hidden">
+                        <div class="relative">
+                            <img src="\${enrollment.course_thumbnail || '/api/placeholder/400/200'}" 
+                                 alt="\${enrollment.course_title}"
+                                 class="w-full h-48 object-cover"
+                                 onerror="this.src='/api/placeholder/400/200'">
+                            <div class="absolute top-2 right-2">
+                                <span class="px-3 py-1 rounded-full text-xs font-semibold \${getStatusBadgeClass(enrollment.status)}">
+                                    \${getStatusText(enrollment.status)}
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <div class="p-6">
+                            <h3 class="text-lg font-bold text-gray-800 mb-2 line-clamp-2">
+                                \${enrollment.course_title}
+                            </h3>
+                            
+                            <!-- 진도율 -->
+                            <div class="mb-4">
+                                <div class="flex justify-between text-sm text-gray-600 mb-1">
+                                    <span>학습 진도</span>
+                                    <span class="font-semibold">\${enrollment.progress || 0}%</span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-2">
+                                    <div class="bg-purple-600 h-2 rounded-full transition-all" 
+                                         style="width: \${enrollment.progress || 0}%"></div>
+                                </div>
+                            </div>
+                            
+                            <!-- 정보 -->
+                            <div class="space-y-2 text-sm text-gray-600 mb-4">
+                                <div class="flex items-center">
+                                    <i class="fas fa-calendar-check w-5 mr-2"></i>
+                                    <span>수강 시작: \${formatDate(enrollment.enrolled_at)}</span>
+                                </div>
+                                \${enrollment.completed_at ? \`
+                                    <div class="flex items-center text-green-600">
+                                        <i class="fas fa-check-circle w-5 mr-2"></i>
+                                        <span>수료: \${formatDate(enrollment.completed_at)}</span>
+                                    </div>
+                                \` : ''}
+                                \${enrollment.expires_at ? \`
+                                    <div class="flex items-center">
+                                        <i class="fas fa-clock w-5 mr-2"></i>
+                                        <span>만료: \${formatDate(enrollment.expires_at)}</span>
+                                    </div>
+                                \` : ''}
+                            </div>
+                            
+                            <!-- 액션 버튼 -->
+                            <div class="flex gap-2">
+                                <a href="/courses/\${enrollment.course_id}" 
+                                   class="flex-1 bg-purple-600 text-white px-4 py-2 rounded text-center hover:bg-purple-700 transition">
+                                    <i class="fas fa-eye mr-1"></i>강좌 보기
+                                </a>
+                                <a href="/admin/enrollments" 
+                                   class="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300 transition"
+                                   title="수강 관리">
+                                    <i class="fas fa-cog"></i>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                \`).join('');
+            }
+
+            function getStatusBadgeClass(status) {
+                const classes = {
+                    active: 'bg-green-100 text-green-800',
+                    completed: 'bg-blue-100 text-blue-800',
+                    expired: 'bg-red-100 text-red-800',
+                    refunded: 'bg-gray-100 text-gray-800'
+                };
+                return classes[status] || 'bg-gray-100 text-gray-800';
+            }
+
+            function getStatusText(status) {
+                const texts = {
+                    active: '수강 중',
+                    completed: '수료',
+                    expired: '기간 만료',
+                    refunded: '환불'
+                };
+                return texts[status] || status;
+            }
+
+            function formatDate(dateString) {
+                if (!dateString) return '-';
+                const date = new Date(dateString);
+                return date.toLocaleDateString('ko-KR');
+            }
+        </script>
+    </body>
+    </html>
+  `)
+})
+
+/**
+ * GET /admin/users/:userId
+ * 관리자용 회원 상세 페이지
+ */
+pagesAdmin.get('/users/:userId', async (c) => {
+  const userId = c.req.param('userId')
+  
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="ko">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>회원 상세 - 마인드스토리 LMS</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+    </head>
+    <body class="bg-gray-100">
+        <!-- 관리자 헤더 -->
+        <nav class="bg-purple-700 text-white shadow-lg">
+            <div class="max-w-7xl mx-auto px-4 py-4">
+                <div class="flex justify-between items-center">
+                    <h1 class="text-2xl font-bold">
+                        <i class="fas fa-user-circle mr-2"></i>
+                        회원 상세
+                    </h1>
+                    <div class="flex items-center space-x-4">
+                        <span id="adminName">로딩중...</span>
+                        <a href="/admin/users" class="bg-white text-purple-700 px-4 py-2 rounded hover:bg-gray-100">
+                            <i class="fas fa-arrow-left mr-1"></i>회원 관리로
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- 메인 콘텐츠 -->
+        <div class="max-w-7xl mx-auto px-4 py-8">
+            <!-- 회원 기본 정보 카드 -->
+            <div class="bg-white rounded-lg shadow-lg p-8 mb-6">
+                <div class="flex items-start justify-between mb-6">
+                    <div>
+                        <h2 class="text-3xl font-bold text-gray-800 mb-2" id="userName">로딩중...</h2>
+                        <p class="text-gray-600 text-lg" id="userEmail">-</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="resetPassword(${userId}, document.getElementById('userName').textContent)" 
+                                class="bg-orange-500 text-white px-4 py-2 rounded hover:bg-orange-600">
+                            <i class="fas fa-key mr-2"></i>비밀번호 초기화
+                        </button>
+                        <a href="/admin/users/${userId}/classroom" 
+                           class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                            <i class="fas fa-chalkboard-teacher mr-2"></i>내강의실 보기
+                        </a>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                    <!-- 통계 카드 -->
+                    <div class="bg-blue-50 rounded-lg p-4">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm text-gray-600 mb-1">수강 중</p>
+                                <p class="text-2xl font-bold text-blue-600" id="activeEnrollments">0</p>
+                            </div>
+                            <i class="fas fa-book-reader text-blue-300 text-3xl"></i>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-green-50 rounded-lg p-4">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm text-gray-600 mb-1">수강 완료</p>
+                                <p class="text-2xl font-bold text-green-600" id="completedEnrollments">0</p>
+                            </div>
+                            <i class="fas fa-check-circle text-green-300 text-3xl"></i>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-purple-50 rounded-lg p-4">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm text-gray-600 mb-1">총 결제</p>
+                                <p class="text-2xl font-bold text-purple-600" id="totalPayments">0</p>
+                            </div>
+                            <i class="fas fa-credit-card text-purple-300 text-3xl"></i>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-orange-50 rounded-lg p-4">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm text-gray-600 mb-1">총 결제액</p>
+                                <p class="text-xl font-bold text-orange-600" id="totalPaid">0원</p>
+                            </div>
+                            <i class="fas fa-won-sign text-orange-300 text-3xl"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 상세 정보 -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="space-y-4">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4 border-b pb-2">
+                            <i class="fas fa-info-circle mr-2"></i>기본 정보
+                        </h3>
+                        <div class="flex items-center">
+                            <span class="text-gray-600 w-32">회원번호:</span>
+                            <span class="font-semibold" id="userId">-</span>
+                        </div>
+                        <div class="flex items-center">
+                            <span class="text-gray-600 w-32">이메일:</span>
+                            <span class="font-semibold" id="userEmailDetail">-</span>
+                        </div>
+                        <div class="flex items-center">
+                            <span class="text-gray-600 w-32">전화번호:</span>
+                            <span class="font-semibold" id="userPhone">-</span>
+                            <span id="phoneVerifiedBadge"></span>
+                        </div>
+                        <div class="flex items-center">
+                            <span class="text-gray-600 w-32">생년월일:</span>
+                            <span class="font-semibold" id="userBirthDate">-</span>
+                        </div>
+                        <div class="flex items-center">
+                            <span class="text-gray-600 w-32">권한:</span>
+                            <span id="userRoleBadge"></span>
+                        </div>
+                        <div class="flex items-center">
+                            <span class="text-gray-600 w-32">상태:</span>
+                            <span id="userStatusBadge"></span>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4 border-b pb-2">
+                            <i class="fas fa-calendar-alt mr-2"></i>활동 정보
+                        </h3>
+                        <div class="flex items-center">
+                            <span class="text-gray-600 w-32">가입일:</span>
+                            <span class="font-semibold" id="createdAt">-</span>
+                        </div>
+                        <div class="flex items-center">
+                            <span class="text-gray-600 w-32">최근 로그인:</span>
+                            <span class="font-semibold" id="lastLoginAt">-</span>
+                        </div>
+                        <div class="flex items-center">
+                            <span class="text-gray-600 w-32">최근 결제:</span>
+                            <span class="font-semibold" id="lastPaymentDate">-</span>
+                        </div>
+                        
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4 border-b pb-2 mt-6">
+                            <i class="fas fa-check-square mr-2"></i>약관 동의
+                        </h3>
+                        <div class="flex items-center">
+                            <span class="text-gray-600 w-32">이용약관:</span>
+                            <span id="termsAgreed"></span>
+                        </div>
+                        <div class="flex items-center">
+                            <span class="text-gray-600 w-32">개인정보:</span>
+                            <span id="privacyAgreed"></span>
+                        </div>
+                        <div class="flex items-center">
+                            <span class="text-gray-600 w-32">마케팅:</span>
+                            <span id="marketingAgreed"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+        <script src="/static/js/auth.js"></script>
+        <script>
+            const userId = ${userId};
+
+            document.addEventListener('DOMContentLoaded', async () => {
+                const admin = await requireAdmin();
+                if (!admin) return;
+                document.getElementById('adminName').textContent = admin.name;
+                
+                await loadUserDetail();
+            });
+
+            async function loadUserDetail() {
+                try {
+                    const token = AuthManager.getSessionToken();
+                    const response = await axios.get(\`/api/admin/users/\${userId}\`, {
+                        headers: { 'Authorization': \`Bearer \${token}\` }
+                    });
+                    
+                    if (response.data.success) {
+                        const user = response.data.data;
+                        renderUserDetail(user);
+                    }
+                } catch (error) {
+                    console.error('Failed to load user detail:', error);
+                    alert('회원 정보를 불러오는데 실패했습니다.');
+                }
+            }
+
+            function renderUserDetail(user) {
+                // 기본 정보
+                document.getElementById('userName').textContent = user.name;
+                document.getElementById('userEmail').textContent = user.email;
+                document.getElementById('userId').textContent = user.id;
+                document.getElementById('userEmailDetail').textContent = user.email;
+                document.getElementById('userPhone').textContent = user.phone || '-';
+                document.getElementById('userBirthDate').textContent = user.birth_date || '-';
+                
+                // 통계
+                document.getElementById('activeEnrollments').textContent = user.enrollments.active_enrollments || 0;
+                document.getElementById('completedEnrollments').textContent = user.enrollments.completed_enrollments || 0;
+                document.getElementById('totalPayments').textContent = user.payments.total_payments || 0;
+                document.getElementById('totalPaid').textContent = 
+                    new Intl.NumberFormat('ko-KR').format(user.payments.total_paid || 0) + '원';
+                
+                // 배지
+                const roleBadgeClass = user.role === 'admin' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800';
+                const roleText = user.role === 'admin' ? '관리자' : '학생';
+                document.getElementById('userRoleBadge').innerHTML = 
+                    \`<span class="px-3 py-1 rounded-full text-sm font-semibold \${roleBadgeClass}">\${roleText}</span>\`;
+                
+                const statusBadgeClass = user.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800';
+                const statusText = user.status === 'active' ? '활성' : '비활성';
+                document.getElementById('userStatusBadge').innerHTML = 
+                    \`<span class="px-3 py-1 rounded-full text-sm font-semibold \${statusBadgeClass}">\${statusText}</span>\`;
+                
+                if (user.phone_verified) {
+                    document.getElementById('phoneVerifiedBadge').innerHTML = 
+                        '<span class="ml-2 px-2 py-1 bg-green-100 text-green-800 rounded text-xs"><i class="fas fa-check mr-1"></i>인증완료</span>';
+                }
+                
+                // 날짜
+                document.getElementById('createdAt').textContent = formatDate(user.created_at);
+                document.getElementById('lastLoginAt').textContent = formatDate(user.last_login_at);
+                document.getElementById('lastPaymentDate').textContent = formatDate(user.payments.last_payment_date);
+                
+                // 약관 동의
+                document.getElementById('termsAgreed').innerHTML = getBooleanBadge(user.terms_agreed);
+                document.getElementById('privacyAgreed').innerHTML = getBooleanBadge(user.privacy_agreed);
+                document.getElementById('marketingAgreed').innerHTML = getBooleanBadge(user.marketing_agreed);
+            }
+
+            function getBooleanBadge(value) {
+                if (value === 1) {
+                    return '<span class="text-green-600"><i class="fas fa-check-circle mr-1"></i>동의</span>';
+                }
+                return '<span class="text-gray-400"><i class="fas fa-times-circle mr-1"></i>미동의</span>';
+            }
+
+            function formatDate(dateString) {
+                if (!dateString) return '-';
+                const date = new Date(dateString);
+                return date.toLocaleDateString('ko-KR') + ' ' + date.toLocaleTimeString('ko-KR', { 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                });
+            }
+
+            // 비밀번호 초기화 함수
+            async function resetPassword(userId, userName) {
+                const selected = confirm(\`\${userName} 님의 비밀번호를 초기화하시겠습니까?\n\n확인: 수동 초기화 (password123)\n취소: AI 자동 생성\`);
+                const mode = selected ? 'manual' : 'ai';
+                
+                try {
+                    const token = AuthManager.getSessionToken();
+                    const response = await axios.post(\`/api/admin/users/\${userId}/reset-password\`, 
+                        { mode },
+                        { headers: { 'Authorization': \`Bearer \${token}\` } }
+                    );
+                    
+                    if (response.data.success) {
+                        const newPassword = response.data.data.new_password;
+                        
+                        // 비밀번호 표시 모달
+                        const modalHtml = \`
+                            <div id="passwordModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                                <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+                                    <div class="text-center mb-6">
+                                        <div class="bg-green-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                                            <i class="fas fa-check text-green-600 text-3xl"></i>
+                                        </div>
+                                        <h2 class="text-2xl font-bold text-gray-900 mb-2">비밀번호 초기화 완료</h2>
+                                        <p class="text-gray-600">\${userName} 님의 새 비밀번호</p>
+                                    </div>
+                                    
+                                    <div class="bg-gray-50 rounded-lg p-4 mb-6">
+                                        <div class="flex items-center justify-between">
+                                            <code class="text-2xl font-mono font-bold text-purple-600">\${newPassword}</code>
+                                            <button onclick="copyPassword('\${newPassword}')" 
+                                                    class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700">
+                                                <i class="fas fa-copy mr-2"></i>복사
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <button onclick="closePasswordModal()" 
+                                            class="w-full bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300">
+                                        닫기
+                                    </button>
+                                </div>
+                            </div>
+                        \`;
+                        
+                        document.body.insertAdjacentHTML('beforeend', modalHtml);
+                    }
+                } catch (error) {
+                    console.error('Password reset error:', error);
+                    alert('비밀번호 초기화에 실패했습니다.');
+                }
+            }
+
+            function copyPassword(password) {
+                navigator.clipboard.writeText(password).then(() => {
+                    alert('비밀번호가 클립보드에 복사되었습니다!');
+                });
+            }
+
+            function closePasswordModal() {
+                document.getElementById('passwordModal').remove();
             }
         </script>
     </body>
