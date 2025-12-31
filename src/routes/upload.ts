@@ -19,42 +19,29 @@ function isLocalEnvironment(c: any): boolean {
 
 /**
  * 파일 저장 헬퍼 함수
- * 로컬 환경: public/uploads/에 저장
- * 프로덕션: Cloudflare R2에 저장
+ * R2 Storage 없이 lesson_id와 연결하여 DB에 메타데이터만 저장
+ * 실제 파일은 외부 URL 또는 YouTube 사용
  */
-async function saveFile(c: any, file: File, folder: 'images' | 'videos'): Promise<string> {
+async function generateVideoMetadata(file: File): Promise<{
+  filename: string
+  size: number
+  mimeType: string
+  estimatedDuration: number
+}> {
   const timestamp = Date.now()
   const randomString = Math.random().toString(36).substring(2, 15)
   const extension = file.name.split('.').pop()
   const filename = `${timestamp}-${randomString}.${extension}`
   
-  // 로컬 환경 (개발)
-  if (isLocalEnvironment(c)) {
-    console.log('[SAVE FILE] Local environment detected, returning local path')
-    // 로컬 파일 시스템에 저장하지 않고 URL만 반환
-    // 실제 저장은 빌드 시 public/uploads/로 복사됨
-    return `/uploads/${folder}/${filename}`
+  // 영상 duration 추정 (임시: 파일 크기 기반)
+  const estimatedDuration = Math.max(1, Math.ceil(file.size / (1024 * 1024 * 5))) // 5MB당 1분으로 추정
+  
+  return {
+    filename,
+    size: file.size,
+    mimeType: file.type,
+    estimatedDuration
   }
-  
-  // 프로덕션 환경 (Cloudflare R2)
-  const storage = folder === 'videos' ? c.env.VIDEO_STORAGE : c.env.STORAGE
-  
-  if (!storage) {
-    throw new Error('스토리지가 설정되지 않았습니다.')
-  }
-  
-  const path = `${folder}/${filename}`
-  const arrayBuffer = await file.arrayBuffer()
-  
-  await storage.put(path, arrayBuffer, {
-    httpMetadata: {
-      contentType: file.type
-    }
-  })
-  
-  console.log('[SAVE FILE] Uploaded to R2:', path)
-  
-  return `/${path}`
 }
 
 /**
@@ -84,17 +71,18 @@ upload.post('/image', requireAdmin, async (c) => {
       return c.json(errorResponse('파일 크기는 5MB 이하여야 합니다.'), 400)
     }
 
-    // 환경에 맞게 파일 저장 (로컬 또는 R2)
-    const imageUrl = await saveFile(c, file, 'images')
+    // 임시: placeholder 이미지 URL 반환
+    const timestamp = Date.now()
+    const placeholderUrl = `https://via.placeholder.com/800x600/667eea/ffffff?text=${encodeURIComponent(file.name)}`
 
-    console.log(`[Upload] 이미지 업로드 완료: ${imageUrl}`)
+    console.log(`[Upload] 이미지 업로드 (임시 placeholder): ${placeholderUrl}`)
 
     return c.json(successResponse({
-      url: imageUrl,
-      filename: imageUrl,
+      url: placeholderUrl,
+      filename: file.name,
       size: file.size,
       type: file.type
-    }, '이미지가 업로드되었습니다.'))
+    }, '이미지가 업로드되었습니다. (R2 Storage 활성화 시 실제 업로드 가능)'))
 
   } catch (error) {
     console.error('Upload image error:', error)
@@ -105,17 +93,21 @@ upload.post('/image', requireAdmin, async (c) => {
 /**
  * POST /api/upload/video
  * 영상 업로드 (관리자 전용)
- * Cloudflare R2에 영상 저장 + 메타데이터 자동 추출
+ * R2 없이 메타데이터만 저장 + lesson_id와 연결
  */
 upload.post('/video', requireAdmin, async (c) => {
   try {
     // FormData에서 파일 가져오기
     const formData = await c.req.formData()
     const file = formData.get('file') as File | null
+    const lessonIdStr = formData.get('lesson_id') as string | null
 
     if (!file) {
       return c.json(errorResponse('파일이 없습니다.'), 400)
     }
+
+    // lesson_id 확인 (선택적)
+    const lessonId = lessonIdStr ? parseInt(lessonIdStr) : null
 
     // 파일 유효성 검사
     const allowedTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo']
@@ -126,36 +118,62 @@ upload.post('/video', requireAdmin, async (c) => {
       return c.json(errorResponse('지원하지 않는 파일 형식입니다. (MP4, WebM, MOV, AVI만 가능)'), 400)
     }
 
-    // 파일 크기 제한 (500MB)
-    const maxSize = 500 * 1024 * 1024
+    // 파일 크기 제한 (50MB) - R2 없으므로 제한
+    const maxSize = 50 * 1024 * 1024
     if (file.size > maxSize) {
-      return c.json(errorResponse('파일 크기는 500MB 이하여야 합니다.'), 400)
+      return c.json(errorResponse('파일 크기는 50MB 이하여야 합니다. 대용량 영상은 YouTube URL을 사용하세요.'), 400)
     }
 
     console.log('[VIDEO UPLOAD] Starting upload:', {
       originalName: file.name,
       size: file.size,
       type: file.type,
-      isLocal: isLocalEnvironment(c)
+      lessonId
     })
 
-    // 환경에 맞게 파일 저장 (로컬 또는 R2)
-    const videoUrl = await saveFile(c, file, 'videos')
+    // 메타데이터 생성
+    const metadata = await generateVideoMetadata(file)
 
-    console.log('[VIDEO UPLOAD] Upload successful:', videoUrl)
+    // lessonId가 있으면 DB 업데이트
+    if (lessonId) {
+      const { DB } = c.env
+      
+      // lesson에 영상 메타데이터 저장
+      await DB.prepare(`
+        UPDATE lessons
+        SET 
+          video_file_name = ?,
+          video_file_size = ?,
+          video_mime_type = ?,
+          video_uploaded_at = datetime('now'),
+          video_type = 'upload',
+          duration_minutes = ?,
+          updated_at = datetime('now')
+        WHERE id = ?
+      `).bind(
+        metadata.filename,
+        metadata.size,
+        metadata.mimeType,
+        metadata.estimatedDuration,
+        lessonId
+      ).run()
 
-    // 영상 메타데이터 추출 (재생 시간)
-    // TODO: 실제 영상 파일에서 duration 추출 (현재는 파일 크기로 추정)
-    const estimatedDuration = Math.ceil(file.size / (1024 * 1024)) // 임시: 1MB당 1분으로 추정
+      console.log('[VIDEO UPLOAD] Metadata saved to lesson:', lessonId)
+    }
+
+    // 임시 URL (실제로는 외부 스토리지 또는 YouTube 사용 권장)
+    const placeholderUrl = `#uploaded-${metadata.filename}`
 
     return c.json(successResponse({
-      url: videoUrl,
-      filename: videoUrl,
-      size: file.size,
-      type: file.type,
-      duration: estimatedDuration,
-      originalName: file.name
-    }, '영상이 업로드되었습니다.'))
+      url: placeholderUrl,
+      filename: metadata.filename,
+      size: metadata.size,
+      type: metadata.mimeType,
+      duration: metadata.estimatedDuration,
+      originalName: file.name,
+      lessonId: lessonId,
+      message: 'R2 Storage 활성화 시 실제 업로드 가능. 현재는 메타데이터만 저장됨.'
+    }, '영상 메타데이터가 저장되었습니다. YouTube URL 또는 외부 URL을 사용해주세요.'))
 
   } catch (error) {
     console.error('Upload video error:', error)
