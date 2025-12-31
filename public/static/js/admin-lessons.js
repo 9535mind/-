@@ -8,33 +8,42 @@ let bulkUploadMode = false;
 let uploadedVideos = []; // 일괄 업로드된 영상 목록
 
 /**
- * 영상 탭 전환
+ * 영상 탭 전환 (3개 탭)
  */
 function switchVideoTab(tab) {
   currentVideoTab = tab;
   
-  // 탭 버튼 스타일 업데이트
-  const youtubeTa = document.getElementById('youtubeTab');
-  const uploadTab = document.getElementById('uploadTab');
+  // 모든 탭 버튼과 콘텐츠
+  const tabs = {
+    youtube: {
+      btn: document.getElementById('youtubeTab'),
+      content: document.getElementById('youtubeTabContent')
+    },
+    fileupload: {
+      btn: document.getElementById('fileUploadTab'),
+      content: document.getElementById('fileUploadTabContent')
+    },
+    urlupload: {
+      btn: document.getElementById('urlUploadTab'),
+      content: document.getElementById('urlUploadTabContent')
+    }
+  };
   
-  if (tab === 'youtube') {
-    youtubeTab.classList.add('border-purple-600', 'text-purple-600');
-    youtubeTab.classList.remove('border-transparent', 'text-gray-500');
-    uploadTab.classList.remove('border-purple-600', 'text-purple-600');
-    uploadTab.classList.add('border-transparent', 'text-gray-500');
-    
-    // 콘텐츠 표시/숨김
-    document.getElementById('youtubeTabContent').classList.remove('hidden');
-    document.getElementById('uploadTabContent').classList.add('hidden');
-  } else {
-    uploadTab.classList.add('border-purple-600', 'text-purple-600');
-    uploadTab.classList.remove('border-transparent', 'text-gray-500');
-    youtubeTab.classList.remove('border-purple-600', 'text-purple-600');
-    youtubeTab.classList.add('border-transparent', 'text-gray-500');
-    
-    // 콘텐츠 표시/숨김
-    document.getElementById('uploadTabContent').classList.remove('hidden');
-    document.getElementById('youtubeTabContent').classList.add('hidden');
+  // 모든 탭 비활성화
+  Object.values(tabs).forEach(({ btn, content }) => {
+    if (btn && content) {
+      btn.classList.remove('border-purple-600', 'text-purple-600');
+      btn.classList.add('border-transparent', 'text-gray-500');
+      content.classList.add('hidden');
+    }
+  });
+  
+  // 선택된 탭 활성화
+  const selectedTab = tabs[tab];
+  if (selectedTab && selectedTab.btn && selectedTab.content) {
+    selectedTab.btn.classList.add('border-purple-600', 'text-purple-600');
+    selectedTab.btn.classList.remove('border-transparent', 'text-gray-500');
+    selectedTab.content.classList.remove('hidden');
   }
 }
 
@@ -479,10 +488,10 @@ function getVideoData() {
 }
 
 /**
- * 드래그 앤 드롭 지원
+ * 드래그 앤 드롭 지원 (파일 업로드 탭용)
  */
 document.addEventListener('DOMContentLoaded', () => {
-  const uploadArea = document.getElementById('uploadTabContent');
+  const uploadArea = document.getElementById('fileUploadTabContent');
   if (!uploadArea) return;
 
   // 드래그 오버
@@ -952,37 +961,7 @@ function getToken() {
 }
 
 /**
- * 업로드 모드 전환 (파일 업로드 ↔ URL 입력)
- */
-function switchUploadMode(mode) {
-  const fileUploadBtn = document.getElementById('fileUploadBtn');
-  const urlUploadBtn = document.getElementById('urlUploadBtn');
-  const fileUploadArea = document.getElementById('fileUploadArea');
-  const urlUploadArea = document.getElementById('urlUploadArea');
-
-  if (mode === 'file') {
-    // 파일 업로드 모드
-    fileUploadBtn.classList.add('bg-purple-600', 'text-white');
-    fileUploadBtn.classList.remove('bg-gray-200', 'text-gray-700');
-    urlUploadBtn.classList.remove('bg-purple-600', 'text-white');
-    urlUploadBtn.classList.add('bg-gray-200', 'text-gray-700');
-    
-    fileUploadArea.classList.remove('hidden');
-    urlUploadArea.classList.add('hidden');
-  } else {
-    // URL 입력 모드
-    urlUploadBtn.classList.add('bg-purple-600', 'text-white');
-    urlUploadBtn.classList.remove('bg-gray-200', 'text-gray-700');
-    fileUploadBtn.classList.remove('bg-purple-600', 'text-white');
-    fileUploadBtn.classList.add('bg-gray-200', 'text-gray-700');
-    
-    urlUploadArea.classList.remove('hidden');
-    fileUploadArea.classList.add('hidden');
-  }
-}
-
-/**
- * URL 업로드 처리
+ * URL 업로드 처리 (URL 업로드 탭 전용)
  */
 async function handleVideoUrlUpload() {
   const urlInput = document.getElementById('videoUrlInput');
