@@ -1549,31 +1549,68 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
 
                             <!-- 직접 업로드 탭 -->
                             <div id="uploadTabContent" class="video-tab-content hidden">
-                                <!-- 일괄 업로드 옵션 -->
-                                <div class="mb-4 flex items-center justify-between">
-                                    <label class="flex items-center">
-                                        <input type="checkbox" id="bulkUploadMode" class="mr-2" onchange="toggleBulkUpload()">
-                                        <span class="text-sm font-medium text-gray-700">
-                                            <i class="fas fa-layer-group mr-1"></i>일괄 업로드 (여러 파일 동시 선택)
-                                        </span>
-                                    </label>
-                                    <button type="button" onclick="showBulkUploadHelp()" class="text-blue-600 hover:text-blue-800 text-sm">
-                                        <i class="fas fa-question-circle mr-1"></i>사용법
+                                <!-- 업로드 방식 선택 토글 -->
+                                <div class="mb-4 flex items-center space-x-4 border-b pb-3">
+                                    <button type="button" id="fileUploadBtn" onclick="switchUploadMode('file')"
+                                        class="px-4 py-2 rounded-lg bg-purple-600 text-white font-medium">
+                                        <i class="fas fa-file-upload mr-2"></i>파일 업로드
+                                    </button>
+                                    <button type="button" id="urlUploadBtn" onclick="switchUploadMode('url')"
+                                        class="px-4 py-2 rounded-lg bg-gray-200 text-gray-700 font-medium hover:bg-gray-300">
+                                        <i class="fas fa-link mr-2"></i>URL 입력
                                     </button>
                                 </div>
 
-                                <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                                    <input type="file" id="videoFileInput" accept="video/mp4,video/webm,video/quicktime,video/x-msvideo" 
-                                        class="hidden" onchange="handleVideoFileSelect(event)">
-                                    <label for="videoFileInput" class="cursor-pointer">
-                                        <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-4"></i>
-                                        <p class="text-gray-600 mb-2">클릭하여 영상 파일을 선택하거나</p>
-                                        <p class="text-gray-600 mb-2">파일을 드래그 앤 드롭하세요</p>
-                                        <p class="text-sm text-gray-500">MP4, WebM, MOV, AVI (최대 500MB)</p>
-                                        <p class="text-xs text-purple-600 mt-2" id="bulkUploadHint" style="display: none;">
-                                            <i class="fas fa-info-circle mr-1"></i>여러 파일을 동시에 선택할 수 있습니다
-                                        </p>
-                                    </label>
+                                <!-- 파일 업로드 영역 -->
+                                <div id="fileUploadArea" class="upload-mode-area">
+                                    <!-- 일괄 업로드 옵션 -->
+                                    <div class="mb-4 flex items-center justify-between">
+                                        <label class="flex items-center">
+                                            <input type="checkbox" id="bulkUploadMode" class="mr-2" onchange="toggleBulkUpload()">
+                                            <span class="text-sm font-medium text-gray-700">
+                                                <i class="fas fa-layer-group mr-1"></i>일괄 업로드 (여러 파일 동시 선택)
+                                            </span>
+                                        </label>
+                                        <button type="button" onclick="showBulkUploadHelp()" class="text-blue-600 hover:text-blue-800 text-sm">
+                                            <i class="fas fa-question-circle mr-1"></i>사용법
+                                        </button>
+                                    </div>
+
+                                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                                        <input type="file" id="videoFileInput" accept="video/mp4,video/webm,video/quicktime,video/x-msvideo" 
+                                            class="hidden" onchange="handleVideoFileSelect(event)">
+                                        <label for="videoFileInput" class="cursor-pointer">
+                                            <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-4"></i>
+                                            <p class="text-gray-600 mb-2">클릭하여 영상 파일을 선택하거나</p>
+                                            <p class="text-gray-600 mb-2">파일을 드래그 앤 드롭하세요</p>
+                                            <p class="text-sm text-gray-500">MP4, WebM, MOV, AVI (최대 500MB)</p>
+                                            <p class="text-xs text-purple-600 mt-2" id="bulkUploadHint" style="display: none;">
+                                                <i class="fas fa-info-circle mr-1"></i>여러 파일을 동시에 선택할 수 있습니다
+                                            </p>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <!-- URL 입력 영역 -->
+                                <div id="urlUploadArea" class="upload-mode-area hidden">
+                                    <div class="space-y-4">
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                                영상 URL <span class="text-red-500">*</span>
+                                            </label>
+                                            <input type="url" id="videoUrlInput" 
+                                                placeholder="https://embed.api.video/vod/vi..."
+                                                class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500">
+                                            <p class="text-sm text-gray-500 mt-2">
+                                                <i class="fas fa-info-circle mr-1"></i>
+                                                지원 형식: api.video URL, 직접 영상 URL (.mp4, .webm, .mov 등)
+                                            </p>
+                                        </div>
+                                        <button type="button" onclick="handleVideoUrlUpload()" 
+                                            class="w-full px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium">
+                                            <i class="fas fa-check mr-2"></i>URL 등록
+                                        </button>
+                                    </div>
                                 </div>
                                 
                                 <!-- 업로드 진행률 -->

@@ -950,3 +950,151 @@ async function uploadYouTubeToApiVideo(youtubeUrl, lessonId, title) {
 function getToken() {
   return localStorage.getItem('session_token') || sessionStorage.getItem('session_token');
 }
+
+/**
+ * 업로드 모드 전환 (파일 업로드 ↔ URL 입력)
+ */
+function switchUploadMode(mode) {
+  const fileUploadBtn = document.getElementById('fileUploadBtn');
+  const urlUploadBtn = document.getElementById('urlUploadBtn');
+  const fileUploadArea = document.getElementById('fileUploadArea');
+  const urlUploadArea = document.getElementById('urlUploadArea');
+
+  if (mode === 'file') {
+    // 파일 업로드 모드
+    fileUploadBtn.classList.add('bg-purple-600', 'text-white');
+    fileUploadBtn.classList.remove('bg-gray-200', 'text-gray-700');
+    urlUploadBtn.classList.remove('bg-purple-600', 'text-white');
+    urlUploadBtn.classList.add('bg-gray-200', 'text-gray-700');
+    
+    fileUploadArea.classList.remove('hidden');
+    urlUploadArea.classList.add('hidden');
+  } else {
+    // URL 입력 모드
+    urlUploadBtn.classList.add('bg-purple-600', 'text-white');
+    urlUploadBtn.classList.remove('bg-gray-200', 'text-gray-700');
+    fileUploadBtn.classList.remove('bg-purple-600', 'text-white');
+    fileUploadBtn.classList.add('bg-gray-200', 'text-gray-700');
+    
+    urlUploadArea.classList.remove('hidden');
+    fileUploadArea.classList.add('hidden');
+  }
+}
+
+/**
+ * URL 업로드 처리
+ */
+async function handleVideoUrlUpload() {
+  const urlInput = document.getElementById('videoUrlInput');
+  const videoUrl = urlInput.value.trim();
+
+  if (!videoUrl) {
+    alert('영상 URL을 입력해주세요.');
+    return;
+  }
+
+  // URL 형식 검증
+  try {
+    new URL(videoUrl);
+  } catch (e) {
+    alert('올바른 URL 형식이 아닙니다.');
+    return;
+  }
+
+  // api.video URL 감지
+  const isApiVideoUrl = videoUrl.includes('api.video') || videoUrl.includes('embed.api.video');
+  const isDirectVideoUrl = /\.(mp4|webm|mov|avi|mkv|flv)$/i.test(videoUrl);
+
+  console.log('🔗 URL 업로드 시작:', { videoUrl, isApiVideoUrl, isDirectVideoUrl });
+
+  try {
+    // 진행률 표시
+    const uploadProgress = document.getElementById('uploadProgress');
+    const uploadFileName = document.getElementById('uploadFileName');
+    const uploadPercent = document.getElementById('uploadPercent');
+    const uploadProgressBar = document.getElementById('uploadProgressBar');
+
+    uploadProgress.classList.remove('hidden');
+    uploadFileName.textContent = 'URL 등록 중...';
+    uploadPercent.textContent = '0%';
+    uploadProgressBar.style.width = '0%';
+
+    let result;
+
+    if (isApiVideoUrl) {
+      // api.video URL인 경우 → 바로 등록
+      console.log('✅ api.video URL 감지 → 직접 등록');
+      
+      // Video ID 추출
+      const videoIdMatch = videoUrl.match(/vi[A-Za-z0-9]{20,}/);
+      const videoId = videoIdMatch ? videoIdMatch[0] : null;
+
+      if (!videoId) {
+        throw new Error('api.video URL에서 Video ID를 찾을 수 없습니다.');
+      }
+
+      // 업로드된 것처럼 처리
+      uploadPercent.textContent = '100%';
+      uploadProgressBar.style.width = '100%';
+
+      result = {
+        video_id: videoId,
+        video_url: videoUrl,
+        video_type: 'apivideo',
+        provider: 'apivideo'
+      };
+
+      console.log('✅ api.video URL 등록 완료:', result);
+
+    } else if (isDirectVideoUrl) {
+      // 직접 영상 URL인 경우 → api.video로 업로드
+      console.log('🎥 직접 영상 URL 감지 → api.video로 업로드');
+      
+      uploadPercent.textContent = '50%';
+      uploadProgressBar.style.width = '50%';
+
+      result = await uploadYouTubeToApiVideo(videoUrl);
+      
+      uploadPercent.textContent = '100%';
+      uploadProgressBar.style.width = '100%';
+
+      console.log('✅ 직접 영상 URL 업로드 완료:', result);
+
+    } else {
+      // 기타 URL → api.video로 시도
+      console.log('🔄 기타 URL → api.video로 업로드 시도');
+      
+      uploadPercent.textContent = '50%';
+      uploadProgressBar.style.width = '50%';
+
+      result = await uploadYouTubeToApiVideo(videoUrl);
+      
+      uploadPercent.textContent = '100%';
+      uploadProgressBar.style.width = '100%';
+
+      console.log('✅ URL 업로드 완료:', result);
+    }
+
+    // 업로드 완료 정보 표시
+    setTimeout(() => {
+      uploadProgress.classList.add('hidden');
+      const uploadedInfo = document.getElementById('uploadedInfo');
+      uploadedInfo.classList.remove('hidden');
+      
+      // 전역 변수에 저장
+      uploadedVideoKey = result.video_id;
+
+      alert('✅ 영상 URL이 등록되었습니다!\n\n이제 "저장" 버튼을 클릭하여 차시를 저장하세요.');
+      
+      // URL 입력란 초기화
+      urlInput.value = '';
+    }, 500);
+
+  } catch (error) {
+    console.error('❌ URL 업로드 오류:', error);
+    alert('URL 업로드 실패: ' + error.message);
+    
+    // 진행률 숨기기
+    document.getElementById('uploadProgress').classList.add('hidden');
+  }
+}
