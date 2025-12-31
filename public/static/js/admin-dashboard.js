@@ -17,8 +17,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // 대시보드 데이터 로드
 async function loadDashboardData() {
+  // 통계 데이터 로드 (독립적)
   try {
-    // 통계 데이터 가져오기
     const stats = await apiRequest('GET', '/api/admin/dashboard/stats');
     
     if (stats.success) {
@@ -30,22 +30,35 @@ async function loadDashboardData() {
       document.getElementById('monthlyRevenue').textContent = (data.monthly_revenue || 0).toLocaleString() + '원';
       document.getElementById('activeEnrollments').textContent = data.active_enrollments || 0;
     }
+  } catch (error) {
+    console.error('Stats load error:', error);
+    // 통계 로딩 실패 시에도 다른 섹션은 계속 로드
+  }
 
-    // 최근 결제 내역
+  // 최근 결제 내역 (독립적)
+  try {
     const payments = await apiRequest('GET', '/api/admin/payments?limit=5');
     if (payments.success) {
       renderRecentPayments(payments.data);
+    } else {
+      renderRecentPayments([]);
     }
+  } catch (error) {
+    console.error('Payments load error:', error);
+    renderRecentPayments([]);
+  }
 
-    // 최근 수강신청
+  // 최근 수강신청 (독립적)
+  try {
     const enrollments = await apiRequest('GET', '/api/admin/enrollments?limit=5');
     if (enrollments.success) {
       renderRecentEnrollments(enrollments.data);
+    } else {
+      renderRecentEnrollments([]);
     }
-    
   } catch (error) {
-    console.error('Dashboard load error:', error);
-    showError('대시보드 데이터를 불러오는데 실패했습니다.');
+    console.error('Enrollments load error:', error);
+    renderRecentEnrollments([]);
   }
 }
 

@@ -152,28 +152,43 @@ admin.get('/payments', requireAdmin, async (c) => {
   const limit = parseInt(c.req.query('limit') || '20')
   const offset = (page - 1) * limit
 
-  const [payments, total] = await Promise.all([
-    DB.prepare(`
-      SELECT p.*, u.name as user_name, u.email, c.title as course_title
-      FROM payments p
-      JOIN users u ON p.user_id = u.id
-      JOIN courses c ON p.course_id = c.id
-      ORDER BY p.created_at DESC
-      LIMIT ? OFFSET ?
-    `).bind(limit, offset).all(),
-    DB.prepare(`SELECT COUNT(*) as count FROM payments`).first()
-  ])
+  try {
+    const [payments, total] = await Promise.all([
+      DB.prepare(`
+        SELECT p.*, u.name as user_name, u.email, c.title as course_title
+        FROM payments p
+        JOIN users u ON p.user_id = u.id
+        JOIN courses c ON p.course_id = c.id
+        ORDER BY p.created_at DESC
+        LIMIT ? OFFSET ?
+      `).bind(limit, offset).all(),
+      DB.prepare(`SELECT COUNT(*) as count FROM payments`).first()
+    ])
 
-  return c.json({
-    success: true,
-    data: payments.results,
-    pagination: {
-      page,
-      limit,
-      total: total?.count || 0,
-      totalPages: Math.ceil((total?.count || 0) / limit)
-    }
-  })
+    return c.json({
+      success: true,
+      data: payments.results || [],
+      pagination: {
+        page,
+        limit,
+        total: total?.count || 0,
+        totalPages: Math.ceil((total?.count || 0) / limit)
+      }
+    })
+  } catch (error) {
+    console.error('Admin payments error:', error)
+    // 에러 발생 시 빈 배열 반환
+    return c.json({
+      success: true,
+      data: [],
+      pagination: {
+        page,
+        limit,
+        total: 0,
+        totalPages: 0
+      }
+    })
+  }
 })
 
 // 수료증 관리

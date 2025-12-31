@@ -247,8 +247,34 @@ async function apiRequest(method, url, data = null) {
     options.body = JSON.stringify(data)
   }
   
-  const response = await fetch(url, options)
-  return await response.json()
+  try {
+    const response = await fetch(url, options)
+    
+    // HTTP 에러 상태 체크
+    if (!response.ok) {
+      console.error(`API Error: ${response.status} ${response.statusText} - ${url}`)
+      
+      // HTML 에러 페이지가 반환된 경우
+      const contentType = response.headers.get('content-type')
+      if (contentType && contentType.includes('text/html')) {
+        return {
+          success: false,
+          error: `서버 오류 (${response.status})`,
+          message: `API 요청 실패: ${url}`
+        }
+      }
+    }
+    
+    const result = await response.json()
+    return result
+  } catch (error) {
+    console.error('API Request failed:', error, 'URL:', url)
+    return {
+      success: false,
+      error: error.message,
+      message: '네트워크 오류가 발생했습니다.'
+    }
+  }
 }
 
 // 관리자 권한 확인 (페이지 진입 시)
