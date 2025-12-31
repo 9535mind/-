@@ -405,9 +405,10 @@ async function uploadVideoFile(file) {
           
           // 재생 시간 자동 설정
           if (response.data.duration) {
-            const durationInput = document.getElementById('videoDuration');
+            const durationInput = document.getElementById('lessonDuration');
             if (durationInput) {
               durationInput.value = response.data.duration;
+              console.log(`✅ 재생 시간 자동 설정: ${response.data.duration}분`);
             }
           }
           
@@ -961,6 +962,49 @@ function getToken() {
 }
 
 /**
+ * 영상 메타데이터 가져오기 (재생 시간 자동 설정)
+ */
+async function fetchVideoMetadata(videoId) {
+  try {
+    console.log('🎬 영상 메타데이터 가져오는 중...', videoId);
+    
+    const response = await fetch(`/api/video-apivideo/${videoId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${getToken()}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const result = await response.json();
+    
+    if (result.success && result.data) {
+      const { duration, thumbnail_url } = result.data;
+      
+      // 재생 시간 자동 설정 (초 단위로 변환)
+      if (duration) {
+        const durationInMinutes = Math.ceil(duration / 60);
+        const durationInput = document.getElementById('lessonDuration');
+        if (durationInput) {
+          durationInput.value = durationInMinutes;
+          console.log(`✅ 재생 시간 자동 설정: ${durationInMinutes}분`);
+        }
+      }
+      
+      // 썸네일 URL 저장 (나중에 사용)
+      if (thumbnail_url) {
+        window.currentVideoThumbnail = thumbnail_url;
+        console.log(`✅ 썸네일 URL 저장: ${thumbnail_url}`);
+      }
+    }
+
+  } catch (error) {
+    console.error('❌ 영상 메타데이터 가져오기 실패:', error);
+    // 에러가 발생해도 계속 진행 (사용자가 수동으로 입력 가능)
+  }
+}
+
+/**
  * URL 업로드 처리 (URL 업로드 탭 전용)
  */
 async function handleVideoUrlUpload() {
@@ -1062,6 +1106,11 @@ async function handleVideoUrlUpload() {
       
       // 전역 변수에 저장
       uploadedVideoKey = result.video_id;
+
+      // 영상 메타데이터 가져와서 재생 시간 자동 설정
+      if (result.video_id) {
+        fetchVideoMetadata(result.video_id);
+      }
 
       alert('✅ 영상 URL이 등록되었습니다!\n\n이제 "저장" 버튼을 클릭하여 차시를 저장하세요.');
       
