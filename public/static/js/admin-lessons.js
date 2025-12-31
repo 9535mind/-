@@ -1212,20 +1212,13 @@ async function handleVideoUrlUpload() {
           console.error('❌ lessonDuration 입력 필드를 찾을 수 없습니다!');
         }
       } else {
-        // duration이 없거나 0이면 30초 후 메타데이터 API 호출 (인코딩 대기)
-        console.log('⏳ duration 없음 또는 0, 30초 후 메타데이터 API 호출...');
+        // duration이 없으면 조용히 메타데이터 API 호출
+        console.log('⏳ duration 없음, 메타데이터 API로 조회 시도...');
         if (result.video_id) {
+          // 5초 후 조용히 재시도
           setTimeout(() => {
-            console.log('🔄 재시도: 메타데이터 API 호출...');
             fetchVideoMetadata(result.video_id);
-          }, 30000); // 30초 후 재시도
-          
-          // 임시로 0분 대신 "처리 중..." 표시
-          const durationInput = document.getElementById('lessonDuration');
-          if (durationInput) {
-            durationInput.value = 0;
-            durationInput.placeholder = '인코딩 중... 30초 후 자동 설정';
-          }
+          }, 5000);
         }
       }
 
@@ -1235,11 +1228,8 @@ async function handleVideoUrlUpload() {
         console.log(`✅ 썸네일 URL 저장: ${result.thumbnail_url}`);
       }
 
-      const alertMessage = duration && duration > 0
-        ? '✅ 영상 URL이 등록되었습니다!\n\n재생 시간: ' + Math.ceil(duration / 60) + '분\n\n이제 "저장" 버튼을 클릭하여 차시를 저장하세요.'
-        : '✅ 영상 URL이 등록되었습니다!\n\n영상이 인코딩 중입니다. 30초 후 재생 시간이 자동으로 설정됩니다.\n\n지금 바로 저장하거나, 잠시 후 저장해주세요.';
-      
-      alert(alertMessage);
+      // 알림 제거 - URL 입력 후 바로 저장 가능
+      console.log('✅ 영상 URL 등록 완료');
       
       // URL 입력란 초기화
       urlInput.value = '';

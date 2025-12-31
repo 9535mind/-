@@ -1505,9 +1505,9 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
                             <label class="block text-sm font-medium text-gray-700 mb-2">
                                 차시 순서 <span class="text-red-500">*</span>
                             </label>
-                            <input type="number" id="lessonOrder" min="1" required
+                            <input type="number" id="lessonOrder" min="1" required placeholder="예: 1, 2, 3..."
                                 class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500">
-                            <p class="text-sm text-gray-500 mt-1">* 차시 순서를 입력하세요 (예: 1, 2, 3...)</p>
+                            <p class="text-sm text-gray-500 mt-1">* 차시 순서를 입력하세요</p>
                         </div>
 
                         <!-- 재생 시간 (분) -->
@@ -1536,7 +1536,7 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
                                     <i class="fas fa-file-upload mr-2"></i>파일 업로드
                                 </button>
                                 <button type="button" id="urlUploadTab" onclick="switchVideoTab('urlupload')"
-                                    class="px-4 py-2 font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 video-tab">
+                                    class="px-4 py-2 font-bold border-b-2 border-transparent text-purple-700 hover:text-purple-900 video-tab">
                                     <i class="fas fa-link mr-2"></i>URL 업로드
                                 </button>
                             </div>
@@ -1583,23 +1583,18 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
 
                             <!-- URL 업로드 탭 -->
                             <div id="urlUploadTabContent" class="video-tab-content hidden">
-                                <div class="space-y-4">
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">
-                                            영상 URL <span class="text-red-500">*</span>
-                                        </label>
-                                        <input type="url" id="videoUrlInput" 
-                                            placeholder="https://embed.api.video/vod/vi... 또는 https://example.com/video.mp4"
-                                            class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500">
-                                        <p class="text-sm text-gray-500 mt-2">
-                                            <i class="fas fa-info-circle mr-1"></i>
-                                            지원 형식: api.video URL, 직접 영상 URL (.mp4, .webm, .mov 등)
-                                        </p>
-                                    </div>
-                                    <button type="button" onclick="handleVideoUrlUpload()" 
-                                        class="w-full px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium">
-                                        <i class="fas fa-check mr-2"></i>URL 등록
-                                    </button>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                                        영상 URL <span class="text-red-500">*</span>
+                                    </label>
+                                    <input type="url" id="videoUrlInput" 
+                                        placeholder="https://embed.api.video/vod/vi... 또는 https://example.com/video.mp4"
+                                        class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                        onchange="handleVideoUrlUpload()">
+                                    <p class="text-sm text-gray-500 mt-2">
+                                        <i class="fas fa-info-circle mr-1"></i>
+                                        URL을 입력하면 자동으로 영상 정보를 가져옵니다
+                                    </p>
                                 </div>
                             </div>
                                 
