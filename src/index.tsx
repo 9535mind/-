@@ -372,31 +372,18 @@ app.get('/', (c) => {
                             </div>
                             <div class="p-6">
                                 <h4 class="text-xl font-semibold mb-2">\${course.title}</h4>
-                                <p class="text-gray-600 text-sm mb-4 line-clamp-2">\${course.description || ''}</p>
+                                <p class="text-gray-600 text-sm mb-4 line-clamp-2">\${course.description || '전문가와 함께하는 특별한 학습 경험'}</p>
                                 <div class="flex justify-between items-center mb-4">
-                                    <div>
-                                        <span class="text-gray-500 text-sm">수강기간</span>
-                                        <p class="font-semibold">\${course.duration_days}일</p>
-                                    </div>
-                                    <div>
-                                        <span class="text-gray-500 text-sm">총 차시</span>
-                                        <p class="font-semibold">\${course.total_lessons}개</p>
+                                    <div class="text-sm text-gray-500">
+                                        <i class="fas fa-clock mr-1"></i>
+                                        언제든지 학습 가능
                                     </div>
                                 </div>
                                 <div class="flex justify-between items-center">
                                     <div>
-                                        \${course.is_free ? 
-                                            '<span class="text-2xl font-bold text-green-600">무료</span>' :
-                                            \`<div>
-                                                \${course.discount_price ? 
-                                                    \`<span class="text-gray-400 line-through text-sm">\${course.price.toLocaleString()}원</span>
-                                                    <span class="text-2xl font-bold text-indigo-600">\${course.discount_price.toLocaleString()}원</span>\` :
-                                                    \`<span class="text-2xl font-bold text-indigo-600">\${course.price.toLocaleString()}원</span>\`
-                                                }
-                                            </div>\`
-                                        }
+                                        <span class="text-2xl font-bold text-indigo-600">수강 신청</span>
                                     </div>
-                                    <button onclick="viewCourse(\${course.id})" class="btn-primary px-4 py-2 rounded-lg transition">
+                                    <button onclick="viewCourse(\${course.id})" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition">
                                         자세히 보기
                                     </button>
                                 </div>
