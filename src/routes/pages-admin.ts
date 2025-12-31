@@ -1613,9 +1613,14 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
                                 <div id="uploadedInfo" class="mt-4 hidden">
                                     <div class="bg-green-50 border border-green-200 rounded-lg p-4">
                                         <div class="flex items-center justify-between">
-                                            <div class="flex items-center">
-                                                <i class="fas fa-check-circle text-green-600 mr-2"></i>
-                                                <span class="text-sm font-medium text-green-800">✅ 영상 등록 완료! 아래 저장 버튼을 클릭하세요</span>
+                                            <div class="flex items-center flex-col items-start">
+                                                <div class="flex items-center mb-2">
+                                                    <i class="fas fa-check-circle text-green-600 mr-2"></i>
+                                                    <span class="text-sm font-medium text-green-800">✅ 영상 등록 완료!</span>
+                                                </div>
+                                                <div class="text-xs text-green-700 bg-green-100 px-3 py-1 rounded">
+                                                    👇 화면 맨 아래로 스크롤하여 [저장] 버튼을 클릭하세요
+                                                </div>
                                             </div>
                                             <div class="flex space-x-2">
                                                 <button type="button" onclick="replaceUploadedVideo()" 

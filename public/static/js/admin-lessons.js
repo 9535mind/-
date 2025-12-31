@@ -1247,8 +1247,8 @@ async function handleVideoUrlUpload() {
       // 알림 제거 - URL 입력 후 바로 저장 가능
       console.log('✅ 영상 URL 등록 완료');
       
-      // URL 입력란 초기화
-      urlInput.value = '';
+      // URL 입력란 유지 (삭제하지 않음)
+      // urlInput.value = ''; // 제거: URL을 유지해야 저장됨
     }, 500);
 
   } catch (error) {
