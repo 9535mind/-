@@ -551,11 +551,16 @@ function saveLessonAfterUpload() {
     return;
   }
   
-  if (!lessonNumber || lessonNumber === '' || lessonNumber === '0') {
-    alert('차시 순서를 입력해주세요. (예: 1, 2, 3...)');
+  // 차시 순서를 숫자로 변환
+  const lessonNumberValue = parseInt(lessonNumber, 10);
+  
+  if (!lessonNumber || isNaN(lessonNumberValue) || lessonNumberValue < 1) {
+    alert('차시 순서를 올바르게 입력해주세요. (예: 1, 2, 3...)\n\n현재 값: ' + lessonNumber);
     lessonNumberInput?.focus();
     return;
   }
+  
+  console.log('✅ 차시 순서 검증 통과:', lessonNumberValue);
   
   if (!uploadedVideoKey) {
     alert('업로드된 영상이 없습니다.\n\n먼저 영상을 업로드한 후 저장해주세요.');
@@ -1015,9 +1020,9 @@ function getToken() {
 /**
  * 영상 메타데이터 가져오기 (재생 시간 자동 설정)
  */
-async function fetchVideoMetadata(videoId) {
+async function fetchVideoMetadata(videoId, retryCount = 0) {
   try {
-    console.log('🎬 영상 메타데이터 가져오는 중...', videoId);
+    console.log(`🎬 영상 메타데이터 가져오는 중... (시도 ${retryCount + 1}/3)`, videoId);
     
     const response = await fetch(`/api/video-apivideo/${videoId}`, {
       method: 'GET',
@@ -1029,16 +1034,37 @@ async function fetchVideoMetadata(videoId) {
 
     const result = await response.json();
     
+    console.log('📦 Metadata result:', result);
+    
     if (result.success && result.data) {
-      const { duration, thumbnail_url } = result.data;
+      const { duration, thumbnail_url, status } = result.data;
       
       // 재생 시간 자동 설정 (초 단위로 변환)
-      if (duration) {
+      if (duration && duration > 0) {
         const durationInMinutes = Math.ceil(duration / 60);
         const durationInput = document.getElementById('lessonDuration');
         if (durationInput) {
           durationInput.value = durationInMinutes;
-          console.log(`✅ 재생 시간 자동 설정: ${durationInMinutes}분`);
+          durationInput.placeholder = '';
+          console.log(`✅ 재생 시간 자동 설정: ${durationInMinutes}분 (${duration}초)`);
+        } else {
+          console.error('❌ lessonDuration 입력 필드를 찾을 수 없습니다!');
+        }
+      } else {
+        console.warn('⚠️ Duration이 0이거나 없음:', duration);
+        
+        // 인코딩 중인 경우 재시도 (최대 3번)
+        if (status && (status === 'processing' || status === 'uploading') && retryCount < 2) {
+          console.log('🔄 영상 인코딩 중... 30초 후 재시도...');
+          setTimeout(() => {
+            fetchVideoMetadata(videoId, retryCount + 1);
+          }, 30000); // 30초 후 재시도
+        } else {
+          console.log('⏹️ 재시도 종료. 수동 입력 필요.');
+          const durationInput = document.getElementById('lessonDuration');
+          if (durationInput) {
+            durationInput.placeholder = '수동으로 입력해주세요';
+          }
         }
       }
       
@@ -1047,11 +1073,20 @@ async function fetchVideoMetadata(videoId) {
         window.currentVideoThumbnail = thumbnail_url;
         console.log(`✅ 썸네일 URL 저장: ${thumbnail_url}`);
       }
+    } else {
+      console.error('❌ 메타데이터 가져오기 실패:', result.error);
     }
 
   } catch (error) {
     console.error('❌ 영상 메타데이터 가져오기 실패:', error);
-    // 에러가 발생해도 계속 진행 (사용자가 수동으로 입력 가능)
+    
+    // 재시도 (최대 3번)
+    if (retryCount < 2) {
+      console.log('🔄 에러 발생, 30초 후 재시도...');
+      setTimeout(() => {
+        fetchVideoMetadata(videoId, retryCount + 1);
+      }, 30000);
+    }
   }
 }
 
@@ -1158,19 +1193,33 @@ async function handleVideoUrlUpload() {
       // 전역 변수에 저장
       uploadedVideoKey = result.video_id;
 
+      console.log('📦 Upload result:', result);
+
       // 재생 시간 즉시 설정 (응답에 duration이 있으면)
-      if (result.duration) {
+      if (result.duration && result.duration > 0) {
         const durationInMinutes = Math.ceil(result.duration / 60);
         const durationInput = document.getElementById('lessonDuration');
         if (durationInput) {
           durationInput.value = durationInMinutes;
           console.log(`✅ 재생 시간 즉시 설정: ${durationInMinutes}분 (${result.duration}초)`);
+        } else {
+          console.error('❌ lessonDuration 입력 필드를 찾을 수 없습니다!');
         }
       } else {
-        // duration이 없으면 메타데이터 API 호출
-        console.log('⏳ duration 없음, 메타데이터 API 호출...');
+        // duration이 없거나 0이면 30초 후 메타데이터 API 호출 (인코딩 대기)
+        console.log('⏳ duration 없음 또는 0, 30초 후 메타데이터 API 호출...');
         if (result.video_id) {
-          fetchVideoMetadata(result.video_id);
+          setTimeout(() => {
+            console.log('🔄 재시도: 메타데이터 API 호출...');
+            fetchVideoMetadata(result.video_id);
+          }, 30000); // 30초 후 재시도
+          
+          // 임시로 0분 대신 "처리 중..." 표시
+          const durationInput = document.getElementById('lessonDuration');
+          if (durationInput) {
+            durationInput.value = 0;
+            durationInput.placeholder = '인코딩 중... 30초 후 자동 설정';
+          }
         }
       }
 
@@ -1180,7 +1229,11 @@ async function handleVideoUrlUpload() {
         console.log(`✅ 썸네일 URL 저장: ${result.thumbnail_url}`);
       }
 
-      alert('✅ 영상 URL이 등록되었습니다!\n\n재생 시간이 자동으로 설정되었습니다.\n이제 "저장" 버튼을 클릭하여 차시를 저장하세요.');
+      const alertMessage = result.duration && result.duration > 0
+        ? '✅ 영상 URL이 등록되었습니다!\n\n재생 시간: ' + Math.ceil(result.duration / 60) + '분\n\n이제 "저장" 버튼을 클릭하여 차시를 저장하세요.'
+        : '✅ 영상 URL이 등록되었습니다!\n\n영상이 인코딩 중입니다. 30초 후 재생 시간이 자동으로 설정됩니다.\n\n지금 바로 저장하거나, 잠시 후 저장해주세요.';
+      
+      alert(alertMessage);
       
       // URL 입력란 초기화
       urlInput.value = '';

@@ -116,14 +116,43 @@ apiVideo.post('/upload', requireAdmin, async (c) => {
       ).run()
     }
 
-    // duration 추출
+    // duration 추출 - 전체 응답 구조 로깅
+    console.log('🎬 api.video 전체 응답:', JSON.stringify(uploadResult, null, 2));
+    
     let duration = null;
-    if (uploadResult.assets?.mp4 && uploadResult.assets.mp4.length > 0) {
-      duration = uploadResult.assets.mp4[0]?.duration || uploadResult.assets.mp4[0]?.length;
+    
+    // 방법 1: assets.mp4 배열
+    if (uploadResult.assets?.mp4 && Array.isArray(uploadResult.assets.mp4)) {
+      for (const mp4Asset of uploadResult.assets.mp4) {
+        duration = mp4Asset?.duration || mp4Asset?.length;
+        if (duration) {
+          console.log('✅ Duration from assets.mp4:', duration);
+          break;
+        }
+      }
     }
+    
+    // 방법 2: assets.hls
+    if (!duration && uploadResult.assets?.hls) {
+      duration = (uploadResult.assets.hls as any)?.duration || (uploadResult.assets.hls as any)?.length;
+      if (duration) {
+        console.log('✅ Duration from assets.hls:', duration);
+      }
+    }
+    
+    // 방법 3: 최상위 duration
     if (!duration && (uploadResult as any).duration) {
       duration = (uploadResult as any).duration;
+      console.log('✅ Duration from top-level:', duration);
     }
+    
+    // 방법 4: metadata
+    if (!duration && (uploadResult as any).metadata?.duration) {
+      duration = (uploadResult as any).metadata.duration;
+      console.log('✅ Duration from metadata:', duration);
+    }
+    
+    console.log('📊 최종 추출된 duration:', duration);
     
     return c.json(successResponse({
       video_id: uploadResult.videoId,
@@ -248,29 +277,40 @@ apiVideo.get('/:videoId', requireAdmin, async (c) => {
     
     const video = await client.videos.get(videoId)
     
-    // duration 추출 (여러 소스 시도)
+    // duration 추출 - api.video SDK의 실제 구조 확인
     let duration = null;
     
-    // 방법 1: video.assets.mp4에서 추출
-    if (video.assets?.mp4 && video.assets.mp4.length > 0) {
-      duration = video.assets.mp4[0]?.duration || video.assets.mp4[0]?.length;
+    // 전체 video 객체 로깅 (디버깅용)
+    console.log('🎬 Full video object:', JSON.stringify(video, null, 2));
+    
+    // 방법 1: video.assets.mp4 배열에서 추출
+    if (video.assets?.mp4 && Array.isArray(video.assets.mp4) && video.assets.mp4.length > 0) {
+      const mp4Asset = video.assets.mp4[0];
+      duration = mp4Asset?.duration || mp4Asset?.length;
+      console.log('📹 mp4 asset:', mp4Asset);
     }
     
     // 방법 2: video.assets.hls에서 추출
     if (!duration && video.assets?.hls) {
-      duration = video.assets.hls?.duration;
+      duration = (video.assets.hls as any).duration;
+      console.log('📹 hls asset:', video.assets.hls);
     }
     
-    // 방법 3: video 객체 자체에서 추출
-    if (!duration && (video as any).duration) {
-      duration = (video as any).duration;
+    // 방법 3: video 최상위 레벨에서 duration 확인
+    if (!duration) {
+      const videoAny = video as any;
+      duration = videoAny.duration || videoAny.length;
+      console.log('📹 video top-level duration:', videoAny.duration);
     }
     
-    console.log('🎬 Video metadata:', {
-      videoId: video.videoId,
-      duration: duration,
-      assets: video.assets
-    });
+    // 방법 4: metadata에서 확인
+    if (!duration && (video as any).metadata) {
+      const metadata = (video as any).metadata;
+      duration = metadata.duration || metadata.length;
+      console.log('📹 metadata:', metadata);
+    }
+    
+    console.log('✅ Final duration:', duration);
     
     return c.json(successResponse({
       video_id: video.videoId,
@@ -279,7 +319,7 @@ apiVideo.get('/:videoId', requireAdmin, async (c) => {
       player_url: video.assets.player,
       thumbnail_url: video.assets.thumbnail,
       is_public: video.public,
-      duration: duration, // 초 단위
+      duration: duration, // 초 단위 (또는 null)
       status: video.status,
       created_at: video.createdAt,
       updated_at: video.updatedAt
