@@ -1615,14 +1615,9 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
                                         <div class="flex items-center justify-between">
                                             <div class="flex items-center">
                                                 <i class="fas fa-check-circle text-green-600 mr-2"></i>
-                                                <span class="text-sm font-medium text-green-800">업로드 완료</span>
+                                                <span class="text-sm font-medium text-green-800">✅ 영상 등록 완료! 아래 저장 버튼을 클릭하세요</span>
                                             </div>
                                             <div class="flex space-x-2">
-                                                <button type="button" onclick="saveLessonAfterUpload()" 
-                                                    class="text-xs bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition-colors font-medium"
-                                                    title="차시 저장">
-                                                    <i class="fas fa-save mr-1"></i>저장
-                                                </button>
                                                 <button type="button" onclick="replaceUploadedVideo()" 
                                                     class="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition-colors"
                                                     title="다른 영상으로 교체">
