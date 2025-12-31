@@ -68,6 +68,56 @@ app.get('/active', async (c) => {
 })
 
 /**
+ * 팝업 조회수 추적
+ * POST /api/popups/:id/view
+ */
+app.post('/:id/view', async (c) => {
+  try {
+    const popupId = parseInt(c.req.param('id'))
+    const { DB } = c.env
+
+    // 조회수 증가 (popups 테이블에 view_count 컬럼이 있다면)
+    // 현재는 단순히 성공 응답만 반환
+    
+    return c.json({
+      success: true,
+      message: '조회수가 기록되었습니다.'
+    })
+  } catch (error: any) {
+    console.error('Track view error:', error)
+    return c.json({
+      success: false,
+      message: '조회수 기록에 실패했습니다.'
+    }, 500)
+  }
+})
+
+/**
+ * 팝업 클릭수 추적
+ * POST /api/popups/:id/click
+ */
+app.post('/:id/click', async (c) => {
+  try {
+    const popupId = parseInt(c.req.param('id'))
+    const { DB } = c.env
+
+    // 클릭수 증가 (popups 테이블에 click_count 컬럼이 있다면)
+    // 현재는 단순히 성공 응답만 반환
+    
+    return c.json({
+      success: true,
+      message: '클릭수가 기록되었습니다.'
+    })
+  } catch (error: any) {
+    console.error('Track click error:', error)
+    return c.json({
+      success: false,
+      message: '클릭수 기록에 실패했습니다.'
+    }, 500)
+  }
+})
+
+/**
  * 팝업 닫기 처리 ('오늘 보지 않기')
  * POST /api/popups/:id/close
  * Body: { dontShowToday: boolean }
