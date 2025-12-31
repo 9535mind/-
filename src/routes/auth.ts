@@ -128,12 +128,27 @@ auth.post('/login', async (c) => {
       return c.json(errorResponse('이메일 또는 비밀번호가 일치하지 않습니다.'), 401)
     }
 
-    // Generate session token (simplified - no DB session tracking)
+    // Generate session token
     const sessionToken = generateSessionToken()
     
     // 세션 만료 시간 (30일 후)
     const expiresAt = new Date()
     expiresAt.setDate(expiresAt.getDate() + 30)
+
+    // 이전 세션 비활성화
+    await DB.prepare(`
+      UPDATE user_sessions 
+      SET is_active = 0 
+      WHERE user_id = ?
+    `).bind(user.id).run()
+
+    // 새 세션 저장
+    await DB.prepare(`
+      INSERT INTO user_sessions (
+        user_id, session_token, is_active, expires_at, 
+        last_activity_at, created_at
+      ) VALUES (?, ?, 1, ?, datetime('now'), datetime('now'))
+    `).bind(user.id, sessionToken, expiresAt.toISOString()).run()
 
     // 비밀번호 제외한 사용자 정보 반환
     const { password_hash: _, ...userWithoutPassword } = user
