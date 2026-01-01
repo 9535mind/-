@@ -432,12 +432,22 @@ courses.get('/:courseId/lessons/:lessonId', optionalAuth, async (c) => {
   try {
     const courseId = c.req.param('courseId')
     const lessonId = c.req.param('lessonId')
+    console.log('📚 Fetching lesson:', { courseId, lessonId })
+    
     const { DB } = c.env
+    if (!DB) {
+      console.error('❌ DB binding not found')
+      return c.json(errorResponse('데이터베이스 연결 오류'), 500)
+    }
+    
     const user = c.get('user')
+    console.log('👤 User:', user ? user.email : 'anonymous')
 
     const lesson = await DB.prepare(`
       SELECT * FROM lessons WHERE id = ? AND course_id = ?
     `).bind(lessonId, courseId).first<Lesson>()
+
+    console.log('📖 Lesson found:', lesson ? lesson.title : 'not found')
 
     if (!lesson) {
       return c.json(errorResponse('차시를 찾을 수 없습니다.'), 404)
@@ -446,17 +456,23 @@ courses.get('/:courseId/lessons/:lessonId', optionalAuth, async (c) => {
     // 수강 신청 정보 조회 (로그인한 경우)
     let enrollment = null
     if (user) {
-      enrollment = await DB.prepare(`
-        SELECT * FROM enrollments 
-        WHERE user_id = ? AND course_id = ? AND status IN ('active', 'completed')
-      `).bind(user.id, courseId).first()
+      try {
+        enrollment = await DB.prepare(`
+          SELECT * FROM enrollments 
+          WHERE user_id = ? AND course_id = ? AND status IN ('active', 'completed')
+        `).bind(user.id, courseId).first()
+      } catch (enrollError) {
+        console.error('⚠️ Enrollment query error:', enrollError)
+        // Continue without enrollment data
+      }
     }
 
+    console.log('✅ Returning lesson data')
     return c.json(successResponse({ lesson, enrollment }))
 
   } catch (error) {
-    console.error('Get lesson error:', error)
-    return c.json(errorResponse('서버 오류가 발생했습니다.'), 500)
+    console.error('❌ Get lesson error:', error)
+    return c.json(errorResponse('서버 오류가 발생했습니다: ' + (error as Error).message), 500)
   }
 })
 

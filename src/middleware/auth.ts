@@ -45,10 +45,15 @@ export async function requireAdmin(c: Context, next: Next) {
  * 선택적 인증 미들웨어 (로그인 선택)
  */
 export async function optionalAuth(c: Context, next: Next) {
-  const user = await getCurrentUser(c)
-  
-  if (user) {
-    c.set('user', user)
+  try {
+    const user = await getCurrentUser(c)
+    
+    if (user) {
+      c.set('user', user)
+    }
+  } catch (error) {
+    // 인증 에러가 발생해도 계속 진행 (선택적 인증)
+    console.error('Optional auth error:', error)
   }
   
   await next()

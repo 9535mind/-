@@ -453,15 +453,31 @@ app.get('/courses/:courseId/lessons/:lessonId', (c) => {
 
         async function loadLessonDetail() {
             try {
+                console.log('🔍 Loading lesson detail:', { courseId, lessonId });
+                
                 // Load lesson detail
                 const response = await apiRequest('GET', \`/api/courses/\${courseId}/lessons/\${lessonId}\`);
+                console.log('📦 API Response:', response);
                 
                 if (!response.success) {
+                    console.error('❌ API Error:', response.error);
                     showError(response.error || '차시를 불러올 수 없습니다.');
                     return;
                 }
 
-                lessonData = response.data.lesson;
+                // API 응답 구조 확인
+                if (response.data && response.data.lesson) {
+                    lessonData = response.data.lesson;
+                } else if (response.lesson) {
+                    // 백워드 호환성
+                    lessonData = response.lesson;
+                } else {
+                    console.error('❌ Unexpected response structure:', response);
+                    showError('차시 데이터 형식이 올바르지 않습니다.');
+                    return;
+                }
+                
+                console.log('✅ Lesson data loaded:', lessonData);
                 
                 // Load course info
                 const courseResponse = await apiRequest('GET', \`/api/courses/\${courseId}\`);

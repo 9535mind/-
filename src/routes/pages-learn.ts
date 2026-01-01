@@ -193,7 +193,12 @@ app.get('/courses/:courseId/learn', async (c) => {
                 }
                 
             } catch (error) {
-                console.error('Load course error:', error);
+                console.error('❌ Load course error:', {
+                    message: error?.message || 'Unknown error',
+                    name: error?.name,
+                    stack: error?.stack,
+                    courseId: courseId
+                });
                 showError('강좌를 불러오는 중 오류가 발생했습니다.');
             }
         }
@@ -291,26 +296,55 @@ app.get('/courses/:courseId/learn', async (c) => {
                 renderLessonList();
 
             } catch (error) {
-                console.error('Load lesson error:', error);
+                console.error('❌ Load lesson error:', {
+                    message: error?.message || 'Unknown error',
+                    name: error?.name,
+                    stack: error?.stack,
+                    lessonId: lessonId
+                });
                 showError('차시를 불러오는 중 오류가 발생했습니다.');
             }
         }
 
         async function loadVideoPlayer(lesson) {
+            console.log('🎥 loadVideoPlayer called:', lesson);
             const container = document.getElementById('videoPlayer');
             
-            // Determine video provider
-            const provider = lesson.video_provider || 'youtube';
-            
-            if (provider === 'youtube') {
-                await loadYouTubePlayer(lesson);
-            } else if (provider === 'apivideo' || provider === 'api.video') {
-                await loadApiVideoPlayer(lesson);
-            } else {
+            try {
+                // Determine video provider
+                const provider = lesson.video_provider || 'youtube';
+                console.log('🎬 Video provider:', provider);
+                
+                if (provider === 'youtube') {
+                    console.log('▶️ Loading YouTube player');
+                    await loadYouTubePlayer(lesson);
+                } else if (provider === 'apivideo' || provider === 'api.video') {
+                    console.log('▶️ Loading api.video player');
+                    await loadApiVideoPlayer(lesson);
+                } else {
+                    console.error('❌ Unsupported video provider:', provider);
+                    container.innerHTML = \`
+                        <div class="text-center p-12">
+                            <i class="fas fa-exclamation-triangle text-6xl text-yellow-500 mb-4"></i>
+                            <p class="text-xl">지원하지 않는 영상 형식입니다: \${provider}</p>
+                        </div>
+                    \`;
+                }
+            } catch (error) {
+                console.error('❌ Failed to load video player:', {
+                    message: error?.message || 'Unknown error',
+                    name: error?.name,
+                    stack: error?.stack,
+                    lesson: lesson
+                });
                 container.innerHTML = \`
                     <div class="text-center p-12">
-                        <i class="fas fa-exclamation-triangle text-6xl text-yellow-500 mb-4"></i>
-                        <p class="text-xl">지원하지 않는 영상 형식입니다.</p>
+                        <i class="fas fa-exclamation-circle text-6xl text-red-500 mb-4"></i>
+                        <p class="text-xl text-red-600">영상을 불러오는 중 오류가 발생했습니다</p>
+                        <p class="text-sm text-gray-600 mt-2">\${error?.message || '알 수 없는 오류'}</p>
+                        <button onclick="location.reload()" class="mt-4 px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                            다시 시도
+                        </button>
                     </div>
                 \`;
             }
@@ -385,47 +419,93 @@ app.get('/courses/:courseId/learn', async (c) => {
         }
 
         async function loadApiVideoPlayer(lesson) {
+            console.log('🎬 Loading api.video player:', lesson);
             const container = document.getElementById('videoPlayer');
             
             const videoId = lesson.video_id;
+            console.log('📹 Video ID:', videoId);
+            
             if (!videoId) {
+                console.error('❌ No video ID found');
                 container.innerHTML = '<p class="text-white p-12 text-center">영상 ID를 찾을 수 없습니다.</p>';
                 return;
             }
 
             // api.video embed URL
             const embedUrl = \`https://embed.api.video/vod/\${videoId}\`;
+            console.log('🔗 Embed URL:', embedUrl);
 
-            container.innerHTML = \`
-                <iframe 
-                    id="apiVideoPlayer"
-                    src="\${embedUrl}" 
-                    width="100%" 
-                    height="600" 
-                    frameborder="0" 
-                    scrolling="no" 
-                    allowfullscreen
-                    allow="autoplay; fullscreen; picture-in-picture">
-                </iframe>
-            \`;
+            // Create iframe programmatically for better control
+            const iframe = document.createElement('iframe');
+            iframe.id = 'apiVideoPlayer';
+            iframe.src = embedUrl;
+            iframe.width = '100%';
+            iframe.height = '600';
+            iframe.frameBorder = '0';
+            iframe.scrolling = 'no';
+            iframe.allowFullscreen = true;
+            iframe.allow = 'autoplay; fullscreen; picture-in-picture';
+            
+            // Add load event listener
+            iframe.onload = function() {
+                console.log('✅ api.video iframe loaded successfully');
+            };
+            
+            iframe.onerror = function(error) {
+                console.error('❌ api.video iframe failed to load:', {
+                    message: error?.message || 'Unknown error',
+                    type: error?.type || 'error',
+                    target: error?.target?.src || embedUrl
+                });
+            };
+
+            // Clear container and append iframe
+            container.innerHTML = '';
+            container.appendChild(iframe);
+            
+            console.log('✅ api.video player iframe created and appended');
 
             // Listen to api.video events (postMessage)
             window.addEventListener('message', handleApiVideoMessage);
+            console.log('📡 Listening for api.video messages');
         }
 
         function handleApiVideoMessage(event) {
+            // Security: Only accept messages from api.video
             if (event.origin !== 'https://embed.api.video') return;
 
-            const data = event.data;
-            
-            if (data.type === 'ended') {
-                markLessonCompleted();
+            try {
+                const data = event.data;
+                console.log('📨 Received api.video message:', data);
+                
+                if (data.type === 'ended') {
+                    console.log('🏁 Video ended, marking as completed');
+                    markLessonCompleted().catch(err => {
+                        console.error('❌ Failed to mark lesson completed:', {
+                            message: err?.message || 'Unknown error',
+                            name: err?.name,
+                            stack: err?.stack
+                        });
+                    });
+                }
+            } catch (error) {
+                console.error('❌ Error handling api.video message:', {
+                    message: error?.message || 'Unknown error',
+                    name: error?.name,
+                    event: event
+                });
             }
         }
 
         function startProgressTracking() {
-            progressUpdateInterval = setInterval(async () => {
-                await updateProgress();
+            progressUpdateInterval = setInterval(() => {
+                // Wrap async call to catch any unhandled rejections
+                updateProgress().catch(err => {
+                    console.error('❌ Progress tracking error:', {
+                        message: err?.message || 'Unknown error',
+                        name: err?.name
+                    });
+                });
             }, PROGRESS_UPDATE_INTERVAL);
         }
 
@@ -482,7 +562,14 @@ app.get('/courses/:courseId/learn', async (c) => {
                 }
 
             } catch (error) {
-                console.error('❌ Progress update error:', error);
+                console.error('❌ Progress update error:', {
+                    message: error?.message || 'Unknown error',
+                    name: error?.name,
+                    stack: error?.stack,
+                    lessonId: currentLesson?.id,
+                    courseId: courseData?.id
+                });
+                // Don't throw - just log and continue
             }
         }
 
