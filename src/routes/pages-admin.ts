@@ -1940,6 +1940,8 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
                 status: document.getElementById('lessonIsActive').checked ? 'active' : 'inactive'
               };
 
+              console.log('📤 API 요청 시작:', { lessonId, courseId, formData });
+              
               try {
                 let response;
                 if (lessonId) {
@@ -1947,19 +1949,36 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
                   response = await apiRequest('PUT', \`/api/courses/\${courseId}/lessons/\${lessonId}\`, formData);
                 } else {
                   // 등록
+                  console.log('📤 POST 요청:', \`/api/courses/\${courseId}/lessons\`);
                   response = await apiRequest('POST', \`/api/courses/\${courseId}/lessons\`, formData);
                 }
+
+                console.log('📥 API 응답:', response);
 
                 if (response.success) {
                   alert(lessonId ? '차시가 수정되었습니다.' : '차시가 추가되었습니다.');
                   closeLessonModal();
                   await loadLessons();
                 } else {
+                  console.error('❌ API 실패:', response);
                   showError(response.error || '저장에 실패했습니다.');
                 }
               } catch (error) {
-                console.error('Save lesson error:', error);
-                showError('저장에 실패했습니다.');
+                console.error('❌ Save lesson error:', error);
+                console.error('❌ Error details:', {
+                  message: error.message,
+                  response: error.response?.data,
+                  status: error.response?.status
+                });
+                
+                let errorMessage = '저장에 실패했습니다.';
+                if (error.response?.data?.error) {
+                  errorMessage = error.response.data.error;
+                } else if (error.message) {
+                  errorMessage = \`오류: \${error.message}\`;
+                }
+                
+                showError(errorMessage);
               }
             }
 
