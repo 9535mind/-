@@ -1,301 +1,298 @@
 /**
- * 학습 진도율 추적 API
- * /api/progress/*
+ * Progress Tracking API Routes
+ * Handles lesson progress updates and course completion tracking
  */
 
 import { Hono } from 'hono'
-import { Bindings } from '../types/database'
-import { successResponse, errorResponse } from '../utils/helpers'
+import type { Bindings } from '../types/database'
 import { requireAuth } from '../middleware/auth'
 
-const progress = new Hono<{ Bindings: Bindings }>()
+const app = new Hono<{ Bindings: Bindings }>()
+
+// Apply authentication middleware to all routes
+app.use('/*', requireAuth)
 
 /**
- * POST /api/progress/update
- * 시청 진도 업데이트
+ * Update lesson progress
+ * POST /api/progress/lessons/:lessonId
  */
-progress.post('/update', requireAuth, async (c) => {
+app.post('/lessons/:lessonId', async (c) => {
   try {
     const user = c.get('user')
-    const { 
-      lesson_id, 
-      current_time, 
-      duration, 
-      watch_percentage 
-    } = await c.req.json<{
-      lesson_id: number
-      current_time: number  // 초 단위
-      duration: number      // 초 단위
-      watch_percentage: number  // 0-100
-    }>()
-
-    if (!lesson_id || current_time === undefined || duration === undefined) {
-      return c.json(errorResponse('필수 정보가 누락되었습니다.'), 400)
-    }
+    const lessonId = c.req.param('lessonId')
+    
+    const {
+      watch_percentage = 0,
+      last_position_seconds = 0,
+      watch_time_seconds = 0,
+      is_completed = 0
+    } = await c.req.json()
 
     const { DB } = c.env
 
-    // 차시 정보 조회
+    // Get enrollment_id from lesson -> course -> enrollment
     const lesson = await DB.prepare(`
-      SELECT l.id, l.course_id, l.video_duration_minutes
-      FROM lessons l
-      WHERE l.id = ? AND l.status = 'active'
-    `).bind(lesson_id).first<any>()
+      SELECT course_id FROM lessons WHERE id = ?
+    `).bind(lessonId).first()
 
     if (!lesson) {
-      return c.json(errorResponse('존재하지 않는 차시입니다.'), 404)
+      return c.json({ success: false, error: '차시를 찾을 수 없습니다.' }, 404)
     }
 
-    // 수강 신청 정보 조회
     const enrollment = await DB.prepare(`
-      SELECT id, status, end_date
-      FROM enrollments
-      WHERE user_id = ? AND course_id = ? AND status = 'active'
-    `).bind(user.id, lesson.course_id).first<any>()
+      SELECT id FROM enrollments WHERE user_id = ? AND course_id = ?
+    `).bind(user.id, lesson.course_id).first()
 
     if (!enrollment) {
-      return c.json(errorResponse('수강권이 없습니다.'), 403)
+      return c.json({ success: false, error: '수강 중인 과정이 아닙니다.' }, 403)
     }
 
-    // 기존 진도 기록 조회
-    const existingProgress = await DB.prepare(`
-      SELECT id, total_watched_seconds, watch_percentage, is_completed
-      FROM lesson_progress
-      WHERE enrollment_id = ? AND lesson_id = ? AND user_id = ?
-    `).bind(enrollment.id, lesson_id, user.id).first<any>()
+    // Update or insert lesson progress
+    await DB.prepare(`
+      INSERT INTO lesson_progress (
+        enrollment_id, lesson_id, watch_percentage, 
+        last_position_seconds, watch_time_seconds, 
+        is_completed, completed_at, last_watched_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(enrollment_id, lesson_id) 
+      DO UPDATE SET
+        watch_percentage = excluded.watch_percentage,
+        last_position_seconds = excluded.last_position_seconds,
+        watch_time_seconds = watch_time_seconds + excluded.watch_time_seconds,
+        is_completed = excluded.is_completed,
+        completed_at = CASE 
+          WHEN excluded.is_completed = 1 AND is_completed = 0 
+          THEN CURRENT_TIMESTAMP 
+          ELSE completed_at 
+        END,
+        last_watched_at = CURRENT_TIMESTAMP,
+        updated_at = CURRENT_TIMESTAMP
+    `).bind(
+      enrollment.id,
+      lessonId,
+      watch_percentage,
+      last_position_seconds,
+      watch_time_seconds,
+      is_completed,
+      is_completed ? new Date().toISOString() : null
+    ).run()
 
-    const isCompleted = watch_percentage >= 80 ? 1 : 0
-
-    if (existingProgress) {
-      // 업데이트
-      await DB.prepare(`
-        UPDATE lesson_progress
-        SET last_watched_position = ?,
-            total_watched_seconds = ?,
-            watch_percentage = ?,
-            is_completed = ?,
-            completed_at = CASE WHEN ? = 1 AND is_completed = 0 THEN datetime('now') ELSE completed_at END,
-            access_count = access_count + 1,
-            last_accessed_at = datetime('now'),
-            status = CASE WHEN ? >= 80 THEN 'completed' ELSE 'in_progress' END
-        WHERE id = ?
-      `).bind(
-        current_time,
-        Math.max(existingProgress.total_watched_seconds, current_time),
-        Math.max(existingProgress.watch_percentage, watch_percentage),
-        isCompleted,
-        isCompleted,
-        watch_percentage,
-        existingProgress.id
-      ).run()
-    } else {
-      // 신규 생성
-      await DB.prepare(`
-        INSERT INTO lesson_progress (
-          enrollment_id, lesson_id, user_id,
-          status, last_watched_position, total_watched_seconds,
-          watch_percentage, is_completed, completed_at,
-          access_count, first_accessed_at, last_accessed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'), datetime('now'))
-      `).bind(
-        enrollment.id,
-        lesson_id,
-        user.id,
-        isCompleted ? 'completed' : 'in_progress',
-        current_time,
-        current_time,
-        watch_percentage,
-        isCompleted,
-        isCompleted ? new Date().toISOString() : null
-      ).run()
-    }
-
-    // 전체 강좌 진도율 재계산
-    const courseProgress = await DB.prepare(`
+    // Update enrollment progress
+    const progressStats = await DB.prepare(`
       SELECT 
         COUNT(*) as total_lessons,
-        SUM(CASE WHEN lp.is_completed = 1 THEN 1 ELSE 0 END) as completed_lessons,
-        SUM(lp.total_watched_seconds) as total_watched_seconds
-      FROM lessons l
-      LEFT JOIN lesson_progress lp ON l.id = lp.lesson_id AND lp.enrollment_id = ?
-      WHERE l.course_id = ? AND l.status = 'active'
-    `).bind(enrollment.id, lesson.course_id).first<any>()
+        SUM(CASE WHEN is_completed = 1 THEN 1 ELSE 0 END) as completed_lessons,
+        SUM(watch_time_seconds) as total_watch_time
+      FROM lesson_progress
+      WHERE enrollment_id = ?
+    `).bind(enrollment.id).first()
 
-    const progressRate = courseProgress.total_lessons > 0 
-      ? (courseProgress.completed_lessons / courseProgress.total_lessons) * 100 
+    const completion_rate = progressStats.total_lessons > 0
+      ? Math.round((progressStats.completed_lessons / progressStats.total_lessons) * 100)
       : 0
 
-    const totalWatchedMinutes = Math.floor((courseProgress.total_watched_seconds || 0) / 60)
-
-    // 수강 신청 진도율 업데이트
     await DB.prepare(`
       UPDATE enrollments
-      SET progress_rate = ?,
-          completed_lessons = ?,
-          total_watched_minutes = ?,
-          updated_at = datetime('now')
+      SET 
+        total_lessons = ?,
+        completed_lessons = ?,
+        total_watch_time_seconds = ?,
+        completion_rate = ?,
+        progress = ?,
+        last_lesson_id = ?,
+        last_watched_at = CURRENT_TIMESTAMP,
+        updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `).bind(
-      progressRate,
-      courseProgress.completed_lessons || 0,
-      totalWatchedMinutes,
+      progressStats.total_lessons,
+      progressStats.completed_lessons,
+      progressStats.total_watch_time || 0,
+      completion_rate,
+      completion_rate,
+      lessonId,
       enrollment.id
     ).run()
 
-    // 80% 이상 완료 시 수료 처리
-    if (progressRate >= 80) {
-      await DB.prepare(`
-        UPDATE enrollments
-        SET is_completed = 1,
-            completed_at = CASE WHEN is_completed = 0 THEN datetime('now') ELSE completed_at END,
-            status = 'completed'
-        WHERE id = ? AND is_completed = 0
-      `).bind(enrollment.id).run()
-    }
-
-    return c.json(successResponse({
-      lesson_progress: watch_percentage,
-      course_progress: progressRate,
-      lesson_completed: isCompleted === 1,
-      course_completed: progressRate >= 80
-    }))
-
-  } catch (error) {
-    console.error('Progress update error:', error)
-    return c.json(errorResponse('진도 업데이트에 실패했습니다.'), 500)
-  }
-})
-
-/**
- * GET /api/progress/lesson/:lesson_id
- * 특정 차시의 진도 조회
- */
-progress.get('/lesson/:lesson_id', requireAuth, async (c) => {
-  try {
-    const user = c.get('user')
-    const lessonId = parseInt(c.req.param('lesson_id'))
-    const { DB } = c.env
-
-    // 차시 정보 조회
-    const lesson = await DB.prepare(`
-      SELECT course_id FROM lessons WHERE id = ?
-    `).bind(lessonId).first<any>()
-
-    if (!lesson) {
-      return c.json(errorResponse('존재하지 않는 차시입니다.'), 404)
-    }
-
-    // 수강 신청 정보
-    const enrollment = await DB.prepare(`
-      SELECT id FROM enrollments
-      WHERE user_id = ? AND course_id = ? AND status IN ('active', 'completed')
-    `).bind(user.id, lesson.course_id).first<any>()
-
-    if (!enrollment) {
-      return c.json(successResponse({
-        has_access: false,
-        progress: 0,
-        last_position: 0
-      }))
-    }
-
-    // 진도 기록 조회
-    const progressData = await DB.prepare(`
-      SELECT 
-        last_watched_position,
-        total_watched_seconds,
+    return c.json({
+      success: true,
+      progress: {
         watch_percentage,
         is_completed,
-        status,
-        access_count,
-        last_accessed_at
-      FROM lesson_progress
-      WHERE enrollment_id = ? AND lesson_id = ?
-    `).bind(enrollment.id, lessonId).first<any>()
-
-    if (!progressData) {
-      return c.json(successResponse({
-        has_access: true,
-        progress: 0,
-        last_position: 0,
-        is_completed: false,
-        watch_count: 0
-      }))
-    }
-
-    return c.json(successResponse({
-      has_access: true,
-      progress: progressData.watch_percentage || 0,
-      last_position: progressData.last_watched_position || 0,
-      total_watched_seconds: progressData.total_watched_seconds || 0,
-      is_completed: progressData.is_completed === 1,
-      watch_count: progressData.access_count || 0,
-      last_watched_at: progressData.last_accessed_at
-    }))
+        completion_rate
+      }
+    })
 
   } catch (error) {
-    console.error('Get lesson progress error:', error)
-    return c.json(errorResponse('진도 조회에 실패했습니다.'), 500)
+    console.error('❌ Progress update error:', error)
+    return c.json({ 
+      success: false, 
+      error: '진도 업데이트에 실패했습니다.',
+      details: error instanceof Error ? error.message : String(error)
+    }, 500)
   }
 })
 
 /**
- * GET /api/progress/course/:course_id
- * 강좌 전체 진도 조회
+ * Get lesson progress
+ * GET /api/progress/lessons/:lessonId
  */
-progress.get('/course/:course_id', requireAuth, async (c) => {
+app.get('/lessons/:lessonId', async (c) => {
   try {
     const user = c.get('user')
-    const courseId = parseInt(c.req.param('course_id'))
+    const lessonId = c.req.param('lessonId')
     const { DB } = c.env
 
-    // 수강 신청 정보
-    const enrollment = await DB.prepare(`
-      SELECT 
-        id, progress_rate, completed_lessons, 
-        total_watched_minutes, is_completed
-      FROM enrollments
-      WHERE user_id = ? AND course_id = ? AND status IN ('active', 'completed')
-    `).bind(user.id, courseId).first<any>()
+    // Get enrollment_id
+    const lesson = await DB.prepare(`
+      SELECT course_id FROM lessons WHERE id = ?
+    `).bind(lessonId).first()
 
-    if (!enrollment) {
-      return c.json(successResponse({
-        has_access: false,
-        progress_rate: 0,
-        completed_lessons: 0,
-        total_lessons: 0,
-        lessons: []
-      }))
+    if (!lesson) {
+      return c.json({ success: false, error: '차시를 찾을 수 없습니다.' }, 404)
     }
 
-    // 각 차시별 진도
-    const lessons = await DB.prepare(`
-      SELECT 
-        l.id, l.lesson_number, l.title,
-        l.video_duration_minutes,
-        COALESCE(lp.watch_percentage, 0) as watch_percentage,
-        COALESCE(lp.is_completed, 0) as is_completed,
-        COALESCE(lp.last_accessed_at, '') as last_accessed_at
-      FROM lessons l
-      LEFT JOIN lesson_progress lp ON l.id = lp.lesson_id AND lp.enrollment_id = ?
-      WHERE l.course_id = ? AND l.status = 'active'
-      ORDER BY l.lesson_number ASC
-    `).bind(enrollment.id, courseId).all()
+    const enrollment = await DB.prepare(`
+      SELECT id FROM enrollments WHERE user_id = ? AND course_id = ?
+    `).bind(user.id, lesson.course_id).first()
 
-    return c.json(successResponse({
-      has_access: true,
-      progress_rate: enrollment.progress_rate || 0,
-      completed_lessons: enrollment.completed_lessons || 0,
-      total_lessons: lessons.results?.length || 0,
-      total_watched_minutes: enrollment.total_watched_minutes || 0,
-      is_completed: enrollment.is_completed === 1,
-      lessons: lessons.results || []
-    }))
+    if (!enrollment) {
+      return c.json({ success: false, progress: null })
+    }
+
+    const progress = await DB.prepare(`
+      SELECT * FROM lesson_progress
+      WHERE enrollment_id = ? AND lesson_id = ?
+    `).bind(enrollment.id, lessonId).first()
+
+    return c.json({
+      success: true,
+      progress: progress || {
+        watch_percentage: 0,
+        last_position_seconds: 0,
+        is_completed: 0
+      }
+    })
 
   } catch (error) {
-    console.error('Get course progress error:', error)
-    return c.json(errorResponse('강좌 진도 조회에 실패했습니다.'), 500)
+    console.error('❌ Get progress error:', error)
+    return c.json({ 
+      success: false, 
+      error: '진도 조회에 실패했습니다.' 
+    }, 500)
   }
 })
 
-export default progress
+/**
+ * Get course progress summary
+ * GET /api/progress/courses/:courseId
+ */
+app.get('/courses/:courseId', async (c) => {
+  try {
+    const user = c.get('user')
+    const courseId = c.req.param('courseId')
+    const { DB } = c.env
+
+    const enrollment = await DB.prepare(`
+      SELECT 
+        e.*,
+        c.title as course_title,
+        c.total_lessons as course_total_lessons
+      FROM enrollments e
+      JOIN courses c ON e.course_id = c.id
+      WHERE e.user_id = ? AND e.course_id = ?
+    `).bind(user.id, courseId).first()
+
+    if (!enrollment) {
+      return c.json({ success: false, error: '수강 중인 과정이 아닙니다.' }, 404)
+    }
+
+    // Get detailed lesson progress
+    const lessons = await DB.prepare(`
+      SELECT 
+        l.id,
+        l.lesson_number,
+        l.title,
+        l.video_duration_minutes,
+        lp.watch_percentage,
+        lp.is_completed,
+        lp.last_watched_at
+      FROM lessons l
+      LEFT JOIN lesson_progress lp ON l.id = lp.lesson_id AND lp.enrollment_id = ?
+      WHERE l.course_id = ?
+      ORDER BY l.lesson_number
+    `).bind(enrollment.id, courseId).all()
+
+    return c.json({
+      success: true,
+      enrollment: {
+        id: enrollment.id,
+        course_id: enrollment.course_id,
+        course_title: enrollment.course_title,
+        enrolled_at: enrollment.enrolled_at,
+        progress: enrollment.progress,
+        completion_rate: enrollment.completion_rate,
+        total_lessons: enrollment.total_lessons,
+        completed_lessons: enrollment.completed_lessons,
+        last_watched_at: enrollment.last_watched_at,
+        certificate_issued: enrollment.certificate_issued
+      },
+      lessons: lessons.results
+    })
+
+  } catch (error) {
+    console.error('❌ Get course progress error:', error)
+    return c.json({ 
+      success: false, 
+      error: '과정 진도 조회에 실패했습니다.' 
+    }, 500)
+  }
+})
+
+/**
+ * Get user's all courses progress
+ * GET /api/progress/my-courses
+ */
+app.get('/my-courses', async (c) => {
+  try {
+    const user = c.get('user')
+    const { DB } = c.env
+
+    const enrollments = await DB.prepare(`
+      SELECT 
+        e.id as enrollment_id,
+        e.course_id,
+        e.progress,
+        e.completion_rate,
+        e.total_lessons,
+        e.completed_lessons,
+        e.enrolled_at,
+        e.last_watched_at,
+        e.certificate_issued,
+        c.title,
+        c.description,
+        c.thumbnail_url,
+        c.total_duration_minutes,
+        u.name as instructor_name
+      FROM enrollments e
+      JOIN courses c ON e.course_id = c.id
+      LEFT JOIN users u ON c.instructor_id = u.id
+      WHERE e.user_id = ?
+      ORDER BY e.last_watched_at DESC
+    `).bind(user.id).all()
+
+    return c.json({
+      success: true,
+      courses: enrollments.results
+    })
+
+  } catch (error) {
+    console.error('❌ Get my courses error:', error)
+    return c.json({ 
+      success: false, 
+      error: '내 강좌 조회에 실패했습니다.' 
+    }, 500)
+  }
+})
+
+export default app
