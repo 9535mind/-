@@ -1,11 +1,76 @@
 # 🎓 마인드스토리 원격평생교육원 LMS 플랫폼
 
-**Ver.2.6.1 - 로그인 시스템 완전 작동 확인 (2025.12.31)** ✅🎉
+**Ver.2.7.0 - 진도 추적 시스템 완성! (2026.01.01)** ✅🎉
 
-> **최종 테스트 완료!** 모든 핵심 기능이 정상 작동하며 프로덕션 배포 완료!
+> **수강생 대시보드 완성!** 진도율 추적, 학습 이어보기, 수료증 발급 시스템 완료!
 
 > **"스스로 배우는 힘을 키우는 교육"**  
 > 박종석 대표의 20년 현장 경험을 담은 프로덕션급 LMS 플랫폼
+
+## 🎉 Ver.2.7.0 진도 추적 시스템 완성! (2026.01.01)
+
+### ✅ 완전한 학습 관리 시스템
+**두 가지 레벨의 진도 추적**으로 완벽한 학습 관리를 제공합니다!
+
+#### **1단계: 과정 레벨 진도 추적 (enrollments 테이블)**
+- ✅ **전체 진도율**: 과정 전체 완강률 표시
+- ✅ **완강 차시 수**: 몇 개의 차시를 완료했는지 추적
+- ✅ **총 학습 시간**: 실제 영상 시청 시간 누적
+- ✅ **마지막 학습 차시**: 이어보기 기능 지원
+- ✅ **수료증 발급**: 조건 충족 시 자동 발급
+
+#### **2단계: 차시 레벨 진도 추적 (lesson_progress 테이블)**
+- ✅ **시청 비율**: 각 차시의 시청 완료율
+- ✅ **재생 위치**: Netflix처럼 멈춘 위치에서 이어보기
+- ✅ **시청 시간**: 각 차시별 실제 시청 시간
+- ✅ **완강 여부**: 차시별 완료 상태 추적
+
+#### **수강생 대시보드 (/my-courses)**
+- 📊 **진도율 프로그레스 바**: 한눈에 보는 학습 진도
+- 🎯 **필터링**: 전체 / 학습 중 / 완강
+- 🔄 **정렬**: 최근 학습순 / 진도율순 / 제목순
+- 🎬 **이어서 학습**: 마지막 학습 위치에서 바로 시작
+- 🎓 **수료증**: 완강 시 수료증 발급 버튼 표시
+
+#### **API 엔드포인트**
+```
+POST /api/progress/lessons/:lessonId       # 차시 진도 업데이트
+GET  /api/progress/lessons/:lessonId       # 차시 진도 조회
+GET  /api/progress/courses/:courseId       # 과정 진도 상세 조회
+GET  /api/progress/my-courses              # 내 모든 강좌 진도
+```
+
+#### **테스트 방법**
+1. 로그인: https://da9d5daa.mindstory-lms.pages.dev/login
+2. 계정: `test123@gmail.com` / `test123456`
+3. **내 강좌** 페이지로 이동: /my-courses
+4. 강좌 카드에서 진도율, 완강 차시, 최근 학습일 확인
+5. **이어서 학습** 버튼으로 학습 시작
+
+#### **데이터베이스 구조**
+```sql
+-- enrollments 테이블 확장
+ALTER TABLE enrollments ADD COLUMN total_lessons INTEGER DEFAULT 0;
+ALTER TABLE enrollments ADD COLUMN completed_lessons INTEGER DEFAULT 0;
+ALTER TABLE enrollments ADD COLUMN completion_rate INTEGER DEFAULT 0;
+ALTER TABLE enrollments ADD COLUMN certificate_issued INTEGER DEFAULT 0;
+
+-- lesson_progress 테이블 신규
+CREATE TABLE lesson_progress (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  enrollment_id INTEGER NOT NULL,
+  lesson_id INTEGER NOT NULL,
+  watch_percentage INTEGER DEFAULT 0,
+  last_position_seconds INTEGER DEFAULT 0,
+  is_completed INTEGER DEFAULT 0,
+  ...
+);
+```
+
+#### **프로덕션 URL**
+👉 **https://da9d5daa.mindstory-lms.pages.dev/my-courses**
+
+---
 
 ## 🎉 Ver.2.6.1 로그인 시스템 완전 작동 확인! (2025.12.31)
 
