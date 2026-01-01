@@ -5,6 +5,32 @@
 let allCourses = [];
 let currentImageTab = 'video';  // 현재 선택된 탭 ('video', 'url', 'upload')
 
+/**
+ * 가격 필드 표시/숨김 토글
+ */
+function togglePriceFields() {
+  const isFree = document.getElementById('courseIsFree').checked;
+  const priceFieldsContainer = document.getElementById('priceFieldsContainer');
+  const priceInput = document.getElementById('coursePrice');
+  const discountInput = document.getElementById('courseDiscountPrice');
+  
+  if (isFree) {
+    // 무료 강좌: 가격 필드 비활성화
+    priceFieldsContainer.style.opacity = '0.5';
+    priceFieldsContainer.style.pointerEvents = 'none';
+    priceInput.value = '0';
+    discountInput.value = '';
+    priceInput.disabled = true;
+    discountInput.disabled = true;
+  } else {
+    // 유료 강좌: 가격 필드 활성화
+    priceFieldsContainer.style.opacity = '1';
+    priceFieldsContainer.style.pointerEvents = 'auto';
+    priceInput.disabled = false;
+    discountInput.disabled = false;
+  }
+}
+
 // 탭 전환
 function switchImageTab(tab) {
   currentImageTab = tab;
@@ -199,10 +225,23 @@ function renderCourses(courses) {
 
   tbody.innerHTML = courses.map(course => {
     console.log('[DEBUG] 강좌 렌더링:', course.id, course.title);
-    const price = course.is_free ? '무료' : 
-                  (course.discount_price ? 
-                    `<span class="line-through text-gray-400">${course.price?.toLocaleString()}원</span> ${course.discount_price?.toLocaleString()}원` : 
-                    `${course.price?.toLocaleString()}원`);
+    
+    // ✅ 가격 표시 개선
+    let price;
+    if (course.price === null || course.price === undefined) {
+      // 가격 미설정
+      price = '<span class="text-red-500 font-semibold"><i class="fas fa-exclamation-triangle mr-1"></i>가격 미설정</span>';
+    } else if (course.price === 0) {
+      // 무료 강좌
+      price = '<span class="bg-green-100 text-green-800 px-2 py-1 rounded text-sm font-semibold"><i class="fas fa-gift mr-1"></i>무료</span>';
+    } else {
+      // 유료 강좌
+      if (course.discount_price && course.discount_price < course.price) {
+        price = `<span class="line-through text-gray-400">${course.price.toLocaleString()}원</span> <span class="text-purple-700 font-semibold">${course.discount_price.toLocaleString()}원</span>`;
+      } else {
+        price = `<span class="font-semibold">${course.price.toLocaleString()}원</span>`;
+      }
+    }
     
     const statusBadge = getStatusBadge(course.status);
     

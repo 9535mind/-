@@ -436,30 +436,44 @@ pagesAdmin.get('/courses', async (c) => {
                                 class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500">
                         </div>
 
-                        <!-- 가격 -->
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">
-                                정가 (원)
+                        <!-- 가격 설정 -->
+                        <div class="md:col-span-2 bg-purple-50 p-4 rounded-lg">
+                            <label class="block text-sm font-medium text-gray-700 mb-3">
+                                <i class="fas fa-won-sign mr-2 text-purple-600"></i>가격 설정 <span class="text-red-500">*</span>
                             </label>
-                            <input type="number" id="coursePrice" min="0" step="1000"
-                                class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500">
-                        </div>
+                            
+                            <!-- 무료 강좌 체크박스 -->
+                            <div class="mb-3">
+                                <label class="flex items-center cursor-pointer">
+                                    <input type="checkbox" id="courseIsFree" class="mr-2" onchange="togglePriceFields()">
+                                    <span class="text-sm font-medium text-gray-700">
+                                        <i class="fas fa-gift mr-1 text-green-600"></i>무료 강좌로 설정
+                                    </span>
+                                </label>
+                            </div>
+                            
+                            <!-- 가격 입력 필드 -->
+                            <div id="priceFieldsContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <!-- 정가 -->
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                                        정가 (원) <span class="text-red-500">*</span>
+                                    </label>
+                                    <input type="number" id="coursePrice" min="0" step="1000" placeholder="50000"
+                                        class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500">
+                                    <p class="text-xs text-gray-500 mt-1">0원 입력 시 무료</p>
+                                </div>
 
-                        <!-- 할인가 -->
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">
-                                할인가 (원)
-                            </label>
-                            <input type="number" id="courseDiscountPrice" min="0" step="1000"
-                                class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500">
-                        </div>
-
-                        <!-- 무료 강좌 -->
-                        <div class="md:col-span-2">
-                            <label class="flex items-center">
-                                <input type="checkbox" id="courseIsFree" class="mr-2">
-                                <span class="text-sm font-medium text-gray-700">무료 강좌</span>
-                            </label>
+                                <!-- 할인가 -->
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                                        할인가 (원) <span class="text-gray-400">(선택)</span>
+                                    </label>
+                                    <input type="number" id="courseDiscountPrice" min="0" step="1000" placeholder="0"
+                                        class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500">
+                                    <p class="text-xs text-gray-500 mt-1">빈 칸 = 할인 없음</p>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- 메인 노출 -->
