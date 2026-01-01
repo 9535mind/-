@@ -134,7 +134,17 @@ async function apiRequest(method, url, data = null) {
     const response = await axios(config);
     return response.data;
   } catch (error) {
+    console.error('❌ API Request failed:', {
+      method,
+      url,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      message: error.message
+    });
+    
     if (error.response?.status === 401) {
+      console.warn('⚠️ Unauthorized - redirecting to login');
       clearSessionToken();
       window.location.href = '/login';
     }

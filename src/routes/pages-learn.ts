@@ -141,28 +141,48 @@ app.get('/courses/:courseId/learn', async (c) => {
         async function loadCourseData() {
             try {
                 const courseId = parseInt('${courseId}');
+                console.log('📚 Loading course data for courseId:', courseId);
                 
                 // Load course info
+                console.log('🔍 Fetching course info...');
                 const courseResponse = await apiRequest('GET', \`/api/courses/\${courseId}\`);
+                console.log('✅ Course response:', courseResponse);
                 if (!courseResponse.success) {
+                    console.error('❌ Course info failed:', courseResponse);
                     showError('강좌 정보를 불러올 수 없습니다.');
                     return;
                 }
                 courseData = courseResponse.course;
+                console.log('✅ Course data loaded:', courseData);
                 
                 // Load lessons
+                console.log('🔍 Fetching lessons...');
                 const lessonsResponse = await apiRequest('GET', \`/api/courses/\${courseId}/lessons\`);
+                console.log('✅ Lessons response:', lessonsResponse);
                 if (!lessonsResponse.success) {
+                    console.error('❌ Lessons failed:', lessonsResponse);
                     showError('차시 목록을 불러올 수 없습니다.');
                     return;
                 }
                 lessonsData = lessonsResponse.lessons || [];
+                console.log('✅ Lessons loaded:', lessonsData.length, 'lessons');
                 
-                // Load progress
-                const progressResponse = await apiRequest('GET', \`/api/progress/courses/\${courseId}\`);
-                if (progressResponse.success) {
-                    enrollmentData = progressResponse.enrollment;
-                    updateProgressDisplay();
+                // Load progress (optional - don't block if fails)
+                try {
+                    console.log('🔍 Fetching progress...');
+                    const progressResponse = await apiRequest('GET', \`/api/progress/courses/\${courseId}\`);
+                    console.log('✅ Progress response:', progressResponse);
+                    if (progressResponse.success) {
+                        enrollmentData = progressResponse.enrollment;
+                        updateProgressDisplay();
+                        console.log('✅ Progress loaded');
+                    } else {
+                        console.warn('⚠️ Progress not available:', progressResponse);
+                    }
+                } catch (progressError) {
+                    console.warn('⚠️ Progress load failed (non-critical):', progressError);
+                    // Continue without progress - show 0%
+                    document.getElementById('progressPercentage').textContent = '0%';
                 }
                 
                 // Render UI
@@ -193,13 +213,26 @@ app.get('/courses/:courseId/learn', async (c) => {
                 }
                 
             } catch (error) {
-                console.error('❌ Load course error:', {
-                    message: error?.message || 'Unknown error',
+                console.error('❌ Load course error - Full error object:', error);
+                console.error('❌ Error details:', {
+                    message: error?.message,
                     name: error?.name,
                     stack: error?.stack,
+                    toString: error?.toString?.(),
+                    errorType: typeof error,
+                    errorKeys: error ? Object.keys(error) : [],
                     courseId: '${courseId}'
                 });
-                showError('강좌를 불러오는 중 오류가 발생했습니다.');
+                
+                // Try to extract response error
+                if (error?.response) {
+                    console.error('❌ Response error:', {
+                        status: error.response.status,
+                        data: error.response.data
+                    });
+                }
+                
+                showError('강좌를 불러오는 중 오류가 발생했습니다: ' + (error?.message || JSON.stringify(error)));
             }
         }
 
@@ -553,12 +586,18 @@ app.get('/courses/:courseId/learn', async (c) => {
                     // Update local data
                     currentLesson.watch_percentage = watchPercentage;
                     
-                    // Reload enrollment progress
-                    const progressResponse = await apiRequest('GET', \`/api/progress/courses/\${courseData.id}\`);
-                    if (progressResponse.success) {
-                        enrollmentData = progressResponse.enrollment;
-                        updateProgressDisplay();
+                    // Reload enrollment progress (optional)
+                    try {
+                        const progressResponse = await apiRequest('GET', \`/api/progress/courses/\${courseData.id}\`);
+                        if (progressResponse.success) {
+                            enrollmentData = progressResponse.enrollment;
+                            updateProgressDisplay();
+                        }
+                    } catch (err) {
+                        console.warn('⚠️ Progress reload failed (non-critical):', err);
                     }
+                } else {
+                    console.warn('⚠️ Progress update failed (non-critical):', response);
                 }
 
             } catch (error) {
@@ -588,16 +627,23 @@ app.get('/courses/:courseId/learn', async (c) => {
                     currentLesson.is_completed = true;
                     renderLessonList();
                     
-                    // Check for certificate eligibility
-                    const progressResponse = await apiRequest('GET', \`/api/progress/courses/\${courseData.id}\`);
-                    if (progressResponse.success) {
-                        enrollmentData = progressResponse.enrollment;
-                        updateProgressDisplay();
-                        
-                        if (enrollmentData.completion_rate >= 80) {
-                            showCertificateNotification();
+                    // Check for certificate eligibility (optional)
+                    try {
+                        const progressResponse = await apiRequest('GET', \`/api/progress/courses/\${courseData.id}\`);
+                        if (progressResponse.success) {
+                            enrollmentData = progressResponse.enrollment;
+                            updateProgressDisplay();
+                            
+                            if (enrollmentData.completion_rate >= 80) {
+                                showCertificateNotification();
+                            }
                         }
+                    } catch (err) {
+                        console.warn('⚠️ Progress check failed (non-critical):', err);
                     }
+                } else {
+                    console.warn('⚠️ Mark completed failed (non-critical):', response);
+                }
 
                     // Auto-play next lesson
                     const currentIndex = lessonsData.findIndex(l => l.id === currentLesson.id);
