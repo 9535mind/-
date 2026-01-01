@@ -81,13 +81,51 @@ const getCommonHead = (title: string) => `
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=0.85, maximum-scale=1.0, user-scalable=yes">
     <title>${title} - 마인드스토리 원격평생교육원</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
     <script src="/static/js/auth.js?v=2025122914"></script>
     <script src="/static/js/utils.js?v=2025122914"></script>
+    <style>
+        /* 모바일 최적화 - 폰트 크기 30% 감소 */
+        @media (max-width: 768px) {
+            html {
+                font-size: 14px; /* 기본 16px에서 14px로 감소 */
+            }
+            
+            body {
+                line-height: 1.5;
+            }
+            
+            h1 {
+                font-size: 1.75rem !important;
+            }
+            
+            h2 {
+                font-size: 1.5rem !important;
+            }
+            
+            h3 {
+                font-size: 1.25rem !important;
+            }
+            
+            p, div, span {
+                font-size: 0.95rem !important;
+            }
+            
+            button {
+                padding: 0.5rem 1rem !important;
+                font-size: 0.9rem !important;
+            }
+            
+            input, textarea, select {
+                font-size: 0.95rem !important;
+                padding: 0.5rem !important;
+            }
+        }
+    </style>
 </head>
 <body class="bg-gray-50">
 `
