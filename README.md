@@ -1,11 +1,45 @@
 # 🎓 마인드스토리 원격평생교육원 LMS 플랫폼
 
-**Ver.2.10.0 - 프로덕션 D1 스키마 완전 동기화! (2026.01.01)** ✅🎉🚀
+**Ver.2.11.0 - 차시별 상세 페이지 및 학습 자료 시스템 추가! (2026.01.01)** ✨🎉🚀
 
-> **데이터베이스 스키마 완전 동기화!** 로컬과 프로덕션 D1 스키마 100% 일치!
+> **차시별 학습 경험 대폭 개선!** 차시 상세 페이지 + 학습 목표 + 교육자료 섹션 추가!
 
 > **"스스로 배우는 힘을 키우는 교육"**  
 > 박종석 대표의 20년 현장 경험을 담은 **완전한 프로덕션급 LMS 플랫폼**
+
+## 🎉 Ver.2.11.0 차시별 상세 페이지 시스템 추가! (2026.01.01)
+
+### ✨ **새로운 기능**
+
+#### 📚 **차시 상세 페이지 (`/courses/:courseId/lessons/:lessonId`)**
+- **차시 정보 헤더**:
+  - 차시 번호 배지 (Lesson 1, 2, 3...)
+  - 차시 제목 및 학습 시간
+  - 무료 미리보기 배지 (해당 시)
+  - **수강하기 버튼** → 학습 플레이어로 즉시 이동
+  
+- **차시 소개**:
+  - 차시 설명 전체 표시
+  - 줄바꿈 및 포맷팅 지원
+  
+- **학습 목표**:
+  - 차시별 학습 목표 3가지 자동 표시
+  - 체크리스트 형식으로 명확한 가이드
+  
+- **교육자료 섹션**:
+  - PDF, 문서 등 다운로드 가능한 자료 목록
+  - 준비 중: 실제 파일 업로드 시스템
+  
+- **다음 차시 안내**:
+  - 다음 차시가 있으면 자동으로 안내 카드 표시
+  - 클릭 한 번으로 다음 차시로 이동
+
+#### 🎬 **학습 플레이어 개선**
+- **URL 쿼리 파라미터 지원**: 
+  - `/courses/:id/learn?lessonId=38` 형식으로 특정 차시 시작 가능
+  - 차시 상세에서 "수강하기" 클릭 시 해당 차시부터 재생
+
+---
 
 ## 🎉 Ver.2.10.0 프로덕션 D1 스키마 완전 동기화! (2026.01.01)
 
@@ -790,11 +824,12 @@ GET  /api/storage/:path             # 업로드된 이미지 조회
 - **기존 관리자**: admin-test@gmail.com / admin123456
 
 ### 프로덕션 URL 🚀
-- **최신 배포**: https://881002dc.mindstory-lms.pages.dev ⭐ NEW!
+- **최신 배포**: https://7dd751f2.mindstory-lms.pages.dev ⭐ NEW!
 - **메인**: https://mindstory-lms.pages.dev
-- **로그인**: https://881002dc.mindstory-lms.pages.dev/login
-- **회원가입**: https://881002dc.mindstory-lms.pages.dev/register
-- **관리자 대시보드**: https://881002dc.mindstory-lms.pages.dev/admin/dashboard
+- **로그인**: https://7dd751f2.mindstory-lms.pages.dev/login
+- **회원가입**: https://7dd751f2.mindstory-lms.pages.dev/register
+- **관리자 대시보드**: https://7dd751f2.mindstory-lms.pages.dev/admin/dashboard
+- **차시 상세 예시**: https://7dd751f2.mindstory-lms.pages.dev/courses/12/lessons/38 ⭐ NEW!
 
 ## 💾 백업
 
