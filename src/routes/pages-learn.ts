@@ -20,7 +20,7 @@ app.get('/courses/:courseId/learn', async (c) => {
     <html lang="ko">
     <head>
         <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=0.85, maximum-scale=1.0, user-scalable=yes">
+        <meta name="viewport" content="width=device-width, initial-scale=0.75, maximum-scale=1.0, user-scalable=yes">
         <title>강좌 학습 - 마인드스토리 LMS</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
@@ -43,43 +43,43 @@ app.get('/courses/:courseId/learn', async (c) => {
                 height: 600px;
             }
             
-            /* 모바일 최적화 - 폰트 크기 30% 감소 */
+            /* 모바일 최적화 - 폰트 크기 40% 감소 */
             @media (max-width: 768px) {
                 html {
-                    font-size: 14px; /* 기본 16px에서 14px로 감소 */
+                    font-size: 12px; /* 기본 16px에서 12px로 감소 */
                 }
                 
                 body {
-                    line-height: 1.5;
+                    line-height: 1.4;
                 }
                 
                 h1 {
-                    font-size: 1.5rem !important;
+                    font-size: 1.4rem !important;
                 }
                 
                 h2 {
-                    font-size: 1.25rem !important;
+                    font-size: 1.15rem !important;
                 }
                 
                 h3 {
-                    font-size: 1.1rem !important;
+                    font-size: 1rem !important;
                 }
                 
                 p, div {
-                    font-size: 0.95rem !important;
+                    font-size: 0.85rem !important;
                 }
                 
                 #videoPlayer {
-                    height: 250px !important; /* 모바일에서 높이 감소 */
+                    height: 220px !important; /* 모바일에서 높이 더 감소 */
                 }
                 
                 .lesson-item {
-                    padding: 0.75rem !important;
+                    padding: 0.5rem !important;
                 }
                 
                 button {
-                    padding: 0.5rem 1rem !important;
-                    font-size: 0.9rem !important;
+                    padding: 0.4rem 0.8rem !important;
+                    font-size: 0.8rem !important;
                 }
             }
         </style>

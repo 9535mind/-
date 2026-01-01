@@ -25,7 +25,7 @@ landing.get('/', (c) => {
     <html lang="ko">
     <head>
         <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=0.85, maximum-scale=1.0, user-scalable=yes">
+        <meta name="viewport" content="width=device-width, initial-scale=0.75, maximum-scale=1.0, user-scalable=yes">
         <title>마인드스토리 원격평생교육원 - 마음을 이해하고 성장하는 여정</title>
         
         <!-- Pretendard 폰트 -->
@@ -86,43 +86,43 @@ landing.get('/', (c) => {
                 line-height: 1.7;
             }
             
-            /* 모바일 최적화 - 폰트 크기 30% 감소 */
+            /* 모바일 최적화 - 폰트 크기 40% 감소 */
             @media (max-width: 768px) {
                 html {
-                    font-size: 14px; /* 기본 16px에서 14px로 감소 */
+                    font-size: 12px; /* 기본 16px에서 12px로 감소 (25% 감소) */
                 }
                 
                 body {
-                    line-height: 1.5;
+                    line-height: 1.4;
                 }
                 
                 h1 {
-                    font-size: 2rem !important; /* 원래 3rem */
+                    font-size: 1.75rem !important; /* 원래 3rem */
                 }
                 
                 h2 {
-                    font-size: 1.75rem !important; /* 원래 2.5rem */
+                    font-size: 1.5rem !important; /* 원래 2.5rem */
                 }
                 
                 h3 {
-                    font-size: 1.25rem !important; /* 원래 1.75rem */
+                    font-size: 1.15rem !important; /* 원래 1.75rem */
                 }
                 
                 p {
-                    font-size: 0.95rem !important;
+                    font-size: 0.9rem !important;
                 }
                 
                 .hero-gradient {
-                    padding: 3rem 0 !important; /* py-24를 py-12로 */
+                    padding: 2.5rem 0 !important; /* py-24를 py-10으로 */
                 }
                 
                 .glass-card {
-                    padding: 1.25rem !important; /* p-8을 p-5로 */
+                    padding: 1rem !important; /* p-8을 p-4로 */
                 }
                 
                 .cta-button {
-                    padding: 0.75rem 1.5rem !important;
-                    font-size: 0.95rem !important;
+                    padding: 0.6rem 1.25rem !important;
+                    font-size: 0.85rem !important;
                 }
             }
             
