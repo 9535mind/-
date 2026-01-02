@@ -1724,18 +1724,27 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
                                         <label class="text-sm font-medium text-gray-700">
                                             <i class="fas fa-link mr-1 text-purple-600"></i>영상 URL <span class="text-red-500">*</span>
                                         </label>
-                                        <p class="text-xs text-gray-500 mt-1">
-                                            <i class="fas fa-info-circle mr-1"></i>
-                                            <strong>FTP 업로드 후 URL 입력:</strong> FileZilla 등으로 서버에 영상을 업로드한 후, 해당 영상의 전체 URL을 입력하세요.
-                                        </p>
+                                        <div class="mt-2 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                                            <p class="text-xs text-purple-800 mb-2">
+                                                <i class="fas fa-video mr-1"></i>
+                                                <strong>api.video 영상 URL 입력</strong>
+                                            </p>
+                                            <p class="text-xs text-purple-700">
+                                                위의 <strong class="text-purple-600">"api.video 업로드"</strong> 버튼을 클릭하여 api.video에 영상을 업로드한 후,<br>
+                                                해당 영상의 <strong>embed URL</strong>을 복사하여 아래에 붙여넣으세요.
+                                            </p>
+                                            <p class="text-xs text-purple-600 mt-2">
+                                                📝 예시: <code class="bg-white px-2 py-1 rounded text-xs">https://embed.api.video/vod/vi5I289O62sJxi6s1xSoAEGf</code>
+                                            </p>
+                                        </div>
                                     </div>
                                     <input type="url" id="videoUrlInput" 
-                                        placeholder="https://yourdomain.com/videos/video.mp4 또는 https://example.com/video.mp4"
+                                        placeholder="https://embed.api.video/vod/vi..."
                                         class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                                         onchange="handleVideoUrlUpload()">
                                     <p class="text-sm text-gray-500 mt-2">
-                                        <i class="fas fa-info-circle mr-1"></i>
-                                        URL을 입력하면 자동으로 영상 정보를 가져옵니다
+                                        <i class="fas fa-lightbulb mr-1 text-yellow-500"></i>
+                                        <strong>팁:</strong> YouTube URL도 여기에 입력 가능합니다
                                     </p>
                                 </div>
                             </div>
