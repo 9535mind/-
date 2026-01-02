@@ -7,6 +7,7 @@ import { Hono } from 'hono'
 import { Bindings, Course, Lesson, CreateCourseInput, CreateLessonInput } from '../types/database'
 import { successResponse, errorResponse } from '../utils/helpers'
 import { requireAuth, requireAdmin, optionalAuth } from '../middleware/auth'
+import { validateLessonContent, validateVideoUrl, extractYouTubeId, extractApiVideoId } from '../utils/content-filter'
 
 const courses = new Hono<{ Bindings: Bindings }>()
 
@@ -323,6 +324,34 @@ courses.post('/:id/lessons', requireAdmin, async (c) => {
       return c.json(errorResponse('차시 번호와 제목은 필수입니다.'), 400)
     }
     
+    // 🛡️ 콘텐츠 필터링 (불법 영상 차단)
+    const contentValidation = validateLessonContent({
+      title,
+      description,
+      video_url
+    })
+    
+    if (!contentValidation.isAllowed) {
+      console.warn('🚫 부적절한 콘텐츠 차단:', { title, errors: contentValidation.errors })
+      return c.json(errorResponse(
+        '부적절한 콘텐츠가 감지되었습니다: ' + contentValidation.errors.join(', ')
+      ), 400)
+    }
+    
+    // 경고 로그 (허용은 되지만 주의 필요)
+    if (contentValidation.warnings.length > 0) {
+      console.warn('⚠️ 콘텐츠 경고:', contentValidation.warnings)
+    }
+    
+    // 🔍 영상 URL 추가 검증
+    if (video_url) {
+      const urlValidation = validateVideoUrl(video_url)
+      if (!urlValidation.isAllowed) {
+        console.warn('🚫 부적절한 영상 URL 차단:', video_url)
+        return c.json(errorResponse(urlValidation.reason || '유효하지 않은 영상 URL입니다.'), 400)
+      }
+    }
+    
     // ✅ video_provider 정규화 (apivideo, api.video → apivideo)
     let normalizedProvider = video_provider || 'youtube';
     if (normalizedProvider === 'api.video') {
@@ -507,6 +536,25 @@ courses.put('/:courseId/lessons/:lessonId', requireAdmin, async (c) => {
 
     if (!lesson) {
       return c.json(errorResponse('차시를 찾을 수 없습니다.'), 404)
+    }
+
+    // 🛡️ 콘텐츠 필터링 (불법 영상 차단)
+    const contentValidation = validateLessonContent({
+      title: body.title,
+      description: body.description,
+      video_url: body.video_url
+    })
+    
+    if (!contentValidation.isAllowed) {
+      console.warn('🚫 부적절한 콘텐츠 차단 (수정):', { lessonId, errors: contentValidation.errors })
+      return c.json(errorResponse(
+        '부적절한 콘텐츠가 감지되었습니다: ' + contentValidation.errors.join(', ')
+      ), 400)
+    }
+    
+    // 경고 로그
+    if (contentValidation.warnings.length > 0) {
+      console.warn('⚠️ 콘텐츠 경고 (수정):', contentValidation.warnings)
     }
 
     // 업데이트할 필드 구성

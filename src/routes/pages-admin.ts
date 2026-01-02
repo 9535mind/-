@@ -1625,6 +1625,53 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
                                 영상 설정 <span class="text-red-500">*</span>
                             </label>
                             
+                            <!-- 외부 플랫폼 바로가기 -->
+                            <div class="mb-4 p-4 bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg">
+                                <div class="flex items-center justify-between mb-3">
+                                    <p class="text-sm font-semibold text-indigo-900">
+                                        <i class="fas fa-rocket mr-2"></i>영상 플랫폼 바로가기
+                                    </p>
+                                    <span class="text-xs text-indigo-600 bg-white px-2 py-1 rounded">빠른 업로드</span>
+                                </div>
+                                <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                    <!-- YouTube 바로가기 -->
+                                    <a href="https://studio.youtube.com/channel/UCXF55ON7qD6Z_iVYhkcOffg/videos" 
+                                       target="_blank"
+                                       class="flex items-center justify-center px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-medium rounded-lg transition-all transform hover:scale-105">
+                                        <i class="fab fa-youtube mr-2"></i>YouTube
+                                        <i class="fas fa-external-link-alt ml-2 text-xs opacity-75"></i>
+                                    </a>
+                                    
+                                    <!-- api.video 바로가기 -->
+                                    <a href="https://dashboard.api.video/videos" 
+                                       target="_blank"
+                                       class="flex items-center justify-center px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-medium rounded-lg transition-all transform hover:scale-105">
+                                        <i class="fas fa-video mr-2"></i>api.video
+                                        <i class="fas fa-external-link-alt ml-2 text-xs opacity-75"></i>
+                                    </a>
+                                    
+                                    <!-- Cloudflare R2 바로가기 -->
+                                    <a href="https://dash.cloudflare.com/?to=/:account/r2/default/buckets/mindstory-lms" 
+                                       target="_blank"
+                                       class="flex items-center justify-center px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white text-xs font-medium rounded-lg transition-all transform hover:scale-105">
+                                        <i class="fas fa-database mr-2"></i>R2 Storage
+                                        <i class="fas fa-external-link-alt ml-2 text-xs opacity-75"></i>
+                                    </a>
+                                    
+                                    <!-- Cloudflare Stream 바로가기 -->
+                                    <a href="https://dash.cloudflare.com/?to=/:account/stream" 
+                                       target="_blank"
+                                       class="flex items-center justify-center px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-all transform hover:scale-105">
+                                        <i class="fas fa-cloud mr-2"></i>CF Stream
+                                        <i class="fas fa-external-link-alt ml-2 text-xs opacity-75"></i>
+                                    </a>
+                                </div>
+                                <p class="text-xs text-indigo-700 mt-3 flex items-start">
+                                    <i class="fas fa-info-circle mr-2 mt-0.5"></i>
+                                    <span><strong>사용 가이드:</strong> YouTube(무료+일반), api.video(프리미엄), R2(이미지/문서), Stream(VIP)</span>
+                                </p>
+                            </div>
+                            
                             <!-- 탭 메뉴 (3개 탭) -->
                             <div class="flex border-b mb-4">
                                 <button type="button" id="youtubeTab" onclick="switchVideoTab('youtube')"
