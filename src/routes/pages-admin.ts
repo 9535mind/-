@@ -423,20 +423,45 @@ pagesAdmin.get('/courses', async (c) => {
 
                             <!-- 파일 업로드 -->
                             <div id="uploadSection" class="hidden">
-                                <div class="flex items-center space-x-4">
-                                    <input type="file" id="courseThumbnailFile" accept="image/*"
-                                        class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500">
-                                    <button type="button" onclick="uploadImage()" 
-                                        class="bg-purple-700 text-white px-4 py-2 rounded-lg hover:bg-purple-800">
-                                        <i class="fas fa-upload mr-2"></i>업로드
-                                    </button>
+                                <!-- 드래그 앤 드롭 영역 -->
+                                <div id="dropZone" 
+                                     class="border-2 border-dashed border-purple-300 rounded-lg p-8 text-center bg-purple-50 hover:bg-purple-100 transition-all cursor-pointer"
+                                     ondrop="handleDrop(event)" 
+                                     ondragover="handleDragOver(event)" 
+                                     ondragleave="handleDragLeave(event)"
+                                     onclick="document.getElementById('courseThumbnailFile').click()">
+                                    <i class="fas fa-cloud-upload-alt text-5xl text-purple-400 mb-3"></i>
+                                    <p class="text-lg font-semibold text-gray-700 mb-1">이미지를 드래그하거나 클릭하여 업로드</p>
+                                    <p class="text-sm text-gray-500">JPG, PNG, GIF, WebP (최대 5MB)</p>
                                 </div>
-                                <p class="text-sm text-gray-500 mt-1">* JPG, PNG, GIF, WebP (최대 5MB)</p>
-                                <div id="uploadProgress" class="hidden mt-2">
-                                    <div class="w-full bg-gray-200 rounded-full h-2">
-                                        <div id="uploadProgressBar" class="bg-purple-700 h-2 rounded-full" style="width: 0%"></div>
+                                
+                                <input type="file" id="courseThumbnailFile" accept="image/*" class="hidden" onchange="handleFileSelect(event)">
+                                
+                                <div id="uploadProgress" class="hidden mt-4">
+                                    <div class="w-full bg-gray-200 rounded-full h-3">
+                                        <div id="uploadProgressBar" class="bg-gradient-to-r from-purple-600 to-pink-600 h-3 rounded-full transition-all" style="width: 0%"></div>
                                     </div>
-                                    <p class="text-sm text-gray-500 mt-1">업로드 중...</p>
+                                    <p class="text-sm text-gray-600 mt-2 text-center">
+                                        <i class="fas fa-spinner fa-spin mr-1"></i>
+                                        업로드 중... <span id="uploadPercent">0</span>%
+                                    </p>
+                                </div>
+                                
+                                <!-- 업로드된 파일 정보 -->
+                                <div id="uploadedFileInfo" class="hidden mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center">
+                                            <i class="fas fa-check-circle text-green-600 text-2xl mr-3"></i>
+                                            <div>
+                                                <p class="font-semibold text-gray-800" id="uploadedFileName">파일명</p>
+                                                <p class="text-sm text-gray-600" id="uploadedFileSize">파일 크기</p>
+                                            </div>
+                                        </div>
+                                        <button type="button" onclick="removeUploadedFile()" 
+                                                class="text-red-600 hover:text-red-800">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
 

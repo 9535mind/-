@@ -59,21 +59,78 @@ function switchImageTab(tab) {
   });
 }
 
-// 이미지 업로드
+// 드래그 오버 처리
+function handleDragOver(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  const dropZone = document.getElementById('dropZone');
+  dropZone.classList.add('border-purple-500', 'bg-purple-200');
+}
+
+// 드래그 리브 처리
+function handleDragLeave(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  const dropZone = document.getElementById('dropZone');
+  dropZone.classList.remove('border-purple-500', 'bg-purple-200');
+}
+
+// 드롭 처리
+function handleDrop(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  
+  const dropZone = document.getElementById('dropZone');
+  dropZone.classList.remove('border-purple-500', 'bg-purple-200');
+  
+  const files = e.dataTransfer.files;
+  if (files.length > 0) {
+    const file = files[0];
+    // 이미지 파일인지 확인
+    if (file.type.startsWith('image/')) {
+      uploadImageFile(file);
+    } else {
+      alert('이미지 파일만 업로드 가능합니다.');
+    }
+  }
+}
+
+// 파일 선택 처리
+function handleFileSelect(e) {
+  const files = e.target.files;
+  if (files.length > 0) {
+    uploadImageFile(files[0]);
+  }
+}
+
+// 이미지 업로드 (기존 uploadImage 함수 개선)
 async function uploadImage() {
   const fileInput = document.getElementById('courseThumbnailFile');
   const file = fileInput.files[0];
-  
-  console.log('[DEBUG] 이미지 업로드 시작');
-  console.log('[DEBUG] 파일:', file);
   
   if (!file) {
     alert('파일을 선택해주세요.');
     return;
   }
   
+  await uploadImageFile(file);
+}
+
+// 실제 이미지 업로드 로직
+async function uploadImageFile(file) {
+  console.log('[DEBUG] 이미지 업로드 시작');
+  console.log('[DEBUG] 파일:', file.name, file.size, file.type);
+  
+  // 파일 크기 체크 (5MB)
+  const maxSize = 5 * 1024 * 1024;
+  if (file.size > maxSize) {
+    alert('파일 크기는 5MB 이하여야 합니다.\n현재 파일 크기: ' + (file.size / 1024 / 1024).toFixed(2) + 'MB');
+    return;
+  }
+  
   // 진행 바 표시
   document.getElementById('uploadProgress').classList.remove('hidden');
+  document.getElementById('uploadedFileInfo').classList.add('hidden');
   
   try {
     const formData = new FormData();
@@ -82,6 +139,18 @@ async function uploadImage() {
     const token = AuthManager.getSessionToken();
     console.log('[DEBUG] 토큰:', token ? '있음' : '없음');
     
+    // 진행률 시뮬레이션
+    let progress = 0;
+    const progressBar = document.getElementById('uploadProgressBar');
+    const progressPercent = document.getElementById('uploadPercent');
+    const progressInterval = setInterval(() => {
+      if (progress < 90) {
+        progress += 10;
+        progressBar.style.width = progress + '%';
+        progressPercent.textContent = progress;
+      }
+    }, 200);
+    
     const response = await fetch('/api/upload/image', {
       method: 'POST',
       headers: {
@@ -89,6 +158,10 @@ async function uploadImage() {
       },
       body: formData
     });
+    
+    clearInterval(progressInterval);
+    progressBar.style.width = '100%';
+    progressPercent.textContent = '100';
     
     console.log('[DEBUG] 응답 상태:', response.status);
     
@@ -106,18 +179,44 @@ async function uploadImage() {
       // 미리보기 표시
       showThumbnailPreview(imageUrl);
       
-      alert('이미지가 업로드되었습니다.\n저장 버튼을 클릭하여 강좌를 저장해주세요.');
+      // 업로드 완료 정보 표시
+      document.getElementById('uploadedFileName').textContent = file.name;
+      document.getElementById('uploadedFileSize').textContent = (file.size / 1024).toFixed(2) + ' KB';
+      document.getElementById('uploadedFileInfo').classList.remove('hidden');
+      
+      // 성공 메시지
+      setTimeout(() => {
+        alert('✅ 이미지가 업로드되었습니다!\n\n💡 저장 버튼을 클릭하여 강좌를 저장해주세요.');
+      }, 500);
     } else {
       console.error('[DEBUG] 업로드 실패:', result.error);
-      alert(result.error || '이미지 업로드에 실패했습니다.');
+      alert('❌ ' + (result.error || '이미지 업로드에 실패했습니다.'));
     }
   } catch (error) {
     console.error('[DEBUG] Upload error:', error);
-    alert('이미지 업로드에 실패했습니다: ' + error.message);
+    alert('❌ 이미지 업로드에 실패했습니다:\n' + error.message);
   } finally {
     // 진행 바 숨기기
-    document.getElementById('uploadProgress').classList.add('hidden');
+    setTimeout(() => {
+      document.getElementById('uploadProgress').classList.add('hidden');
+      document.getElementById('uploadProgressBar').style.width = '0%';
+      document.getElementById('uploadPercent').textContent = '0';
+    }, 1000);
   }
+}
+
+// 업로드된 파일 제거
+function removeUploadedFile() {
+  if (confirm('업로드된 이미지를 제거하시겠습니까?')) {
+    document.getElementById('courseThumbnail').value = '';
+    document.getElementById('courseThumbnailFile').value = '';
+    document.getElementById('uploadedFileInfo').classList.add('hidden');
+    document.getElementById('thumbnailPreview').classList.add('hidden');
+  }
+}
+
+// 이미지 업로드
+async function uploadImage() {
 }
 
 // 썸네일 미리보기 표시
