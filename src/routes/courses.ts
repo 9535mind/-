@@ -443,6 +443,11 @@ courses.get('/:courseId/lessons/:lessonId', optionalAuth, async (c) => {
     const user = c.get('user')
     console.log('👤 User:', user ? user.email : 'anonymous')
 
+    // 🔐 로그인 필수
+    if (!user) {
+      return c.json(errorResponse('로그인이 필요합니다.'), 401)
+    }
+
     const lesson = await DB.prepare(`
       SELECT * FROM lessons WHERE id = ? AND course_id = ?
     `).bind(lessonId, courseId).first<Lesson>()
@@ -453,17 +458,25 @@ courses.get('/:courseId/lessons/:lessonId', optionalAuth, async (c) => {
       return c.json(errorResponse('차시를 찾을 수 없습니다.'), 404)
     }
 
-    // 수강 신청 정보 조회 (로그인한 경우)
+    // 🔐 수강 신청 정보 조회 (관리자는 모든 강좌 접근 가능)
+    const isAdmin = user.role === 'admin'
     let enrollment = null
-    if (user) {
+    
+    if (!isAdmin) {
       try {
         enrollment = await DB.prepare(`
           SELECT * FROM enrollments 
           WHERE user_id = ? AND course_id = ? AND status IN ('active', 'completed')
         `).bind(user.id, courseId).first()
+        
+        // 🔐 수강 등록 확인: 무료 미리보기가 아니면 수강 등록 필수
+        if (!enrollment && !lesson.is_free_preview) {
+          console.warn('⚠️ Access denied: Not enrolled')
+          return c.json(errorResponse('이 강좌에 수강 등록이 필요합니다.'), 403)
+        }
       } catch (enrollError) {
         console.error('⚠️ Enrollment query error:', enrollError)
-        // Continue without enrollment data
+        return c.json(errorResponse('수강 정보를 확인할 수 없습니다.'), 500)
       }
     }
 
@@ -641,6 +654,11 @@ courses.get('/:courseId/lessons/:lessonId', optionalAuth, async (c) => {
     const { DB } = c.env
     const user = c.get('user')
 
+    // 🔐 로그인 필수
+    if (!user) {
+      return c.json(errorResponse('로그인이 필요합니다.'), 401)
+    }
+
     // 차시 조회
     const lesson = await DB.prepare(`
       SELECT * FROM lessons WHERE id = ? AND course_id = ?
@@ -659,13 +677,20 @@ courses.get('/:courseId/lessons/:lessonId', optionalAuth, async (c) => {
       return c.json(errorResponse('강좌를 찾을 수 없습니다.'), 404)
     }
 
-    // 수강 여부 확인
+    // 🔐 수강 여부 확인 (관리자는 모든 강좌 접근 가능)
+    const isAdmin = user.role === 'admin'
     let enrollment = null
-    if (user) {
+    
+    if (!isAdmin) {
       enrollment = await DB.prepare(`
         SELECT * FROM enrollments 
-        WHERE user_id = ? AND course_id = ?
+        WHERE user_id = ? AND course_id = ? AND status IN ('active', 'completed')
       `).bind(user.id, courseId).first()
+      
+      // 🔐 수강 등록 확인: 무료 미리보기가 아니면 수강 등록 필수
+      if (!enrollment && !lesson.is_free_preview) {
+        return c.json(errorResponse('이 강좌에 수강 등록이 필요합니다.'), 403)
+      }
     }
 
     // 진도 정보 조회 (수강 중인 경우만)

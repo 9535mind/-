@@ -185,6 +185,11 @@ app.get('/courses/:courseId/learn', async (c) => {
                 const courseId = parseInt('${courseId}');
                 console.log('📚 Loading course data for courseId:', courseId);
                 
+                // 🔐 관리자 확인
+                const user = await getCurrentUser();
+                const isAdmin = user && user.role === 'admin';
+                console.log('👤 User role:', isAdmin ? 'admin' : 'user');
+                
                 // Load course info
                 console.log('🔍 Fetching course info...');
                 const courseResponse = await apiRequest('GET', \`/api/courses/\${courseId}\`);
@@ -203,6 +208,22 @@ app.get('/courses/:courseId/learn', async (c) => {
                 }
                 courseData = courseResponse.data || courseResponse.course;
                 console.log('✅ Course data loaded:', courseData);
+                
+                // 🔐 수강 등록 확인 (관리자는 모든 강좌 접근 가능)
+                if (!isAdmin) {
+                    const enrollment = courseResponse.enrollment || courseResponse.data?.enrollment;
+                    console.log('🔍 Enrollment status:', enrollment);
+                    
+                    if (!enrollment || (enrollment.status !== 'active' && enrollment.status !== 'completed')) {
+                        console.warn('⚠️ Not enrolled in this course');
+                        showError('이 강좌에 수강 등록이 필요합니다.');
+                        setTimeout(() => {
+                            window.location.href = '/courses/' + courseId;
+                        }, 2000);
+                        return;
+                    }
+                    console.log('✅ Enrollment verified');
+                }
                 
                 // Load lessons
                 console.log('🔍 Fetching lessons...');
