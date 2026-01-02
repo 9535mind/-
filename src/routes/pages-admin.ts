@@ -1521,7 +1521,7 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
             </div>
         </div>
         <div id="lessonModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
-            <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col">
+            <div id="lessonModalDialog" class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col" style="cursor: move;">
                 <div class="p-6 border-b flex justify-between items-center flex-shrink-0">
                     <h2 class="text-2xl font-bold text-gray-800">
                         <i class="fas fa-edit mr-2"></i><span id="modalTitle">새 차시 추가</span>
@@ -1767,11 +1767,11 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
                     <!-- ✅ 저장 버튼을 form 안으로 이동 (sticky footer) -->
                     <div class="p-6 border-t flex justify-end space-x-4 sticky bottom-0 bg-white z-10">
                         <button type="button" onclick="closeLessonModal()"
-                            class="px-6 py-2 border rounded-lg hover:bg-gray-100">
-                            취소
+                            class="px-6 py-3 border rounded-lg hover:bg-gray-100">
+                            <i class="fas fa-times mr-2"></i>취소
                         </button>
                         <button type="submit"
-                            class="px-6 py-2 bg-purple-700 text-white rounded-lg hover:bg-purple-800">
+                            class="px-6 py-3 bg-purple-700 text-white rounded-lg hover:bg-purple-800">
                             <i class="fas fa-save mr-2"></i>저장
                         </button>
                     </div>
@@ -1893,14 +1893,14 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
                     <div class="flex space-x-2">
                       \${lesson.video_url ? \`
                         <a href="/courses/\${courseId}/lessons/\${lesson.id}" target="_blank" 
-                           class="text-green-600 hover:text-green-800" title="영상 재생">
+                           class="text-green-600 hover:text-green-800 text-2xl" title="영상 재생">
                           <i class="fas fa-play-circle"></i>
                         </a>
                       \` : ''}
-                      <button onclick="editLesson(\${lesson.id})" class="text-blue-600 hover:text-blue-800" title="수정">
+                      <button onclick="editLesson(\${lesson.id})" class="text-blue-600 hover:text-blue-800 text-2xl" title="수정">
                         <i class="fas fa-edit"></i>
                       </button>
-                      <button onclick="deleteLesson(\${lesson.id})" class="text-red-600 hover:text-red-800" title="삭제">
+                      <button onclick="deleteLesson(\${lesson.id})" class="text-red-600 hover:text-red-800 text-2xl" title="삭제">
                         <i class="fas fa-trash"></i>
                       </button>
                     </div>
@@ -1933,9 +1933,11 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
                 if (response.success) {
                   const lesson = response.data;
                   
+                  console.log('📝 Loaded lesson data:', lesson);
+                  
                   document.getElementById('modalTitle').textContent = '차시 수정';
                   document.getElementById('lessonId').value = lesson.id;
-                  document.getElementById('lessonTitle').value = lesson.title;
+                  document.getElementById('lessonTitle').value = lesson.title || '';
                   document.getElementById('lessonOrder').value = lesson.lesson_number;
                   document.getElementById('lessonDuration').value = lesson.video_duration_minutes || 0;
                   document.getElementById('lessonVideoUrl').value = lesson.video_url || '';
@@ -1945,6 +1947,9 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
                   
                   document.getElementById('lessonModal').classList.remove('hidden');
                   document.getElementById('lessonModal').classList.add('flex');
+                } else {
+                  console.error('❌ Failed to load lesson:', response);
+                  showError(response.error || '차시 정보를 불러오는데 실패했습니다.');
                 }
               } catch (error) {
                 console.error('Edit lesson error:', error);
@@ -2096,6 +2101,55 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
             function showError(message) {
               alert(message);
             }
+            
+            // 모달 드래그 가능하게 만들기
+            (() => {
+              const modal = document.getElementById('lessonModal');
+              const modalDialog = document.getElementById('lessonModalDialog');
+              let isDragging = false;
+              let currentX;
+              let currentY;
+              let initialX;
+              let initialY;
+              let xOffset = 0;
+              let yOffset = 0;
+
+              modalDialog.addEventListener('mousedown', dragStart);
+              document.addEventListener('mousemove', drag);
+              document.addEventListener('mouseup', dragEnd);
+
+              function dragStart(e) {
+                // 헤더 영역만 드래그 가능
+                if (e.target.closest('.p-6.border-b')) {
+                  initialX = e.clientX - xOffset;
+                  initialY = e.clientY - yOffset;
+                  isDragging = true;
+                }
+              }
+
+              function drag(e) {
+                if (isDragging) {
+                  e.preventDefault();
+                  currentX = e.clientX - initialX;
+                  currentY = e.clientY - initialY;
+
+                  xOffset = currentX;
+                  yOffset = currentY;
+
+                  setTranslate(currentX, currentY, modalDialog);
+                }
+              }
+
+              function dragEnd() {
+                initialX = currentX;
+                initialY = currentY;
+                isDragging = false;
+              }
+
+              function setTranslate(xPos, yPos, el) {
+                el.style.transform = 'translate3d(' + xPos + 'px, ' + yPos + 'px, 0)';
+              }
+            })();
         </script>
         
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
