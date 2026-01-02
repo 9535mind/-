@@ -31,9 +31,9 @@ app.get('/admin/analytics', (c) => {
         <header class="bg-white shadow-sm">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
                 <div class="flex justify-between items-center">
-                    <a href="/admin/dashboard" class="text-xl font-bold text-blue-600">
-                        <i class="fas fa-arrow-left mr-2"></i>
-                        관리자 대시보드
+                    <a href="/" class="text-xl font-bold text-blue-600 hover:text-blue-800 transition-colors">
+                        <i class="fas fa-home mr-2"></i>
+                        홈으로
                     </a>
                     <h1 class="text-2xl font-bold text-gray-900">학습 분석</h1>
                     <span id="adminName" class="text-gray-700"></span>

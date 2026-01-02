@@ -38,10 +38,10 @@ pagesAdmin.get('/dashboard', async (c) => {
         <nav class="bg-purple-700 text-white shadow-lg">
             <div class="max-w-7xl mx-auto px-4 py-4">
                 <div class="flex justify-between items-center">
-                    <h1 class="text-2xl font-bold">
-                        <i class="fas fa-tachometer-alt mr-2"></i>
+                    <a href="/" class="text-2xl font-bold hover:text-purple-200 transition-colors cursor-pointer">
+                        <i class="fas fa-home mr-2"></i>
                         관리자 대시보드
-                    </h1>
+                    </a>
                     <div class="flex items-center space-x-4">
                         <a href="/" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition-colors">
                             <i class="fas fa-users mr-1"></i>수강생 모드
