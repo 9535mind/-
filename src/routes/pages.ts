@@ -1396,39 +1396,81 @@ pages.get('/courses/:courseId/lessons/:lessonId', async (c) => {
                     <!-- 오른쪽: 전체 차시 목록 -->
                     <div class="lg:col-span-1">
                         <div class="bg-white rounded-lg shadow-lg p-6 sticky top-6">
-                            <h2 class="text-xl font-bold text-gray-900 mb-4">
-                                <i class="fas fa-list mr-2"></i>전체 차시
-                            </h2>
-                            <div class="space-y-2 max-h-[600px] overflow-y-auto">
-                                \${allLessons.map(lesson => \`
+                            <div class="mb-4">
+                                <div class="flex items-center justify-between mb-2">
+                                    <h2 class="text-xl font-bold text-gray-900">
+                                        <i class="fas fa-list mr-2"></i>전체 차시
+                                    </h2>
+                                    <span class="text-sm text-gray-600">
+                                        <span class="font-bold text-indigo-600">\${currentIndex + 1}</span>/\${allLessons.length}
+                                    </span>
+                                </div>
+                                <!-- 전체 진도율 -->
+                                <div class="mb-3">
+                                    <div class="flex items-center justify-between text-sm mb-1">
+                                        <span class="text-gray-600">학습 진도</span>
+                                        <span class="font-bold text-indigo-600">
+                                            \${Math.round(((currentIndex + 1) / allLessons.length) * 100)}%
+                                        </span>
+                                    </div>
+                                    <div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                                        <div class="bg-gradient-to-r from-purple-600 to-indigo-600 h-3 rounded-full transition-all duration-500 ease-out"
+                                             style="width: \${((currentIndex + 1) / allLessons.length) * 100}%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="space-y-2 max-h-[500px] overflow-y-auto">
+                                \${allLessons.map((lesson, idx) => {
+                                    const isCompleted = idx < currentIndex;
+                                    const isCurrent = lesson.id == lessonId;
+                                    return \`
                                     <a href="/courses/\${courseId}/lessons/\${lesson.id}" 
-                                       class="block p-3 rounded-lg hover:bg-gray-50 transition \${lesson.id == lessonId ? 'bg-indigo-50 border-2 border-indigo-500' : 'border border-gray-200'}">
+                                       class="block p-3 rounded-lg transition-all hover:shadow-md \${
+                                         isCurrent ? 'bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-400 shadow-md' : 
+                                         isCompleted ? 'bg-green-50 border-2 border-green-200' :
+                                         'bg-white border border-gray-200 hover:border-purple-300'
+                                       }">
                                         <div class="flex items-start justify-between">
                                             <div class="flex-1">
                                                 <div class="flex items-center gap-2 mb-1">
-                                                    <span class="text-sm font-semibold text-gray-700">\${lesson.lesson_number}강</span>
+                                                    <span class="flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold \${
+                                                        isCurrent ? 'bg-gradient-to-br from-purple-600 to-indigo-600 text-white' :
+                                                        isCompleted ? 'bg-green-600 text-white' :
+                                                        'bg-gray-200 text-gray-600'
+                                                    }">
+                                                        \${isCompleted ? '<i class="fas fa-check"></i>' : lesson.lesson_number}
+                                                    </span>
                                                     \${lesson.is_free_preview ? 
-                                                        '<span class="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded">무료</span>' : 
+                                                        '<span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-semibold"><i class="fas fa-unlock mr-1"></i>무료</span>' : 
                                                         ''
                                                     }
                                                 </div>
-                                                <p class="text-sm \${lesson.id == lessonId ? 'text-indigo-700 font-semibold' : 'text-gray-600'}">\${lesson.title}</p>
+                                                <p class="text-sm font-medium \${
+                                                    isCurrent ? 'text-purple-700' :
+                                                    isCompleted ? 'text-green-700' :
+                                                    'text-gray-700'
+                                                }">\${lesson.title}</p>
                                                 <p class="text-xs text-gray-500 mt-1">
                                                     <i class="fas fa-clock mr-1"></i>\${lesson.video_duration_minutes || 0}분
                                                 </p>
                                             </div>
-                                            \${lesson.id == lessonId ? 
-                                                '<i class="fas fa-play-circle text-2xl text-indigo-600"></i>' : 
-                                                '<i class="fas fa-play-circle text-2xl text-gray-300"></i>'
-                                            }
+                                            <div class="ml-2">
+                                                \${isCurrent ? 
+                                                    '<i class="fas fa-play-circle text-3xl text-purple-600 animate-pulse"></i>' :
+                                                    isCompleted ?
+                                                    '<i class="fas fa-check-circle text-3xl text-green-600"></i>' :
+                                                    '<i class="far fa-circle text-3xl text-gray-300"></i>'
+                                                }
+                                            </div>
                                         </div>
                                     </a>
-                                \`).join('')}
+                                \`;
+                                }).join('')}
                             </div>
                             
                             <div class="mt-6 pt-6 border-t">
                                 <a href="/courses/\${courseId}" 
-                                   class="block w-full text-center bg-gray-100 text-gray-700 px-4 py-3 rounded-lg hover:bg-gray-200 transition">
+                                   class="block w-full text-center bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 px-4 py-3 rounded-lg hover:from-gray-200 hover:to-gray-300 transition font-semibold">
                                     <i class="fas fa-arrow-left mr-2"></i>강좌로 돌아가기
                                 </a>
                             </div>
