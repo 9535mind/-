@@ -281,65 +281,26 @@ landing.get('/', (c) => {
         <!-- 히어로 섹션 -->
         <section class="hero-gradient text-white py-32 md:py-40">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-                <div class="grid md:grid-cols-2 gap-16 items-center">
-                    <!-- 좌측: 텍스트 (중앙 정렬) -->
-                    <div class="text-center">
-                        <h1 class="text-4xl md:text-6xl lg:text-7xl xl:text-8xl font-bold mb-8 leading-tight">
-                            마음을 이해하고<br>성장하는 여정
-                        </h1>
-                        <p class="text-2xl md:text-3xl lg:text-4xl mb-6 font-bold tracking-tight">
-                            마인드스토리 원격평생교육원
-                        </p>
-                        <p class="text-xl md:text-2xl lg:text-3xl mb-10 opacity-95 leading-relaxed">
-                            마인드 타임 코칭, 부모-자녀 대화법, 감정코칭까지<br>
-                            전문가와 함께하는 온라인 평생교육
-                        </p>
-                        <div class="flex flex-col sm:flex-row justify-center gap-6">
-                            <button onclick="scrollToCourses()" class="cta-button text-xl px-10 py-4">
-                                <i class="fas fa-graduation-cap mr-3"></i>
-                                과정 둘러보기
-                            </button>
-                            <a href="/register" class="bg-white/20 backdrop-blur-sm text-white px-10 py-4 rounded-xl text-xl font-semibold hover:bg-white/30 transition-all duration-300 text-center">
-                                무료 회원가입
-                            </a>
-                        </div>
-                    </div>
-                    
-                    <!-- 우측: 이미지 + 오버레이 텍스트 -->
-                    <div class="hidden md:block relative">
-                        <div class="relative group">
-                            <img src="https://www.genspark.ai/api/files/s/Nx5k1tgA" alt="마인드스토리 교육" class="rounded-2xl shadow-2xl w-full transition-transform duration-300 group-hover:scale-105" loading="lazy">
-                            
-                            <!-- 그라데이션 오버레이 -->
-                            <div class="absolute inset-0 bg-gradient-to-t from-purple-900/80 via-purple-900/40 to-transparent rounded-2xl"></div>
-                            
-                            <!-- 텍스트 오버레이 -->
-                            <div class="absolute bottom-0 left-0 right-0 p-8 text-white">
-                                <div class="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
-                                    <h3 class="text-3xl font-bold mb-3">
-                                        <i class="fas fa-graduation-cap mr-2"></i>
-                                        마인드스토리 교육
-                                    </h3>
-                                    <p class="text-lg mb-4 opacity-90">
-                                        전문가와 함께하는 심리 상담 및 코칭 전문 교육
-                                    </p>
-                                    <div class="flex items-center gap-4 text-sm">
-                                        <div class="flex items-center">
-                                            <i class="fas fa-users mr-2"></i>
-                                            <span>1,000+ 수강생</span>
-                                        </div>
-                                        <div class="flex items-center">
-                                            <i class="fas fa-star mr-2 text-yellow-400"></i>
-                                            <span>4.9/5.0</span>
-                                        </div>
-                                        <div class="flex items-center">
-                                            <i class="fas fa-certificate mr-2"></i>
-                                            <span>자격증 취득</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                <div class="text-center">
+                    <h1 class="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
+                        마음을 이해하고<br>성장하는 여정
+                    </h1>
+                    <p class="text-2xl md:text-3xl lg:text-4xl mb-8 font-bold tracking-tight">
+                        마인드스토리 원격평생교육원
+                    </p>
+                    <p class="text-lg md:text-xl lg:text-2xl mb-10 opacity-90 leading-relaxed max-w-4xl mx-auto">
+                        마인드 타임 코칭, 부모-자녀 대화법, 감정코칭까지<br>
+                        전문가와 함께하는 온라인 평생교육
+                    </p>
+                    <div class="flex flex-col sm:flex-row justify-center gap-6">
+                        <button onclick="scrollToCourses()" class="cta-button text-xl px-10 py-4">
+                            <i class="fas fa-graduation-cap mr-3"></i>
+                            과정 둘러보기
+                        </button>
+                        <a href="/register" class="bg-white/20 backdrop-blur-sm text-white px-10 py-4 rounded-xl text-xl font-semibold hover:bg-white/30 transition-all duration-300 inline-block">
+                            <i class="fas fa-user-plus mr-2"></i>
+                            무료 회원가입
+                        </a>
                     </div>
                 </div>
             </div>
@@ -454,6 +415,63 @@ landing.get('/', (c) => {
                     <div class="text-center py-12 col-span-3">
                         <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
                         <p class="mt-4 text-gray-600">과정 정보를 불러오는 중...</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- 마인드스토리 교육 소개 섹션 -->
+        <section class="py-20 bg-gradient-to-br from-purple-600 via-indigo-600 to-purple-700">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="grid md:grid-cols-2 gap-12 items-center">
+                    <!-- 좌측: 이미지 -->
+                    <div class="relative group">
+                        <img src="https://www.genspark.ai/api/files/s/Nx5k1tgA" alt="마인드스토리 교육" class="rounded-2xl shadow-2xl w-full transition-transform duration-300 group-hover:scale-105" loading="lazy">
+                        <div class="absolute inset-0 bg-gradient-to-t from-purple-900/60 via-transparent to-transparent rounded-2xl"></div>
+                    </div>
+                    
+                    <!-- 우측: 텍스트 -->
+                    <div class="text-white">
+                        <div class="inline-block px-4 py-2 bg-white/20 backdrop-blur-sm rounded-full text-sm font-semibold mb-6">
+                            <i class="fas fa-award mr-2"></i>
+                            전문가 인증 교육
+                        </div>
+                        <h2 class="text-4xl md:text-5xl font-bold mb-6 leading-tight">
+                            마인드스토리 교육
+                        </h2>
+                        <p class="text-xl md:text-2xl mb-8 opacity-95 leading-relaxed">
+                            전문가와 함께하는 심리 상담 및 코칭 전문 교육
+                        </p>
+                        
+                        <!-- 통계 카드 -->
+                        <div class="grid grid-cols-3 gap-4 mb-8">
+                            <div class="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20 text-center">
+                                <div class="text-3xl font-bold mb-1">1,000+</div>
+                                <div class="text-sm opacity-80">
+                                    <i class="fas fa-users mr-1"></i>
+                                    수강생
+                                </div>
+                            </div>
+                            <div class="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20 text-center">
+                                <div class="text-3xl font-bold mb-1">4.9</div>
+                                <div class="text-sm opacity-80">
+                                    <i class="fas fa-star mr-1 text-yellow-400"></i>
+                                    평점
+                                </div>
+                            </div>
+                            <div class="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20 text-center">
+                                <div class="text-3xl font-bold mb-1">95%</div>
+                                <div class="text-sm opacity-80">
+                                    <i class="fas fa-certificate mr-1"></i>
+                                    자격증
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <a href="#courses" class="inline-flex items-center bg-white text-purple-600 px-8 py-4 rounded-xl text-lg font-semibold hover:bg-gray-100 transition-all duration-300 shadow-xl">
+                            <i class="fas fa-arrow-right mr-2"></i>
+                            과정 자세히 보기
+                        </a>
                     </div>
                 </div>
             </div>
