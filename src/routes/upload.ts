@@ -71,18 +71,43 @@ upload.post('/image', requireAdmin, async (c) => {
       return c.json(errorResponse('파일 크기는 5MB 이하여야 합니다.'), 400)
     }
 
-    // 임시: placeholder 이미지 URL 반환
-    const timestamp = Date.now()
-    const placeholderUrl = `https://via.placeholder.com/800x600/667eea/ffffff?text=${encodeURIComponent(file.name)}`
+    // R2 Storage 사용 가능 여부 확인
+    if (!c.env.R2) {
+      console.warn('[Upload] R2 바인딩이 없습니다. Placeholder 사용')
+      const placeholderUrl = `https://via.placeholder.com/800x600/667eea/ffffff?text=${encodeURIComponent(file.name)}`
+      return c.json(successResponse({
+        url: placeholderUrl,
+        filename: file.name,
+        size: file.size,
+        type: file.type
+      }, '이미지가 업로드되었습니다. (R2 미설정 - Placeholder)'))
+    }
 
-    console.log(`[Upload] 이미지 업로드 (임시 placeholder): ${placeholderUrl}`)
+    // 파일 이름 생성
+    const timestamp = Date.now()
+    const randomString = Math.random().toString(36).substring(2, 15)
+    const extension = file.name.split('.').pop()
+    const filename = `images/${timestamp}-${randomString}.${extension}`
+
+    // R2에 파일 업로드
+    const arrayBuffer = await file.arrayBuffer()
+    await c.env.R2.put(filename, arrayBuffer, {
+      httpMetadata: {
+        contentType: file.type,
+      },
+    })
+
+    // 공개 URL 생성 (R2 커스텀 도메인 또는 Cloudflare 도메인)
+    const publicUrl = `https://pub-e65cd92cfb3a4f1ba4d6b67d8c88e689.r2.dev/${filename}`
+
+    console.log(`[Upload] 이미지 R2 업로드 성공: ${publicUrl}`)
 
     return c.json(successResponse({
-      url: placeholderUrl,
+      url: publicUrl,
       filename: file.name,
       size: file.size,
       type: file.type
-    }, '이미지가 업로드되었습니다. (R2 Storage 활성화 시 실제 업로드 가능)'))
+    }, '이미지가 업로드되었습니다.'))
 
   } catch (error) {
     console.error('Upload image error:', error)

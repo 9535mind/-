@@ -5,8 +5,9 @@
 // Cloudflare Bindings
 export type Bindings = {
   DB: D1Database;
-  VIDEO_STORAGE: R2Bucket;  // For course videos (optional)
-  STORAGE: R2Bucket;        // For PDFs, certificates, documents
+  R2: R2Bucket;             // Primary R2 Storage for all files
+  VIDEO_STORAGE?: R2Bucket; // For course videos (optional, legacy)
+  STORAGE?: R2Bucket;       // For PDFs, certificates, documents (optional, legacy)
   APIVIDEO_API_KEY: string; // api.video API key
   APIVIDEO_BASE_URL: string; // api.video base URL
 }
