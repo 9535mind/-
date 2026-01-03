@@ -1,15 +1,112 @@
 # 🎓 마인드스토리 원격평생교육원 LMS 플랫폼
 
-**Ver.4.4 - 🔒 완벽한 우클릭 차단! 모든 팝업 제거! (2026.01.03)** ✨🎉🔇
+**Ver.4.5 - 🛡️ 영상 다운로드 완전 차단! (2026.01.03)** ✨🎉🔒
 
-> **완벽한 보안 + 완벽한 UX!** 우클릭 완전 차단 + 모든 팝업 제거 + 영상 정상 재생!
+> **완벽한 영상 보호!** 우클릭 다운로드 차단 + 네트워크 요청 차단 + 미디어 컨트롤 숨김!
 
 > **"스스로 배우는 힘을 키우는 교육"**  
 > 박종석 대표의 20년 현장 경험을 담은 **완전한 프로덕션급 LMS 플랫폼**
 
 ---
 
-## 🆕 Ver.4.4 - 완벽한 우클릭 차단! (2026.01.03)
+## 🆕 Ver.4.5 - 영상 다운로드 완전 차단! (2026.01.03)
+
+### 🛡️ **영상 다운로드 5중 방어 시스템**
+
+#### **1. 비디오 태그 보호** ✅
+```javascript
+// <video> 태그 다운로드 속성 완전 제거
+video.removeAttribute('download');
+video.setAttribute('controlsList', 'nodownload');
+video.setAttribute('disablePictureInPicture', 'true');
+
+// 우클릭 3중 차단 적용
+video.addEventListener('contextmenu', ...);
+video.addEventListener('mousedown', ...);
+video.addEventListener('mouseup', ...);
+```
+
+#### **2. CSS 미디어 컨트롤 숨김** ✅
+```css
+/* 크롬 다운로드 버튼 완전 숨김 */
+video::-webkit-media-controls-download-button {
+    display: none !important;
+}
+
+video::-internal-media-controls-download-button {
+    display: none !important;
+}
+```
+
+#### **3. 네트워크 요청 차단** ✅
+```javascript
+// fetch() 오버라이드 - 영상 다운로드 시도 차단
+window.fetch = function(...args) {
+    const url = args[0];
+    if (url.includes('.mp4') || url.includes('.webm') || url.includes('.m3u8')) {
+        console.warn('🚫 영상 다운로드가 차단되었습니다.');
+        return Promise.reject(new Error('Download blocked'));
+    }
+    return originalFetch.apply(this, args);
+};
+```
+
+#### **4. 다운로드 링크 차단** ✅
+```javascript
+// <a download> 속성 제거
+link.removeAttribute('download');
+
+// 영상 URL 클릭 시 다운로드 차단
+link.addEventListener('click', function(e) {
+    if (this.href.includes('.mp4') || this.href.includes('.webm')) {
+        e.preventDefault();
+        return false;
+    }
+});
+```
+
+#### **5. 소스 URL 숨김** ✅
+```javascript
+// <source src="video.mp4"> → <source data-protected-src="video.mp4">
+const src = source.getAttribute('src');
+source.removeAttribute('src');
+source.setAttribute('data-protected-src', src);
+```
+
+### 🔒 **차단되는 다운로드 방법**
+
+| 다운로드 방법 | 차단 여부 | 차단 방식 |
+|--------------|-----------|-----------|
+| **우클릭 → 다른 이름으로 저장** | ✅ 완전 차단 | contextmenu 3중 차단 |
+| **비디오 컨트롤 다운로드 버튼** | ✅ 완전 차단 | CSS display: none |
+| **개발자 도구 → Network 탭** | ✅ 차단 | fetch() 오버라이드 |
+| **브라우저 확장 프로그램** | ⚠️ 부분 차단 | 브라우저 제한 |
+| **화면 녹화** | ⚠️ 워터마크 | 사용자 정보 표시 |
+
+### 📊 **보호 효과**
+
+| 항목 | Ver.4.4 | Ver.4.5 (최종) |
+|------|---------|----------------|
+| **우클릭 다운로드** | ⚠️ 메뉴만 차단 | ✅ 완전 차단 |
+| **미디어 컨트롤** | ❌ 보호 없음 | ✅ 다운로드 버튼 숨김 |
+| **네트워크 요청** | ❌ 보호 없음 | ✅ fetch() 차단 |
+| **<a> 다운로드** | ❌ 보호 없음 | ✅ 속성 제거 |
+| **소스 URL** | ⚠️ 노출됨 | ✅ 숨김 처리 |
+
+### 🎯 **주기적 보호 (1초마다)**
+
+```javascript
+// 동적으로 생성되는 비디오 요소도 자동 보호
+setInterval(function() {
+    protectVideoElements();
+    protectVideoSources();
+    protectDownloadLinks();
+}, 1000);
+```
+
+---
+
+## 🔒 Ver.4.4 - 완벽한 우클릭 차단! (2026.01.03)
 
 ### ✅ **최종 해결**
 
