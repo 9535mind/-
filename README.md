@@ -1,11 +1,44 @@
 # 🎓 마인드스토리 원격평생교육원 LMS 플랫폼
 
-**Ver.4.6 - 🛡️ YouTube 지적재산권 완전 보호! (2026.01.03)** ✨🎉🔒
+**Ver.4.7 - 🐛 영상 로딩 멈춤 문제 해결! (2026.01.03)** ✨🎉
 
-> **YouTube 로고/제목 클릭 완전 차단!** 투명 보호막 + Player Vars 최적화 + 도메인 제한!
+> **중복 변수 선언 제거!** 인라인 스크립트와 외부 JS 파일 충돌 해결!
 
 > **"스스로 배우는 힘을 키우는 교육"**  
 > 박종석 대표의 20년 현장 경험을 담은 **완전한 프로덕션급 LMS 플랫폼**
+
+---
+
+## 🆕 Ver.4.7 - 영상 로딩 멈춤 문제 해결! (2026.01.03)
+
+### 🐛 **문제 원인**
+- **중복 변수 선언**: `pages-learn.ts` 인라인 스크립트와 `learn-player.js`에서 동일한 변수 선언
+- **JavaScript 에러**: `Identifier 'courseData' has already been declared`
+- **결과**: 영상 로딩이 "로딩 중..." 상태에서 멈춤
+
+### ✅ **해결 방법**
+```javascript
+// ❌ Before: 인라인 스크립트에서 중복 선언 (593줄)
+let courseData = null;
+let lessonsData = [];
+let currentLesson = null;
+// ... 593 lines of duplicate code
+
+// ✅ After: window.COURSE_ID만 설정 (3줄)
+<script>
+window.COURSE_ID = ${courseId};
+console.log('🎯 Course ID set:', window.COURSE_ID);
+</script>
+```
+
+### 📊 **개선 효과**
+
+| 항목 | Before | After | 개선 |
+|------|--------|-------|------|
+| **중복 코드** | 593줄 | 0줄 | -593줄 |
+| **번들 크기** | 881 kB | 855 kB | -26 kB |
+| **변수 충돌** | ❌ 있음 | ✅ 없음 | 해결 |
+| **영상 로딩** | ❌ 멈춤 | ✅ 정상 | 작동 |
 
 ---
 
@@ -15,7 +48,7 @@
 ```
 📧 ID: admin@lms.kr
 🔑 PW: admin123456
-🌐 URL: https://53e9b60e.mindstory-lms.pages.dev
+🌐 URL: https://5defb8aa.mindstory-lms.pages.dev
 ```
 
 **관리자 권한:**
@@ -28,7 +61,7 @@
 ```
 📧 ID: student@example.com
 🔑 PW: student123
-🌐 URL: https://53e9b60e.mindstory-lms.pages.dev
+🌐 URL: https://5defb8aa.mindstory-lms.pages.dev
 ```
 
 ---
@@ -40,7 +73,7 @@
 #### **30초 해결 방법**
 ```
 1. 관리자 페이지 접속
-   → https://53e9b60e.mindstory-lms.pages.dev/admin/dashboard
+   → https://5defb8aa.mindstory-lms.pages.dev/admin/dashboard
    
 2. 로그인 (admin@lms.kr / admin123456)
 
