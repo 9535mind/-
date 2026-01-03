@@ -119,34 +119,26 @@ courses.get('/:id', optionalAuth, async (c) => {
 courses.post('/', requireAdmin, async (c) => {
   try {
     const body = await c.req.json<CreateCourseInput>()
-    const { 
-      title, description, thumbnail_url, course_type, duration_days, 
-      completion_progress_rate, price, discount_price, is_free, status, is_featured 
-    } = body
+    const user = c.get('user')
+    const { title, description, thumbnail_url, price, status } = body
 
-    if (!title || price === undefined) {
-      return c.json(errorResponse('제목과 가격은 필수입니다.'), 400)
+    if (!title) {
+      return c.json(errorResponse('제목은 필수입니다.'), 400)
     }
 
     const { DB } = c.env
 
     const result = await DB.prepare(`
       INSERT INTO courses (
-        title, description, thumbnail_url, course_type, duration_days,
-        completion_progress_rate, price, discount_price, is_free, status, is_featured
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        title, description, instructor_id, thumbnail_url, price, status
+      ) VALUES (?, ?, ?, ?, ?, ?)
     `).bind(
       title,
       description || null,
+      user?.id || 1,
       thumbnail_url || null,
-      course_type || 'general',
-      duration_days || 30,
-      completion_progress_rate || 80,
-      price,
-      discount_price || null,
-      is_free ? 1 : 0,
-      status || 'draft',
-      is_featured ? 1 : 0
+      price || 0,
+      status || 'draft'
     ).run()
 
     return c.json(successResponse({
