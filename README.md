@@ -1,15 +1,55 @@
 # 🎓 마인드스토리 원격평생교육원 LMS 플랫폼
 
-**Ver.4.0 - 🎬 Cloudflare Stream 보안 영상 인프라 구축! (2026.01.03)** ✨🎉🔒
+**Ver.4.1 - 🚀 영상 플레이어 & 보안 시스템 완전 복구! (2026.01.03)** ✨🎉🔒
 
-> **완벽한 영상 보안!** Signed URL + 동적 워터마크 + 커스텀 플레이어!
+> **완벽한 영상 보안!** YouTube + Cloudflare Stream + 우클릭 차단 + 동적 워터마크!
 
 > **"스스로 배우는 힘을 키우는 교육"**  
 > 박종석 대표의 20년 현장 경험을 담은 **완전한 프로덕션급 LMS 플랫폼**
 
 ---
 
-## 🆕 Ver.4.0 - Cloudflare Stream 통합! (2026.01.03)
+## 🆕 Ver.4.1 - 영상 플레이어 & 보안 완전 복구! (2026.01.03)
+
+### ✅ **해결된 문제**
+
+1. **YouTube 영상 플레이어 복구** ✅
+   - `learn-player.js` 외부 파일 로드 누락 문제 해결
+   - YouTube IFrame API 정상 작동
+   - 자동재생, 진도율 추적, 이어보기 완벽 작동
+
+2. **우클릭 차단 시스템 복구** ✅
+   - `content-protection.js` 로드 누락 문제 해결
+   - 우클릭 차단 완벽 작동
+   - 복사/잘라내기/드래그 차단 작동
+   - F12 개발자 도구 단축키 차단 작동
+
+3. **콘솔 보안 경고 표시** ✅
+   - "⚠️ 경고!" 대형 메시지 표시
+   - "이 브라우저 기능은 개발자를 위한 것입니다" 경고
+   - "저작권법 위반: 무단 복제, 배포 시 법적 조치" 경고
+
+### 🔧 **기술적 수정 사항**
+
+**Before (Ver.4.0 - 문제 상태):**
+```html
+<!-- pages-learn.ts -->
+<script src="/static/js/security.js"></script>
+<!-- ❌ learn-player.js 누락 -->
+<!-- ❌ content-protection.js 누락 -->
+```
+
+**After (Ver.4.1 - 수정 완료):**
+```html
+<!-- pages-learn.ts -->
+<script src="/static/js/learn-player.js"></script>        <!-- ✅ 영상 플레이어 -->
+<script src="/static/js/security.js"></script>            <!-- ✅ 보안 경고 -->
+<script src="/static/js/content-protection.js"></script>  <!-- ✅ 우클릭 차단 -->
+```
+
+---
+
+## 🎬 Ver.4.0 - Cloudflare Stream 통합! (2026.01.03)
 
 ### 🎬 **엔터프라이즈급 영상 보안 시스템**
 
