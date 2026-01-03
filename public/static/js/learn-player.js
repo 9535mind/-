@@ -288,11 +288,11 @@ async function loadYouTubePlayer(lesson) {
     // YouTube API 로드 대기
     await waitForYouTubeAPI();
 
-    // 플레이어 컨테이너 생성 (로딩 인디케이터를 완전히 대체)
+    // 플레이어 컨테이너 생성 (투명 보호막으로 YouTube 로고/제목 클릭 완전 차단)
     container.innerHTML = `
-        <div style="position: relative; width: 100%; height: 600px; background: #000;">
+        <div id="youtubeWrapper" style="position: relative; width: 100%; height: 600px; background: #000;">
             <div id="youtubePlayer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></div>
-            <div id="youtubeProtection" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10;"></div>
+            <div id="youtubeProtectionLayer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: auto; z-index: 999; background: transparent; cursor: default;"></div>
         </div>
     `;
 
@@ -324,8 +324,34 @@ async function loadYouTubePlayer(lesson) {
 function onYouTubePlayerReady(event) {
     console.log('✅ YouTube player ready - video will start playing');
     
-    // 영상 플레이어 보호 즉시 적용
+    // 투명 보호막에 우클릭 차단 적용
     setTimeout(() => {
+        const protectionLayer = document.getElementById('youtubeProtectionLayer');
+        if (protectionLayer) {
+            // 우클릭 차단 (캡처 단계에서 완전 차단)
+            protectionLayer.addEventListener('contextmenu', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                console.log('🚫 YouTube 우클릭 차단됨');
+                return false;
+            }, true);
+            
+            // 모든 마우스 이벤트 차단 (YouTube 로고/제목 클릭 차단)
+            ['click', 'mousedown', 'mouseup', 'dblclick'].forEach(eventType => {
+                protectionLayer.addEventListener(eventType, function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.stopImmediatePropagation();
+                    console.log(`🚫 YouTube ${eventType} 차단됨`);
+                    return false;
+                }, true);
+            });
+            
+            console.log('🛡️ YouTube 보호막 활성화 완료 - 로고/제목 클릭 차단');
+        }
+        
+        // 전역 비디오 보호 적용
         const videoContainer = document.getElementById('videoPlayer');
         if (videoContainer) {
             applyVideoProtection(videoContainer);
