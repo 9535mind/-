@@ -12,6 +12,7 @@ let player = null; // YouTube or api.video player
 let progressUpdateInterval = null;
 let currentUserId = null;
 let currentUserName = null;
+let isRedirecting = false; // 리다이렉트 방지 플래그
 
 const PROGRESS_UPDATE_INTERVAL = 5000; // 5초마다 진도 업데이트
 
@@ -50,11 +51,21 @@ async function loadCourseData() {
     try {
         console.log('📚 Loading course data for courseId:', courseId);
         
+        // 리다이렉트 방지 체크
+        if (isRedirecting) {
+            console.warn('⚠️ Already redirecting, skip loading');
+            return;
+        }
+        
         // 관리자 확인
         const user = await getCurrentUser();
         if (!user) {
             console.error('❌ User not authenticated');
-            window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname);
+            isRedirecting = true;
+            // 1초 후 리다이렉트 (무한 루프 방지)
+            setTimeout(() => {
+                window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname);
+            }, 1000);
             return;
         }
         
