@@ -400,6 +400,7 @@ app.get('/courses/:id', async (c) => {
         
         <!-- 보안 시스템 -->
         <script src="/static/js/security.js"></script>
+        <script src="/static/js/content-protection.js"></script>
     </body>
     </html>
   `)
