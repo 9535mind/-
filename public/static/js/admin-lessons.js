@@ -1,1367 +1,337 @@
 /**
- * 차시 관리 JavaScript (영상 업로드 포함)
+ * 차시 관리 JavaScript (YouTube 전용 - Phase 2 Simplified)
  */
-
-let currentVideoTab = 'youtube';
-let uploadedVideoKey = null;
-let bulkUploadMode = false;
-let uploadedVideos = []; // 일괄 업로드된 영상 목록
 
 /**
- * 영상 탭 전환 (4개 탭: YouTube, Stream, 파일 업로드, URL 업로드)
+ * YouTube URL에서 비디오 ID 추출
  */
-function switchVideoTab(tab) {
-  currentVideoTab = tab;
-  
-  // 모든 탭 버튼과 콘텐츠
-  const tabs = {
-    youtube: {
-      btn: document.getElementById('youtubeTab'),
-      content: document.getElementById('youtubeTabContent')
-    },
-    stream: {
-      btn: document.getElementById('streamTab'),
-      content: document.getElementById('streamTabContent')
-    },
-    fileupload: {
-      btn: document.getElementById('fileUploadTab'),
-      content: document.getElementById('fileUploadTabContent')
-    },
-    urlupload: {
-      btn: document.getElementById('urlUploadTab'),
-      content: document.getElementById('urlUploadTabContent')
-    }
-  };
-  
-  // 모든 탭 비활성화
-  Object.values(tabs).forEach(({ btn, content }) => {
-    if (btn && content) {
-      btn.classList.remove('border-purple-600', 'text-purple-600', 'border-blue-600', 'text-blue-600');
-      btn.classList.add('border-transparent', 'text-gray-500');
-      content.classList.add('hidden');
-    }
-  });
-  
-  // 선택된 탭 활성화
-  const selectedTab = tabs[tab];
-  if (selectedTab && selectedTab.btn && selectedTab.content) {
-    if (tab === 'stream') {
-      selectedTab.btn.classList.add('border-blue-600', 'text-blue-600');
-    } else {
-      selectedTab.btn.classList.add('border-purple-600', 'text-purple-600');
-    }
-    selectedTab.btn.classList.remove('border-transparent', 'text-gray-500');
-    selectedTab.content.classList.remove('hidden');
-  }
-}
+function extractYouTubeId(url) {
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
+    /^([a-zA-Z0-9_-]{11})$/  // 직접 ID 입력
+  ];
 
-/**
- * 일괄 업로드 모드 전환
- */
-function toggleBulkUpload() {
-  bulkUploadMode = document.getElementById('bulkUploadMode').checked;
-  const fileInput = document.getElementById('videoFileInput');
-  const hint = document.getElementById('bulkUploadHint');
-  
-  if (bulkUploadMode) {
-    fileInput.setAttribute('multiple', 'multiple');
-    hint.style.display = 'block';
-  } else {
-    fileInput.removeAttribute('multiple');
-    hint.style.display = 'none';
-  }
-}
-
-/**
- * 일괄 업로드 도움말
- */
-function showBulkUploadHelp() {
-  alert(`일괄 업로드 사용법:
-
-1. "일괄 업로드" 체크박스 활성화
-2. 파일 선택 시 Ctrl(Cmd) + 클릭으로 여러 파일 선택
-3. 파일명에서 차시 제목 자동 추천
-4. 순서대로 차시 생성
-
-파일명 예시:
-- "01_강좌소개.mp4" → 차시 1: 강좌소개
-- "02_기본개념.mp4" → 차시 2: 기본개념
-  
-팁: 파일명을 명확하게 작성하면 AI가 더 정확하게 제목을 추천합니다!`);
-}
-
-/**
- * 영상 파일 선택 처리
- */
-function handleVideoFileSelect(event) {
-  const files = event.target.files;
-  if (!files || files.length === 0) return;
-
-  // 일괄 업로드 모드
-  if (bulkUploadMode && files.length > 1) {
-    handleBulkUpload(Array.from(files));
-    return;
-  }
-
-  // 단일 파일 업로드
-  const file = files[0];
-
-  // 파일 크기 체크 (500MB)
-  const maxSize = 500 * 1024 * 1024;
-  if (file.size > maxSize) {
-    alert('파일 크기는 500MB를 초과할 수 없습니다.');
-    return;
-  }
-
-  // 파일 형식 체크
-  const validTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo'];
-  if (!validTypes.includes(file.type)) {
-    alert('지원하지 않는 파일 형식입니다. (MP4, WebM, MOV, AVI만 가능)');
-    return;
-  }
-
-  // 업로드 시작
-  uploadVideoFile(file);
-}
-
-/**
- * 일괄 업로드 처리
- */
-async function handleBulkUpload(files) {
-  // 파일 검증
-  const maxSize = 500 * 1024 * 1024;
-  const validTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo'];
-  
-  const invalidFiles = files.filter(f => f.size > maxSize || !validTypes.includes(f.type));
-  if (invalidFiles.length > 0) {
-    alert(`다음 파일들이 유효하지 않습니다:\n${invalidFiles.map(f => f.name).join('\n')}\n\n조건: 500MB 이하, MP4/WebM/MOV/AVI 형식`);
-    return;
-  }
-
-  if (!confirm(`${files.length}개의 영상을 업로드하시겠습니까?\n\n자동으로 차시가 생성됩니다.`)) {
-    return;
-  }
-
-  // 일괄 업로드 UI 표시
-  showBulkUploadProgress(files.length);
-
-  uploadedVideos = [];
-  
-  // 순차 업로드
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i];
-    updateBulkUploadProgress(i + 1, files.length, file.name);
-    
-    try {
-      const videoKey = await uploadVideoFileAsync(file);
-      
-      // 파일명에서 제목 추출
-      const title = extractTitleFromFilename(file.name);
-      
-      // 영상 메타데이터 추출 (재생 시간)
-      const duration = await getVideoDuration(file);
-      
-      uploadedVideos.push({
-        video_key: videoKey,
-        title: title,
-        filename: file.name,
-        duration: Math.ceil(duration / 60), // 분 단위
-        lesson_number: i + 1
-      });
-      
-    } catch (error) {
-      console.error(`Upload failed for ${file.name}:`, error);
-      alert(`${file.name} 업로드 실패: ${error.message}`);
-      break;
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match) {
+      return match[1];
     }
   }
-
-  hideBulkUploadProgress();
-  
-  if (uploadedVideos.length > 0) {
-    // 일괄 차시 생성 확인
-    if (confirm(`${uploadedVideos.length}개 영상 업로드 완료!\n\n지금 바로 차시를 생성하시겠습니까?`)) {
-      await createBulkLessons();
-    }
-  }
+  return null;
 }
 
 /**
- * 파일명에서 제목 추출
+ * 차시 추가 모달 열기
  */
-function extractTitleFromFilename(filename) {
-  // 확장자 제거
-  let title = filename.replace(/\.(mp4|webm|mov|avi)$/i, '');
+async function openAddLessonModal() {
+  const courseId = window.location.pathname.split('/')[3];
   
-  // 앞의 숫자와 구분자 제거 (예: "01_", "001-", "1.")
-  title = title.replace(/^[\d]+[\s_\-\.]+/, '');
-  
-  // 특수문자를 공백으로
-  title = title.replace(/[_\-]/g, ' ');
-  
-  // 연속 공백 제거
-  title = title.replace(/\s+/g, ' ').trim();
-  
-  return title || filename;
-}
-
-/**
- * 영상 재생 시간 추출
- */
-function getVideoDuration(file) {
-  return new Promise((resolve, reject) => {
-    const video = document.createElement('video');
-    video.preload = 'metadata';
-    
-    video.onloadedmetadata = function() {
-      window.URL.revokeObjectURL(video.src);
-      resolve(video.duration);
-    };
-    
-    video.onerror = function() {
-      reject(new Error('영상 메타데이터를 읽을 수 없습니다'));
-    };
-    
-    video.src = URL.createObjectURL(file);
-  });
-}
-
-/**
- * 일괄 업로드 진행률 UI
- */
-function showBulkUploadProgress(total) {
-  const modal = document.getElementById('lessonModal');
-  const overlay = document.createElement('div');
-  overlay.id = 'bulkUploadOverlay';
-  overlay.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50';
-  overlay.innerHTML = `
-    <div class="bg-white rounded-lg p-8 max-w-md w-full">
-      <h3 class="text-xl font-bold mb-4">
-        <i class="fas fa-cloud-upload-alt text-purple-600 mr-2"></i>
-        일괄 업로드 중...
-      </h3>
-      <div class="mb-4">
-        <div class="flex justify-between text-sm mb-2">
-          <span id="bulkUploadCurrentFile">준비 중...</span>
-          <span id="bulkUploadCount">0 / ${total}</span>
+  // 모달 HTML
+  const modalHTML = `
+    <div id="addLessonModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onclick="closeAddLessonModal(event)">
+      <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+        <div class="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center">
+          <h3 class="text-2xl font-bold text-gray-900">새 차시 추가</h3>
+          <button onclick="closeAddLessonModal()" class="text-gray-400 hover:text-gray-600">
+            <i class="fas fa-times text-2xl"></i>
+          </button>
         </div>
-        <div class="w-full bg-gray-200 rounded-full h-3">
-          <div id="bulkUploadBar" class="bg-purple-600 h-3 rounded-full transition-all" style="width: 0%"></div>
-        </div>
+        
+        <form id="addLessonForm" class="p-6 space-y-6">
+          <!-- 차시 번호 -->
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">
+              차시 번호
+            </label>
+            <input type="number" id="lessonNumber" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" placeholder="1" min="1" required>
+          </div>
+
+          <!-- 차시 제목 -->
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">
+              차시 제목 *
+            </label>
+            <input type="text" id="lessonTitle" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" placeholder="예: 강좌 소개" required>
+          </div>
+
+          <!-- 차시 설명 -->
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">
+              차시 설명
+            </label>
+            <textarea id="lessonDescription" rows="3" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" placeholder="이 차시에서 다룰 내용을 간단히 설명해주세요"></textarea>
+          </div>
+
+          <!-- YouTube URL -->
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">
+              YouTube URL *
+            </label>
+            <input type="text" id="youtubeUrl" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" placeholder="https://www.youtube.com/watch?v=dQw4w9WgXcQ 또는 dQw4w9WgXcQ" required>
+            <p class="mt-2 text-sm text-gray-500">
+              <i class="fas fa-info-circle"></i> YouTube URL 또는 영상 ID를 입력하세요
+            </p>
+          </div>
+
+          <!-- 영상 길이 -->
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">
+              영상 길이 (분)
+            </label>
+            <input type="number" id="durationMinutes" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" placeholder="예: 15" min="0">
+          </div>
+
+          <!-- 무료 미리보기 -->
+          <div class="flex items-center">
+            <input type="checkbox" id="isFree" class="w-5 h-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500">
+            <label for="isFree" class="ml-3 text-sm font-medium text-gray-700">
+              무료 미리보기 (로그인 없이 시청 가능)
+            </label>
+          </div>
+
+          <!-- 버튼 -->
+          <div class="flex gap-3 pt-4">
+            <button type="button" onclick="closeAddLessonModal()" class="flex-1 px-6 py-3 border border-gray-300 rounded-lg text-gray-700 font-semibold hover:bg-gray-50">
+              취소
+            </button>
+            <button type="submit" class="flex-1 px-6 py-3 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700">
+              <i class="fas fa-plus mr-2"></i>
+              차시 추가
+            </button>
+          </div>
+        </form>
       </div>
-      <p class="text-sm text-gray-600">
-        <i class="fas fa-info-circle mr-1"></i>
-        업로드가 완료될 때까지 잠시만 기다려주세요.
-      </p>
     </div>
   `;
-  document.body.appendChild(overlay);
-}
-
-function updateBulkUploadProgress(current, total, filename) {
-  const percent = Math.round((current / total) * 100);
-  document.getElementById('bulkUploadBar').style.width = percent + '%';
-  document.getElementById('bulkUploadCount').textContent = `${current} / ${total}`;
-  document.getElementById('bulkUploadCurrentFile').textContent = filename;
-}
-
-function hideBulkUploadProgress() {
-  const overlay = document.getElementById('bulkUploadOverlay');
-  if (overlay) {
-    overlay.remove();
-  }
-}
-
-/**
- * 비동기 영상 업로드 (Promise 반환)
- */
-function uploadVideoFileAsync(file) {
-  return new Promise((resolve, reject) => {
-    const token = localStorage.getItem('session_token');
-    if (!token) {
-      reject(new Error('로그인이 필요합니다'));
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append('video', file);
-
-    const xhr = new XMLHttpRequest();
-
-    xhr.addEventListener('load', () => {
-      if (xhr.status === 200) {
-        const response = JSON.parse(xhr.responseText);
-        if (response.success) {
-          resolve(response.data.video_key);
-        } else {
-          reject(new Error(response.error || '업로드 실패'));
-        }
-      } else {
-        reject(new Error('업로드 실패: HTTP ' + xhr.status));
-      }
-    });
-
-    xhr.addEventListener('error', () => {
-      reject(new Error('네트워크 오류'));
-    });
-
-    xhr.open('POST', '/api/upload/video');
-    xhr.setRequestHeader('Authorization', 'Bearer ' + token);
-    xhr.send(formData);
+  
+  document.body.insertAdjacentHTML('beforeend', modalHTML);
+  
+  // 폼 제출 이벤트
+  document.getElementById('addLessonForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    await submitLesson();
   });
 }
 
 /**
- * 일괄 차시 생성
+ * 차시 추가 모달 닫기
  */
-async function createBulkLessons() {
-  const token = localStorage.getItem('session_token');
-  const courseId = document.getElementById('courseIdInput').value;
-  
-  for (const video of uploadedVideos) {
-    try {
-      const response = await fetch(`/api/courses/${courseId}/lessons`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + token
-        },
-        body: JSON.stringify({
-          course_id: parseInt(courseId),
-          title: video.title,
-          lesson_number: video.lesson_number,
-          video_provider: 'r2',
-          video_url: video.video_key,
-          video_duration_minutes: video.duration,
-          status: 'active',
-          is_free_preview: 0
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error(`차시 생성 실패: ${video.title}`);
-      }
-    } catch (error) {
-      console.error('Create lesson error:', error);
-      alert(`차시 생성 실패: ${video.title}`);
-    }
+function closeAddLessonModal(event) {
+  if (event && event.target.id !== 'addLessonModal') return;
+  const modal = document.getElementById('addLessonModal');
+  if (modal) {
+    modal.remove();
   }
-  
-  alert(`${uploadedVideos.length}개 차시가 생성되었습니다!`);
-  
-  // 모달 닫고 새로고침
-  closeLessonModal();
-  await loadLessons();
 }
 
 /**
- * 영상 파일 업로드
+ * 차시 제출
  */
-async function uploadVideoFile(file) {
-  const token = localStorage.getItem('session_token');
-  if (!token) {
-    alert('로그인이 필요합니다.');
+async function submitLesson() {
+  const courseId = window.location.pathname.split('/')[3];
+  const youtubeUrl = document.getElementById('youtubeUrl').value.trim();
+  
+  // YouTube ID 추출
+  const videoId = extractYouTubeId(youtubeUrl);
+  if (!videoId) {
+    alert('유효하지 않은 YouTube URL입니다.');
     return;
   }
 
-  // 진행률 표시
-  const progressContainer = document.getElementById('uploadProgress');
-  const progressBar = document.getElementById('uploadProgressBar');
-  const progressPercent = document.getElementById('uploadPercent');
-  const fileNameDisplay = document.getElementById('uploadFileName');
-  const uploadedInfo = document.getElementById('uploadedInfo');
-
-  progressContainer.classList.remove('hidden');
-  uploadedInfo.classList.add('hidden');
-  fileNameDisplay.textContent = file.name;
-  progressBar.style.width = '0%';
-  progressPercent.textContent = '0%';
-
-  try {
-    // FormData 생성
-    const formData = new FormData();
-    formData.append('file', file);
-
-    // XMLHttpRequest로 업로드 (진행률 추적)
-    const xhr = new XMLHttpRequest();
-
-    // 진행률 이벤트
-    xhr.upload.addEventListener('progress', (e) => {
-      if (e.lengthComputable) {
-        const percent = Math.round((e.loaded / e.total) * 100);
-        progressBar.style.width = percent + '%';
-        progressPercent.textContent = percent + '%';
-      }
-    });
-
-    // 완료 이벤트
-    xhr.addEventListener('load', () => {
-      if (xhr.status === 200) {
-        const response = JSON.parse(xhr.responseText);
-        if (response.success) {
-          // 업로드 완료
-          uploadedVideoKey = response.data.url; // video_key → url
-          document.getElementById('uploadedVideoKey').value = uploadedVideoKey;
-          
-          // 업로드 정보 표시 (파일명, 크기, 재생시간)
-          updateUploadedInfo({
-            originalName: file.name,
-            filename: response.data.filename,
-            size: response.data.size,
-            duration: response.data.duration
-          });
-          
-          // 재생 시간 자동 설정
-          if (response.data.duration) {
-            const durationInput = document.getElementById('lessonDuration');
-            if (durationInput) {
-              durationInput.value = response.data.duration;
-              console.log(`✅ 재생 시간 자동 설정: ${response.data.duration}분`);
-            }
-          }
-          
-          progressContainer.classList.add('hidden');
-          uploadedInfo.classList.remove('hidden');
-          
-          console.log('영상 업로드 완료:', uploadedVideoKey, '재생시간:', response.data.duration, '분');
-        } else {
-          throw new Error(response.message || '업로드 실패');
-        }
-      } else {
-        throw new Error('업로드 실패: HTTP ' + xhr.status);
-      }
-    });
-
-    // 에러 이벤트
-    xhr.addEventListener('error', () => {
-      progressContainer.classList.add('hidden');
-      alert('네트워크 오류가 발생했습니다.');
-    });
-
-    // 요청 전송
-    xhr.open('POST', '/api/upload/video');
-    xhr.setRequestHeader('Authorization', 'Bearer ' + token);
-    xhr.send(formData);
-
-  } catch (error) {
-    console.error('Upload error:', error);
-    progressContainer.classList.add('hidden');
-    alert('영상 업로드에 실패했습니다: ' + error.message);
-  }
-}
-
-/**
- * YouTube 탭 - 영상 데이터 추출
- */
-function getYouTubeVideoData() {
-  const input = document.getElementById('lessonVideoUrl');
-  const videoUrl = input?.value?.trim();
-  
-  if (!videoUrl) {
-    alert('YouTube URL을 입력해주세요.');
-    input?.focus();
-    return null;
-  }
-
-  // YouTube URL에서 video ID 추출
-  let videoId = '';
-  if (videoUrl.includes('youtube.com/watch?v=')) {
-    videoId = videoUrl.split('v=')[1].split('&')[0];
-  } else if (videoUrl.includes('youtu.be/')) {
-    videoId = videoUrl.split('youtu.be/')[1].split('?')[0];
-  } else if (videoUrl.includes('youtube.com/embed/')) {
-    videoId = videoUrl.split('embed/')[1].split('?')[0];
-  }
-
-  if (!videoId) {
-    alert('올바른 YouTube URL을 입력해주세요.\n\n예시:\n- https://youtube.com/watch?v=abc123\n- https://youtu.be/abc123');
-    input?.focus();
-    return null;
-  }
-
-  return {
+  const lessonData = {
+    course_id: parseInt(courseId),
+    lesson_number: parseInt(document.getElementById('lessonNumber').value),
+    title: document.getElementById('lessonTitle').value.trim(),
+    description: document.getElementById('lessonDescription').value.trim(),
+    video_url: videoId,  // YouTube ID만 저장
+    video_type: 'youtube',
     video_provider: 'youtube',
-    video_url: `https://www.youtube.com/embed/${videoId}`,
-    video_id: videoId
+    duration_minutes: parseInt(document.getElementById('durationMinutes').value) || 0,
+    is_free: document.getElementById('isFree').checked ? 1 : 0
   };
-}
 
-/**
- * 파일 업로드 탭 - 영상 데이터 추출
- */
-function getFileUploadVideoData() {
-  if (!window.currentLessonVideo) {
-    alert('영상 파일을 업로드해주세요.');
-    return null;
-  }
-  
-  // window.currentLessonVideo에 저장된 데이터 사용
-  return {
-    video_provider: window.currentLessonVideo.provider || 'apivideo',
-    video_url: window.currentLessonVideo.url,
-    video_id: window.currentLessonVideo.video_id
-  };
-}
-
-/**
- * URL 업로드 탭 - 영상 데이터 추출
- */
-function getUrlUploadVideoData() {
-  if (!window.currentLessonVideo) {
-    alert('영상 URL을 입력하고 등록해주세요.');
-    return null;
-  }
-  
-  // window.currentLessonVideo에 저장된 데이터 사용
-  return {
-    video_provider: window.currentLessonVideo.provider || 'apivideo',
-    video_url: window.currentLessonVideo.url,
-    video_id: window.currentLessonVideo.video_id
-  };
-}
-
-/**
- * 차시 폼 제출 시 영상 정보 처리 (통합 함수)
- */
-function getVideoData() {
-  console.log('📹 getVideoData 호출, 현재 탭:', currentVideoTab);
-  
-  // 탭별 핸들러 맵핑
-  const handlers = {
-    'youtube': getYouTubeVideoData,
-    'stream': getStreamVideoData,
-    'fileupload': getFileUploadVideoData,
-    'urlupload': getUrlUploadVideoData
-  };
-  
-  const handler = handlers[currentVideoTab];
-  
-  if (!handler) {
-    console.error('❌ 알 수 없는 탭:', currentVideoTab);
-    alert('영상 탭을 선택해주세요.');
-    return null;
-  }
-  
-  const videoData = handler();
-  
-  if (videoData) {
-    console.log('✅ 영상 데이터:', videoData);
-  } else {
-    console.error('❌ 영상 데이터 없음');
-  }
-  
-  return videoData;
-}
-
-/**
- * Cloudflare Stream 영상 데이터 가져오기
- */
-function getStreamVideoData() {
-  const videoIdInput = document.getElementById('streamVideoId');
-  const videoId = videoIdInput?.value?.trim();
-  
-  if (!videoId) {
-    alert('Cloudflare Stream Video ID를 입력해주세요.');
-    videoIdInput?.focus();
-    return null;
-  }
-  
-  // Video ID 형식 검증 (32자리 영문자+숫자)
-  if (videoId.length !== 32) {
-    alert('Video ID는 32자리 영문자와 숫자 조합이어야 합니다.');
-    videoIdInput?.focus();
-    return null;
-  }
-  
-  console.log('☁️ Cloudflare Stream Video ID:', videoId);
-  
-  return {
-    video_provider: 'cloudflare',
-    video_id: videoId,
-    video_url: `https://customer-2e8c2335c9dc802347fb23b9d608d4f4.cloudflarestream.com/${videoId}/manifest/video.m3u8`
-  };
-}
-
-/**
- * 드래그 앤 드롭 지원 (파일 업로드 탭용)
- */
-document.addEventListener('DOMContentLoaded', () => {
-  const uploadArea = document.getElementById('fileUploadTabContent');
-  if (!uploadArea) return;
-
-  // 드래그 오버
-  uploadArea.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    uploadArea.classList.add('border-purple-500', 'bg-purple-50');
-  });
-
-  // 드래그 리브
-  uploadArea.addEventListener('dragleave', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    uploadArea.classList.remove('border-purple-500', 'bg-purple-50');
-  });
-
-  // 드롭
-  uploadArea.addEventListener('drop', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    uploadArea.classList.remove('border-purple-500', 'bg-purple-50');
-
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      const file = files[0];
-      // 파일 input에 할당
-      const fileInput = document.getElementById('videoFileInput');
-      const dataTransfer = new DataTransfer();
-      dataTransfer.items.add(file);
-      fileInput.files = dataTransfer.files;
-      
-      // 업로드 처리
-      handleVideoFileSelect({ target: { files: [file] } });
-    }
-  });
-});
-
-/**
- * 업로드 후 차시 저장 (빠른 저장)
- */
-function saveLessonAfterUpload() {
-  console.log('💾 저장 버튼 클릭됨');
-  
-  // 필수 입력 확인
-  const titleInput = document.getElementById('lessonTitle');
-  const lessonNumberInput = document.getElementById('lessonOrder'); // 수정: lessonNumber → lessonOrder
-  
-  const title = titleInput?.value?.trim();
-  const lessonNumber = lessonNumberInput?.value?.trim();
-  
-  console.log('📝 입력 값:', { title, lessonNumber, lessonNumberInput, uploadedVideoKey });
-  
-  if (!title) {
-    alert('차시 제목을 입력해주세요.');
-    titleInput?.focus();
-    return;
-  }
-  
-  // 차시 순서를 숫자로 변환
-  const lessonNumberValue = parseInt(lessonNumber, 10);
-  
-  if (!lessonNumber || isNaN(lessonNumberValue) || lessonNumberValue < 1) {
-    alert('차시 순서를 올바르게 입력해주세요. (예: 1, 2, 3...)\n\n현재 값: ' + lessonNumber);
-    lessonNumberInput?.focus();
-    return;
-  }
-  
-  console.log('✅ 차시 순서 검증 통과:', lessonNumberValue);
-  
-  if (!uploadedVideoKey) {
-    alert('업로드된 영상이 없습니다.\n\n먼저 영상을 업로드한 후 저장해주세요.');
-    return;
-  }
-  
-  // 확인 후 저장
-  console.log('✅ 모든 검증 통과, 저장 진행...');
-  
-  // 모달의 저장 버튼 클릭 (폼 제출)
-  const saveButton = document.querySelector('#lessonModal button[type="submit"]');
-  if (saveButton) {
-    console.log('🎯 저장 버튼 찾음, 클릭...');
-    saveButton.click();
-  } else {
-    console.log('⚠️ 저장 버튼을 찾을 수 없음, 폼 직접 제출...');
-    const form = document.getElementById('lessonForm');
-    if (form) {
-      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-    } else {
-      alert('오류: 폼을 찾을 수 없습니다.');
-    }
-  }
-}
-
-/**
- * 업로드된 영상 교체
- */
-function replaceUploadedVideo() {
-  if (!confirm('현재 업로드된 영상을 다른 영상으로 교체하시겠습니까?')) {
-    return;
-  }
-  
-  // 업로드 UI 초기화
-  uploadedVideoKey = null;
-  document.getElementById('uploadedVideoKey').value = '';
-  document.getElementById('uploadedInfo').classList.add('hidden');
-  
-  // 파일 입력 초기화
-  const fileInput = document.getElementById('videoFile');
-  if (fileInput) {
-    fileInput.value = '';
-    fileInput.click(); // 파일 선택 다이얼로그 열기
-  }
-}
-
-/**
- * 업로드된 영상 삭제
- */
-async function deleteUploadedVideo() {
-  if (!confirm('업로드된 영상을 삭제하시겠습니까?\n\n주의: 이 작업은 되돌릴 수 없습니다.')) {
-    return;
-  }
-  
-  const videoKey = uploadedVideoKey;
-  
-  if (!videoKey) {
-    alert('삭제할 영상이 없습니다.');
-    return;
-  }
-  
   try {
-    // R2에서 파일 삭제 API 호출
-    const response = await apiRequest('DELETE', `/api/storage/videos/${videoKey}`);
+    const response = await axios.post(`/api/admin/courses/${courseId}/lessons`, lessonData);
     
-    if (response.success) {
-      // UI 초기화
-      uploadedVideoKey = null;
-      document.getElementById('uploadedVideoKey').value = '';
-      document.getElementById('uploadedInfo').classList.add('hidden');
-      
-      // 파일 입력 초기화
-      const fileInput = document.getElementById('videoFile');
-      if (fileInput) {
-        fileInput.value = '';
-      }
-      
-      alert('✅ 영상이 삭제되었습니다.');
+    if (response.data.success) {
+      alert('차시가 성공적으로 추가되었습니다!');
+      closeAddLessonModal();
+      location.reload();  // 페이지 새로고침
     } else {
-      throw new Error(response.message || '삭제 실패');
+      alert(response.data.error || '차시 추가에 실패했습니다.');
     }
   } catch (error) {
-    console.error('Delete video error:', error);
-    alert('영상 삭제에 실패했습니다.\n\n' + error.message);
+    console.error('Lesson creation error:', error);
+    alert('차시 추가 중 오류가 발생했습니다: ' + (error.response?.data?.error || error.message));
   }
 }
 
 /**
- * 업로드 완료 정보 업데이트
+ * 차시 수정 모달 열기
  */
-function updateUploadedInfo(data) {
-  // 파일명 표시
-  document.getElementById('uploadedFileName').textContent = data.originalName || data.filename;
-  
-  // 파일 정보 표시
-  const fileSize = (data.size / (1024 * 1024)).toFixed(2); // MB
-  const duration = data.duration ? `${data.duration}분` : '알 수 없음';
-  document.getElementById('uploadedFileInfo').textContent = `크기: ${fileSize}MB | 재생시간: ${duration}`;
-}
-
-/**
- * AI 기반 차시 설명 자동 생성
- */
-async function generateLessonDescription() {
-  const titleInput = document.getElementById('lessonTitle');
-  const descriptionTextarea = document.getElementById('lessonDescription');
-  
-  const title = titleInput.value.trim();
-  
-  if (!title) {
-    alert('먼저 차시 제목을 입력해주세요.');
-    titleInput.focus();
-    return;
-  }
-  
-  // 로딩 상태 표시
-  const originalText = descriptionTextarea.value;
-  descriptionTextarea.value = '🤖 AI가 차시 설명을 생성하고 있습니다...\n\n차시 제목을 기반으로 관련성 높은 설명을 작성 중입니다.';
-  descriptionTextarea.disabled = true;
+async function editLesson(lessonId) {
+  const courseId = window.location.pathname.split('/')[3];
   
   try {
-    // 강좌 정보 가져오기 (컨텍스트 제공)
-    const courseId = window.location.pathname.split('/')[3];
-    let courseTitle = '강좌';
+    // 차시 정보 가져오기
+    const response = await axios.get(`/api/admin/courses/${courseId}/lessons/${lessonId}`);
+    const lesson = response.data.data;
     
-    try {
-      const courseResponse = await apiRequest('GET', `/api/courses/${courseId}`);
-      if (courseResponse.success && courseResponse.data.course) {
-        courseTitle = courseResponse.data.course.title;
-      }
-    } catch (e) {
-      console.log('강좌 정보 로드 실패, 기본값 사용');
-    }
-    
-    const response = await apiRequest('POST', '/api/ai/generate-lesson-description', {
-      title: title,
-      courseTitle: courseTitle,
-      context: 'lesson'
-    });
-    
-    if (response.success && response.data.description) {
-      descriptionTextarea.value = response.data.description;
-    } else {
-      throw new Error(response.message || 'AI 설명 생성에 실패했습니다.');
-    }
-  } catch (error) {
-    console.error('Generate lesson description error:', error);
-    alert('AI 설명 생성에 실패했습니다.\n\n원인:\n' + 
-          (error.message || '서버 오류가 발생했습니다.') + '\n\n직접 입력해주세요.');
-    descriptionTextarea.value = originalText; // 원래 텍스트 복구
-  } finally {
-    descriptionTextarea.disabled = false;
-    descriptionTextarea.focus();
-  }
-}
-
-// ========== 차시 일괄 입력 기능 ==========
-
-let generatedLessons = [];
-
-function openBulkLessonModal() {
-    document.getElementById('bulkLessonModal').classList.remove('hidden');
-    document.getElementById('bulkLessonModal').classList.add('flex');
-    
-    // 초기화
-    document.getElementById('bulkLessonInput').value = '';
-    document.getElementById('aiLessonCount').value = 5;
-    document.getElementById('aiRequirements').value = '';
-    document.getElementById('aiPreviewSection').classList.add('hidden');
-    generatedLessons = [];
-}
-
-function closeBulkLessonModal() {
-    document.getElementById('bulkLessonModal').classList.remove('flex');
-    document.getElementById('bulkLessonModal').classList.add('hidden');
-}
-
-function switchBulkInputMode(mode) {
-    const manualTab = document.getElementById('manualTab');
-    const aiTab = document.getElementById('aiTab');
-    const manualSection = document.getElementById('manualSection');
-    const aiSection = document.getElementById('aiSection');
-    
-    if (mode === 'manual') {
-        manualTab.classList.add('border-b-2', 'border-purple-600', 'text-purple-600');
-        manualTab.classList.remove('text-gray-500');
-        aiTab.classList.remove('border-b-2', 'border-purple-600', 'text-purple-600');
-        aiTab.classList.add('text-gray-500');
-        manualSection.classList.remove('hidden');
-        aiSection.classList.add('hidden');
-    } else {
-        aiTab.classList.add('border-b-2', 'border-purple-600', 'text-purple-600');
-        aiTab.classList.remove('text-gray-500');
-        manualTab.classList.remove('border-b-2', 'border-purple-600', 'text-purple-600');
-        manualTab.classList.add('text-gray-500');
-        aiSection.classList.remove('hidden');
-        manualSection.classList.add('hidden');
-    }
-}
-
-async function processBulkLessons(mode) {
-    if (mode === 'manual') {
-        await processManualBulkLessons();
-    } else {
-        await processAIBulkLessons();
-    }
-}
-
-async function processManualBulkLessons() {
-    const input = document.getElementById('bulkLessonInput').value.trim();
-    
-    if (!input) {
-        alert('차시 정보를 입력해주세요.');
-        return;
-    }
-    
-    // 파싱
-    const lines = input.split('\n').filter(line => line.trim());
-    const lessons = [];
-    
-    for (const line of lines) {
-        const parts = line.split('|').map(p => p.trim());
-        if (parts.length < 2) {
-            alert(`잘못된 형식입니다: ${line}\n\n형식: 차시번호|제목|설명|재생시간(분)`);
-            return;
-        }
-        
-        lessons.push({
-            lesson_number: parseInt(parts[0]) || 0,
-            title: parts[1] || '',
-            description: parts[2] || '',
-            video_duration_minutes: parseInt(parts[3]) || 0
-        });
-    }
-    
-    if (lessons.length === 0) {
-        alert('등록할 차시가 없습니다.');
-        return;
-    }
-    
-    // 확인
-    if (!confirm(`${lessons.length}개의 차시를 일괄 등록하시겠습니까?`)) {
-        return;
-    }
-    
-    // 등록
-    await bulkCreateLessons(lessons);
-}
-
-async function processAIBulkLessons() {
-    const count = parseInt(document.getElementById('aiLessonCount').value);
-    const requirements = document.getElementById('aiRequirements').value.trim();
-    
-    if (count < 3 || count > 20) {
-        alert('차시 수는 3~20개 사이로 입력해주세요.');
-        return;
-    }
-    
-    try {
-        // 강좌 정보 가져오기
-        const courseTitle = document.getElementById('courseTitle').textContent;
-        const courseDescription = document.getElementById('courseDescription').textContent;
-        
-        // AI 생성 요청
-        showToast('AI가 차시를 생성하고 있습니다... ⏳', 'info');
-        
-        const response = await apiRequest('/api/ai/generate-course', {
-            method: 'POST',
-            body: JSON.stringify({
-                topic: courseTitle,
-                target_audience: requirements || '일반 학습자',
-                difficulty: 'beginner',
-                duration: 30
-            })
-        });
-        
-        if (response.success && response.data.lessons) {
-            generatedLessons = response.data.lessons.slice(0, count);
-            displayAIPreview(generatedLessons);
-            showToast('AI 생성이 완료되었습니다! ✅', 'success');
-        } else {
-            throw new Error('AI 생성에 실패했습니다.');
-        }
-        
-    } catch (error) {
-        console.error('AI generation error:', error);
-        alert('AI 생성에 실패했습니다: ' + (error.message || '알 수 없는 오류'));
-    }
-}
-
-function displayAIPreview(lessons) {
-    const previewList = document.getElementById('aiPreviewList');
-    const html = lessons.map((lesson, index) => `
-        <div class="border border-gray-300 rounded-lg p-4">
-            <div class="flex items-start justify-between">
-                <div class="flex-1">
-                    <div class="font-semibold text-gray-900 mb-1">
-                        ${lesson.lesson_number}강. ${lesson.title}
-                    </div>
-                    <p class="text-sm text-gray-600 mb-2">${lesson.description || ''}</p>
-                    <span class="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
-                        <i class="fas fa-clock mr-1"></i>${lesson.video_duration_minutes || 0}분
-                    </span>
-                </div>
+    const modalHTML = `
+      <div id="editLessonModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onclick="closeEditLessonModal(event)">
+        <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+          <div class="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center">
+            <h3 class="text-2xl font-bold text-gray-900">차시 수정</h3>
+            <button onclick="closeEditLessonModal()" class="text-gray-400 hover:text-gray-600">
+              <i class="fas fa-times text-2xl"></i>
+            </button>
+          </div>
+          
+          <form id="editLessonForm" class="p-6 space-y-6">
+            <input type="hidden" id="editLessonId" value="${lesson.id}">
+            
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-2">차시 번호</label>
+              <input type="number" id="editLessonNumber" value="${lesson.lesson_number}" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" required>
             </div>
+
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-2">차시 제목 *</label>
+              <input type="text" id="editLessonTitle" value="${lesson.title}" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" required>
+            </div>
+
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-2">차시 설명</label>
+              <textarea id="editLessonDescription" rows="3" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">${lesson.description || ''}</textarea>
+            </div>
+
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-2">YouTube URL *</label>
+              <input type="text" id="editYoutubeUrl" value="${lesson.video_url || ''}" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" required>
+              <p class="mt-2 text-sm text-gray-500">
+                <i class="fas fa-info-circle"></i> YouTube URL 또는 영상 ID
+              </p>
+            </div>
+
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-2">영상 길이 (분)</label>
+              <input type="number" id="editDurationMinutes" value="${lesson.duration_minutes || 0}" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+            </div>
+
+            <div class="flex items-center">
+              <input type="checkbox" id="editIsFree" ${lesson.is_free ? 'checked' : ''} class="w-5 h-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500">
+              <label for="editIsFree" class="ml-3 text-sm font-medium text-gray-700">
+                무료 미리보기
+              </label>
+            </div>
+
+            <div class="flex gap-3 pt-4">
+              <button type="button" onclick="closeEditLessonModal()" class="flex-1 px-6 py-3 border border-gray-300 rounded-lg text-gray-700 font-semibold hover:bg-gray-50">
+                취소
+              </button>
+              <button type="submit" class="flex-1 px-6 py-3 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700">
+                <i class="fas fa-save mr-2"></i>
+                저장
+              </button>
+            </div>
+          </form>
         </div>
-    `).join('');
+      </div>
+    `;
     
-    previewList.innerHTML = html;
-    document.getElementById('aiPreviewSection').classList.remove('hidden');
-}
-
-async function regenerateAILessons() {
-    document.getElementById('aiPreviewSection').classList.add('hidden');
-    await processAIBulkLessons();
-}
-
-async function confirmAILessons() {
-    if (generatedLessons.length === 0) {
-        alert('생성된 차시가 없습니다.');
-        return;
-    }
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
     
-    if (!confirm(`${generatedLessons.length}개의 차시를 등록하시겠습니까?`)) {
-        return;
-    }
-    
-    await bulkCreateLessons(generatedLessons);
-}
-
-async function bulkCreateLessons(lessons) {
-    try {
-        showToast('차시를 등록하고 있습니다... ⏳', 'info');
-        
-        const token = localStorage.getItem('session_token');
-        const courseId = document.getElementById('courseIdInput').value;
-        
-        let successCount = 0;
-        let failCount = 0;
-        
-        for (const lesson of lessons) {
-            try {
-                const response = await fetch(`/api/courses/${courseId}/lessons`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({
-                        title: lesson.title,
-                        lesson_number: lesson.lesson_number,
-                        description: lesson.description || '',
-                        video_duration_minutes: lesson.video_duration_minutes || 0,
-                        content_type: 'video',
-                        is_free_preview: 0,
-                        status: 'active'
-                    })
-                });
-                
-                if (response.ok) {
-                    successCount++;
-                } else {
-                    failCount++;
-                    console.error(`Failed to create lesson ${lesson.lesson_number}:`, await response.text());
-                }
-                
-            } catch (error) {
-                failCount++;
-                console.error(`Error creating lesson ${lesson.lesson_number}:`, error);
-            }
-        }
-        
-        closeBulkLessonModal();
-        
-        if (failCount === 0) {
-            showToast(`✅ ${successCount}개의 차시가 성공적으로 등록되었습니다!`, 'success');
-        } else {
-            showToast(`⚠️ ${successCount}개 성공, ${failCount}개 실패`, 'warning');
-        }
-        
-        // 목록 새로고침
-        loadLessons();
-        
-    } catch (error) {
-        console.error('Bulk create error:', error);
-        alert('일괄 등록 중 오류가 발생했습니다: ' + error.message);
-    }
-}
-
-/**
- * api.video 업로드 함수
- */
-async function uploadToApiVideo(file, lessonId, title) {
-  try {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('title', title || file.name);
-    formData.append('is_public', 'false'); // 비공개 설정
-    
-    if (lessonId) {
-      formData.append('lesson_id', lessonId);
-    }
-
-    const response = await fetch('/api/video-apivideo/upload', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${getToken()}`
-      },
-      body: formData
+    document.getElementById('editLessonForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      await updateLesson();
     });
-
-    const result = await response.json();
     
-    if (!result.success) {
-      throw new Error(result.error || '업로드 실패');
-    }
-
-    return result.data;
-
   } catch (error) {
-    console.error('api.video upload error:', error);
-    throw error;
+    console.error('Lesson fetch error:', error);
+    alert('차시 정보를 불러오는데 실패했습니다.');
   }
 }
 
 /**
- * YouTube URL을 api.video로 업로드
+ * 차시 수정 모달 닫기
  */
-async function uploadYouTubeToApiVideo(youtubeUrl, lessonId, title) {
-  try {
-    const response = await apiRequest('POST', '/api/video-apivideo/upload-url', {
-      url: youtubeUrl,
-      title: title,
-      is_public: false,
-      lesson_id: lessonId
-    });
-
-    if (!response.success) {
-      throw new Error(response.error || 'URL 업로드 실패');
-    }
-
-    return response.data;
-
-  } catch (error) {
-    console.error('YouTube to api.video error:', error);
-    throw error;
+function closeEditLessonModal(event) {
+  if (event && event.target.id !== 'editLessonModal') return;
+  const modal = document.getElementById('editLessonModal');
+  if (modal) {
+    modal.remove();
   }
 }
 
 /**
- * 헬퍼: 토큰 가져오기
+ * 차시 업데이트
  */
-function getToken() {
-  return localStorage.getItem('session_token') || sessionStorage.getItem('session_token');
-}
-
-/**
- * 영상 메타데이터 가져오기 (재생 시간 자동 설정)
- */
-async function fetchVideoMetadata(videoId, retryCount = 0) {
-  try {
-    console.log(`🎬 영상 메타데이터 가져오는 중... (시도 ${retryCount + 1}/3)`, videoId);
-    
-    const response = await fetch(`/api/video-apivideo/${videoId}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${getToken()}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    const result = await response.json();
-    
-    console.log('📦 Metadata result:', result);
-    
-    if (result.success && result.data) {
-      const { duration, thumbnail_url, status } = result.data;
-      
-      // 재생 시간 자동 설정 (초 단위로 변환)
-      if (duration && duration > 0) {
-        const durationInMinutes = Math.ceil(duration / 60);
-        const durationInput = document.getElementById('lessonDuration');
-        if (durationInput) {
-          durationInput.value = durationInMinutes;
-          durationInput.placeholder = '';
-          console.log(`✅ 재생 시간 자동 설정: ${durationInMinutes}분 (${duration}초)`);
-        } else {
-          console.error('❌ lessonDuration 입력 필드를 찾을 수 없습니다!');
-        }
-      } else {
-        console.warn('⚠️ Duration이 0이거나 없음:', duration);
-        
-        // 인코딩 중인 경우 재시도 (최대 3번)
-        if (status && (status === 'processing' || status === 'uploading') && retryCount < 2) {
-          console.log('🔄 영상 인코딩 중... 30초 후 재시도...');
-          setTimeout(() => {
-            fetchVideoMetadata(videoId, retryCount + 1);
-          }, 30000); // 30초 후 재시도
-        } else {
-          console.log('⏹️ 재시도 종료. 수동 입력 필요.');
-          const durationInput = document.getElementById('lessonDuration');
-          if (durationInput) {
-            durationInput.placeholder = '수동으로 입력해주세요';
-          }
-        }
-      }
-      
-      // 썸네일 URL 저장 (나중에 사용)
-      if (thumbnail_url) {
-        window.currentVideoThumbnail = thumbnail_url;
-        console.log(`✅ 썸네일 URL 저장: ${thumbnail_url}`);
-      }
-    } else {
-      console.error('❌ 메타데이터 가져오기 실패:', result.error);
-    }
-
-  } catch (error) {
-    console.error('❌ 영상 메타데이터 가져오기 실패:', error);
-    
-    // 재시도 (최대 3번)
-    if (retryCount < 2) {
-      console.log('🔄 에러 발생, 30초 후 재시도...');
-      setTimeout(() => {
-        fetchVideoMetadata(videoId, retryCount + 1);
-      }, 30000);
-    }
-  }
-}
-
-/**
- * URL 업로드 처리 (URL 업로드 탭 전용)
- */
-async function handleVideoUrlUpload() {
-  const urlInput = document.getElementById('videoUrlInput');
-  const videoUrl = urlInput.value.trim();
-
-  if (!videoUrl) {
-    alert('영상 URL을 입력해주세요.');
+async function updateLesson() {
+  const courseId = window.location.pathname.split('/')[3];
+  const lessonId = document.getElementById('editLessonId').value;
+  const youtubeUrl = document.getElementById('editYoutubeUrl').value.trim();
+  
+  const videoId = extractYouTubeId(youtubeUrl);
+  if (!videoId) {
+    alert('유효하지 않은 YouTube URL입니다.');
     return;
   }
 
-  // URL 형식 검증
+  const lessonData = {
+    lesson_number: parseInt(document.getElementById('editLessonNumber').value),
+    title: document.getElementById('editLessonTitle').value.trim(),
+    description: document.getElementById('editLessonDescription').value.trim(),
+    video_url: videoId,
+    video_type: 'youtube',
+    video_provider: 'youtube',
+    duration_minutes: parseInt(document.getElementById('editDurationMinutes').value) || 0,
+    is_free: document.getElementById('editIsFree').checked ? 1 : 0
+  };
+
   try {
-    new URL(videoUrl);
-  } catch (e) {
-    alert('올바른 URL 형식이 아닙니다.');
+    const response = await axios.put(`/api/admin/courses/${courseId}/lessons/${lessonId}`, lessonData);
+    
+    if (response.data.success) {
+      alert('차시가 성공적으로 수정되었습니다!');
+      closeEditLessonModal();
+      location.reload();
+    } else {
+      alert(response.data.error || '차시 수정에 실패했습니다.');
+    }
+  } catch (error) {
+    console.error('Lesson update error:', error);
+    alert('차시 수정 중 오류가 발생했습니다: ' + (error.response?.data?.error || error.message));
+  }
+}
+
+/**
+ * 차시 삭제
+ */
+async function deleteLesson(lessonId) {
+  if (!confirm('정말 이 차시를 삭제하시겠습니까?')) {
     return;
   }
 
-  // api.video URL 감지
-  const isApiVideoUrl = videoUrl.includes('api.video') || videoUrl.includes('embed.api.video');
-  const isDirectVideoUrl = /\.(mp4|webm|mov|avi|mkv|flv)$/i.test(videoUrl);
-
-  console.log('🔗 URL 업로드 시작:', { videoUrl, isApiVideoUrl, isDirectVideoUrl });
+  const courseId = window.location.pathname.split('/')[3];
 
   try {
-    // 진행률 표시
-    const uploadProgress = document.getElementById('uploadProgress');
-    const uploadFileName = document.getElementById('uploadFileName');
-    const uploadPercent = document.getElementById('uploadPercent');
-    const uploadProgressBar = document.getElementById('uploadProgressBar');
-
-    uploadProgress.classList.remove('hidden');
-    uploadFileName.textContent = 'URL 등록 중...';
-    uploadPercent.textContent = '0%';
-    uploadProgressBar.style.width = '0%';
-
-    let result;
-
-    if (isApiVideoUrl) {
-      // api.video URL인 경우 → 바로 등록
-      console.log('✅ api.video URL 감지 → 직접 등록');
-      
-      // Video ID 추출
-      const videoIdMatch = videoUrl.match(/vi[A-Za-z0-9]{20,}/);
-      const videoId = videoIdMatch ? videoIdMatch[0] : null;
-
-      if (!videoId) {
-        throw new Error('api.video URL에서 Video ID를 찾을 수 없습니다.');
-      }
-
-      // 업로드된 것처럼 처리
-      uploadPercent.textContent = '100%';
-      uploadProgressBar.style.width = '100%';
-
-      result = {
-        video_id: videoId,
-        video_url: videoUrl,
-        video_type: 'apivideo',
-        provider: 'apivideo'
-      };
-
-      console.log('✅ api.video URL 등록 완료:', result);
-
-    } else if (isDirectVideoUrl) {
-      // 직접 영상 URL인 경우 → api.video로 업로드
-      console.log('🎥 직접 영상 URL 감지 → api.video로 업로드');
-      
-      uploadPercent.textContent = '50%';
-      uploadProgressBar.style.width = '50%';
-
-      result = await uploadYouTubeToApiVideo(videoUrl);
-      
-      uploadPercent.textContent = '100%';
-      uploadProgressBar.style.width = '100%';
-
-      console.log('✅ 직접 영상 URL 업로드 완료:', result);
-
-    } else {
-      // 기타 URL → api.video로 시도
-      console.log('🔄 기타 URL → api.video로 업로드 시도');
-      
-      uploadPercent.textContent = '50%';
-      uploadProgressBar.style.width = '50%';
-
-      result = await uploadYouTubeToApiVideo(videoUrl);
-      
-      uploadPercent.textContent = '100%';
-      uploadProgressBar.style.width = '100%';
-
-      console.log('✅ URL 업로드 완료:', result);
-    }
-
-    // 업로드 완료 정보 표시
-    setTimeout(() => {
-      uploadProgress.classList.add('hidden');
-      const uploadedInfo = document.getElementById('uploadedInfo');
-      
-      console.log('🔍 uploadedInfo 요소:', uploadedInfo);
-      console.log('🔍 현재 클래스:', uploadedInfo?.className);
-      
-      if (uploadedInfo) {
-        uploadedInfo.classList.remove('hidden');
-        console.log('✅ uploadedInfo 표시 완료');
-      } else {
-        console.error('❌ uploadedInfo 요소를 찾을 수 없습니다!');
-      }
-      
-      // hidden input에도 저장
-      const hiddenInput = document.getElementById('uploadedVideoKey');
-      if (hiddenInput) {
-        hiddenInput.value = result.video_id;
-        console.log('✅ uploadedVideoKey 저장:', result.video_id);
-      }
-      
-      // 전역 변수에 video_id 저장 (후방 호환성)
-      uploadedVideoKey = result.video_id;
-      
-      // ✅ 통합 데이터 구조로 저장 (모든 탭 공통)
-      window.currentLessonVideo = {
-        provider: result.video_type || 'apivideo',
-        url: result.player_url || result.video_url,
-        video_id: result.video_id,
-        duration: result.duration || result.data?.duration || null,
-        thumbnail: result.thumbnail_url || null,
-        source: 'url',
-        uploaded_at: new Date().toISOString()
-      };
-      console.log('✅ currentLessonVideo 저장:', window.currentLessonVideo);
-
-      console.log('📦 Upload result:', result);
-      console.log('🔍 Duration 확인:', {
-        'result.duration': result.duration,
-        'result.data?.duration': result.data?.duration,
-        'type': typeof result.duration
-      });
-
-      // 재생 시간 즉시 설정 (응답에 duration이 있으면)
-      const duration = result.duration || result.data?.duration;
-      if (duration && duration > 0) {
-        const durationInMinutes = Math.ceil(duration / 60);
-        const durationInput = document.getElementById('lessonDuration');
-        if (durationInput) {
-          durationInput.value = durationInMinutes;
-          console.log(`✅ 재생 시간 즉시 설정: ${durationInMinutes}분 (${duration}초)`);
-        } else {
-          console.error('❌ lessonDuration 입력 필드를 찾을 수 없습니다!');
-        }
-      } else {
-        // duration이 없으면 조용히 메타데이터 API 호출
-        console.log('⏳ duration 없음, 메타데이터 API로 조회 시도...');
-        if (result.video_id) {
-          // 5초 후 조용히 재시도
-          setTimeout(() => {
-            fetchVideoMetadata(result.video_id);
-          }, 5000);
-        }
-      }
-
-      // 썸네일 URL 저장
-      if (result.thumbnail_url) {
-        window.currentVideoThumbnail = result.thumbnail_url;
-        console.log(`✅ 썸네일 URL 저장: ${result.thumbnail_url}`);
-      }
-
-      // 알림 제거 - URL 입력 후 바로 저장 가능
-      console.log('✅ 영상 URL 등록 완료');
-      
-      // URL 입력란 유지 (삭제하지 않음)
-      // urlInput.value = ''; // 제거: URL을 유지해야 저장됨
-    }, 500);
-
-  } catch (error) {
-    console.error('❌ URL 업로드 오류:', error);
-    alert('URL 업로드 실패: ' + error.message);
+    const response = await axios.delete(`/api/admin/courses/${courseId}/lessons/${lessonId}`);
     
-    // 진행률 숨기기
-    document.getElementById('uploadProgress').classList.add('hidden');
+    if (response.data.success) {
+      alert('차시가 삭제되었습니다.');
+      location.reload();
+    } else {
+      alert(response.data.error || '차시 삭제에 실패했습니다.');
+    }
+  } catch (error) {
+    console.error('Lesson delete error:', error);
+    alert('차시 삭제 중 오류가 발생했습니다: ' + (error.response?.data?.error || error.message));
   }
 }
+
+// 전역 함수로 노출
+window.openAddLessonModal = openAddLessonModal;
+window.closeAddLessonModal = closeAddLessonModal;
+window.editLesson = editLesson;
+window.closeEditLessonModal = closeEditLessonModal;
+window.deleteLesson = deleteLesson;
