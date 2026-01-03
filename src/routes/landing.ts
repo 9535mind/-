@@ -165,7 +165,7 @@ landing.get('/', (c) => {
                 left: 0;
                 width: 100%;
                 height: 100%;
-                background: linear-gradient(135deg, rgba(99, 102, 241, 0.85) 0%, rgba(168, 85, 247, 0.85) 100%);
+                background: linear-gradient(135deg, rgba(99, 102, 241, 0.4) 0%, rgba(168, 85, 247, 0.4) 100%);
             }
             
             .hero-content {
