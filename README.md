@@ -9,6 +9,55 @@
 
 ---
 
+## 🔑 **테스트 계정 정보**
+
+### **관리자 계정** (추천)
+```
+📧 ID: admin@lms.kr
+🔑 PW: admin123456
+🌐 URL: https://53e9b60e.mindstory-lms.pages.dev
+```
+
+**관리자 권한:**
+- ✅ 모든 강좌 접근 가능
+- ✅ 차시 관리 (비공개 영상 교체 가능)
+- ✅ 학생 관리
+- ✅ 진도율 조회
+
+### **학생 계정**
+```
+📧 ID: student@example.com
+🔑 PW: student123
+🌐 URL: https://53e9b60e.mindstory-lms.pages.dev
+```
+
+---
+
+## ⚠️ **비공개 동영상 문제 해결**
+
+### **문제: "비공개 동영상입니다" 메시지**
+
+#### **30초 해결 방법**
+```
+1. 관리자 페이지 접속
+   → https://53e9b60e.mindstory-lms.pages.dev/admin/dashboard
+   
+2. 로그인 (admin@lms.kr / admin123456)
+
+3. 좌측 메뉴 → "강좌 관리" → "차시 관리"
+
+4. 비공개 영상 차시 선택 → "YouTube" 탭
+
+5. 기존 URL 삭제 후 공개 테스트 영상 입력:
+   - https://www.youtube.com/watch?v=dQw4w9WgXcQ (3분)
+   - https://www.youtube.com/watch?v=8S0FDjFBj8o (18분)
+   - https://www.youtube.com/watch?v=_OBlgSz8sSM (10분)
+
+6. "미리보기" → "저장"
+```
+
+---
+
 ## 🆕 Ver.4.6 - YouTube 지적재산권 완전 보호! (2026.01.03)
 
 ### 🎯 **YouTube 3단계 보호 전략**

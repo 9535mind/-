@@ -12,14 +12,20 @@
 - 🌐 최신 배포: https://53e9b60e.mindstory-lms.pages.dev
 - 🏠 프로덕션: https://mindstory-lms.pages.dev
 
-#### **테스트 계정**
+#### **테스트 계정 (관리자 권장)**
+- 📧 ID: `admin@lms.kr`
+- 🔑 PW: `admin123456`
+
+#### **학생 계정 (선택)**
 - 📧 ID: `student@example.com`
 - 🔑 PW: `student123`
 
 #### **테스트 절차**
-1. **로그인**: 위 테스트 URL 접속 → 학생 계정 로그인
+1. **로그인**: 위 테스트 URL 접속 → 관리자 계정 로그인 (`admin@lms.kr` / `admin123456`)
 2. **강좌 선택**: "마인드 타임 코칭 입문" → "학습 시작"
 3. **차시 재생**: 아무 차시 클릭 → YouTube 영상 로딩 대기 (2-3초)
+
+**⚠️ 비공개 영상 문제 시:** 관리자 페이지 (`/admin/dashboard`) → 강좌 관리 → 차시 관리 → YouTube 탭에서 공개 영상으로 교체
 
 #### **테스트 항목**
 
