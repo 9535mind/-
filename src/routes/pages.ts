@@ -1583,4 +1583,71 @@ pages.get('/courses/:courseId/lessons/:lessonId', async (c) => {
 })
 */ // END OF COMMENTED OUT ROUTE
 
+/**
+ * GET /courses
+ * 전체 강좌 목록 페이지
+ */
+pages.get('/courses', async (c) => {
+  return c.html(`
+    ${getCommonHead('전체 강좌')}
+    ${getHeader()}
+    
+    <main class="min-h-screen bg-gray-50 py-12">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <h1 class="text-3xl font-bold text-gray-900 mb-8">전체 강좌</h1>
+        
+        <div id="coursesGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div class="text-center py-12">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+            <p class="mt-4 text-gray-600">강좌 목록을 불러오는 중...</p>
+          </div>
+        </div>
+      </div>
+    </main>
+    
+    ${getFooter()}
+    
+    <script>
+      async function loadCourses() {
+        try {
+          const response = await axios.get('/api/courses')
+          const courses = response.data.data || []
+          
+          const grid = document.getElementById('coursesGrid')
+          if (courses.length === 0) {
+            grid.innerHTML = '<p class="text-center text-gray-600 col-span-full">등록된 강좌가 없습니다.</p>'
+            return
+          }
+          
+          grid.innerHTML = courses.map(course => \`
+            <div class="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow">
+              <img src="\${course.thumbnail_url || 'https://via.placeholder.com/400x300'}" 
+                   alt="\${course.title}" class="w-full h-48 object-cover">
+              <div class="p-6">
+                <h3 class="text-xl font-semibold text-gray-900 mb-2">\${course.title}</h3>
+                <p class="text-gray-600 text-sm mb-4 line-clamp-2">\${course.description || ''}</p>
+                <div class="flex justify-between items-center">
+                  <span class="text-indigo-600 font-semibold">\${course.price ? course.price.toLocaleString() + '원' : '무료'}</span>
+                  <a href="/courses/\${course.id}" 
+                     class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors">
+                    자세히 보기
+                  </a>
+                </div>
+              </div>
+            </div>
+          \`).join('')
+        } catch (error) {
+          console.error('Failed to load courses:', error)
+          document.getElementById('coursesGrid').innerHTML = 
+            '<p class="text-center text-red-600 col-span-full">강좌 목록을 불러오지 못했습니다.</p>'
+        }
+      }
+      
+      loadCourses()
+    </script>
+    
+    ${getCommonFoot()}
+  `)
+})
+
 export default pages
