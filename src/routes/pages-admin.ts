@@ -1743,7 +1743,8 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
                 const response = await apiRequest('GET', \`/api/courses/\${courseId}\`);
                 
                 if (response.success) {
-                  const course = response.data;
+                  // API는 { data: { course: {...}, lessons: [...] } } 구조로 반환
+                  const course = response.data.course || response.data;
                   document.getElementById('courseTitle').textContent = course.title;
                   document.getElementById('courseDescription').textContent = course.description || '';
                   const thumbnailImg = document.getElementById('courseThumbnail');
