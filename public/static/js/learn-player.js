@@ -52,22 +52,45 @@ async function loadCourseData() {
         
         // 관리자 확인
         const user = await getCurrentUser();
+        if (!user) {
+            console.error('❌ User not authenticated');
+            window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname);
+            return;
+        }
+        
         const isAdmin = user && user.role === 'admin';
         currentUserId = user?.id;
         currentUserName = user?.name || user?.email;
-        console.log('👤 User:', currentUserName, '(ID:', currentUserId, ')');
+        console.log('👤 User:', currentUserName, '(ID:', currentUserId, ') Role:', user.role);
         
         const response = await axios.get(`/api/courses/${courseId}`);
-        courseData = response.data;
+        
+        // API 응답 구조 검증
+        if (response.data && response.data.success === false) {
+            throw new Error(response.data.error || '강좌를 찾을 수 없습니다.');
+        }
+        
+        // 응답 데이터 추출 (response.data.data 또는 response.data)
+        courseData = response.data.data || response.data;
+        
+        // 데이터 유효성 검증
+        if (!courseData || !courseData.title) {
+            throw new Error('강좌 데이터가 올바르지 않습니다.');
+        }
         
         // UI 업데이트
         document.getElementById('courseTitle').textContent = courseData.title;
         document.getElementById('courseDescription').textContent = courseData.description || '';
         
-        console.log('✅ Course data loaded');
+        console.log('✅ Course data loaded:', courseData.title);
     } catch (error) {
         console.error('❌ Failed to load course data:', error);
-        showError('강좌 정보를 불러올 수 없습니다.');
+        showError(error.message || '강좌 정보를 불러올 수 없습니다.');
+        
+        // 3초 후 강좌 목록으로 리다이렉트
+        setTimeout(() => {
+            window.location.href = '/courses';
+        }, 3000);
     }
 }
 
@@ -77,12 +100,39 @@ async function loadCourseData() {
 async function loadLessons() {
     try {
         const response = await axios.get(`/api/courses/${courseId}/lessons`);
-        lessonsData = response.data;
+        
+        // API 응답 구조 검증
+        if (response.data && response.data.success === false) {
+            throw new Error(response.data.error || '차시 목록을 불러올 수 없습니다.');
+        }
+        
+        // 응답 데이터 추출 및 배열 타입 검증
+        let lessons = response.data.data || response.data;
+        
+        // 배열이 아니면 빈 배열로 초기화
+        if (!Array.isArray(lessons)) {
+            console.warn('⚠️ Lessons data is not an array:', lessons);
+            lessons = [];
+        }
+        
+        lessonsData = lessons;
         console.log(`✅ Loaded ${lessonsData.length} lessons`);
+        
+        // 차시가 없으면 안내 메시지 표시
+        if (lessonsData.length === 0) {
+            console.warn('⚠️ No lessons found for this course');
+            document.getElementById('lessonList').innerHTML = '<div class="text-center text-gray-500 p-4">등록된 차시가 없습니다.</div>';
+            return;
+        }
+        
         renderLessonList();
     } catch (error) {
         console.error('❌ Failed to load lessons:', error);
-        showError('차시 목록을 불러올 수 없습니다.');
+        showError(error.message || '차시 목록을 불러올 수 없습니다.');
+        
+        // 에러 발생 시 빈 배열로 초기화
+        lessonsData = [];
+        document.getElementById('lessonList').innerHTML = '<div class="text-center text-red-500 p-4">차시 목록을 불러올 수 없습니다.</div>';
     }
 }
 
@@ -632,9 +682,31 @@ function showError(message) {
 async function getCurrentUser() {
     try {
         const response = await axios.get('/api/auth/me');
-        return response.data;
+        
+        // API 응답 구조 검증
+        if (response.data && response.data.success === false) {
+            console.warn('⚠️ Auth API returned success=false');
+            return null;
+        }
+        
+        // 사용자 데이터 추출
+        const user = response.data.user || response.data.data || response.data;
+        
+        // 사용자 데이터 유효성 검증
+        if (!user || !user.id) {
+            console.warn('⚠️ Invalid user data:', user);
+            return null;
+        }
+        
+        return user;
     } catch (error) {
         console.error('Failed to get current user:', error);
+        
+        // 401 에러면 로그인 페이지로 리다이렉트
+        if (error.response && error.response.status === 401) {
+            console.warn('⚠️ Unauthorized - user not logged in');
+        }
+        
         return null;
     }
 }
