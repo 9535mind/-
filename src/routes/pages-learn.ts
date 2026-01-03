@@ -412,7 +412,7 @@ app.get('/courses/:courseId/learn', async (c) => {
                 // Show loading indicator
                 const container = document.getElementById('videoPlayer');
                 container.innerHTML = \`
-                    <div class="flex items-center justify-center h-full bg-gray-900">
+                    <div class="flex items-center justify-center h-full bg-gray-900" style="min-height: 400px;">
                         <div class="text-center">
                             <div class="inline-block animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500 mb-4"></div>
                             <p class="text-white text-lg font-medium">영상 로딩 중...</p>
@@ -421,14 +421,18 @@ app.get('/courses/:courseId/learn', async (c) => {
                     </div>
                 \`;
 
-                // Load video player (async, non-blocking UI)
-                loadVideoPlayer(currentLesson).catch(error => {
+                // Load video player (wait for completion to ensure player is ready)
+                try {
+                    await loadVideoPlayer(currentLesson);
+                    
+                    // Start progress tracking after player is loaded
+                    startProgressTracking();
+                    
+                    console.log('✅ Lesson loaded successfully');
+                } catch (error) {
                     console.error('❌ Video load error:', error);
                     showError('영상을 불러오는 중 오류가 발생했습니다.');
-                });
-
-                // Start progress tracking (will activate once player is ready)
-                setTimeout(() => startProgressTracking(), 1000);
+                }
 
             } catch (error) {
                 console.error('❌ Load lesson error:', {
