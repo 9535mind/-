@@ -1984,6 +1984,60 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
               }
             }
 
+            // 영상 데이터 가져오기
+            function getVideoData() {
+              console.log('🎬 getVideoData 시작');
+              
+              // YouTube URL 입력 필드
+              const youtubeUrlField = document.getElementById('lessonVideoUrl');
+              if (!youtubeUrlField) {
+                console.error('❌ lessonVideoUrl 필드를 찾을 수 없음');
+                alert('YouTube URL 입력 필드를 찾을 수 없습니다.');
+                return null;
+              }
+              
+              const youtubeUrl = youtubeUrlField.value.trim();
+              console.log('📝 YouTube URL:', youtubeUrl);
+              
+              if (!youtubeUrl) {
+                alert('YouTube URL 또는 영상 ID를 입력해주세요.');
+                youtubeUrlField.focus();
+                return null;
+              }
+              
+              // YouTube ID 추출
+              const videoId = extractYouTubeId(youtubeUrl);
+              console.log('🆔 추출된 YouTube ID:', videoId);
+              
+              if (!videoId) {
+                alert('유효하지 않은 YouTube URL입니다.\\n\\n예시:\\n- https://www.youtube.com/watch?v=dQw4w9WgXcQ\\n- dQw4w9WgXcQ');
+                youtubeUrlField.focus();
+                return null;
+              }
+              
+              return {
+                video_provider: 'youtube',
+                video_url: videoId,
+                video_id: videoId
+              };
+            }
+            
+            // YouTube ID 추출 함수
+            function extractYouTubeId(url) {
+              const patterns = [
+                /(?:youtube\\.com\\/watch\\?v=|youtu\\.be\\/|youtube\\.com\\/embed\\/)([a-zA-Z0-9_-]{11})/,
+                /^([a-zA-Z0-9_-]{11})$/  // 직접 ID 입력
+              ];
+              
+              for (const pattern of patterns) {
+                const match = url.match(pattern);
+                if (match) {
+                  return match[1];
+                }
+              }
+              return null;
+            }
+
             // 폼 제출 처리
             async function handleSubmit(e) {
               e.preventDefault();
@@ -1991,7 +2045,7 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
               
               const lessonId = document.getElementById('lessonId').value;
               
-              // 영상 데이터 가져오기 (admin-lessons.js의 함수 호출)
+              // 영상 데이터 가져오기
               const videoData = getVideoData();
               if (!videoData) {
                 console.error('❌ videoData가 null/undefined');
