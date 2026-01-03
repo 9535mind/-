@@ -1651,7 +1651,7 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
                                     </a>
                                     
                                     <!-- Cloudflare R2 바로가기 -->
-                                    <a href="https://dash.cloudflare.com/?to=/:account/r2/default/buckets/mindstory-lms" 
+                                    <a href="https://dash.cloudflare.com/2e8c2335c9dc802347fb23b9d608d4f4/r2/default/buckets/mindstory-lms" 
                                        target="_blank"
                                        class="flex items-center justify-center px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white text-xs font-medium rounded-lg transition-all transform hover:scale-105">
                                         <i class="fas fa-database mr-2"></i>R2 Storage
@@ -2105,23 +2105,63 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
                   
                   // 영상 데이터 설정
                   if (lesson.video_url) {
+                    console.log('🎬 영상 URL 발견:', lesson.video_url);
+                    console.log('🎬 영상 제공자:', lesson.video_provider);
+                    
                     // 현재 영상 정보 표시
                     const currentVideoInfo = document.getElementById('currentVideoInfo');
                     const currentVideoUrl = document.getElementById('currentVideoUrl');
-                    currentVideoInfo.classList.remove('hidden');
-                    currentVideoUrl.textContent = lesson.video_url;
-                    
-                    // URL 업로드 탭으로 이동
-                    switchVideoTab('urlupload');
                     
                     // YouTube인지 api.video인지 확인
-                    if (lesson.video_provider === 'youtube' || lesson.video_url.includes('youtube.com') || lesson.video_url.includes('youtu.be')) {
+                    const isYoutube = lesson.video_provider === 'youtube' || 
+                                     lesson.video_url.includes('youtube.com') || 
+                                     lesson.video_url.includes('youtu.be');
+                    
+                    if (isYoutube) {
+                      // YouTube 영상인 경우
                       switchVideoTab('youtube');
                       document.getElementById('lessonVideoUrl').value = lesson.video_url;
+                      
+                      // YouTube는 현재 영상 정보 숨김 (URL 입력창에 표시되므로)
+                      currentVideoInfo.classList.add('hidden');
                     } else {
+                      // api.video 또는 기타 URL인 경우
+                      switchVideoTab('urlupload');
                       document.getElementById('videoUrlInput').value = lesson.video_url;
+                      
+                      // 현재 영상 정보 표시
+                      currentVideoInfo.classList.remove('hidden');
+                      currentVideoUrl.textContent = lesson.video_url;
+                      
+                      // 영상 플랫폼 구분하여 표시
+                      const platformBadge = currentVideoUrl.parentElement.querySelector('.platform-badge') || document.createElement('span');
+                      platformBadge.className = 'platform-badge text-xs px-2 py-1 rounded ml-2';
+                      
+                      if (lesson.video_url.includes('api.video')) {
+                        platformBadge.textContent = 'api.video';
+                        platformBadge.className += ' bg-purple-100 text-purple-700';
+                      } else if (lesson.video_url.includes('cloudflare')) {
+                        platformBadge.textContent = 'Cloudflare Stream';
+                        platformBadge.className += ' bg-blue-100 text-blue-700';
+                      } else if (lesson.video_url.includes('r2.dev')) {
+                        platformBadge.textContent = 'R2 Storage';
+                        platformBadge.className += ' bg-orange-100 text-orange-700';
+                      } else {
+                        platformBadge.textContent = '외부 URL';
+                        platformBadge.className += ' bg-gray-100 text-gray-700';
+                      }
+                      
+                      if (!currentVideoUrl.parentElement.querySelector('.platform-badge')) {
+                        currentVideoUrl.parentElement.insertBefore(platformBadge, currentVideoUrl);
+                      }
+                    }
+                    
+                    // 재생시간 표시
+                    if (lesson.video_duration_minutes && lesson.video_duration_minutes > 0) {
+                      console.log('⏱️ 재생시간:', lesson.video_duration_minutes, '분');
                     }
                   } else {
+                    console.log('❌ 영상 URL이 없습니다');
                     document.getElementById('currentVideoInfo').classList.add('hidden');
                     document.getElementById('lessonVideoUrl').value = '';
                     document.getElementById('videoUrlInput').value = '';
@@ -2281,10 +2321,102 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
 
             // 현재 영상 미리보기
             function previewCurrentVideo() {
-              const videoUrl = document.getElementById('currentVideoUrl').textContent;
-              if (videoUrl) {
-                window.open(videoUrl, '_blank');
+              const videoUrl = document.getElementById('currentVideoUrl').textContent.trim();
+              if (!videoUrl) {
+                alert('미리보기할 영상 URL이 없습니다.');
+                return;
               }
+              
+              console.log('🎬 미리보기 URL:', videoUrl);
+              
+              // YouTube URL인지 확인
+              const isYoutube = videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be');
+              
+              // api.video embed URL인지 확인
+              const isApiVideo = videoUrl.includes('api.video') || videoUrl.includes('embed');
+              
+              // 미리보기 모달 생성
+              const previewModal = document.createElement('div');
+              previewModal.id = 'videoPreviewModal';
+              previewModal.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[60]';
+              previewModal.onclick = (e) => {
+                if (e.target === previewModal) {
+                  document.body.removeChild(previewModal);
+                }
+              };
+              
+              let embedHtml = '';
+              
+              if (isYoutube) {
+                // YouTube URL을 embed 형식으로 변환
+                let videoId = '';
+                if (videoUrl.includes('youtube.com/watch?v=')) {
+                  videoId = videoUrl.split('v=')[1].split('&')[0];
+                } else if (videoUrl.includes('youtu.be/')) {
+                  videoId = videoUrl.split('youtu.be/')[1].split('?')[0];
+                }
+                
+                if (videoId) {
+                  embedHtml = \`
+                    <iframe width="960" height="540" 
+                      src="https://www.youtube.com/embed/\${videoId}" 
+                      frameborder="0" 
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                      allowfullscreen
+                      class="rounded-lg shadow-2xl">
+                    </iframe>
+                  \`;
+                }
+              } else if (isApiVideo) {
+                // api.video embed URL은 그대로 사용
+                embedHtml = \`
+                  <iframe 
+                    src="\${videoUrl}" 
+                    width="960" 
+                    height="540" 
+                    frameborder="0" 
+                    scrolling="no" 
+                    allowfullscreen="true"
+                    class="rounded-lg shadow-2xl">
+                  </iframe>
+                \`;
+              } else {
+                // 기타 영상 URL은 video 태그 사용
+                embedHtml = \`
+                  <video controls width="960" height="540" class="rounded-lg shadow-2xl">
+                    <source src="\${videoUrl}" type="video/mp4">
+                    브라우저가 비디오를 지원하지 않습니다.
+                  </video>
+                \`;
+              }
+              
+              previewModal.innerHTML = \`
+                <div class="relative">
+                  <button onclick="document.body.removeChild(document.getElementById('videoPreviewModal'))" 
+                    class="absolute -top-10 right-0 text-white hover:text-gray-300 text-2xl">
+                    <i class="fas fa-times-circle"></i> 닫기
+                  </button>
+                  \${embedHtml}
+                  <div class="mt-4 text-center text-white text-sm">
+                    <i class="fas fa-info-circle mr-2"></i>
+                    클릭하여 닫기 또는 ESC 키를 누르세요
+                  </div>
+                </div>
+              \`;
+              
+              document.body.appendChild(previewModal);
+              
+              // ESC 키로 닫기
+              const closeOnEsc = (e) => {
+                if (e.key === 'Escape') {
+                  const modal = document.getElementById('videoPreviewModal');
+                  if (modal) {
+                    document.body.removeChild(modal);
+                  }
+                  document.removeEventListener('keydown', closeOnEsc);
+                }
+              };
+              document.addEventListener('keydown', closeOnEsc);
             }
             
             // 현재 영상 삭제
@@ -2293,6 +2425,49 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
                 document.getElementById('currentVideoInfo').classList.add('hidden');
                 document.getElementById('lessonVideoUrl').value = '';
                 document.getElementById('videoUrlInput').value = '';
+                
+                // 업로드된 파일 정보도 초기화
+                const uploadedInfo = document.getElementById('uploadedInfo');
+                if (uploadedInfo) {
+                  uploadedInfo.classList.add('hidden');
+                }
+                
+                alert('영상이 삭제된 상태로 표시되었습니다. 저장 버튼을 클릭하여 확정하세요.');
+              }
+            }
+            
+            // 업로드된 영상 교체
+            function replaceUploadedVideo() {
+              if (confirm('다른 영상으로 교체하시겠습니까?')) {
+                // 현재 업로드 정보 숨기기
+                document.getElementById('uploadedInfo').classList.add('hidden');
+                
+                // 파일 선택 창 열기
+                const fileInput = document.getElementById('videoFileInput');
+                if (fileInput) {
+                  fileInput.click();
+                }
+                
+                alert('새 영상 파일을 선택해 주세요.');
+              }
+            }
+            
+            // 업로드된 영상 삭제
+            function deleteUploadedVideo() {
+              if (confirm('업로드된 영상을 삭제하시겠습니까? 저장 후에 적용됩니다.')) {
+                // 업로드 정보 숨기기
+                document.getElementById('uploadedInfo').classList.add('hidden');
+                
+                // 숨겨진 필드 초기화
+                const videoKey = document.getElementById('uploadedVideoKey');
+                if (videoKey) {
+                  videoKey.value = '';
+                }
+                
+                // 입력 필드 초기화
+                document.getElementById('lessonVideoUrl').value = '';
+                document.getElementById('videoUrlInput').value = '';
+                
                 alert('영상이 삭제된 상태로 표시되었습니다. 저장 버튼을 클릭하여 확정하세요.');
               }
             }
