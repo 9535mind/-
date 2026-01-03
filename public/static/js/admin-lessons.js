@@ -151,7 +151,7 @@ async function submitLesson() {
   };
 
   try {
-    const response = await axios.post(`/api/admin/courses/${courseId}/lessons`, lessonData);
+    const response = await axios.post(`/api/courses/${courseId}/lessons`, lessonData);
     
     if (response.data.success) {
       alert('차시가 성공적으로 추가되었습니다!');
@@ -174,7 +174,7 @@ async function editLesson(lessonId) {
   
   try {
     // 차시 정보 가져오기
-    const response = await axios.get(`/api/admin/courses/${courseId}/lessons/${lessonId}`);
+    const response = await axios.get(`/api/courses/${courseId}/lessons/${lessonId}`);
     const lesson = response.data.data;
     
     const modalHTML = `
@@ -289,7 +289,7 @@ async function updateLesson() {
   };
 
   try {
-    const response = await axios.put(`/api/admin/courses/${courseId}/lessons/${lessonId}`, lessonData);
+    const response = await axios.put(`/api/courses/${courseId}/lessons/${lessonId}`, lessonData);
     
     if (response.data.success) {
       alert('차시가 성공적으로 수정되었습니다!');
@@ -315,7 +315,7 @@ async function deleteLesson(lessonId) {
   const courseId = window.location.pathname.split('/')[3];
 
   try {
-    const response = await axios.delete(`/api/admin/courses/${courseId}/lessons/${lessonId}`);
+    const response = await axios.delete(`/api/courses/${courseId}/lessons/${lessonId}`);
     
     if (response.data.success) {
       alert('차시가 삭제되었습니다.');
