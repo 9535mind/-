@@ -51,64 +51,75 @@ style.innerHTML = `
 document.head.appendChild(style);
 
 // ========================================
-// 4. 키보드 단축키 차단
+// 4. 키보드 단축키 차단 (조용한 차단)
 // ========================================
 document.addEventListener('keydown', (e) => {
+  let blocked = false;
+  
   // F12 차단
   if (e.key === 'F12') {
-    e.preventDefault();
-    showSecurityAlert('개발자 도구는 사용할 수 없습니다.');
-    return false;
+    blocked = true;
   }
   
   // Ctrl+Shift+I (개발자 도구)
   if (e.ctrlKey && e.shiftKey && e.key === 'I') {
-    e.preventDefault();
-    showSecurityAlert('개발자 도구는 사용할 수 없습니다.');
-    return false;
+    blocked = true;
   }
   
   // Ctrl+Shift+J (콘솔)
   if (e.ctrlKey && e.shiftKey && e.key === 'J') {
-    e.preventDefault();
-    showSecurityAlert('개발자 도구는 사용할 수 없습니다.');
-    return false;
+    blocked = true;
   }
   
   // Ctrl+Shift+C (요소 검사)
   if (e.ctrlKey && e.shiftKey && e.key === 'C') {
-    e.preventDefault();
-    showSecurityAlert('개발자 도구는 사용할 수 없습니다.');
-    return false;
+    blocked = true;
   }
   
   // Ctrl+U (소스 보기)
   if (e.ctrlKey && e.key === 'u') {
-    e.preventDefault();
-    showSecurityAlert('소스 보기는 사용할 수 없습니다.');
-    return false;
+    blocked = true;
   }
   
   // Ctrl+S (저장)
   if (e.ctrlKey && e.key === 's') {
-    e.preventDefault();
-    showSecurityAlert('페이지 저장은 허용되지 않습니다.');
-    return false;
+    blocked = true;
   }
   
-  // Ctrl+P (인쇄) - 강의 자료는 허용, 영상 페이지만 차단
+  // Ctrl+P (인쇄) - 영상 페이지만 차단
   if (e.ctrlKey && e.key === 'p' && window.location.pathname.includes('/learn')) {
+    blocked = true;
+  }
+  
+  // Ctrl+C (복사) - 입력 필드 제외
+  if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+    const target = e.target;
+    if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
+      blocked = true;
+    }
+  }
+  
+  // Ctrl+X (잘라내기) - 입력 필드 제외
+  if ((e.ctrlKey || e.metaKey) && e.key === 'x') {
+    const target = e.target;
+    if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
+      blocked = true;
+    }
+  }
+  
+  // 차단된 경우 이벤트 중단 (팝업 없이)
+  if (blocked) {
     e.preventDefault();
-    showSecurityAlert('영상 페이지는 인쇄할 수 없습니다.');
+    e.stopPropagation();
     return false;
   }
 });
 
 // ========================================
-// 5. 개발자 도구 감지
+// 5. 개발자 도구 감지 (조용한 모드)
 // ========================================
+// 팝업 없이 로그만 기록 (사용자 경험 개선)
 let devToolsOpen = false;
-let devToolsCheckInterval;
 
 function detectDevTools() {
   const threshold = 160;
@@ -118,27 +129,16 @@ function detectDevTools() {
   if (widthThreshold || heightThreshold) {
     if (!devToolsOpen) {
       devToolsOpen = true;
-      handleDevToolsDetected();
+      // 팝업 제거 - 조용히 로그만 기록
+      logSecurityEvent('devtools_detected');
     }
   } else {
     devToolsOpen = false;
   }
 }
 
-function handleDevToolsDetected() {
-  // 경고만 표시 (강제 종료는 사용자 경험에 좋지 않음)
-  showSecurityAlert(
-    '⚠️ 개발자 도구가 감지되었습니다.\n\n' +
-    '저작권 보호를 위해 개발자 도구 사용은 제한됩니다.\n' +
-    '지속적인 시도 시 수강 자격이 제한될 수 있습니다.'
-  );
-  
-  // 로그 기록 (서버로 전송 - 선택사항)
-  logSecurityEvent('devtools_detected');
-}
-
-// 1초마다 체크
-devToolsCheckInterval = setInterval(detectDevTools, 1000);
+// 1초마다 체크 (팝업 없이 로그만)
+const devToolsCheckInterval = setInterval(detectDevTools, 1000);
 
 // ========================================
 // 6. 탭 전환 감지
@@ -183,20 +183,17 @@ console.log(
 );
 
 // ========================================
-// 8. 화면 녹화 경고 (브라우저 API 제한적)
+// 8. 화면 녹화 차단 (조용한 차단)
 // ========================================
-// Screen Capture API 감지 시도
+// Screen Capture API 감지 및 차단
 if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
   const originalGetDisplayMedia = navigator.mediaDevices.getDisplayMedia;
   
   navigator.mediaDevices.getDisplayMedia = function(...args) {
+    // 팝업 없이 로그만 기록
     logSecurityEvent('screen_capture_attempt');
-    showSecurityAlert(
-      '⚠️ 화면 녹화 시도가 감지되었습니다.\n\n' +
-      '본 콘텐츠는 저작권법으로 보호되며,\n' +
-      '무단 녹화 및 배포 시 법적 조치를 받을 수 있습니다.'
-    );
-    return originalGetDisplayMedia.apply(this, args);
+    // 화면 캡처 차단
+    return Promise.reject(new Error('Screen capture is not allowed'));
   };
 }
 

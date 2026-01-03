@@ -619,18 +619,64 @@ async function getCurrentUser() {
 function applyVideoProtection(container) {
     console.log('🔒 영상 플레이어 보호 적용 중...');
     
+    // 캡처 방지 CSS 추가
+    const style = document.createElement('style');
+    style.textContent = `
+        #videoPlayer,
+        #videoPlayer * {
+            -webkit-user-select: none !important;
+            -moz-user-select: none !important;
+            -ms-user-select: none !important;
+            user-select: none !important;
+            -webkit-touch-callout: none !important;
+            pointer-events: auto !important;
+        }
+        
+        /* 스크린샷 방지 시도 (완벽하지 않음) */
+        #videoPlayer {
+            -webkit-appearance: none;
+        }
+        
+        /* 드래그 방지 */
+        #videoPlayer img,
+        #videoPlayer video,
+        #videoPlayer iframe {
+            pointer-events: none !important;
+            -webkit-user-drag: none !important;
+            -khtml-user-drag: none !important;
+            -moz-user-drag: none !important;
+            -o-user-drag: none !important;
+            user-drag: none !important;
+        }
+    `;
+    if (!document.getElementById('videoProtectionStyle')) {
+        style.id = 'videoProtectionStyle';
+        document.head.appendChild(style);
+    }
+    
     // 컨테이너 자체 보호
     container.addEventListener('contextmenu', function(e) {
         e.preventDefault();
         e.stopPropagation();
-        showProtectionWarning('🚫 우클릭이 차단되었습니다.');
+        e.stopImmediatePropagation();
         return false;
     }, true);
     
     container.addEventListener('dragstart', function(e) {
         e.preventDefault();
         e.stopPropagation();
+        e.stopImmediatePropagation();
         return false;
+    }, true);
+    
+    // 마우스 버튼 차단
+    container.addEventListener('mousedown', function(e) {
+        if (e.button === 2) { // 우클릭
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            return false;
+        }
     }, true);
     
     // 모든 하위 요소 보호
@@ -639,13 +685,14 @@ function applyVideoProtection(container) {
         element.addEventListener('contextmenu', function(e) {
             e.preventDefault();
             e.stopPropagation();
-            showProtectionWarning('🚫 우클릭이 차단되었습니다.');
+            e.stopImmediatePropagation();
             return false;
         }, true);
         
         element.addEventListener('dragstart', function(e) {
             e.preventDefault();
             e.stopPropagation();
+            e.stopImmediatePropagation();
             return false;
         }, true);
         
@@ -653,7 +700,7 @@ function applyVideoProtection(container) {
         element.style.userSelect = 'none';
         element.style.webkitUserSelect = 'none';
         element.style.mozUserSelect = 'none';
-        element.style.pointerEvents = 'auto'; // 클릭은 허용
+        element.style.webkitTouchCallout = 'none';
     });
     
     // IFrame 찾아서 보호
@@ -662,46 +709,49 @@ function applyVideoProtection(container) {
         protectVideoIframe(iframe);
     });
     
+    // 주기적으로 보호 재적용 (동적 요소 대응)
+    setInterval(() => {
+        const newIframes = container.querySelectorAll('iframe:not(.protected)');
+        newIframes.forEach(iframe => {
+            iframe.classList.add('protected');
+            protectVideoIframe(iframe);
+        });
+    }, 1000);
+    
     console.log('✅ 영상 플레이어 보호 적용 완료');
 }
 
 /**
- * IFrame 보호
+ * IFrame 보호 (우클릭만 차단, 클릭은 허용)
  */
 function protectVideoIframe(iframe) {
-    // IFrame 래퍼 생성
-    if (!iframe.parentElement.classList.contains('iframe-protected')) {
-        const wrapper = document.createElement('div');
-        wrapper.className = 'iframe-protected';
-        wrapper.style.cssText = 'position: relative; width: 100%; height: 100%;';
-        
-        iframe.parentNode.insertBefore(wrapper, iframe);
-        wrapper.appendChild(iframe);
-        
-        // 투명 오버레이 생성 (우클릭 차단용)
-        const overlay = document.createElement('div');
-        overlay.className = 'iframe-protection-overlay';
-        overlay.style.cssText = `
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 1;
-            pointer-events: none;
-        `;
-        wrapper.appendChild(overlay);
-        
-        // 래퍼에 우클릭 차단
-        wrapper.addEventListener('contextmenu', function(e) {
+    // IFrame에 직접 보호 적용 (오버레이 없이)
+    iframe.addEventListener('contextmenu', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        return false;
+    }, true);
+    
+    iframe.addEventListener('dragstart', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        return false;
+    }, true);
+    
+    // IFrame의 부모 요소에도 보호 적용
+    const parent = iframe.parentElement;
+    if (parent) {
+        parent.addEventListener('contextmenu', function(e) {
             e.preventDefault();
             e.stopPropagation();
-            showProtectionWarning('🚫 우클릭이 차단되었습니다.');
+            e.stopImmediatePropagation();
             return false;
         }, true);
-        
-        console.log('✅ IFrame 보호 오버레이 적용');
     }
+    
+    console.log('✅ IFrame 보호 적용 (클릭 허용, 우클릭 차단)');
 }
 
 /**
