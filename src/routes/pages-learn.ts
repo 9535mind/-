@@ -4,6 +4,7 @@
  */
 
 import { Hono } from 'hono'
+import { getCookie } from 'hono/cookie'
 import type { Bindings } from '../types/database'
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -15,13 +16,8 @@ const app = new Hono<{ Bindings: Bindings }>()
 app.get('/courses/:courseId/learn', async (c) => {
   const courseId = c.req.param('courseId')
   
-  // 서버 사이드 인증 확인 (Cookie 헤더에서 session_token 추출)
-  const cookieHeader = c.req.header('Cookie') || ''
-  const sessionToken = cookieHeader
-    .split(';')
-    .map(c => c.trim())
-    .find(c => c.startsWith('session_token='))
-    ?.split('=')[1]
+  // 서버 사이드 인증 확인 (Hono getCookie 사용)
+  const sessionToken = getCookie(c, 'session_token')
   
   if (!sessionToken) {
     // 세션이 없으면 로그인 페이지로 리다이렉트

@@ -4,6 +4,7 @@
  */
 
 import { Hono } from 'hono'
+import { setCookie } from 'hono/cookie'
 import { Bindings, CreateUserInput, User } from '../types/database'
 import { 
   successResponse, 
@@ -153,12 +154,18 @@ auth.post('/login', async (c) => {
     // 비밀번호 제외한 사용자 정보 반환
     const { password_hash: _, ...userWithoutPassword } = user
 
-    // 🍪 Cookie 설정 (HttpOnly로 보안 강화)
-    c.header('Set-Cookie', `session_token=${sessionToken}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${60 * 60 * 24 * 30}`)
+    // 🍪 Cookie 설정 (Hono setCookie 사용)
+    setCookie(c, 'session_token', sessionToken, {
+      path: '/',
+      httpOnly: true,   // JavaScript에서 접근 불가 (보안)
+      secure: true,     // HTTPS에서만 전송
+      sameSite: 'Lax',  // CSRF 방어
+      maxAge: 60 * 60 * 24 * 30  // 30일 유지
+    })
 
     return c.json(successResponse({
       user: userWithoutPassword,
-      session_token: sessionToken,
+      session_token: sessionToken,  // 클라이언트 호환성 유지
       expires_at: expiresAt.toISOString()
     }, '로그인되었습니다.'))
 
