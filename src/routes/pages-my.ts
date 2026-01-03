@@ -42,6 +42,7 @@ pagesMy.get('/my-courses', (c) => {
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script src="/static/js/auth.js"></script>
         <script src="/static/js/utils.js"></script>
+        <script src="/static/js/content-protection.js"></script>
     </head>
     <body class="bg-gray-50">
         ${getHeader('courses')}

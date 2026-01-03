@@ -269,6 +269,7 @@ landing.get('/', (c) => {
                 line-height: 1.7;
             }
         </style>
+        <script src="/static/js/content-protection.js"></script>
     </head>
     <body>
         <!-- 헤더 -->

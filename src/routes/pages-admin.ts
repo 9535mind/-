@@ -32,6 +32,7 @@ pagesAdmin.get('/dashboard', async (c) => {
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
         <link href="/static/style.css" rel="stylesheet">
+        <script src="/static/js/content-protection.js"></script>
     </head>
     <body class="bg-gray-100">
         <!-- 관리자 헤더 -->

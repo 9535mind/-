@@ -85,6 +85,7 @@ app.get('/courses/:courseId/learn', async (c) => {
                 }
             }
         </style>
+        <script src="/static/js/content-protection.js"></script>
     </head>
     <body class="bg-gray-50">
         <!-- 헤더 -->
