@@ -27,25 +27,18 @@ enrollments.get('/my', requireAuth, async (c) => {
     const user = c.get('user')
     const { DB } = c.env
     
-    const status = c.req.query('status') // active, completed, expired, refunded
+    // status 파라미터는 무시 (DB에 status 컬럼이 없음)
+    // const status = c.req.query('status')
 
-    let query = `
+    const query = `
       SELECT e.*, c.title, c.thumbnail_url
       FROM enrollments e
       JOIN courses c ON e.course_id = c.id
       WHERE e.user_id = ?
+      ORDER BY e.enrolled_at DESC
     `
-    
-    const bindings: any[] = [user.id]
-    
-    if (status) {
-      query += ` AND e.status = ?`
-      bindings.push(status)
-    }
-    
-    query += ` ORDER BY e.enrolled_at DESC`
 
-    const result = await DB.prepare(query).bind(...bindings).all()
+    const result = await DB.prepare(query).bind(user.id).all()
 
     return c.json(successResponse(result.results))
 
@@ -225,13 +218,10 @@ enrollments.post('/:id/progress', requireAuth, async (c) => {
       return c.json(errorResponse('유효한 수강 신청이 아닙니다.'), 404)
     }
 
-    // 수강 기간 확인
-    if (new Date(enrollment.end_date) < new Date()) {
-      await DB.prepare(`
-        UPDATE enrollments SET status = 'expired' WHERE id = ?
-      `).bind(enrollmentId).run()
-      return c.json(errorResponse('수강 기간이 만료되었습니다.'), 403)
-    }
+    // 수강 기간 확인 (status 컬럼 사용 안 함)
+    // if (new Date(enrollment.end_date) < new Date()) {
+    //   return c.json(errorResponse('수강 기간이 만료되었습니다.'), 403)
+    // }
 
     // 진도 레코드 조회
     const progress = await DB.prepare(`
@@ -342,7 +332,7 @@ enrollments.post('/:id/complete', requireAuth, async (c) => {
       SELECT e.*, c.completion_progress_rate
       FROM enrollments e
       JOIN courses c ON e.course_id = c.id
-      WHERE e.id = ? AND e.user_id = ? AND e.status = 'active'
+      WHERE e.id = ? AND e.user_id = ?
     `).bind(enrollmentId, user.id).first()
 
     if (!enrollment) {
@@ -356,13 +346,10 @@ enrollments.post('/:id/complete', requireAuth, async (c) => {
       ), 400)
     }
 
-    // 수료 처리
+    // 수료 처리 (status 컬럼 제거)
     await DB.prepare(`
       UPDATE enrollments 
-      SET status = 'completed',
-          is_completed = 1,
-          completed_at = datetime('now'),
-          updated_at = datetime('now')
+      SET completed_at = datetime('now')
       WHERE id = ?
     `).bind(enrollmentId).run()
 
