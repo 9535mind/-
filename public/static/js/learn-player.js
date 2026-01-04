@@ -360,10 +360,12 @@ async function loadYouTubePlayer(lesson) {
     const container = document.getElementById('videoPlayer');
     
     // Video ID 추출
-    let videoId = lesson.video_id;
-    if (!videoId && lesson.video_url) {
-        const match = lesson.video_url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/);
-        videoId = match ? match[1] : null;
+    let videoId = lesson.video_id || lesson.video_url;
+    
+    // video_url이 전체 URL인 경우 ID 추출
+    if (videoId && videoId.includes('youtube.com') || videoId.includes('youtu.be')) {
+        const match = videoId.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/);
+        videoId = match ? match[1] : videoId;
     }
 
     if (!videoId) {
