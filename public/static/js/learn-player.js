@@ -287,9 +287,9 @@ async function loadVideoPlayer(lesson) {
     }
     
     try {
-        // 영상 제공자 확인
-        const provider = lesson.video_provider || 'youtube';
-        console.log('🎬 Video provider:', provider);
+        // 영상 제공자 확인 (video_provider 또는 video_type 사용)
+        const provider = lesson.video_provider || lesson.video_type || 'youtube';
+        console.log('🎬 Video provider:', provider, '(from video_provider:', lesson.video_provider, ', video_type:', lesson.video_type, ')');
         
         if (provider === 'youtube') {
             console.log('▶️ Loading YouTube player');
