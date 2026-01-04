@@ -15,7 +15,8 @@ import authKakao from './routes/auth-kakao'
 import authGoogle from './routes/auth-google'
 import courses from './routes/courses'
 import enrollments from './routes/enrollments'
-// Removed: payments, certificates (Phase 2 cleanup)
+// Removed: payments (Phase 2 cleanup)
+import certificates from './routes/certificates'  // Phase 4: 수료증 시스템
 import admin from './routes/admin'
 import landing from './routes/landing'  // 신규 랜딩 페이지
 import pages from './routes/pages'
@@ -28,7 +29,7 @@ import progress from './routes/progress'
 // Removed: certifications (Phase 2 cleanup)
 import upload from './routes/upload'
 import ai from './routes/ai'
-import reviews from './routes/reviews'
+import reviews from './routes/reviews'  // Phase 2: 수강평/별점
 // Removed: external video APIs (Phase 2 cleanup - YouTube only)
 import aiBulkLessons from './routes/ai-bulk-lessons'
 import pagesStudent from './routes/pages-student'
