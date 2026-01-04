@@ -63,7 +63,8 @@ landing.get('/', (c) => {
         <!-- Custom Scripts -->
         <script src="/static/js/auth.js?v=20260101"></script>
         <script src="/static/js/utils.js?v=20260101"></script>
-        <script src="/static/js/popup.js?v=20260101"></script>
+        <!-- Popup removed: Phase 2 cleanup -->
+        <!-- <script src="/static/js/popup.js?v=20260101"></script> -->
         
         <style>
             /* 2026 웹 트렌드 디자인 시스템 */
@@ -779,8 +780,8 @@ landing.get('/', (c) => {
                 loadCourses()
                 updateHeader()
                 
-                // 팝업 로드
-                PopupManager.loadPopups('home')
+                // 팝업 제거 (Phase 2 cleanup)
+                // PopupManager.loadPopups('home')
                 
                 // 히어로 이미지 슬라이더
                 initHeroSlider()
