@@ -216,7 +216,7 @@ app.get('/courses/:courseId/learn', async (c) => {
         </script>
         
         <!-- 영상 플레이어 시스템 -->
-        <script src="/static/js/learn-player.js"></script>
+        <script src="/static/js/learn-player.js?v=20260104-2"></script>
     </body>
     </html>
   `)
