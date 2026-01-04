@@ -188,7 +188,10 @@ const PopupManager = {
         }
       })
     } catch (error) {
-      console.error('Load popups error:', error)
+      // 팝업 API가 없으면 조용히 무시 (404는 정상)
+      if (error.response?.status !== 404) {
+        console.error('Load popups error:', error)
+      }
     }
   }
 }
