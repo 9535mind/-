@@ -163,24 +163,27 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // ========================================
-// 7. 콘솔 경고 메시지
+// 7. 콘솔 경고 메시지 (프로덕션 환경)
 // ========================================
-console.log(
-  '%c⚠️ 경고!',
-  'color: red; font-size: 40px; font-weight: bold;'
-);
-console.log(
-  '%c이 브라우저 기능은 개발자를 위한 것입니다.',
-  'color: orange; font-size: 16px;'
-);
-console.log(
-  '%c누군가 여기에 코드를 붙여넣으라고 했다면, 그것은 사기이며 귀하의 계정에 접근할 수 있습니다.',
-  'color: black; font-size: 14px;'
-);
-console.log(
-  '%c저작권법 위반: 무단 복제, 배포 시 법적 조치를 받을 수 있습니다.',
-  'color: red; font-size: 14px; font-weight: bold;'
-);
+// 개발자 도구 감지 시에만 경고 표시
+if (typeof window !== 'undefined' && !window.location.hostname.includes('localhost')) {
+  console.log(
+    '%c⚠️ 경고!',
+    'color: red; font-size: 40px; font-weight: bold;'
+  );
+  console.log(
+    '%c이 브라우저 기능은 개발자를 위한 것입니다.',
+    'color: orange; font-size: 16px;'
+  );
+  console.log(
+    '%c누군가 여기에 코드를 붙여넣으라고 했다면, 그것은 사기이며 귀하의 계정에 접근할 수 있습니다.',
+    'color: black; font-size: 14px;'
+  );
+  console.log(
+    '%c저작권법 위반: 무단 복제, 배포 시 법적 조치를 받을 수 있습니다.',
+    'color: red; font-size: 14px; font-weight: bold;'
+  );
+}
 
 // ========================================
 // 8. 화면 녹화 차단 (조용한 차단)

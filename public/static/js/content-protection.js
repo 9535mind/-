@@ -358,25 +358,50 @@
     }
 
     // 9. YouTube IFrame 보호 (동적 감지)
-    const observer = new MutationObserver(function(mutations) {
-        mutations.forEach(function(mutation) {
-            mutation.addedNodes.forEach(function(node) {
-                if (node.nodeType === 1) { // Element node
-                    // YouTube iframe 찾기
-                    const iframes = node.querySelectorAll ? node.querySelectorAll('iframe') : [];
-                    if (node.tagName === 'IFRAME') {
-                        protectIframe(node);
+    // DOM이 로드된 후 MutationObserver 시작
+    if (document.body) {
+        const observer = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+                mutation.addedNodes.forEach(function(node) {
+                    if (node.nodeType === 1) { // Element node
+                        // YouTube iframe 찾기
+                        const iframes = node.querySelectorAll ? node.querySelectorAll('iframe') : [];
+                        if (node.tagName === 'IFRAME') {
+                            protectIframe(node);
+                        }
+                        iframes.forEach(protectIframe);
                     }
-                    iframes.forEach(protectIframe);
-                }
+                });
             });
         });
-    });
 
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true
-    });
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+    } else {
+        // document.body가 없으면 DOMContentLoaded 후 시작
+        document.addEventListener('DOMContentLoaded', function() {
+            const observer = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    mutation.addedNodes.forEach(function(node) {
+                        if (node.nodeType === 1) { // Element node
+                            const iframes = node.querySelectorAll ? node.querySelectorAll('iframe') : [];
+                            if (node.tagName === 'IFRAME') {
+                                protectIframe(node);
+                            }
+                            iframes.forEach(protectIframe);
+                        }
+                    });
+                });
+            });
+
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+        });
+    }
 
     // 10. 기존 iframe들 보호
     document.addEventListener('DOMContentLoaded', function() {
