@@ -690,10 +690,34 @@ function updateProgressUI(percentage) {
 
 /**
  * 차시 완료 마킹
+ * TODO: lesson_progress 테이블 구현 후 활성화
  */
 async function markLessonCompleted() {
     if (!currentLesson) return;
     
+    console.log('🎓 Lesson completed:', currentLesson.title);
+    console.log('⚠️ Progress tracking not implemented yet (lesson_progress table required)');
+    
+    // 차시 목록 UI 업데이트 (시각적 효과만)
+    const lesson = lessonsData.find(l => l.id === currentLesson.id);
+    if (lesson) {
+        lesson.completed = true;
+        renderLessonList();
+    }
+    
+    // 다음 차시로 자동 이동 제안
+    const currentIndex = lessonsData.findIndex(l => l.id === currentLesson.id);
+    if (currentIndex >= 0 && currentIndex < lessonsData.length - 1) {
+        const nextLesson = lessonsData[currentIndex + 1];
+        if (confirm(`✅ 차시를 완료했습니다!\n\n다음 차시 "${nextLesson.title}"로 이동하시겠습니까?`)) {
+            await loadLesson(nextLesson.id);
+        }
+    } else {
+        // 마지막 차시 완료
+        alert('🎉 축하합니다! 모든 차시를 완료했습니다!');
+    }
+    
+    /* API 호출 비활성화 (lesson_progress 테이블 구현 후 활성화)
     try {
         await axios.post('/api/progress/complete', {
             lesson_id: currentLesson.id
@@ -716,10 +740,10 @@ async function markLessonCompleted() {
                 await loadLesson(nextLesson.id);
             }
         }
-        
     } catch (error) {
         console.error('❌ Failed to mark lesson as completed:', error);
     }
+    */
 }
 
 /**
