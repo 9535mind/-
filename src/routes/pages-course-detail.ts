@@ -360,7 +360,7 @@ app.get('/courses/:id', async (c) => {
 
                 try {
                     const response = await apiRequest('POST', \`/api/enrollments\`, {
-                        course_id: courseId
+                        courseId: courseId
                     });
 
                     if (response.success) {

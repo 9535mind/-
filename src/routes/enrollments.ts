@@ -92,98 +92,101 @@ enrollments.get('/:id', requireAuth, async (c) => {
 
 /**
  * POST /api/enrollments
- * 수강 신청
+ * 수강 신청 (무료 강좌 즉시 등록)
+ * 
+ * Request Body:
+ * - courseId: number (필수)
+ * 
+ * Response:
+ * - 201: { enrollmentId, courseId, enrolledAt }
+ * - 400: courseId 누락/형식 오류, 강좌 상태 오류, 유료 강좌
+ * - 401: 인증 없음
+ * - 404: 강좌 없음
+ * - 409: 이미 등록됨
  */
 enrollments.post('/', requireAuth, async (c) => {
   try {
     const user = c.get('user')
-    const { course_id, payment_id } = await c.req.json<{
-      course_id: number
-      payment_id?: number
-    }>()
+    const body = await c.req.json<{ courseId?: number }>()
+    const courseId = body.courseId
 
-    if (!course_id) {
-      return c.json(errorResponse('과정 ID는 필수입니다.'), 400)
+    // ① courseId 검증
+    if (!courseId || typeof courseId !== 'number') {
+      return c.json(errorResponse('courseId는 필수이며 숫자여야 합니다.'), 400)
     }
 
     const { DB } = c.env
 
-    // 과정 정보 조회
+    // ② 강좌 존재 여부 및 상태 확인
     const course = await DB.prepare(`
-      SELECT * FROM courses WHERE id = ? AND status = 'active'
-    `).bind(course_id).first()
+      SELECT id, title, status, price
+      FROM courses 
+      WHERE id = ?
+    `).bind(courseId).first<{
+      id: number
+      title: string
+      status: string
+      price: number
+    }>()
 
     if (!course) {
-      return c.json(errorResponse('과정을 찾을 수 없습니다.'), 404)
+      return c.json(errorResponse('강좌를 찾을 수 없습니다.'), 404)
     }
 
-    // 중복 수강 체크
+    // ③ 강좌 상태 확인 (published만 가능)
+    if (course.status !== 'published') {
+      return c.json(errorResponse('현재 수강 신청이 불가능한 강좌입니다.'), 400)
+    }
+
+    // ④ 무료 강좌 확인 (price가 0이면 무료)
+    const isFree = course.price === 0
+    if (!isFree) {
+      return c.json(errorResponse('유료 강좌는 결제가 필요합니다.'), 402)
+    }
+
+    // ⑤ 중복 등록 방지
     const existing = await DB.prepare(`
-      SELECT * FROM enrollments 
-      WHERE user_id = ? AND course_id = ? AND status IN ('active', 'completed')
-    `).bind(user.id, course_id).first()
+      SELECT id FROM enrollments 
+      WHERE user_id = ? AND course_id = ?
+    `).bind(user.id, courseId).first()
 
     if (existing) {
-      return c.json(errorResponse('이미 수강 중이거나 수료한 과정입니다.'), 409)
+      return c.json(errorResponse('이미 등록된 강좌입니다.'), 409)
     }
 
-    // 무료 과정이 아닌 경우 결제 확인
-    if (!course.is_free && !payment_id) {
-      return c.json(errorResponse('결제 정보가 필요합니다.'), 400)
-    }
-
-    if (payment_id) {
-      const payment = await DB.prepare(`
-        SELECT * FROM payments 
-        WHERE id = ? AND user_id = ? AND course_id = ? AND status = 'completed'
-      `).bind(payment_id, user.id, course_id).first()
-
-      if (!payment) {
-        return c.json(errorResponse('유효한 결제 정보가 아닙니다.'), 400)
-      }
-    }
-
-    // 수강 기간 계산
-    const startDate = new Date()
-    const endDate = addDays(startDate, course.duration_days)
-
-    // 수강 신청 생성
+    // ⑥ enrollments 생성
+    const enrolledAt = new Date().toISOString()
     const result = await DB.prepare(`
       INSERT INTO enrollments (
-        user_id, course_id, status, start_date, end_date, payment_id
-      ) VALUES (?, ?, 'active', ?, ?, ?)
+        user_id, course_id, progress, enrolled_at, completed_at
+      ) VALUES (?, ?, 0, ?, NULL)
     `).bind(
       user.id,
-      course_id,
-      startDate.toISOString(),
-      endDate.toISOString(),
-      payment_id || null
+      courseId,
+      enrolledAt
     ).run()
 
     const enrollmentId = result.meta.last_row_id
 
-    // 모든 차시에 대한 진도 레코드 생성
-    const lessons = await DB.prepare(`
-      SELECT id FROM lessons WHERE course_id = ?
-    `).bind(course_id).all()
+    // 성공 응답
+    return c.json({
+      success: true,
+      data: {
+        enrollmentId,
+        courseId,
+        enrolledAt
+      },
+      message: '수강 신청이 완료되었습니다.'
+    }, 201)
 
-    for (const lesson of lessons.results) {
-      await DB.prepare(`
-        INSERT INTO lesson_progress (
-          enrollment_id, lesson_id, user_id, status
-        ) VALUES (?, ?, ?, 'not_started')
-      `).bind(enrollmentId, lesson.id, user.id).run()
-    }
-
-    return c.json(successResponse({
-      id: enrollmentId,
-      course_id,
-      start_date: startDate.toISOString(),
-      end_date: endDate.toISOString()
-    }, '수강 신청이 완료되었습니다.'), 201)
-
-  } catch (error) {
+  } catch (error: any) {
     console.error('Create enrollment error:', error)
+    
+    // UNIQUE constraint 위반 (중복 등록)
+    if (error?.message?.includes('UNIQUE constraint failed')) {
+      return c.json(errorResponse('이미 등록된 강좌입니다.'), 409)
+    }
+    
     return c.json(errorResponse('서버 오류가 발생했습니다.'), 500)
   }
 })
