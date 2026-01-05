@@ -51,9 +51,18 @@ authKakao.get('/login', async (c) => {
  */
 authKakao.get('/callback', async (c) => {
   try {
+    // 모든 쿼리 파라미터 로깅 (디버깅용)
+    const allParams = c.req.url.split('?')[1] || 'no params'
+    console.log('[KAKAO_CALLBACK] Full URL:', c.req.url)
+    console.log('[KAKAO_CALLBACK] All params:', allParams)
+    
     const code = c.req.query('code')
     const error = c.req.query('error')
     const errorDescription = c.req.query('error_description')
+    
+    console.log('[KAKAO_CALLBACK] code:', code || 'MISSING')
+    console.log('[KAKAO_CALLBACK] error:', error || 'none')
+    console.log('[KAKAO_CALLBACK] error_description:', errorDescription || 'none')
     
     // 에러 파라미터 확인
     if (error) {
@@ -62,10 +71,11 @@ authKakao.get('/callback', async (c) => {
         <html>
           <head>
             <title>카카오 로그인 오류</title>
+            <meta charset="UTF-8">
           </head>
           <body>
             <script>
-              alert('카카오 로그인 오류:\\n${error}\\n${errorDescription || ''}');
+              alert('카카오 로그인 오류:\\n에러: ${error}\\n설명: ${errorDescription || '없음'}\\n\\n카카오 개발자 콘솔 설정을 확인해주세요.');
               window.location.href = '/login';
             </script>
           </body>
@@ -74,8 +84,57 @@ authKakao.get('/callback', async (c) => {
     }
     
     if (!code) {
-      console.error('[KAKAO_CALLBACK] No authorization code')
-      return c.json(errorResponse('인증 코드가 없습니다.'), 400)
+      console.error('[KAKAO_CALLBACK] No authorization code - This means Kakao rejected the request')
+      console.error('[KAKAO_CALLBACK] Possible reasons:')
+      console.error('[KAKAO_CALLBACK] 1. Redirect URI mismatch in Kakao Developers Console')
+      console.error('[KAKAO_CALLBACK] 2. Web platform domain not registered')
+      console.error('[KAKAO_CALLBACK] 3. Kakao Login not activated')
+      console.error('[KAKAO_CALLBACK] 4. Test user not registered (if app is in development mode)')
+      
+      return c.html(`
+        <html>
+          <head>
+            <title>카카오 로그인 실패</title>
+            <meta charset="UTF-8">
+          </head>
+          <body style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #e74c3c;">⚠️ 카카오 로그인 실패</h2>
+            <p><strong>인증 코드를 받지 못했습니다.</strong></p>
+            <hr>
+            <h3>가능한 원인:</h3>
+            <ol style="line-height: 2;">
+              <li><strong>Redirect URI 불일치</strong> (가장 높은 가능성)<br>
+                  카카오 개발자 콘솔에 등록된 URI와 서버 설정이 다릅니다.</li>
+              <li><strong>Web 플랫폼 도메인 미등록</strong><br>
+                  현재 도메인이 카카오 앱 플랫폼에 등록되지 않았습니다.</li>
+              <li><strong>카카오 로그인 비활성화</strong><br>
+                  카카오 개발자 콘솔에서 카카오 로그인이 OFF 상태입니다.</li>
+              <li><strong>테스트 사용자 미등록</strong> (앱이 개발 중인 경우)<br>
+                  현재 카카오 계정이 테스트 사용자로 등록되지 않았습니다.</li>
+            </ol>
+            <hr>
+            <h3>필요한 설정:</h3>
+            <p><strong>Redirect URI:</strong><br>
+            <code style="background: #f4f4f4; padding: 5px; display: block; word-break: break-all;">
+            ${c.env.KAKAO_REDIRECT_URI || 'https://3000-ieu1ambselnpjf2cme9se-c81df28e.sandbox.novita.ai/api/auth/kakao/callback'}
+            </code></p>
+            <p><strong>Web 플랫폼 도메인:</strong><br>
+            <code style="background: #f4f4f4; padding: 5px; display: block; word-break: break-all;">
+            https://3000-ieu1ambselnpjf2cme9se-c81df28e.sandbox.novita.ai
+            </code></p>
+            <hr>
+            <p style="margin-top: 30px;">
+              <button onclick="window.location.href='/login'" 
+                      style="background: #3498db; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px;">
+                로그인 페이지로 돌아가기
+              </button>
+            </p>
+            <p style="font-size: 12px; color: #999; margin-top: 20px;">
+              현재 URL: ${c.req.url}
+            </p>
+          </body>
+        </html>
+      `)
     }
     
     const clientId = c.env.KAKAO_CLIENT_ID || 'your_kakao_rest_api_key'
@@ -85,6 +144,7 @@ authKakao.get('/callback', async (c) => {
     console.log('[KAKAO_CALLBACK] Using redirect_uri:', redirectUri)
     
     // 1. 액세스 토큰 요청
+    console.log('[KAKAO_CALLBACK] Requesting access token...')
     const tokenResponse = await fetch('https://kauth.kakao.com/oauth/token', {
       method: 'POST',
       headers: {
@@ -98,8 +158,12 @@ authKakao.get('/callback', async (c) => {
       }).toString(),
     })
     
+    console.log('[KAKAO_CALLBACK] Token response status:', tokenResponse.status)
+    
     if (!tokenResponse.ok) {
-      throw new Error('Failed to get access token')
+      const errorText = await tokenResponse.text()
+      console.error('[KAKAO_CALLBACK] Token request failed:', errorText)
+      throw new Error(`Failed to get access token: ${tokenResponse.status} - ${errorText}`)
     }
     
     const tokenData = await tokenResponse.json<{
@@ -110,14 +174,19 @@ authKakao.get('/callback', async (c) => {
     }>()
     
     // 2. 사용자 정보 요청
+    console.log('[KAKAO_CALLBACK] Requesting user info...')
     const userResponse = await fetch('https://kapi.kakao.com/v2/user/me', {
       headers: {
         'Authorization': `Bearer ${tokenData.access_token}`,
       },
     })
     
+    console.log('[KAKAO_CALLBACK] User info response status:', userResponse.status)
+    
     if (!userResponse.ok) {
-      throw new Error('Failed to get user info')
+      const errorText = await userResponse.text()
+      console.error('[KAKAO_CALLBACK] User info request failed:', errorText)
+      throw new Error(`Failed to get user info: ${userResponse.status} - ${errorText}`)
     }
     
     const kakaoUser = await userResponse.json<{
@@ -133,6 +202,10 @@ authKakao.get('/callback', async (c) => {
     
     const { DB } = c.env
     
+    console.log('[KAKAO_CALLBACK] Kakao user ID:', kakaoUser.id)
+    console.log('[KAKAO_CALLBACK] Kakao nickname:', kakaoUser.kakao_account.profile.nickname)
+    console.log('[KAKAO_CALLBACK] Kakao email:', kakaoUser.kakao_account.email || 'not provided')
+    
     // 3. 기존 사용자 확인
     const existingUser = await DB.prepare(`
       SELECT * FROM users 
@@ -145,6 +218,7 @@ authKakao.get('/callback', async (c) => {
     
     if (existingUser) {
       // 기존 사용자 - 로그인 처리
+      console.log('[KAKAO_CALLBACK] Existing user found, ID:', existingUser.id)
       userId = existingUser.id
       user = existingUser
       
@@ -163,7 +237,9 @@ authKakao.get('/callback', async (c) => {
       
     } else {
       // 신규 사용자 - 회원가입 처리
+      console.log('[KAKAO_CALLBACK] New user, creating account...')
       const email = kakaoUser.kakao_account.email || `kakao_${kakaoUser.id}@kakao.local`
+      console.log('[KAKAO_CALLBACK] Email for registration:', email)
       
       // 이메일 중복 체크
       const emailCheck = await DB.prepare(`
@@ -198,6 +274,7 @@ authKakao.get('/callback', async (c) => {
       ).run()
       
       userId = result.meta.last_row_id as number
+      console.log('[KAKAO_CALLBACK] New user created, ID:', userId)
       
       // 생성된 사용자 정보 조회
       const newUser = await DB.prepare(`
@@ -218,6 +295,7 @@ authKakao.get('/callback', async (c) => {
     `).bind(userId).run()
     
     // 5. 새 세션 생성
+    console.log('[KAKAO_CALLBACK] Creating session for user:', userId)
     const sessionToken = generateSessionToken()
     const expiresAt = addDays(new Date(), 7)
     
@@ -230,6 +308,8 @@ authKakao.get('/callback', async (c) => {
     // 6. 로그인 시간 업데이트는 생략 (컬럼 없음)
     
     // 7. HttpOnly 쿠키 설정 + 리다이렉트
+    console.log('[KAKAO_CALLBACK] Setting session cookie and redirecting...')
+    console.log('[KAKAO_CALLBACK] Login SUCCESS for user:', user.name)
     c.header('Set-Cookie', `session_token=${sessionToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${7 * 24 * 60 * 60}`)
     
     return c.html(`
@@ -248,7 +328,11 @@ authKakao.get('/callback', async (c) => {
     `)
     
   } catch (error) {
-    console.error('Kakao callback error:', error)
+    console.error('[KAKAO_CALLBACK] ===== ERROR OCCURRED =====')
+    console.error('[KAKAO_CALLBACK] Error type:', error?.constructor?.name)
+    console.error('[KAKAO_CALLBACK] Error message:', error?.message)
+    console.error('[KAKAO_CALLBACK] Full error:', error)
+    
     return c.html(`
       <html>
         <head>
