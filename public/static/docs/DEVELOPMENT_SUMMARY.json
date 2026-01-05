@@ -1,0 +1,324 @@
+{
+  "project": {
+    "name": "마인드스토리 원격평생교육원 LMS",
+    "version": "2.4.0",
+    "release_date": "2025-12-29",
+    "description": "관리자 모드/수강생 모드 전환 기능",
+    "url": {
+      "sandbox": "https://3000-ieu1ambselnpjf2cme9se-c81df28e.sandbox.novita.ai",
+      "local": "http://localhost:3000"
+    },
+    "accounts": {
+      "admin": {
+        "email": "parkjs@mindstory.co.kr",
+        "password": "Admin1234!",
+        "role": "admin",
+        "name": "박종석 대표"
+      },
+      "student1": {
+        "email": "student1@example.com",
+        "password": "test123",
+        "role": "student"
+      },
+      "student2": {
+        "email": "student2@example.com",
+        "password": "test123",
+        "role": "student"
+      }
+    }
+  },
+  "latest_update": {
+    "version": "2.4.0",
+    "date": "2025-12-29",
+    "features": [
+      {
+        "title": "관리자 모드/수강생 모드 전환 기능",
+        "description": "관리자가 클릭 한 번으로 관리자 화면과 수강생 화면을 자유롭게 전환",
+        "components": [
+          "수강생 화면: 헤더에 '관리자 모드' 버튼 (관리자만 보임)",
+          "관리자 화면: 헤더에 '수강생 모드' 버튼 (초록색)",
+          "클릭 시 자동 페이지 전환"
+        ],
+        "use_cases": [
+          "수강생 화면 테스트",
+          "과정 신청 프로세스 체험",
+          "문제 발생 시 빠른 전환",
+          "관리/학습 모드 빠른 전환"
+        ]
+      },
+      {
+        "title": "로그인 후 역할 기반 리디렉트",
+        "description": "사용자 역할에 따라 자동으로 적절한 페이지로 이동",
+        "details": [
+          "관리자: /admin/dashboard로 이동",
+          "일반 사용자: /my-courses로 이동",
+          "redirect 파라미터 우선 (있을 경우)"
+        ]
+      },
+      {
+        "title": "관리자 헤더 링크 표시 문제 해결",
+        "description": "로그인 후 관리자 링크가 보이지 않던 문제 완전 해결",
+        "fixed_issues": [
+          "401 인증 오류 수정 (Authorization 헤더 추가)",
+          "requireAuth() 오류 → AuthManager.isLoggedIn() 사용",
+          "updateHeader() 중복 호출 제거",
+          "JS 캐시 무효화 (버전 쿼리 파라미터 추가)"
+        ]
+      },
+      {
+        "title": "버그 수정",
+        "fixed_bugs": [
+          "/admin 경로 404 오류 → /admin/dashboard로 리디렉트",
+          "내 강의실 API 호출 시 Authorization 헤더 추가",
+          "my-courses 페이지 requireAuth 오류 수정"
+        ]
+      }
+    ]
+  },
+  "completed_features": {
+    "authentication": [
+      "이메일 로그인/회원가입",
+      "Google OAuth 2.0 로그인",
+      "카카오 OAuth 2.0 로그인",
+      "전화번호 로그인 (SMS 인증 구조)",
+      "세션 관리 (세션 토큰 기반)",
+      "프로필 관리 (이름/전화번호/생년월일)",
+      "비밀번호 변경 (이메일 가입자 전용)",
+      "회원 탈퇴 (소프트 삭제, 30일 보관)"
+    ],
+    "courses": [
+      "과정 목록 조회 (공개/비공개)",
+      "과정 상세 페이지",
+      "추천 과정 표시",
+      "무료/유료 구분",
+      "차시별 학습 콘텐츠"
+    ],
+    "enrollment": [
+      "수강 신청 (무료 즉시, 유료 결제 후)",
+      "내 강의실 (수강 중인 과정 목록)",
+      "진도율 추적 (자동 저장)",
+      "80% 수료 기준",
+      "수료 처리"
+    ],
+    "payment": [
+      "Toss Payments 결제 연동",
+      "결제 위젯 UI",
+      "결제 승인 API",
+      "환불 규정 자동 계산",
+      "결제 내역 조회",
+      "영수증 발급"
+    ],
+    "certificates": [
+      "수료증 자동 발급",
+      "수료증 번호 생성 (MS-2025-XXXX)",
+      "수료증 조회/재발급"
+    ],
+    "admin": [
+      "관리자 대시보드 (통계)",
+      "회원 관리 (목록/검색/상세)",
+      "결제 관리 (내역/통계)",
+      "수강 관리 (진도율 표시)",
+      "강좌 관리 (CRUD API)",
+      "팝업 공지사항 관리"
+    ],
+    "ui_ux": [
+      "반응형 디자인 (Tailwind CSS)",
+      "모바일 최적화",
+      "토스트 알림",
+      "로딩 인디케이터",
+      "관리자 모드/수강생 모드 전환 버튼"
+    ]
+  },
+  "technology_stack": {
+    "framework": "Hono (Cloudflare Workers)",
+    "deployment": "Cloudflare Pages",
+    "database": "Cloudflare D1 (SQLite)",
+    "language": "TypeScript",
+    "styling": "Tailwind CSS",
+    "icons": "Font Awesome",
+    "http_client": "Axios"
+  },
+  "database_schema": {
+    "tables": [
+      "users (회원 정보, deleted_at 포함)",
+      "courses (과정 정보)",
+      "lessons (차시 정보)",
+      "enrollments (수강 신청 정보)",
+      "lesson_progress (차시별 학습 진도)",
+      "payments (결제 정보)",
+      "certificates (수료증 정보)",
+      "user_sessions (세션 관리)",
+      "admin_logs (관리자 로그)",
+      "popups (팝업 공지사항)",
+      "certifications (민간자격 정보)"
+    ]
+  },
+  "api_endpoints": {
+    "auth": [
+      "POST /api/auth/register - 회원가입",
+      "POST /api/auth/login - 로그인",
+      "POST /api/auth/logout - 로그아웃",
+      "GET /api/auth/me - 내 정보 조회",
+      "PUT /api/auth/profile - 프로필 수정",
+      "POST /api/auth/change-password - 비밀번호 변경",
+      "GET /api/auth/check-withdrawal - 탈퇴 가능 여부 확인",
+      "POST /api/auth/withdrawal - 회원 탈퇴",
+      "GET /api/auth/google/login - Google 로그인",
+      "GET /api/auth/kakao/login - 카카오 로그인"
+    ],
+    "courses": [
+      "GET /api/courses - 과정 목록",
+      "GET /api/courses/featured - 추천 과정",
+      "GET /api/courses/:id - 과정 상세",
+      "POST /api/courses - 과정 생성 (관리자)"
+    ],
+    "enrollments": [
+      "GET /api/enrollments/my - 내 수강 목록",
+      "POST /api/enrollments - 수강 신청",
+      "POST /api/enrollments/:id/progress - 진도 저장",
+      "POST /api/enrollments/:id/complete - 수강 완료"
+    ],
+    "payments": [
+      "GET /api/payments/my - 내 결제 내역",
+      "POST /api/payments - 결제 생성",
+      "POST /api/payments/:id/refund - 환불 (관리자)"
+    ],
+    "certificates": [
+      "GET /api/certificates/my - 내 수료증 목록",
+      "POST /api/certificates - 수료증 발급",
+      "GET /api/certificates/:id - 수료증 조회"
+    ],
+    "admin": [
+      "GET /api/admin/dashboard - 대시보드 통계",
+      "GET /api/admin/users - 회원 관리",
+      "GET /api/admin/enrollments - 수강 관리",
+      "GET /api/admin/payments - 결제 관리"
+    ],
+    "popups": [
+      "GET /api/popups/active - 활성 팝업 목록",
+      "POST /api/popups/:id/close - 팝업 닫기",
+      "POST /api/popups - 팝업 생성 (관리자)",
+      "PUT /api/popups/:id - 팝업 수정 (관리자)",
+      "DELETE /api/popups/:id - 팝업 삭제 (관리자)"
+    ]
+  },
+  "git_commits_today": [
+    {
+      "hash": "6cdbef0",
+      "message": "docs: README 업데이트 - Ver.2.4.0 관리자 모드/수강생 모드 전환 기능 추가"
+    },
+    {
+      "hash": "cb8d8ca",
+      "message": "feat: 관리자 모드/수강생 모드 전환 기능 추가 - 헤더에 전환 버튼 추가"
+    },
+    {
+      "hash": "14af1b6",
+      "message": "feat: 로그인 후 사용자 역할에 따른 리디렉트 - 관리자는 대시보드, 일반 사용자는 내 강의실"
+    },
+    {
+      "hash": "a8e7f95",
+      "message": "fix: /admin 경로 404 오류 해결 - /admin/dashboard로 리디렉트 추가"
+    },
+    {
+      "hash": "a48681d",
+      "message": "fix: 내 강의실 API 호출 시 Authorization 헤더 추가 - 401 오류 해결"
+    },
+    {
+      "hash": "420769a",
+      "message": "fix: 디버그 로그 제거 및 캐시 버스팅 버전 업데이트 (v=2025122913)"
+    },
+    {
+      "hash": "5334bfa",
+      "message": "fix: 캐시 버스팅 타임스탬프 업데이트 (v=20251229122947) - 브라우저 캐시 강제 갱신"
+    },
+    {
+      "hash": "8f0f622",
+      "message": "fix: my-courses 페이지 requireAuth 오류 수정 - AuthManager.isLoggedIn() 사용"
+    },
+    {
+      "hash": "e387f2e",
+      "message": "fix: JS 파일 캐시 무효화를 위한 버전 쿼리 파라미터 추가 (v=20251229)"
+    },
+    {
+      "hash": "700de70",
+      "message": "debug: 메인 페이지 localStorage 및 updateHeader 디버그 로그 추가"
+    },
+    {
+      "hash": "fe39f4d",
+      "message": "fix: 메인 페이지(/) 헤더에 관리자 링크 추가"
+    },
+    {
+      "hash": "3dd292a",
+      "message": "fix: 관리자 헤더 링크 표시 로직 개선 - updateHeader() 중복 제거"
+    }
+  ],
+  "backup_links": {
+    "latest": {
+      "version": "2.2",
+      "url": "https://www.genspark.ai/api/files/s/LTrFpOHN",
+      "filename": "mindstory-lms-v2.2-withdrawal-system.tar.gz",
+      "size": "506KB",
+      "description": "회원 탈퇴, 내 정보 페이지, 비밀번호 변경, 카카오 로그인"
+    },
+    "previous": {
+      "version": "1.4.0",
+      "url": "https://www.genspark.ai/api/files/s/djuYjQvn",
+      "filename": "mindstory-lms-v1.4.0-with-toss-payments.tar.gz",
+      "size": "262KB",
+      "description": "Toss Payments 결제 연동"
+    }
+  },
+  "next_steps": [
+    {
+      "category": "즉시 필요",
+      "items": [
+        "사업자등록번호 확인",
+        "정산 계좌 정보 확인",
+        "수료증 직인/서명 이미지 제공"
+      ]
+    },
+    {
+      "category": "외부 서비스 가입 (1-2주)",
+      "items": [
+        "토스페이먼츠 (결제)",
+        "Kollus/VideoCloud (영상 호스팅)",
+        "Pass/NICE (본인인증)"
+      ]
+    },
+    {
+      "category": "연동 및 테스트 (1주)",
+      "items": [
+        "API 연동",
+        "모바일 E2E 테스트",
+        "보안 점검"
+      ]
+    },
+    {
+      "category": "정식 오픈",
+      "items": [
+        "운영 도메인 연결",
+        "최종 확인",
+        "런칭"
+      ]
+    }
+  ],
+  "contact": {
+    "email": "sanj2100@naver.com",
+    "phone": "062-959-9535",
+    "website": "https://www.mindstorys.com"
+  },
+  "documentation": {
+    "operator": [
+      "docs/WITHDRAWAL_FEATURE.md - 회원 탈퇴 가이드",
+      "docs/FINAL_REPORT.md - 최종 보고서",
+      "docs/COMPREHENSIVE_CHECKLIST.md - 종합 체크리스트",
+      "docs/PAYMENT_INTEGRATION.md - 결제 연동 가이드",
+      "docs/VIDEO_HOSTING_INTEGRATION.md - 영상 호스팅 연동"
+    ],
+    "developer": [
+      "README.md - 프로젝트 개요",
+      "API 문서 - 각 route 파일 주석",
+      "migrations/ - 데이터베이스 스키마"
+    ]
+  }
+}

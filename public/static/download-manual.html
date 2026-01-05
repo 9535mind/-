@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>카카오 로그인 매뉴얼 다운로드</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+            text-align: center;
+        }
+        
+        .subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .download-section {
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .download-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .download-desc {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 15px;
+            line-height: 1.6;
+        }
+        
+        .download-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: #667eea;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .download-btn:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .icon {
+            font-size: 20px;
+        }
+        
+        .info-box {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        
+        .info-box strong {
+            color: #1976d2;
+        }
+        
+        .info-box p {
+            margin: 8px 0;
+            color: #555;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+            color: #999;
+            font-size: 12px;
+        }
+        
+        @media (max-width: 600px) {
+            .container {
+                padding: 30px 20px;
+            }
+            
+            h1 {
+                font-size: 24px;
+            }
+            
+            .download-section {
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 카카오 로그인 매뉴얼</h1>
+        <p class="subtitle">완벽한 설정 가이드를 다운로드하세요</p>
+        
+        <div class="download-section">
+            <div class="download-title">
+                <span class="icon">📖</span>
+                상세 설정 매뉴얼
+            </div>
+            <div class="download-desc">
+                문제 원인 분석부터 단계별 해결 방법, 재발 방지 시스템까지 모든 것을 담은 완전한 가이드입니다. (약 8,500자)
+            </div>
+            <a href="/static/docs/KAKAO_LOGIN_MANUAL.md" download="카카오로그인_상세매뉴얼.md" class="download-btn">
+                <span>⬇️</span>
+                상세 매뉴얼 다운로드
+            </a>
+        </div>
+        
+        <div class="download-section">
+            <div class="download-title">
+                <span class="icon">📋</span>
+                빠른 참조 가이드
+            </div>
+            <div class="download-desc">
+                핵심 체크리스트와 빠른 해결 방법만 담은 간단한 치트시트입니다. 급할 때 유용합니다.
+            </div>
+            <a href="/static/docs/KAKAO_QUICK_REFERENCE.md" download="카카오로그인_빠른참조.md" class="download-btn">
+                <span>⬇️</span>
+                빠른 참조 다운로드
+            </a>
+        </div>
+        
+        <div class="info-box">
+            <strong>📌 핵심 요약</strong>
+            <p>서버는 100% 완벽합니다. 카카오 개발자 콘솔에서 4가지만 설정하면 5분 안에 해결됩니다:</p>
+            <p>1️⃣ Redirect URI 등록 (2분)<br>
+            2️⃣ Web 플랫폼 도메인 등록 (1분 30초)<br>
+            3️⃣ 카카오 로그인 활성화 (30초)<br>
+            4️⃣ 테스트 사용자 등록 (1분, 개발 중인 경우만)</p>
+        </div>
+        
+        <div class="info-box" style="background: #fff3cd; border-left-color: #ffc107;">
+            <strong style="color: #856404;">💡 다운로드 후 이렇게 보세요</strong>
+            <p>• Windows: 메모장, VS Code, Notepad++ 등<br>
+            • Mac: TextEdit, VS Code 등<br>
+            • 온라인: GitHub Gist, HackMD 등에 업로드</p>
+        </div>
+        
+        <div class="footer">
+            작성일: 2026-01-05 | 버전: 1.0<br>
+            Mind스토리 LMS 카카오 로그인 설정 가이드
+        </div>
+    </div>
+    
+    <script>
+        // 다운로드 버튼 클릭 시 안내
+        document.querySelectorAll('.download-btn').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                // 브라우저가 다운로드를 처리하도록 함
+                setTimeout(() => {
+                    console.log('다운로드가 시작되었습니다.');
+                }, 100);
+            });
+        });
+    </script>
+</body>
+</html>
