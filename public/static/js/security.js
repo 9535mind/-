@@ -163,10 +163,14 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // ========================================
-// 7. 콘솔 경고 메시지 (프로덕션 환경)
+// 7. 콘솔 경고 메시지 (개발 환경에서만)
 // ========================================
 // 개발자 도구 감지 시에만 경고 표시
-if (typeof window !== 'undefined' && !window.location.hostname.includes('localhost')) {
+const isDevelopment = window.location.hostname === 'localhost' || 
+                      window.location.hostname.includes('sandbox') ||
+                      window.location.hostname.includes('127.0.0.1');
+
+if (typeof window !== 'undefined' && isDevelopment) {
   console.log(
     '%c⚠️ 경고!',
     'color: red; font-size: 40px; font-weight: bold;'
@@ -220,29 +224,21 @@ function showSecurityAlert(message) {
 
 /**
  * 보안 이벤트 로깅
+ * 현재는 로컬 콘솔 로그만 사용 (서버 API 비활성화)
  */
 function logSecurityEvent(eventType) {
   try {
-    const token = localStorage.getItem('session_token');
-    if (!token) return;
-    
-    // 서버로 로그 전송 (선택사항)
-    fetch('/api/security/log', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        event_type: eventType,
+    // 개발 환경에서만 콘솔 로그 출력
+    if (window.location.hostname === 'localhost' || window.location.hostname.includes('sandbox')) {
+      console.debug(`[SECURITY] ${eventType}`, {
         timestamp: new Date().toISOString(),
-        page: window.location.pathname,
-        user_agent: navigator.userAgent
-      })
-    }).catch(err => {
-      // 로그 전송 실패는 무시 (사용자 경험에 영향 없음)
-      console.debug('Security log failed:', err);
-    });
+        page: window.location.pathname
+      });
+    }
+    
+    // 서버 로그 API는 현재 비활성화
+    // 필요 시 백엔드 구현 후 활성화
+    // fetch('/api/security/log', { ... })
   } catch (err) {
     // 에러 무시
   }
@@ -294,4 +290,7 @@ window.addEventListener('beforeunload', () => {
   }
 });
 
-console.log('✅ 보안 모듈 로드 완료');
+// 개발 환경에서만 로드 완료 로그 출력
+if (isDevelopment) {
+  console.log('✅ 보안 모듈 로드 완료');
+}

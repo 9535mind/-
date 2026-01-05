@@ -2,6 +2,25 @@
  * 관리자 강좌 관리 JavaScript
  */
 
+// 개발 환경 확인
+const isDevelopment = window.location.hostname === 'localhost' || 
+                      window.location.hostname.includes('sandbox') ||
+                      window.location.hostname.includes('127.0.0.1');
+
+// DEBUG 로그 헬퍼 함수 (개발 환경에서만 출력)
+function DEBUG(...args) {
+  if (isDevelopment) {
+    console.log('[DEBUG]', ...args);
+  }
+}
+
+// DEBUG 에러 로그
+DEBUG.error = function(...args) {
+  if (isDevelopment) {
+    console.error('[DEBUG]', ...args);
+  }
+};
+
 let allCourses = [];
 let currentImageTab = 'video';  // 현재 선택된 탭 ('video', 'url', 'upload')
 
@@ -118,8 +137,8 @@ async function uploadImage() {
 
 // 실제 이미지 업로드 로직
 async function uploadImageFile(file) {
-  console.log('[DEBUG] 이미지 업로드 시작');
-  console.log('[DEBUG] 파일:', file.name, file.size, file.type);
+  DEBUG(' 이미지 업로드 시작');
+  DEBUG(' 파일:', file.name, file.size, file.type);
   
   // 파일 크기 체크 (5MB)
   const maxSize = 5 * 1024 * 1024;
@@ -137,7 +156,7 @@ async function uploadImageFile(file) {
     formData.append('file', file);
     
     const token = AuthManager.getSessionToken();
-    console.log('[DEBUG] 토큰:', token ? '있음' : '없음');
+    DEBUG(' 토큰:', token ? '있음' : '없음');
     
     // 진행률 시뮬레이션
     let progress = 0;
@@ -163,18 +182,18 @@ async function uploadImageFile(file) {
     progressBar.style.width = '100%';
     progressPercent.textContent = '100';
     
-    console.log('[DEBUG] 응답 상태:', response.status);
+    DEBUG(' 응답 상태:', response.status);
     
     const result = await response.json();
-    console.log('[DEBUG] 응답 결과:', result);
+    DEBUG(' 응답 결과:', result);
     
     if (result.success) {
       // 업로드 성공 - URL을 courseThumbnail 필드에 설정
       const imageUrl = result.data.url;
-      console.log('[DEBUG] 이미지 URL:', imageUrl);
+      DEBUG(' 이미지 URL:', imageUrl);
       
       document.getElementById('courseThumbnail').value = imageUrl;
-      console.log('[DEBUG] courseThumbnail 필드 값:', document.getElementById('courseThumbnail').value);
+      DEBUG(' courseThumbnail 필드 값:', document.getElementById('courseThumbnail').value);
       
       // 미리보기 표시
       showThumbnailPreview(imageUrl);
@@ -189,11 +208,11 @@ async function uploadImageFile(file) {
         alert('✅ 이미지가 업로드되었습니다!\n\n💡 저장 버튼을 클릭하여 강좌를 저장해주세요.');
       }, 500);
     } else {
-      console.error('[DEBUG] 업로드 실패:', result.error);
+      DEBUG.error(' 업로드 실패:', result.error);
       alert('❌ ' + (result.error || '이미지 업로드에 실패했습니다.'));
     }
   } catch (error) {
-    console.error('[DEBUG] Upload error:', error);
+    DEBUG.error(' Upload error:', error);
     alert('❌ 이미지 업로드에 실패했습니다:\n' + error.message);
   } finally {
     // 진행 바 숨기기
@@ -305,8 +324,8 @@ async function loadCourses() {
 
 // 강좌 목록 렌더링
 function renderCourses(courses) {
-  console.log('[DEBUG] renderCourses 호출됨, 강좌 수:', courses?.length);
-  console.log('[DEBUG] 첫 번째 강좌:', courses?.[0]);
+  DEBUG(' renderCourses 호출됨, 강좌 수:', courses?.length);
+  DEBUG(' 첫 번째 강좌:', courses?.[0]);
   
   const tbody = document.getElementById('courseList');
   
@@ -323,7 +342,7 @@ function renderCourses(courses) {
   }
 
   tbody.innerHTML = courses.map(course => {
-    console.log('[DEBUG] 강좌 렌더링:', course.id, course.title);
+    DEBUG(' 강좌 렌더링:', course.id, course.title);
     
     // ✅ 가격 표시 개선
     let price;
@@ -461,8 +480,8 @@ async function editCourse(courseId) {
       // API 응답 구조: response.data.course (not response.data directly)
       const course = response.data.course || response.data;
       
-      console.log('[DEBUG] editCourse - course:', course);
-      console.log('[DEBUG] editCourse - course.title:', course.title);
+      DEBUG(' editCourse - course:', course);
+      DEBUG(' editCourse - course.title:', course.title);
       
       document.getElementById('modalTitle').textContent = `강좌 수정: ${course.title}`;
       document.getElementById('courseId').value = course.id;
@@ -515,9 +534,9 @@ async function handleSubmit(e) {
   const courseId = document.getElementById('courseId').value;
   const thumbnailUrl = document.getElementById('courseThumbnail').value;
   
-  console.log('[DEBUG] 강좌 저장 시작');
-  console.log('[DEBUG] courseId:', courseId);
-  console.log('[DEBUG] thumbnail_url:', thumbnailUrl);
+  DEBUG(' 강좌 저장 시작');
+  DEBUG(' courseId:', courseId);
+  DEBUG(' thumbnail_url:', thumbnailUrl);
   
   const formData = {
     title: document.getElementById('courseTitle').value,
@@ -532,32 +551,32 @@ async function handleSubmit(e) {
     status: document.getElementById('courseStatus').value
   };
   
-  console.log('[DEBUG] formData:', formData);
+  DEBUG(' formData:', formData);
 
   try {
     let response;
     if (courseId) {
       // 수정
-      console.log('[DEBUG] 강좌 수정 API 호출');
+      DEBUG(' 강좌 수정 API 호출');
       response = await apiRequest('PUT', `/api/admin/courses/${courseId}`, formData);
     } else {
       // 등록
-      console.log('[DEBUG] 강좌 등록 API 호출');
+      DEBUG(' 강좌 등록 API 호출');
       response = await apiRequest('POST', '/api/admin/courses', formData);
     }
     
-    console.log('[DEBUG] API 응답:', response);
+    DEBUG(' API 응답:', response);
 
     if (response.success) {
       alert(courseId ? '강좌가 수정되었습니다.' : '강좌가 등록되었습니다.');
       closeCourseModal();
       await loadCourses();
     } else {
-      console.error('[DEBUG] 저장 실패:', response.error);
+      DEBUG.error(' 저장 실패:', response.error);
       showError(response.error || '저장에 실패했습니다.');
     }
   } catch (error) {
-    console.error('[DEBUG] Save course error:', error);
+    DEBUG.error(' Save course error:', error);
     showError('저장에 실패했습니다: ' + error.message);
   }
 }
@@ -744,7 +763,7 @@ function goToLessonManagement() {
 let expandedCourses = {}; // 펼쳐진 강좌 ID 추적
 
 async function toggleCourseDetails(courseId, event) {
-  console.log('[DEBUG] toggleCourseDetails 호출됨, courseId:', courseId, 'type:', typeof courseId);
+  DEBUG(' toggleCourseDetails 호출됨, courseId:', courseId, 'type:', typeof courseId);
   event.preventDefault();
   event.stopPropagation();
   
@@ -778,12 +797,12 @@ async function toggleCourseDetails(courseId, event) {
  * 특정 강좌의 차시 목록 로드
  */
 async function loadCourseLessons(courseId) {
-  console.log('[DEBUG] loadCourseLessons 호출됨, courseId:', courseId);
+  DEBUG(' loadCourseLessons 호출됨, courseId:', courseId);
   const previewContainer = document.getElementById(`lesson-preview-${courseId}`);
-  console.log('[DEBUG] previewContainer:', previewContainer);
+  DEBUG(' previewContainer:', previewContainer);
   
   try {
-    console.log('[DEBUG] API 요청:', `/api/courses/${courseId}/lessons`);
+    DEBUG(' API 요청:', `/api/courses/${courseId}/lessons`);
     const response = await apiRequest('GET', `/api/courses/${courseId}/lessons`);
     
     if (response.success && response.data) {
