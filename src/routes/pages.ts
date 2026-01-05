@@ -226,6 +226,26 @@ pages.get('/login', (c) => {
                         로그인
                     </button>
                     
+                    <!-- 소셜 로그인 구분선 -->
+                    <div class="relative my-6">
+                        <div class="absolute inset-0 flex items-center">
+                            <div class="w-full border-t border-gray-300"></div>
+                        </div>
+                        <div class="relative flex justify-center text-sm">
+                            <span class="px-2 bg-white text-gray-500">간편 로그인</span>
+                        </div>
+                    </div>
+                    
+                    <!-- 카카오 로그인 버튼 -->
+                    <button type="button" onclick="loginWithKakao()"
+                        class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-base font-semibold rounded-lg text-gray-900 hover:text-black transition-all"
+                        style="background-color: #FEE500;">
+                        <svg class="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 3C6.48 3 2 6.58 2 11c0 2.89 1.86 5.44 4.67 7.08l-1.14 4.23c-.1.36.26.66.59.48l5.31-2.88c.51.07 1.03.11 1.57.11 5.52 0 10-3.58 10-8S17.52 3 12 3z"/>
+                        </svg>
+                        카카오로 시작하기
+                    </button>
+                    
                     <a href="/register"
                         class="group relative w-full flex justify-center py-3 px-4 border-2 border-indigo-600 text-base font-semibold rounded-lg text-indigo-600 bg-white hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all">
                         <i class="fas fa-user-plus mr-2"></i>
@@ -385,9 +405,19 @@ pages.get('/register', (c) => {
                     </button>
                 </div>
                 
-                <!-- 소셜 로그인 (Google만) -->
+                <!-- 소셜 로그인 -->
                 <div class="space-y-3">
                     <div class="text-center text-sm text-gray-500 mb-2">또는 소셜 계정으로</div>
+                    
+                    <!-- 카카오로 계속하기 -->
+                    <button type="button" onclick="loginWithKakao()" 
+                        class="w-full flex items-center justify-center gap-3 px-6 py-4 border-2 border-transparent rounded-lg hover:opacity-90 transition-all shadow-md"
+                        style="background-color: #FEE500;">
+                        <svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 3C6.48 3 2 6.58 2 11c0 2.89 1.86 5.44 4.67 7.08l-1.14 4.23c-.1.36.26.66.59.48l5.31-2.88c.51.07 1.03.11 1.57.11 5.52 0 10-3.58 10-8S17.52 3 12 3z"/>
+                        </svg>
+                        <span class="text-lg font-semibold text-gray-900">카카오로 1초 만에 시작하기</span>
+                    </button>
                     
                     <!-- 구글로 계속하기 ✅ -->
                     <button onclick="registerWithGoogle()" 
@@ -410,6 +440,7 @@ pages.get('/register', (c) => {
                             <p class="font-semibold mb-2">💡 가입 방법</p>
                             <ul class="space-y-1 ml-4 list-disc">
                                 <li><strong>이메일 회원가입</strong>: 가장 안전하고 확실한 방법 ✅</li>
+                                <li><strong>카카오 로그인</strong>: 1초 만에 간편 가입 ✅</li>
                                 <li><strong>Google 로그인</strong>: 1초 만에 간편 가입 ✅</li>
                             </ul>
                         </div>

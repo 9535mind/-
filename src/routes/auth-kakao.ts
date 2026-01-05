@@ -105,7 +105,9 @@ authKakao.get('/callback', async (c) => {
     
     // 3. 기존 사용자 확인
     const existingUser = await DB.prepare(`
-      SELECT * FROM users WHERE social_provider = 'kakao' AND social_id = ?
+      SELECT * FROM users 
+      WHERE social_provider = 'kakao' AND social_id = ?
+      AND deleted_at IS NULL
     `).bind(kakaoUser.id.toString()).first<User>()
     
     let userId: number
@@ -121,7 +123,6 @@ authKakao.get('/callback', async (c) => {
         UPDATE users 
         SET name = ?,
             profile_image_url = ?,
-            last_login_at = datetime('now'),
             updated_at = datetime('now')
         WHERE id = ?
       `).bind(
@@ -156,9 +157,9 @@ authKakao.get('/callback', async (c) => {
       // 신규 회원 가입
       const result = await DB.prepare(`
         INSERT INTO users (
-          email, name, social_provider, social_id, profile_image_url,
-          role, status, terms_agreed, privacy_agreed, marketing_agreed
-        ) VALUES (?, ?, 'kakao', ?, ?, 'student', 'active', 1, 1, 0)
+          email, password_hash, name, social_provider, social_id, 
+          profile_image_url, role
+        ) VALUES (?, '', ?, 'kakao', ?, ?, 'student')
       `).bind(
         email,
         kakaoUser.kakao_account.profile.nickname,
@@ -180,11 +181,10 @@ authKakao.get('/callback', async (c) => {
       user = newUser
     }
     
-    // 4. 기존 활성 세션 비활성화
+    // 4. 기존 세션 삭제 (만료된 세션 정리)
     await DB.prepare(`
-      UPDATE user_sessions 
-      SET is_active = 0 
-      WHERE user_id = ? AND is_active = 1
+      DELETE FROM sessions 
+      WHERE user_id = ? AND expires_at < datetime('now')
     `).bind(userId).run()
     
     // 5. 새 세션 생성
@@ -192,19 +192,16 @@ authKakao.get('/callback', async (c) => {
     const expiresAt = addDays(new Date(), 7)
     
     await DB.prepare(`
-      INSERT INTO user_sessions (
-        user_id, session_token, expires_at, is_active
-      ) VALUES (?, ?, ?, 1)
+      INSERT INTO sessions (
+        user_id, session_token, expires_at
+      ) VALUES (?, ?, ?)
     `).bind(userId, sessionToken, expiresAt.toISOString()).run()
     
-    // 6. 로그인 시간 업데이트
-    await DB.prepare(`
-      UPDATE users 
-      SET last_login_at = datetime('now')
-      WHERE id = ?
-    `).bind(userId).run()
+    // 6. 로그인 시간 업데이트는 생략 (컬럼 없음)
     
-    // 7. 메인 페이지로 리다이렉트 (세션 토큰 포함)
+    // 7. HttpOnly 쿠키 설정 + 리다이렉트
+    c.header('Set-Cookie', `session_token=${sessionToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${7 * 24 * 60 * 60}`)
+    
     return c.html(`
       <html>
         <head>
@@ -212,9 +209,6 @@ authKakao.get('/callback', async (c) => {
         </head>
         <body>
           <script>
-            // 세션 토큰 저장
-            localStorage.setItem('session_token', '${sessionToken}');
-            
             // 메인 페이지로 이동
             alert('카카오 로그인 성공! 환영합니다, ${user.name}님!');
             window.location.href = '/';
