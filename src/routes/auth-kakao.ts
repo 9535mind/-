@@ -310,15 +310,35 @@ authKakao.get('/callback', async (c) => {
     // 7. HttpOnly 쿠키 설정 + 리다이렉트
     console.log('[KAKAO_CALLBACK] Setting session cookie and redirecting...')
     console.log('[KAKAO_CALLBACK] Login SUCCESS for user:', user.name)
-    c.header('Set-Cookie', `session_token=${sessionToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${7 * 24 * 60 * 60}`)
+    
+    // HTTPS 환경에서 Secure 플래그 필수!
+    // Sandbox 환경은 항상 HTTPS이므로 강제 설정
+    const isSecure = true  // Cloudflare/Sandbox는 항상 HTTPS
+    const secureCookie = isSecure ? '; Secure' : ''
+    
+    console.log('[KAKAO_CALLBACK] Cookie will be Secure:', isSecure)
+    
+    c.header('Set-Cookie', `session_token=${sessionToken}; Path=/; HttpOnly; SameSite=Lax${secureCookie}; Max-Age=${7 * 24 * 60 * 60}`)
+    console.log('[KAKAO_CALLBACK] Cookie header set successfully')
     
     return c.html(`
       <html>
         <head>
           <title>로그인 중...</title>
+          <meta charset="UTF-8">
         </head>
         <body>
           <script>
+            // localStorage에 세션 정보 저장 (클라이언트 호환성)
+            localStorage.setItem('session_token', '${sessionToken}');
+            localStorage.setItem('user', JSON.stringify({
+              id: ${user.id},
+              email: '${user.email}',
+              name: '${user.name}',
+              role: '${user.role}',
+              profile_image_url: ${user.profile_image_url ? `'${user.profile_image_url}'` : 'null'}
+            }));
+            
             // 메인 페이지로 이동
             alert('카카오 로그인 성공! 환영합니다, ${user.name}님!');
             window.location.href = '/';

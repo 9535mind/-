@@ -15,7 +15,7 @@ import authKakao from './routes/auth-kakao'
 import authGoogle from './routes/auth-google'
 import courses from './routes/courses'
 import enrollments from './routes/enrollments'
-// Removed: payments (Phase 2 cleanup)
+import payments from './routes/payments'  // 결제 API
 import certificates from './routes/certificates'  // Phase 4: 수료증 시스템
 import admin from './routes/admin'
 import landing from './routes/landing'  // 신규 랜딩 페이지
@@ -23,6 +23,7 @@ import pages from './routes/pages'
 import pagesMy from './routes/pages-my'
 import pagesAbout from './routes/pages-about'
 import pagesAdmin from './routes/pages-admin'
+import pagesPayment from './routes/pages-payment'  // 결제 페이지
 // Removed: popups (Phase 2 cleanup)
 import videos from './routes/videos'
 import progress from './routes/progress'
@@ -37,6 +38,7 @@ import pagesLearn from './routes/pages-learn'
 import analytics from './routes/analytics'
 import pagesAnalytics from './routes/pages-analytics'
 import pagesCourseDetail from './routes/pages-course-detail'
+import pagesEnrollment from './routes/pages-enrollment'  // 수강신청 페이지
 import youtubeProxy from './routes/youtube-proxy'
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -63,8 +65,8 @@ app.route('/api/auth/google', authGoogle)  // 구글 소셜 로그인
 app.route('/api/courses', courses)
 app.route('/api/courses', reviews)  // 수강평/별점 API (courses/:id/reviews)
 app.route('/api/enrollments', enrollments)
+app.route('/api/payments-v2', payments)  // 결제 API
 app.route('/api', certificates)  // 수료증 API (courses/:id/certificate, my/certificates, certificates/:number)
-// Removed payment routes (Phase 2 cleanup)
 app.route('/api/admin', admin)
 // Removed popups route
 app.route('/api/videos', videos)  // 영상 관리
@@ -83,7 +85,8 @@ app.route('/', landing)  // 신규 랜딩 페이지 (Phase 3)
 app.route('/', pages)
 app.route('/', pagesMy)
 app.route('/', pagesAbout)
-// Removed payment page
+app.route('/', pagesPayment)  // 결제 페이지 (/payment/checkout, /payment/success, /payment/fail)
+app.route('/', pagesEnrollment)  // 수강신청 페이지 (/enrollment)
 app.route('/', pagesStudent)  // 수강생 페이지
 app.route('/', pagesCourseDetail)  // 강좌 상세 페이지
 app.route('/', pagesLearn)    // 학습 페이지

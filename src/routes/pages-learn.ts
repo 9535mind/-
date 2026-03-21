@@ -28,12 +28,11 @@ app.get('/courses/:courseId/learn', async (c) => {
   try {
     const { DB } = c.env
     const session = await DB.prepare(`
-      SELECT us.*, u.id as user_id, u.name, u.email, u.role
-      FROM user_sessions us
-      JOIN users u ON us.user_id = u.id
-      WHERE us.session_token = ? 
-        AND us.is_active = 1
-        AND us.expires_at > datetime('now')
+      SELECT s.*, u.id as user_id, u.name, u.email, u.role
+      FROM sessions s
+      JOIN users u ON s.user_id = u.id
+      WHERE s.session_token = ? 
+        AND s.expires_at > datetime('now')
         AND u.deleted_at IS NULL
     `).bind(sessionToken).first()
     
@@ -41,13 +40,6 @@ app.get('/courses/:courseId/learn', async (c) => {
       // 세션이 유효하지 않으면 로그인 페이지로
       return c.redirect(`/login?redirect=${encodeURIComponent('/courses/' + courseId + '/learn')}`)
     }
-    
-    // 마지막 활동 시간 업데이트
-    await DB.prepare(`
-      UPDATE user_sessions 
-      SET last_activity_at = datetime('now') 
-      WHERE session_token = ?
-    `).bind(sessionToken).run()
     
   } catch (error) {
     console.error('Session validation error:', error)

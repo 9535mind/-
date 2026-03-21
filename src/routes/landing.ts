@@ -285,6 +285,10 @@ landing.get('/', (c) => {
                     <nav class="hidden md:flex space-x-8 items-center text-lg">
                         <a href="/" class="text-gray-700 hover:text-indigo-600 transition-colors duration-200 font-medium">홈</a>
                         <a href="#courses" class="text-gray-700 hover:text-indigo-600 transition-colors duration-200 font-medium">과정 안내</a>
+                        <a href="/enrollment" class="text-indigo-600 hover:text-indigo-700 transition-colors duration-200 font-bold">
+                            <i class="fas fa-graduation-cap mr-1"></i>
+                            수강신청
+                        </a>
                         <a href="/my-courses" class="text-gray-700 hover:text-indigo-600 transition-colors duration-200 font-medium">내 강의실</a>
                         
                         <!-- 관리자 모드 전환 버튼 -->
@@ -332,14 +336,14 @@ landing.get('/', (c) => {
                         전문가와 함께하는 온라인 평생교육
                     </p>
                     <div class="flex flex-col sm:flex-row justify-center gap-6">
-                        <button onclick="scrollToCourses()" class="cta-button text-xl px-10 py-4">
+                        <a href="/enrollment" class="cta-button text-xl px-10 py-4 inline-block text-center">
                             <i class="fas fa-graduation-cap mr-3"></i>
+                            수강신청 하기
+                        </a>
+                        <button onclick="scrollToCourses()" class="bg-white/20 backdrop-blur-sm text-white px-10 py-4 rounded-xl text-xl font-semibold hover:bg-white/30 transition-all duration-300">
+                            <i class="fas fa-book-open mr-2"></i>
                             과정 둘러보기
                         </button>
-                        <a href="/register" class="bg-white/20 backdrop-blur-sm text-white px-10 py-4 rounded-xl text-xl font-semibold hover:bg-white/30 transition-all duration-300 inline-block">
-                            <i class="fas fa-user-plus mr-2"></i>
-                            무료 회원가입
-                        </a>
                     </div>
                 </div>
             </div>

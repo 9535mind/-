@@ -98,8 +98,19 @@ courses.get('/:id', optionalAuth, async (c) => {
       `).bind(user.id, courseId).first()
     }
 
+    // 수강생 수 조회
+    const studentCountResult = await DB.prepare(`
+      SELECT COUNT(*) as count FROM enrollments 
+      WHERE course_id = ?
+    `).bind(courseId).first<{ count: number }>()
+    
+    const studentCount = studentCountResult?.count || 0
+
     return c.json(successResponse({
-      course,
+      course: {
+        ...course,
+        student_count: studentCount
+      },
       lessons: lessons.results,
       enrollment
     }))
@@ -487,7 +498,7 @@ courses.get('/:courseId/lessons/:lessonId', optionalAuth, async (c) => {
       try {
         enrollment = await DB.prepare(`
           SELECT * FROM enrollments 
-          WHERE user_id = ? AND course_id = ? AND status IN ('active', 'completed')
+          WHERE user_id = ? AND course_id = ?
         `).bind(user.id, courseId).first()
         
         // 🔐 수강 등록 확인: 무료 미리보기가 아니면 수강 등록 필수

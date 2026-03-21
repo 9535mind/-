@@ -293,7 +293,7 @@ pages.get('/login', (c) => {
                     if (response.data && response.data.success) {
                         console.log('✅ Server session valid, redirecting...')
                         const urlParams = new URLSearchParams(window.location.search)
-                        const redirect = urlParams.get('redirect') || '/my-courses'
+                        const redirect = urlParams.get('redirect') || '/'
                         window.location.href = redirect
                     } else {
                         console.warn('⚠️ Server session invalid, clearing local session')
@@ -639,7 +639,7 @@ pages.get('/register', (c) => {
     <script>
         // 이미 로그인된 경우 리다이렉트
         if (AuthManager.isLoggedIn()) {
-            window.location.href = '/my-courses'
+            window.location.href = '/'
         }
 
         // ===== 유효성 검사 함수 =====
@@ -1255,12 +1255,18 @@ pages.get('/courses/:id', async (c) => {
                 const courseResponse = await axios.get(\`/api/courses/\${courseId}\`)
                 const course = courseResponse.data.data
                 
-                if (course.is_free) {
-                    // 무료 과정: 바로 수강신청
+                // price로 무료/유료 판단 (price === 0이면 무료)
+                const isFree = course.price === 0
+                
+                if (isFree) {
+                    // 무료 과정: 수강신청 후 내 강의실로 이동
                     const token = AuthManager.getSessionToken()
                     const response = await axios.post('/api/enrollments', 
-                        { course_id: courseId },
-                        { headers: { 'Authorization': \`Bearer \${token}\` } }
+                        { courseId: courseId },
+                        { 
+                            headers: { 'Authorization': \`Bearer \${token}\` },
+                            withCredentials: true
+                        }
                     )
                     
                     if (response.data.success) {

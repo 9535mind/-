@@ -144,11 +144,11 @@ export async function getCurrentUser(c: Context) {
       u.social_provider, u.social_id, u.profile_image_url,
       u.deleted_at, u.deletion_reason,
       s.session_token, s.expires_at
-    FROM user_sessions s
+    FROM sessions s
     JOIN users u ON s.user_id = u.id
     WHERE s.session_token = ? 
-      AND s.is_active = 1 
       AND s.expires_at > datetime('now')
+      AND u.deleted_at IS NULL
   `).bind(sessionToken).first()
   
   if (!session) {

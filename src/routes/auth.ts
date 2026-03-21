@@ -161,19 +161,17 @@ auth.post('/login', async (c) => {
     const expiresAt = new Date()
     expiresAt.setDate(expiresAt.getDate() + 30)
 
-    // 이전 세션 비활성화
+    // 이전 세션 삭제 (만료된 세션 정리)
     await DB.prepare(`
-      UPDATE user_sessions 
-      SET is_active = 0 
-      WHERE user_id = ?
+      DELETE FROM sessions 
+      WHERE user_id = ? AND expires_at < datetime('now')
     `).bind(user.id).run()
 
     // 새 세션 저장
     await DB.prepare(`
-      INSERT INTO user_sessions (
-        user_id, session_token, is_active, expires_at, 
-        last_activity_at, created_at
-      ) VALUES (?, ?, 1, ?, datetime('now'), datetime('now'))
+      INSERT INTO sessions (
+        user_id, session_token, expires_at
+      ) VALUES (?, ?, ?)
     `).bind(user.id, sessionToken, expiresAt.toISOString()).run()
 
     // 비밀번호 제외한 사용자 정보 반환
@@ -215,10 +213,9 @@ auth.post('/logout', requireAuth, async (c) => {
 
     const { DB } = c.env
 
-    // 세션 비활성화
+    // 세션 삭제
     await DB.prepare(`
-      UPDATE user_sessions 
-      SET is_active = 0 
+      DELETE FROM sessions 
       WHERE session_token = ?
     `).bind(sessionToken).run()
 
