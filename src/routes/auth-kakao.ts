@@ -117,7 +117,7 @@ authKakao.get('/callback', async (c) => {
             <h3>필요한 설정:</h3>
             <p><strong>Redirect URI:</strong><br>
             <code style="background: #f4f4f4; padding: 5px; display: block; word-break: break-all;">
-            ${c.env.KAKAO_REDIRECT_URI || 'https://3000-ieu1ambselnpjf2cme9se-c81df28e.sandbox.novita.ai/api/auth/kakao/callback'}
+            ${ENV_CONFIG.KAKAO_REDIRECT_URI || c.env.KAKAO_REDIRECT_URI}
             </code></p>
             <p><strong>Web 플랫폼 도메인:</strong><br>
             <code style="background: #f4f4f4; padding: 5px; display: block; word-break: break-all;">
@@ -340,7 +340,8 @@ authKakao.get('/callback', async (c) => {
               profile_image_url: ${user.profile_image_url ? `'${user.profile_image_url}'` : 'null'}
             }));
             
-            // 대시보드로 이동
+            // 환영 알림 후 대시보드로 이동
+            alert('환영합니다! 대시보드로 이동합니다.');
             window.location.href = '/dashboard';
           </script>
         </body>

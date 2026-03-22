@@ -288,7 +288,8 @@ authGoogle.get('/callback', async (c) => {
               profile_image_url: ${user.profile_image_url ? `'${user.profile_image_url}'` : 'null'}
             }));
             
-            // 대시보드로 이동
+            // 환영 알림 후 대시보드로 이동
+            alert('환영합니다! 대시보드로 이동합니다.');
             window.location.href = '/dashboard';
           </script>
         </body>
