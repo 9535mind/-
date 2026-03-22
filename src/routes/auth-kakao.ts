@@ -11,7 +11,7 @@ import {
   generateSessionToken,
   addDays
 } from '../utils/helpers'
-import { getEnv } from '../config/env'
+import { ENV_CONFIG } from '../config/env'
 
 const authKakao = new Hono<{ Bindings: Bindings }>()
 
@@ -22,8 +22,8 @@ const authKakao = new Hono<{ Bindings: Bindings }>()
 authKakao.get('/login', async (c) => {
   try {
     // 환경 변수에서 카카오 설정 읽기
-    const clientId = getEnv(c, 'KAKAO_CLIENT_ID')
-    const redirectUri = getEnv(c, 'KAKAO_REDIRECT_URI')
+    const clientId = ENV_CONFIG.KAKAO_CLIENT_ID || c.env.KAKAO_CLIENT_ID
+    const redirectUri = ENV_CONFIG.KAKAO_REDIRECT_URI || c.env.KAKAO_REDIRECT_URI
     
     // 디버그: 설정값 로그
     console.log('[KAKAO_LOGIN] Client ID:', clientId)
@@ -138,8 +138,8 @@ authKakao.get('/callback', async (c) => {
       `)
     }
     
-    const clientId = getEnv(c, 'KAKAO_CLIENT_ID')
-    const redirectUri = getEnv(c, 'KAKAO_REDIRECT_URI')
+    const clientId = ENV_CONFIG.KAKAO_CLIENT_ID || c.env.KAKAO_CLIENT_ID
+    const redirectUri = ENV_CONFIG.KAKAO_REDIRECT_URI || c.env.KAKAO_REDIRECT_URI
     
     console.log('[KAKAO_CALLBACK] Code received:', code.substring(0, 10) + '...')
     console.log('[KAKAO_CALLBACK] Using redirect_uri:', redirectUri)

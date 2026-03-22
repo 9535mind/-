@@ -15,11 +15,13 @@ export const ENV_CONFIG = {
 } as const
 
 /**
- * 환경 변수 가져오기 (fallback 지원)
+ * 환경 변수 가져오기
+ * ENV_CONFIG를 우선으로 사용 (fallback으로 c.env 사용)
  */
 export function getEnv<K extends keyof typeof ENV_CONFIG>(
   c: { env: Record<string, any> },
   key: K
 ): string {
-  return c.env[key] || ENV_CONFIG[key]
+  // ENV_CONFIG를 우선으로 사용 (확실한 값)
+  return ENV_CONFIG[key] || c.env[key]
 }
