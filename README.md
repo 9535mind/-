@@ -308,3 +308,4 @@ webapp/
 ## 📄 **라이선스**
 
 © 2026 마인드스토리 원격평생교육원. All rights reserved.
+ 
