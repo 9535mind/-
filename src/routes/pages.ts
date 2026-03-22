@@ -761,9 +761,9 @@ pages.get('/register', (c) => {
                 birthDaySelect.remove(1)
             }
             
-            // 60세 기준 (현재년도 - 60 ~ 현재년도 - 18)
+            // 1945년부터 현재년도 - 18세까지 선택 가능
             const currentYear = new Date().getFullYear()
-            for (let year = currentYear - 60; year <= currentYear - 18; year++) {
+            for (let year = 1945; year <= currentYear - 18; year++) {
                 const option = document.createElement('option')
                 option.value = year
                 option.textContent = year + '년'
