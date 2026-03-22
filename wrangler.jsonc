@@ -16,11 +16,5 @@
       "binding": "R2",
       "bucket_name": "mindstory-lms"
     }
-  ],
-  "vars": {
-    "KAKAO_REDIRECT_URI": "https://production-ready.mindstory-lms.pages.dev/api/auth/kakao/callback",
-    "GOOGLE_REDIRECT_URI": "https://production-ready.mindstory-lms.pages.dev/api/auth/google/callback",
-    "GEMINI_BASE_URL": "https://generativelanguage.googleapis.com/v1beta",
-    "APIVIDEO_BASE_URL": "https://sandbox.api.video"
-  }
+  ]
 }
