@@ -70,14 +70,16 @@ Root directory:     / (default)
 **Production Variables** (반드시 설정):
 | Variable Name | Value | Type |
 |---------------|-------|------|
-| `GOOGLE_CLIENT_ID` | `966965276792-0bhnlaeo06dcvqm395k0q1faom34455i.apps.googleusercontent.com` | Plain text |
-| `GOOGLE_CLIENT_SECRET` | `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` | **Encrypted** |
+| `GOOGLE_CLIENT_ID` | `YOUR_GOOGLE_CLIENT_ID` | Plain text |
+| `GOOGLE_CLIENT_SECRET` | `YOUR_GOOGLE_CLIENT_SECRET` | **Encrypted** |
 | `GOOGLE_REDIRECT_URI` | `https://mindstory-lms.pages.dev/api/auth/google/callback` | Plain text |
-| `KAKAO_CLIENT_ID` | `4a832f4eddd0348ce18774012252bf0a` | Plain text |
-| `KAKAO_CLIENT_SECRET` | `gdxTxKOkaONr8eGQVTFwxlh0u4QqRNlo` | **Encrypted** |
+| `KAKAO_CLIENT_ID` | `YOUR_KAKAO_CLIENT_ID` | Plain text |
+| `KAKAO_CLIENT_SECRET` | `YOUR_KAKAO_CLIENT_SECRET` | **Encrypted** |
 | `KAKAO_REDIRECT_URI` | `https://mindstory-lms.pages.dev/api/auth/kakao/callback` | Plain text |
-| `GEMINI_API_KEY` | `AIzaSyCZKGEqStpm0X9CmpRrtxxojuBAu6h8J7c` | **Encrypted** |
-| `JWT_SECRET` | `mindstory-lms-jwt-secret-key-2024-12-27` | **Encrypted** |
+| `GEMINI_API_KEY` | `YOUR_GEMINI_API_KEY` | **Encrypted** |
+| `JWT_SECRET` | `YOUR_JWT_SECRET_KEY` | **Encrypted** |
+
+**⚠️ 주의**: 위 표의 `YOUR_*` 값들을 실제 OAuth 콘솔에서 발급받은 값으로 교체하세요.
 
 **환경 변수 추가 방법**:
 1. **Settings** → **Environment variables** 클릭

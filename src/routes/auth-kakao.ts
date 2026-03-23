@@ -307,24 +307,36 @@ authKakao.get('/callback', async (c) => {
       user = newUser
     }
     
-    // 4. 기존 세션 삭제 (만료된 세션 정리)
+    // 4. 최종 사용자 정보 조회 (확실하게)
+    const finalUser = await DB.prepare(`
+      SELECT * FROM users WHERE id = ?
+    `).bind(userId).first<User>()
+    
+    if (!finalUser) {
+      throw new Error('User not found after authentication')
+    }
+    
+    user = finalUser
+    console.log('[KAKAO_CALLBACK] Final user loaded:', user.email)
+    
+    // 5. 기존 세션 삭제 (만료된 세션 정리)
     await DB.prepare(`
-      DELETE FROM sessions 
+      DELETE FROM user_sessions 
       WHERE user_id = ? AND expires_at < datetime('now')
     `).bind(userId).run()
     
-    // 5. 새 세션 생성
+    // 6. 새 세션 생성
     console.log('[KAKAO_CALLBACK] Creating session for user:', userId)
     const sessionToken = generateSessionToken()
     const expiresAt = addDays(new Date(), 7)
     
     await DB.prepare(`
-      INSERT INTO sessions (
+      INSERT INTO user_sessions (
         user_id, session_token, expires_at
       ) VALUES (?, ?, ?)
     `).bind(userId, sessionToken, expiresAt.toISOString()).run()
     
-    // 6. 로그인 시간 업데이트는 생략 (컬럼 없음)
+    console.log('[KAKAO_CALLBACK] Session created successfully')
     
     // 7. HttpOnly 쿠키 설정 + 리다이렉트
     console.log('[KAKAO_CALLBACK] Setting session cookie and redirecting...')
