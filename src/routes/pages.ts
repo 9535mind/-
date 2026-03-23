@@ -1766,10 +1766,6 @@ pages.get('/dashboard', requireAuth, async (c) => {
            ${initial}
          </div>`
     
-    // 헤더와 푸터를 미리 생성
-    const header = getHeader()
-    const footer = getFooter()
-    
     return c.html(`
     <!DOCTYPE html>
     <html lang="ko">
@@ -1793,28 +1789,47 @@ pages.get('/dashboard', requireAuth, async (c) => {
         </style>
     </head>
     <body class="bg-gray-50">
-        ${header}
+        <!-- 헤더 -->
+        <header class="bg-white shadow-sm">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-8">
+                        <a href="/" class="flex items-center space-x-3">
+                            <img src="/static/logo.png" alt="마인드스토리" class="h-10" onerror="this.style.display='none'">
+                            <span class="text-xl font-bold text-gray-800">마인드스토리 교육원</span>
+                        </a>
+                        <nav class="hidden md:flex space-x-6">
+                            <a href="/" class="text-gray-600 hover:text-gray-900">홈</a>
+                            <a href="/courses" class="text-gray-600 hover:text-gray-900">과정 안내</a>
+                            <a href="/dashboard" class="text-indigo-600 font-semibold">대시보드</a>
+                        </nav>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <a href="/logout" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">
+                            <i class="fas fa-sign-out-alt mr-2"></i>로그아웃
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </header>
         
         <!-- 환영 섹션 -->
-        <div class="welcome-card text-white py-16 px-4 fade-in">
+        <div class="welcome-card text-white py-20 px-4 fade-in">
             <div class="max-w-7xl mx-auto">
-                <div class="flex flex-col md:flex-row items-center justify-between">
-                    <div class="flex items-center space-x-6 mb-8 md:mb-0">
-                        ${avatarHtml}
-                        <div>
-                            <h1 class="text-4xl md:text-5xl font-bold mb-3">
-                                안녕하세요, ${userName}님! 👋
-                            </h1>
-                            <p class="text-xl md:text-2xl text-indigo-100">
-                                미래를 만나실 준비 되셨나요?
-                            </p>
+                <div class="flex flex-col md:flex-row items-center justify-center md:space-x-8">
+                    ${avatarHtml}
+                    <div class="mt-6 md:mt-0 text-center md:text-left">
+                        <h1 class="text-5xl md:text-6xl font-bold mb-4">
+                            안녕하세요, ${userName}님!
+                        </h1>
+                        <p class="text-2xl md:text-3xl text-indigo-100 mb-6">
+                            미래를 만나실 준비 되셨나요?
+                        </p>
+                        <div class="flex items-center justify-center md:justify-start space-x-4">
+                            <span class="inline-block px-5 py-2 bg-white/20 rounded-full text-white font-semibold text-lg">
+                                ${userRole === 'admin' ? '👑 관리자' : '🎓 수강생'}
+                            </span>
                         </div>
-                    </div>
-                    <div class="text-center md:text-right">
-                        <p class="text-indigo-200 text-sm mb-2">회원 유형</p>
-                        <span class="inline-block px-4 py-2 bg-white/20 rounded-full text-white font-semibold">
-                            ${userRole === 'admin' ? '👑 관리자' : '🎓 수강생'}
-                        </span>
                     </div>
                 </div>
             </div>
@@ -1824,151 +1839,85 @@ pages.get('/dashboard', requireAuth, async (c) => {
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
             <!-- 빠른 액션 카드 -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12 fade-in">
-                <a href="/courses" class="bg-white rounded-xl shadow-md p-6 hover:shadow-xl transition-all transform hover:-translate-y-1">
-                    <div class="flex items-center space-x-4">
-                        <div class="bg-indigo-100 rounded-full p-4">
-                            <i class="fas fa-book text-indigo-600 text-2xl"></i>
+                <a href="/courses" class="bg-white rounded-xl shadow-md p-8 hover:shadow-xl transition-all transform hover:-translate-y-2">
+                    <div class="flex flex-col items-center text-center space-y-4">
+                        <div class="bg-indigo-100 rounded-full p-6">
+                            <i class="fas fa-book text-indigo-600 text-4xl"></i>
                         </div>
                         <div>
-                            <h3 class="text-lg font-bold text-gray-800">강좌 둘러보기</h3>
-                            <p class="text-gray-500 text-sm">새로운 강좌를 찾아보세요</p>
+                            <h3 class="text-xl font-bold text-gray-800 mb-2">강좌 둘러보기</h3>
+                            <p class="text-gray-500">새로운 강좌를 찾아보세요</p>
                         </div>
                     </div>
                 </a>
                 
-                <a href="/my-courses" class="bg-white rounded-xl shadow-md p-6 hover:shadow-xl transition-all transform hover:-translate-y-1">
-                    <div class="flex items-center space-x-4">
-                        <div class="bg-green-100 rounded-full p-4">
-                            <i class="fas fa-graduation-cap text-green-600 text-2xl"></i>
+                <a href="/my-courses" class="bg-white rounded-xl shadow-md p-8 hover:shadow-xl transition-all transform hover:-translate-y-2">
+                    <div class="flex flex-col items-center text-center space-y-4">
+                        <div class="bg-green-100 rounded-full p-6">
+                            <i class="fas fa-graduation-cap text-green-600 text-4xl"></i>
                         </div>
                         <div>
-                            <h3 class="text-lg font-bold text-gray-800">내 강좌</h3>
-                            <p class="text-gray-500 text-sm">수강 중인 강좌 확인</p>
+                            <h3 class="text-xl font-bold text-gray-800 mb-2">내 강좌</h3>
+                            <p class="text-gray-500">수강 중인 강좌 확인</p>
                         </div>
                     </div>
                 </a>
                 
-                <a href="/profile" class="bg-white rounded-xl shadow-md p-6 hover:shadow-xl transition-all transform hover:-translate-y-1">
-                    <div class="flex items-center space-x-4">
-                        <div class="bg-purple-100 rounded-full p-4">
-                            <i class="fas fa-user text-purple-600 text-2xl"></i>
+                <a href="/profile" class="bg-white rounded-xl shadow-md p-8 hover:shadow-xl transition-all transform hover:-translate-y-2">
+                    <div class="flex flex-col items-center text-center space-y-4">
+                        <div class="bg-purple-100 rounded-full p-6">
+                            <i class="fas fa-user text-purple-600 text-4xl"></i>
                         </div>
                         <div>
-                            <h3 class="text-lg font-bold text-gray-800">프로필 설정</h3>
-                            <p class="text-gray-500 text-sm">내 정보 수정하기</p>
+                            <h3 class="text-xl font-bold text-gray-800 mb-2">프로필 설정</h3>
+                            <p class="text-gray-500">내 정보 수정하기</p>
                         </div>
                     </div>
                 </a>
             </div>
             
-            <!-- 학습 현황 -->
-            <div class="bg-white rounded-xl shadow-md p-8 mb-8 fade-in">
-                <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
-                    <i class="fas fa-chart-line text-indigo-600 mr-3"></i>
-                    학습 현황
-                </h2>
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-                    <div class="text-center p-6 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg">
-                        <div class="text-4xl font-bold text-indigo-600 mb-2" id="totalCourses">0</div>
-                        <div class="text-gray-600">총 수강 강좌</div>
-                    </div>
-                    <div class="text-center p-6 bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg">
-                        <div class="text-4xl font-bold text-green-600 mb-2" id="completedCourses">0</div>
-                        <div class="text-gray-600">완료한 강좌</div>
-                    </div>
-                    <div class="text-center p-6 bg-gradient-to-br from-yellow-50 to-amber-50 rounded-lg">
-                        <div class="text-4xl font-bold text-yellow-600 mb-2" id="inProgressCourses">0</div>
-                        <div class="text-gray-600">학습 중</div>
-                    </div>
-                    <div class="text-center p-6 bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg">
-                        <div class="text-4xl font-bold text-purple-600 mb-2" id="totalLearningHours">0</div>
-                        <div class="text-gray-600">총 학습 시간</div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- 최근 수강 강좌 -->
-            <div class="bg-white rounded-xl shadow-md p-8 fade-in">
-                <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center justify-between">
-                    <span>
-                        <i class="fas fa-clock text-indigo-600 mr-3"></i>
-                        최근 수강 강좌
-                    </span>
-                    <a href="/my-courses" class="text-indigo-600 hover:text-indigo-700 text-sm font-normal">
-                        전체 보기 <i class="fas fa-arrow-right ml-1"></i>
-                    </a>
-                </h2>
-                <div id="recentCourses" class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div class="text-center py-12 col-span-full">
-                        <i class="fas fa-spinner fa-spin text-4xl text-gray-400 mb-4"></i>
-                        <p class="text-gray-500">로딩 중...</p>
+            <!-- 환영 메시지 -->
+            <div class="bg-white rounded-xl shadow-md p-12 text-center fade-in">
+                <div class="max-w-2xl mx-auto">
+                    <i class="fas fa-rocket text-6xl text-indigo-600 mb-6"></i>
+                    <h2 class="text-3xl font-bold text-gray-800 mb-4">
+                        로그인에 성공했습니다! 🎉
+                    </h2>
+                    <p class="text-xl text-gray-600 mb-8">
+                        마인드스토리 교육원에서 새로운 미래를 만나보세요.
+                    </p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                            <h3 class="font-bold text-blue-900 mb-2 flex items-center">
+                                <i class="fas fa-check-circle mr-2"></i>
+                                세션 유지
+                            </h3>
+                            <p class="text-blue-700 text-sm">
+                                로그인 상태가 7일간 유지됩니다
+                            </p>
+                        </div>
+                        <div class="bg-green-50 border border-green-200 rounded-lg p-6">
+                            <h3 class="font-bold text-green-900 mb-2 flex items-center">
+                                <i class="fas fa-shield-alt mr-2"></i>
+                                보안 인증
+                            </h3>
+                            <p class="text-green-700 text-sm">
+                                구글 소셜 로그인으로 안전하게 보호됩니다
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
         
-        ${footer}
-        
-        <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
-        <script>
-            // 학습 현황 로드
-            async function loadDashboardData() {
-                try {
-                    // 내 강좌 목록 가져오기
-                    const response = await axios.get('/api/enrollments/my')
-                    const enrollments = response.data.enrollments || []
-                    
-                    // 통계 계산
-                    const total = enrollments.length
-                    const completed = enrollments.filter(e => e.completed).length
-                    const inProgress = total - completed
-                    
-                    // 통계 업데이트
-                    document.getElementById('totalCourses').textContent = total
-                    document.getElementById('completedCourses').textContent = completed
-                    document.getElementById('inProgressCourses').textContent = inProgress
-                    
-                    // 최근 수강 강좌 표시 (최대 3개)
-                    const recentEnrollments = enrollments.slice(0, 3)
-                    const recentCoursesHtml = recentEnrollments.length > 0
-                        ? recentEnrollments.map(enrollment => \`
-                            <div class="bg-gray-50 rounded-lg p-6 hover:shadow-md transition-all">
-                                <h3 class="font-bold text-lg mb-2 text-gray-800">\${enrollment.course_title}</h3>
-                                <div class="flex items-center justify-between mb-4">
-                                    <span class="text-sm text-gray-600">
-                                        <i class="fas fa-calendar-alt mr-1"></i>
-                                        \${new Date(enrollment.enrolled_at).toLocaleDateString('ko-KR')}
-                                    </span>
-                                    <span class="text-sm font-semibold \${enrollment.completed ? 'text-green-600' : 'text-blue-600'}">
-                                        \${enrollment.completed ? '✓ 완료' : '학습 중'}
-                                    </span>
-                                </div>
-                                <div class="w-full bg-gray-200 rounded-full h-2 mb-3">
-                                    <div class="bg-indigo-600 h-2 rounded-full" style="width: \${enrollment.progress || 0}%"></div>
-                                </div>
-                                <a href="/courses/\${enrollment.course_id}" class="inline-block text-indigo-600 hover:text-indigo-700 text-sm font-semibold">
-                                    강좌 이동 <i class="fas fa-arrow-right ml-1"></i>
-                                </a>
-                            </div>
-                        \`).join('')
-                        : '<div class="col-span-full text-center py-12"><p class="text-gray-500">아직 수강 중인 강좌가 없습니다.</p><a href="/courses" class="inline-block mt-4 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">강좌 둘러보기</a></div>'
-                    
-                    document.getElementById('recentCourses').innerHTML = recentCoursesHtml
-                    
-                } catch (error) {
-                    console.error('Failed to load dashboard data:', error)
-                    // DB 테이블이 없어도 정상적으로 표시
-                    document.getElementById('totalCourses').textContent = '0'
-                    document.getElementById('completedCourses').textContent = '0'
-                    document.getElementById('inProgressCourses').textContent = '0'
-                    document.getElementById('recentCourses').innerHTML = 
-                        '<div class="col-span-full text-center py-12"><div class="bg-blue-50 border border-blue-200 rounded-lg p-6 max-w-2xl mx-auto"><i class="fas fa-info-circle text-blue-500 text-3xl mb-3"></i><p class="text-blue-800 font-semibold mb-2">강좌 시스템 준비 중입니다</p><p class="text-gray-600 text-sm mb-4">데이터베이스 초기화가 필요합니다. 관리자에게 문의하세요.</p><a href="/" class="inline-block px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">홈으로 돌아가기</a></div></div>'
-                }
-            }
-            
-            // 페이지 로드 시 실행
-            loadDashboardData()
-        </script>
+        <!-- 푸터 -->
+        <footer class="bg-gray-800 text-white py-8 mt-20">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center">
+                    <p class="text-gray-400">&copy; 2026 마인드스토리 원격 평생교육원. All rights reserved.</p>
+                </div>
+            </div>
+        </footer>
     </body>
     </html>
   `)
@@ -1987,16 +1936,11 @@ pages.get('/dashboard', requireAuth, async (c) => {
           <div class="max-w-md mx-auto text-center p-8">
               <div class="bg-red-50 border border-red-200 rounded-lg p-6">
                   <i class="fas fa-exclamation-triangle text-red-500 text-4xl mb-4"></i>
-                  <h1 class="text-2xl font-bold text-gray-800 mb-4">대시보드 로딩 오류</h1>
-                  <p class="text-gray-600 mb-6">대시보드를 불러오는 중 문제가 발생했습니다.</p>
-                  <div class="space-y-3">
-                      <a href="/login" class="block w-full px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
-                          다시 로그인
-                      </a>
-                      <a href="/" class="block w-full px-6 py-3 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">
-                          홈으로 이동
-                      </a>
-                  </div>
+                  <h2 class="text-xl font-bold text-red-800 mb-2">오류가 발생했습니다</h2>
+                  <p class="text-red-600 mb-4">대시보드를 불러오는 중 문제가 발생했습니다.</p>
+                  <a href="/login" class="inline-block px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+                      다시 로그인
+                  </a>
               </div>
           </div>
       </body>
