@@ -5,6 +5,53 @@
 // Axios 전역 설정: Cookie 자동 전송 활성화
 axios.defaults.withCredentials = true;
 
+// 🔥 Axios 인터셉터: 모든 요청에 자동으로 토큰 붙이기
+axios.interceptors.request.use(
+  (config) => {
+    // localStorage 또는 sessionStorage에서 토큰 가져오기
+    const token = localStorage.getItem('session_token') || sessionStorage.getItem('session_token');
+    
+    // 토큰이 있으면 Authorization 헤더에 추가
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    
+    // withCredentials 강제 활성화 (쿠키 기반 인증용)
+    config.withCredentials = true;
+    
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// 🔥 Axios 응답 인터셉터: 401 에러 시 자동 로그아웃
+axios.interceptors.response.use(
+  (response) => {
+    return response;
+  },
+  (error) => {
+    // 401 Unauthorized: 세션 만료 또는 인증 실패
+    if (error.response && error.response.status === 401) {
+      console.warn('⚠️ 인증 실패 (401) - 로그인 페이지로 이동');
+      
+      // 세션 정리
+      localStorage.removeItem('session_token');
+      localStorage.removeItem('user');
+      sessionStorage.removeItem('session_token');
+      
+      // 로그인 페이지로 리다이렉트 (현재 페이지를 redirect 파라미터로 전달)
+      const currentPath = window.location.pathname;
+      if (currentPath !== '/login') {
+        window.location.href = `/login?redirect=${encodeURIComponent(currentPath)}`;
+      }
+    }
+    
+    return Promise.reject(error);
+  }
+);
+
 // AuthManager 클래스
 class AuthManager {
   static saveSession(token, user) {
@@ -66,18 +113,18 @@ function clearSessionToken() {
 
 // 로그아웃
 async function logout() {
-  const token = getSessionToken();
-  if (token) {
-    try {
-      await axios.post('/api/auth/logout', {}, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
+  try {
+    // 이제 axios 인터셉터가 자동으로 토큰을 붙임
+    await axios.post('/api/auth/logout');
+  } catch (error) {
+    console.error('Logout error:', error);
   }
   
+  // 세션 정리
+  AuthManager.clearSession();
   clearSessionToken();
+  
+  // 로그인 페이지로 이동
   window.location.href = '/login';
 }
 
@@ -90,9 +137,8 @@ async function getCurrentUser() {
   }
 
   try {
-    const response = await axios.get('/api/auth/me', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
+    // 이제 axios 인터셉터가 자동으로 토큰을 붙임
+    const response = await axios.get('/api/auth/me');
     
     if (response.data.success) {
       return response.data.data;
@@ -120,13 +166,11 @@ async function requireAdmin() {
   return user;
 }
 
-// API 요청 헬퍼 (자동으로 토큰 포함)
+// API 요청 헬퍼 (자동으로 토큰 포함 - 이제 인터셉터가 처리)
 async function apiRequest(method, url, data = null) {
-  const token = getSessionToken();
   const config = {
     method,
-    url,
-    headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+    url
   };
 
   if (data) {
@@ -146,10 +190,9 @@ async function apiRequest(method, url, data = null) {
       message: error.message
     });
     
+    // 401 에러는 이미 응답 인터셉터에서 처리되므로 여기서는 로그만
     if (error.response?.status === 401) {
-      console.warn('⚠️ Unauthorized - redirecting to login');
-      clearSessionToken();
-      window.location.href = '/login';
+      console.warn('⚠️ Unauthorized - handled by interceptor');
     }
     throw error;
   }
