@@ -10,38 +10,64 @@ import { Bindings, User } from '../types/database'
  * 세션 쿠키에서 사용자 정보 가져오기
  */
 export async function requireAuth(c: Context<{ Bindings: Bindings }>, next: Next) {
-  const sessionToken = c.req.cookie('session_token')
-  
-  if (!sessionToken) {
-    console.log('[AUTH] No session token found, redirecting to login')
-    return c.redirect('/login')
+  try {
+    const sessionToken = c.req.cookie('session_token')
+    
+    if (!sessionToken) {
+      console.log('[AUTH] No session token found, redirecting to login')
+      return c.redirect('/login')
+    }
+    
+    const { DB } = c.env
+    
+    if (!DB) {
+      console.error('[AUTH] Database not available')
+      return c.html(`
+        <!DOCTYPE html>
+        <html><head><meta charset="UTF-8"><title>오류</title></head>
+        <body style="font-family: sans-serif; text-align: center; padding: 50px;">
+          <h1>데이터베이스 연결 오류</h1>
+          <p>잠시 후 다시 시도해주세요.</p>
+          <a href="/login" style="color: blue;">로그인 페이지로</a>
+        </body></html>
+      `, 500)
+    }
+    
+    // 세션 확인
+    const session = await DB.prepare(`
+      SELECT s.*, u.* 
+      FROM user_sessions s
+      JOIN users u ON s.user_id = u.id
+      WHERE s.session_token = ? 
+      AND s.expires_at > datetime('now')
+      AND u.deleted_at IS NULL
+    `).bind(sessionToken).first<User & { session_token: string; expires_at: string }>()
+    
+    if (!session) {
+      console.log('[AUTH] Invalid or expired session, redirecting to login')
+      // 만료된 쿠키 삭제
+      c.header('Set-Cookie', 'session_token=; Path=/; HttpOnly; Max-Age=0')
+      return c.redirect('/login')
+    }
+    
+    console.log('[AUTH] User authenticated:', session.name, session.email)
+    
+    // Context에 사용자 정보 저장
+    c.set('user', session)
+    
+    await next()
+  } catch (error) {
+    console.error('[AUTH] Error in requireAuth middleware:', error)
+    return c.html(`
+      <!DOCTYPE html>
+      <html><head><meta charset="UTF-8"><title>인증 오류</title></head>
+      <body style="font-family: sans-serif; text-align: center; padding: 50px;">
+        <h1>인증 처리 중 오류가 발생했습니다</h1>
+        <p>오류: ${error instanceof Error ? error.message : String(error)}</p>
+        <a href="/login" style="color: blue; text-decoration: underline;">로그인 페이지로</a>
+      </body></html>
+    `, 500)
   }
-  
-  const { DB } = c.env
-  
-  // 세션 확인
-  const session = await DB.prepare(`
-    SELECT s.*, u.* 
-    FROM user_sessions s
-    JOIN users u ON s.user_id = u.id
-    WHERE s.session_token = ? 
-    AND s.expires_at > datetime('now')
-    AND u.deleted_at IS NULL
-  `).bind(sessionToken).first<User & { session_token: string; expires_at: string }>()
-  
-  if (!session) {
-    console.log('[AUTH] Invalid or expired session, redirecting to login')
-    // 만료된 쿠키 삭제
-    c.header('Set-Cookie', 'session_token=; Path=/; HttpOnly; Max-Age=0')
-    return c.redirect('/login')
-  }
-  
-  console.log('[AUTH] User authenticated:', session.name)
-  
-  // Context에 사용자 정보 저장
-  c.set('user', session)
-  
-  await next()
 }
 
 /**

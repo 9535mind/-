@@ -1744,13 +1744,21 @@ pages.get('/dashboard', requireAuth, async (c) => {
   try {
     const user = c.get('user') as User
     
+    console.log('[DASHBOARD] User from context:', user)
+    
     // 안전한 사용자 정보 확인
-    if (!user || !user.name) {
-      console.error('[DASHBOARD] User data is invalid:', user)
+    if (!user) {
+      console.error('[DASHBOARD] User is undefined')
       return c.redirect('/login')
     }
     
-    console.log('[DASHBOARD] Rendering for user:', user.email, user.name)
+    if (!user.name) {
+      console.error('[DASHBOARD] User name is missing:', user)
+      // 이름이 없어도 이메일로 대체
+      user.name = user.email || '사용자'
+    }
+    
+    console.log('[DASHBOARD] Rendering dashboard for:', user.email, user.name)
     
     // 사용자 이름의 첫 글자 (아바타 기본 이미지용)
     const initial = user.name.charAt(0).toUpperCase()
