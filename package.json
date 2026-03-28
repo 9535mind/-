@@ -12,6 +12,7 @@
     "deploy": "npm run build && npx wrangler pages deploy dist --project-name mslms --branch main --commit-dirty=true",
     "deploy:prod": "npm run build && npx wrangler pages deploy dist --project-name mslms --branch main --commit-dirty=true",
     "verify:remote": "node scripts/verify-remote.mjs",
+    "hash:password": "node scripts/print-password-hash.mjs",
     "cf-typegen": "wrangler types --env-interface CloudflareBindings",
     "clean-port": "fuser -k 3000/tcp 2>/dev/null || true",
     "test": "curl http://localhost:3000",
