@@ -244,24 +244,53 @@ async function apiRequest(method, url, data = null) {
   
   try {
     const response = await fetch(url, options)
-    
-    // HTTP 에러 상태 체크
+    const text = await response.text()
+    let parsed = null
+    if (text) {
+      try {
+        parsed = JSON.parse(text)
+      } catch {
+        /* Hono HTTPException 등 평문 본문 */
+      }
+    }
+
     if (!response.ok) {
       console.error(`API Error: ${response.status} ${response.statusText} - ${url}`)
-      
-      // HTML 에러 페이지가 반환된 경우
-      const contentType = response.headers.get('content-type')
-      if (contentType && contentType.includes('text/html')) {
+
+      const contentType = response.headers.get('content-type') || ''
+      if (contentType.includes('text/html')) {
         return {
           success: false,
           error: `서버 오류 (${response.status})`,
           message: `API 요청 실패: ${url}`
         }
       }
+
+      if (parsed && typeof parsed === 'object') {
+        return {
+          ...parsed,
+          success: false,
+          error: parsed.error || parsed.message || text || `HTTP ${response.status}`,
+          message: parsed.message || parsed.error || text || `HTTP ${response.status}`
+        }
+      }
+
+      const fallback = text || `HTTP ${response.status}`
+      return {
+        success: false,
+        error: fallback,
+        message: fallback
+      }
     }
-    
-    const result = await response.json()
-    return result
+
+    if (!parsed || typeof parsed !== 'object') {
+      return {
+        success: false,
+        error: '서버 응답 형식 오류',
+        message: (text || '').slice(0, 200)
+      }
+    }
+    return parsed
   } catch (error) {
     console.error('API Request failed:', error, 'URL:', url)
     return {

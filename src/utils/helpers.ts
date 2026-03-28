@@ -28,6 +28,10 @@ export function errorResponse(error: string, message?: string): ApiResponse {
   }
 }
 
+/** SQLite: expires_at 에 toISOString() 저장 시 datetime('now') 와 문자열 비교가 어긋날 수 있음 */
+export const SQL_SESSION_S_VALID = `julianday(s.expires_at) > julianday('now')`
+export const SQL_SESSION_EXPIRED = `julianday(expires_at) < julianday('now')`
+
 export { hashPassword, verifyPassword } from './password'
 
 /**
@@ -151,7 +155,7 @@ export async function getCurrentUser(c: Context) {
       FROM sessions s
       JOIN users u ON s.user_id = u.id
       WHERE s.session_token = ? 
-        AND s.expires_at > datetime('now')
+        AND ${SQL_SESSION_S_VALID}
         AND u.deleted_at IS NULL
     `).bind(sessionToken).first()
   } catch (e) {
@@ -164,7 +168,7 @@ export async function getCurrentUser(c: Context) {
       FROM sessions s
       JOIN users u ON s.user_id = u.id
       WHERE s.session_token = ?
-        AND s.expires_at > datetime('now')
+        AND ${SQL_SESSION_S_VALID}
         AND u.deleted_at IS NULL
     `).bind(sessionToken).first()
   }

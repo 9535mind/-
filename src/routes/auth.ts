@@ -15,7 +15,8 @@ import {
   generateSessionToken,
   isValidEmail,
   formatDate,
-  addDays
+  addDays,
+  SQL_SESSION_EXPIRED,
 } from '../utils/helpers'
 import { requireAuth } from '../middleware/auth'
 
@@ -111,10 +112,14 @@ auth.post('/register', async (c) => {
     const expiresAt = addDays(new Date(), 30)
 
     // 세션 저장
-    await DB.prepare(`
+    const regSession = await DB.prepare(`
       INSERT INTO sessions (user_id, session_token, expires_at)
       VALUES (?, ?, ?)
     `).bind(userId, sessionToken, expiresAt.toISOString()).run()
+    if (!regSession.success) {
+      console.error('[auth/register] sessions INSERT failed:', regSession)
+      return c.json(errorResponse('세션을 저장하지 못했습니다. 잠시 후 다시 시도해주세요.'), 500)
+    }
 
     applySessionCookie(c, sessionToken, 30 * 24 * 60 * 60)
 
@@ -190,15 +195,19 @@ auth.post('/login', async (c) => {
     // 이전 세션 삭제 (만료된 세션 정리)
     await DB.prepare(`
       DELETE FROM sessions 
-      WHERE user_id = ? AND expires_at < datetime('now')
+      WHERE user_id = ? AND ${SQL_SESSION_EXPIRED}
     `).bind(user.id).run()
 
     // 새 세션 저장
-    await DB.prepare(`
+    const insSession = await DB.prepare(`
       INSERT INTO sessions (
         user_id, session_token, expires_at
       ) VALUES (?, ?, ?)
     `).bind(user.id, sessionToken, expiresAt.toISOString()).run()
+    if (!insSession.success) {
+      console.error('[auth/login] sessions INSERT failed:', insSession)
+      return c.json(errorResponse('세션을 저장하지 못했습니다. 잠시 후 다시 시도해주세요.'), 500)
+    }
 
     // 비밀번호 제외한 사용자 정보 반환
     const { password_hash: _, ...userWithoutPassword } = user

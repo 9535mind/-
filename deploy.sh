@@ -94,7 +94,7 @@ echo "🚀 Step 7: 프로덕션 배포 시작..."
 echo "배포 중 (1-2분 소요)..."
 echo ""
 
-npx wrangler pages deploy dist --project-name mslms
+npx wrangler pages deploy dist --project-name mslms --branch main --commit-dirty=true
 
 echo ""
 echo -e "${GREEN}✨ 배포 완료!${NC}"

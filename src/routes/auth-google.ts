@@ -10,7 +10,8 @@ import {
   errorResponse, 
   generateSessionToken,
   addDays,
-  hashPassword
+  hashPassword,
+  SQL_SESSION_EXPIRED,
 } from '../utils/helpers'
 import { applySessionCookie } from '../utils/session-cookie'
 import {
@@ -355,7 +356,7 @@ authGoogle.get('/callback', async (c) => {
     // 4. 기존 세션 삭제 (만료된 세션 정리)
     await DB.prepare(`
       DELETE FROM sessions 
-      WHERE user_id = ? AND expires_at < datetime('now')
+      WHERE user_id = ? AND ${SQL_SESSION_EXPIRED}
     `).bind(userId).run()
     
     // 5. 새 세션 생성
@@ -363,12 +364,16 @@ authGoogle.get('/callback', async (c) => {
     const sessionToken = generateSessionToken()
     const expiresAt = addDays(new Date(), 7)
     
-    await DB.prepare(`
+    const googleIns = await DB.prepare(`
       INSERT INTO sessions (
         user_id, session_token, expires_at
       ) VALUES (?, ?, ?)
     `).bind(userId, sessionToken, expiresAt.toISOString()).run()
-    
+    if (!googleIns.success) {
+      console.error('[GOOGLE_CALLBACK] sessions INSERT failed:', googleIns)
+      throw new Error('세션을 저장하지 못했습니다.')
+    }
+
     // 6. HttpOnly 쿠키 설정 + 리다이렉트
     console.log('[GOOGLE_CALLBACK] Setting session cookie and redirecting...')
     console.log('[GOOGLE_CALLBACK] Login SUCCESS for user:', user.name)

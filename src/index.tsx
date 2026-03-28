@@ -3,7 +3,8 @@
  * Ver.1.4 - 보안 강화 (Beta 준비)
  */
 
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
+import { HTTPException } from 'hono/http-exception'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
 import { serveStatic } from 'hono/cloudflare-workers'
@@ -87,21 +88,28 @@ app.use('/api/auth/google/*', async (c, next) => {
 })
 
 // CORS: 공식 도메인 + Cloudflare Pages 프리뷰(https)에서 API + 쿠키
-function corsAllowedOrigin(origin: string | undefined): string | false {
-  if (!origin) return false
-  try {
-    const u = new URL(origin)
-    if (u.protocol !== 'https:') return false
-    const h = u.hostname
-    if (h === 'mindstory.kr' || h.endsWith('.mindstory.kr')) return origin
-    if (h === 'mslms.pages.dev' || h.endsWith('.mslms.pages.dev')) return origin
-    return false
-  } catch {
-    return false
+// Origin 헤더가 없는 일부 클라이언트는 Host 로 동일 출처 ACAO 를 맞춰야 credentialed 응답이 안정적
+function corsResolveOrigin(origin: string, c: Context): string | false {
+  if (origin) {
+    try {
+      const u = new URL(origin)
+      if (u.protocol !== 'https:') return false
+      const h = u.hostname
+      if (h === 'mindstory.kr' || h.endsWith('.mindstory.kr')) return origin
+      if (h === 'mslms.pages.dev' || h.endsWith('.mslms.pages.dev')) return origin
+      return false
+    } catch {
+      return false
+    }
   }
+  const raw = c.req.header('x-forwarded-host') || c.req.header('host') || ''
+  const host = raw.split(',')[0].trim().split(':')[0]
+  if (host === 'mindstory.kr' || host.endsWith('.mindstory.kr')) return `https://${host}`
+  if (host === 'mslms.pages.dev' || host.endsWith('.mslms.pages.dev')) return `https://${host}`
+  return false
 }
 app.use('/api/*', cors({
-  origin: (origin) => corsAllowedOrigin(origin),
+  origin: corsResolveOrigin,
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization'],
   exposeHeaders: ['Content-Length', 'X-Request-Id', 'X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
@@ -187,6 +195,25 @@ app.get('/api/health', (c) => {
     timestamp: new Date().toISOString(),
     footerRevision: FOOTER_HTML_REVISION,
   })
+})
+
+// HTTPException 기본 응답이 평문이라 fetch().json() 이 깨지고 관리자 셸에서 "인증에 실패" 로만 보임 → /api 는 JSON 통일
+app.onError((err, c) => {
+  if (err instanceof HTTPException) {
+    if (c.req.path.startsWith('/api/')) {
+      const msg = err.message || '요청을 처리할 수 없습니다.'
+      return c.json({ success: false, error: msg, message: msg }, err.status)
+    }
+    return err.getResponse()
+  }
+  console.error('[onError]', err)
+  if (c.req.path.startsWith('/api/')) {
+    return c.json(
+      { success: false, error: '서버 오류가 발생했습니다.', message: '서버 오류가 발생했습니다.' },
+      500
+    )
+  }
+  return c.text('Internal Server Error', 500)
 })
 
 export default app

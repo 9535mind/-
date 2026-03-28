@@ -7,6 +7,7 @@
 import { Hono } from 'hono'
 import { getCookie } from 'hono/cookie'
 import type { Bindings } from '../types/database'
+import { SQL_SESSION_S_VALID } from '../utils/helpers'
 import { siteFooterLegalBlockHtml } from '../utils/site-footer-legal'
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -39,7 +40,7 @@ app.get('/certificates', async (c) => {
       FROM sessions s
       JOIN users u ON s.user_id = u.id
       WHERE s.session_token = ?
-        AND s.expires_at > datetime('now')
+        AND ${SQL_SESSION_S_VALID}
         AND u.deleted_at IS NULL
     `).bind(sessionToken).first<{ user_id: number }>()
 

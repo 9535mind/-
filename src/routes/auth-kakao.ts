@@ -9,7 +9,8 @@ import {
   successResponse, 
   errorResponse, 
   generateSessionToken,
-  addDays
+  addDays,
+  SQL_SESSION_EXPIRED,
 } from '../utils/helpers'
 import { applySessionCookie } from '../utils/session-cookie'
 import {
@@ -464,7 +465,7 @@ authKakao.get('/callback', async (c) => {
     // 4. 기존 세션 삭제 (만료된 세션 정리)
     await DB.prepare(`
       DELETE FROM sessions 
-      WHERE user_id = ? AND expires_at < datetime('now')
+      WHERE user_id = ? AND ${SQL_SESSION_EXPIRED}
     `).bind(userId).run()
     
     // 5. 새 세션 생성
@@ -472,14 +473,18 @@ authKakao.get('/callback', async (c) => {
     const sessionToken = generateSessionToken()
     const expiresAt = addDays(new Date(), 7)
     
-    await DB.prepare(`
+    const kakaoIns = await DB.prepare(`
       INSERT INTO sessions (
         user_id, session_token, expires_at
       ) VALUES (?, ?, ?)
     `).bind(userId, sessionToken, expiresAt.toISOString()).run()
-    
+    if (!kakaoIns.success) {
+      console.error('[KAKAO_CALLBACK] sessions INSERT failed:', kakaoIns)
+      throw new Error('세션을 저장하지 못했습니다.')
+    }
+
     // 6. 로그인 시간 업데이트는 생략 (컬럼 없음)
-    
+
     // 7. HttpOnly 쿠키 설정 + 리다이렉트
     console.log('[KAKAO_CALLBACK] Setting session cookie and redirecting...')
     console.log('[KAKAO_CALLBACK] Login SUCCESS for user:', user.name)

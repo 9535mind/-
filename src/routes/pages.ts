@@ -279,43 +279,51 @@ pages.get('/login', (c) => {
             return t
         }
 
+        let loginSessionCheckAbort = null
+
         // 로그인 페이지 로드 시 즉시 로컬 세션 정리 (서버 세션 없는 경우)
         async function checkAndCleanupSession() {
             const hasLocalSession = AuthManager.isLoggedIn()
-            
-            if (hasLocalSession) {
-                console.log('🔍 Checking server session...')
-                try {
-                    const response = await axios.get('/api/auth/me', { timeout: 3000, withCredentials: true })
-                    
-                    if (response.data && response.data.success) {
-                        console.log('✅ Server session valid, redirecting...')
-                        const urlParams = new URLSearchParams(window.location.search)
-                        const redirect = safeRedirectPath(urlParams.get('redirect')) || '/'
-                        window.location.href = redirect
-                    } else {
-                        console.warn('⚠️ Server session invalid, clearing local session')
-                        AuthManager.clearSession()
-                    }
-                } catch (error) {
-                    const status = error?.response?.status
-                    if (status !== 401) {
-                        console.error('❌ Session check failed:', error.message)
-                    }
-                    // 서버 세션 확인 실패 시 로컬 세션 강제 삭제
-                    AuthManager.clearSession()
-                    console.log('🧹 Local session cleared')
-                }
-            } else {
+
+            if (!hasLocalSession) {
                 console.log('ℹ️ No local session found')
+                return
+            }
+
+            loginSessionCheckAbort = new AbortController()
+            const signal = loginSessionCheckAbort.signal
+            console.log('🔍 Checking server session...')
+            try {
+                const response = await axios.get('/api/auth/me', { timeout: 3000, withCredentials: true, signal })
+
+                if (response.data && response.data.success) {
+                    console.log('✅ Server session valid, redirecting...')
+                    const urlParams = new URLSearchParams(window.location.search)
+                    const redirect = safeRedirectPath(urlParams.get('redirect')) || '/'
+                    window.location.href = redirect
+                } else {
+                    console.warn('⚠️ Server session invalid, clearing local session')
+                    AuthManager.clearSession()
+                }
+            } catch (error) {
+                if (axios.isCancel?.(error) || error.code === 'ERR_CANCELED' || error.name === 'CanceledError') {
+                    console.log('ℹ️ Session check cancelled (로그인 시도)')
+                    return
+                }
+                const status = error?.response?.status
+                if (status !== 401) {
+                    console.error('❌ Session check failed:', error.message)
+                }
+                AuthManager.clearSession()
+                console.log('🧹 Local session cleared')
             }
         }
-        
-        // 페이지 로드 시 즉시 실행
+
         checkAndCleanupSession()
 
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault()
+            loginSessionCheckAbort?.abort()
             
             const email = document.getElementById('email').value
             const password = document.getElementById('password').value
