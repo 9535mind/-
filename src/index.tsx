@@ -17,6 +17,7 @@ import authGoogle from './routes/auth-google'
 import courses from './routes/courses'
 import enrollments from './routes/enrollments'
 import payments from './routes/payments'  // 결제 API
+import portoneOrders from './routes/portone-orders'
 import certificates from './routes/certificates'  // Phase 4: 수료증 시스템
 import admin from './routes/admin'
 import landing from './routes/landing'  // 신규 랜딩 페이지
@@ -39,40 +40,68 @@ import pagesLearn from './routes/pages-learn'
 import analytics from './routes/analytics'
 import pagesAnalytics from './routes/pages-analytics'
 import pagesCourseDetail from './routes/pages-course-detail'
+import pagesCompany from './routes/pages-company'
+import pagesLegal from './routes/pages-legal'
+import pagesCertificates from './routes/pages-certificates'
 import pagesEnrollment from './routes/pages-enrollment'  // 수강신청 페이지
+import pagesBrandCatalog from './routes/pages-brand-catalog'
+import digitalBooks from './routes/digital-books'
 import youtubeProxy from './routes/youtube-proxy'
+import security from './routes/security'
+import { FOOTER_HTML_REVISION } from './utils/site-footer-legal'
+import { LEGACY_PAGES_HOSTNAMES, SITE_PUBLIC_ORIGIN } from './utils/oauth-public'
 
 const app = new Hono<{ Bindings: Bindings }>()
 
 // 미들웨어
 app.use('*', logger())
 
-// CORS 설정 강화 - 베타 서비스용
-// 로컬 개발: localhost, 127.0.0.1
-// 샌드박스: *.sandbox.novita.ai
-// 프로덕션: *.pages.dev (배포 후 실제 도메인으로 변경)
-app.use('/api/*', cors({
-  origin: (origin) => {
-    // 로컬 개발 환경
-    if (origin?.includes('localhost') || origin?.includes('127.0.0.1')) {
-      return origin
-    }
-    // 샌드박스 환경
-    if (origin?.includes('.sandbox.novita.ai')) {
-      return origin
-    }
-    // Cloudflare Pages 환경
-    if (origin?.includes('.pages.dev')) {
-      return origin
-    }
-    // 프로덕션 도메인 (배포 후 추가)
-    // if (origin === 'https://www.mindstory-lms.com') {
-    //   return origin
-    // }
-    
-    // 그 외는 차단
+// 구 Pages 기본 호스트로 들어온 트래픽은 공식 도메인(https://mindstory.kr)으로 보냄
+app.use('*', async (c, next) => {
+  const raw = c.req.header('x-forwarded-host') || c.req.header('host') || ''
+  const host = raw.split(',')[0].trim().split(':')[0]
+  if (LEGACY_PAGES_HOSTNAMES.includes(host)) {
+    const url = new URL(c.req.url)
+    return c.redirect(`${SITE_PUBLIC_ORIGIN}${url.pathname}${url.search}`, 302)
+  }
+  await next()
+})
+
+// HTML 응답은 에지·브라우저 캐시로 옛 페이지가 보이지 않도록 (푸터 등 배포 후 반영)
+app.use('*', async (c, next) => {
+  await next()
+  const ct = c.res.headers.get('Content-Type') || ''
+  if (ct.includes('text/html')) {
+    c.res.headers.set('Cache-Control', 'private, no-cache, no-store, must-revalidate')
+  }
+})
+
+// OAuth(리다이렉트·디버그 JSON) 에지 캐시 방지 — 옛 redirectUri·진단 값 혼선 방지
+app.use('/api/auth/kakao/*', async (c, next) => {
+  await next()
+  c.res.headers.set('Cache-Control', 'private, no-store, must-revalidate')
+})
+app.use('/api/auth/google/*', async (c, next) => {
+  await next()
+  c.res.headers.set('Cache-Control', 'private, no-store, must-revalidate')
+})
+
+// CORS: 공식 도메인 + Cloudflare Pages 프리뷰(https)에서 API + 쿠키
+function corsAllowedOrigin(origin: string | undefined): string | false {
+  if (!origin) return false
+  try {
+    const u = new URL(origin)
+    if (u.protocol !== 'https:') return false
+    const h = u.hostname
+    if (h === 'mindstory.kr' || h.endsWith('.mindstory.kr')) return origin
+    if (h === 'mslms.pages.dev' || h.endsWith('.mslms.pages.dev')) return origin
     return false
-  },
+  } catch {
+    return false
+  }
+}
+app.use('/api/*', cors({
+  origin: (origin) => corsAllowedOrigin(origin),
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization'],
   exposeHeaders: ['Content-Length', 'X-Request-Id', 'X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
@@ -90,6 +119,7 @@ app.use('/api/auth/reset-password', strictRateLimiter)
 app.use('/api/courses', generalRateLimiter)
 app.use('/api/enrollments', generalRateLimiter)
 app.use('/api/payments-v2', generalRateLimiter)
+app.use('/api/portone', generalRateLimiter)
 app.use('/api/admin', generalRateLimiter)
 app.use('/api/upload', generalRateLimiter)
 
@@ -109,6 +139,7 @@ app.route('/api/courses', courses)
 app.route('/api/courses', reviews)  // 수강평/별점 API (courses/:id/reviews)
 app.route('/api/enrollments', enrollments)
 app.route('/api/payments-v2', payments)  // 결제 API
+app.route('/api/portone', portoneOrders)
 app.route('/api', certificates)  // 수료증 API (courses/:id/certificate, my/certificates, certificates/:number)
 app.route('/api/admin', admin)
 // Removed popups route
@@ -122,15 +153,26 @@ app.route('/api/ai', ai)  // AI 도우미
 app.route('/api/ai-bulk-lessons', aiBulkLessons)  // AI 일괄 차시 생성
 app.route('/api/analytics', analytics)  // 학습 분석 통계
 app.route('/api/youtube', youtubeProxy)  // YouTube oEmbed 프록시 (CORS 해결)
+app.route('/api/security', security)  // 보안 이벤트 로깅
+app.route('/api/digital-books', digitalBooks) // Next 디지털 도서·ISBN
 
-// 페이지 라우트
+// 구버전 북마크(정적 파일·.html 링크 → Clean URL)
+app.get('/admin-users.html', (c) => c.redirect('/admin/dashboard#members', 302))
+app.get('/admin-users', (c) => c.redirect('/admin/dashboard#members', 302))
+app.get('/pg-business-info.html', (c) => c.redirect('/pg-business-info', 302))
+
+// 페이지 라우트 (약관·개인정보·환불은 다른 / 라우터보다 먼저 등록)
 app.route('/', landing)  // 신규 랜딩 페이지 (Phase 3)
+app.route('/', pagesLegal) // /terms, /privacy, /refund
+app.route('/', pagesCertificates) // /certificates, /certificates/:number
+app.route('/', pagesCompany)
+app.route('/', pagesBrandCatalog) // /courses/classic, /courses/next (/:id보다 우선)
 app.route('/', pages)
-app.route('/', pagesMy)
 app.route('/', pagesAbout)
 app.route('/', pagesPayment)  // 결제 페이지 (/payment/checkout, /payment/success, /payment/fail)
 app.route('/', pagesEnrollment)  // 수강신청 페이지 (/enrollment)
 app.route('/', pagesStudent)  // 수강생 페이지
+app.route('/', pagesMy)
 app.route('/', pagesCourseDetail)  // 강좌 상세 페이지
 app.route('/', pagesLearn)    // 학습 페이지
 app.route('/', pagesAnalytics)  // 분석 페이지
@@ -138,9 +180,13 @@ app.route('/admin', pagesAdmin)  // 관리자 페이지
 
 // 홈페이지는 landing 라우터가 처리함 (app.get('/' ) 제거)
 
-// 헬스체크
+// 헬스체크 (배포된 Worker가 최신인지: footerRevision 이 코드와 같아야 함)
 app.get('/api/health', (c) => {
-  return c.json({ status: 'ok', timestamp: new Date().toISOString() })
+  return c.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    footerRevision: FOOTER_HTML_REVISION,
+  })
 })
 
 export default app

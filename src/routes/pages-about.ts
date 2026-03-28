@@ -5,6 +5,7 @@
  */
 
 import { Hono } from 'hono'
+import { siteFooterLegalBlockHtml } from '../utils/site-footer-legal'
 
 const app = new Hono()
 
@@ -20,7 +21,7 @@ app.get('/about', (c) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>교육원 소개 - 마인드스토리 원격평생교육원</title>
-        <script src="https://cdn.tailwindcss.com"></script>
+        <link rel="stylesheet" href="/static/css/app.css" />
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script src="/static/js/auth.js"></script>
@@ -170,32 +171,12 @@ app.get('/about', (c) => {
         </section>
 
         <!-- 푸터 -->
-        <footer class="bg-gray-900 text-white py-12">
+        <footer class="bg-gray-900 text-white py-10">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div class="grid md:grid-cols-3 gap-8">
-                    <div>
-                        <h3 class="text-xl font-bold mb-4">마인드스토리 원격평생교육원</h3>
-                        <p class="text-gray-400">스스로 배우는 힘을 키우는 교육</p>
-                    </div>
-                    <div>
-                        <h4 class="text-lg font-semibold mb-4">문의</h4>
-                        <p class="text-gray-400">
-                            <i class="fas fa-envelope mr-2"></i>sanj2100@naver.com<br>
-                            <i class="fas fa-phone mr-2"></i>062-959-9535
-                        </p>
-                    </div>
-                    <div>
-                        <h4 class="text-lg font-semibold mb-4">바로가기</h4>
-                        <div class="space-y-2">
-                            <a href="/terms" class="block text-gray-400 hover:text-white">이용약관</a>
-                            <a href="/privacy" class="block text-gray-400 hover:text-white">개인정보처리방침</a>
-                            <a href="/refund" class="block text-gray-400 hover:text-white">환불규정</a>
-                        </div>
-                    </div>
-                </div>
-                <div class="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
-                    <p>&copy; 2025 (주)마인드스토리. All rights reserved.</p>
-                </div>
+                ${siteFooterLegalBlockHtml()}
+                <p class="mt-8 pt-8 border-t border-gray-800 text-center text-xs text-gray-500">
+                    &copy; 2025 (주)마인드스토리. All rights reserved.
+                </p>
             </div>
         </footer>
 

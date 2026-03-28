@@ -4,6 +4,7 @@
 
 import { Hono } from 'hono'
 import { Bindings } from '../types/database'
+import { siteFooterLegalBlockHtml } from '../utils/site-footer-legal'
 
 const pages = new Hono<{ Bindings: Bindings }>()
 
@@ -17,8 +18,10 @@ const getHeader = () => `
                     마인드스토리 원격 평생교육원
                 </a>
             </div>
-            <nav class="hidden md:flex space-x-8 items-center">
+            <nav class="hidden md:flex space-x-6 items-center flex-wrap">
                 <a href="/" class="text-gray-700 hover:text-indigo-600">홈</a>
+                <a href="/courses/classic" class="text-classic-sage font-semibold hover:underline">Classic</a>
+                <a href="/courses/next" class="text-next-accent font-semibold hover:underline">Next</a>
                 <a href="/#courses" class="text-gray-700 hover:text-indigo-600">과정 안내</a>
                 <a href="/my-courses" class="text-gray-700 hover:text-indigo-600">내 강의실</a>
                 
@@ -48,33 +51,10 @@ const getHeader = () => `
 const getFooter = () => `
 <footer class="bg-gray-800 text-white py-8 mt-12">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="grid md:grid-cols-3 gap-8">
-            <div>
-                <h4 class="text-lg font-semibold mb-4">마인드스토리 원격평생교육원</h4>
-                <p class="text-gray-400 text-sm">
-                    시간 관리와 심리학을 결합한<br>
-                    전문 교육 플랫폼
-                </p>
-            </div>
-            <div>
-                <h4 class="text-lg font-semibold mb-4">바로가기</h4>
-                <ul class="space-y-2 text-sm">
-                    <li><a href="/terms" class="text-gray-400 hover:text-white">이용약관</a></li>
-                    <li><a href="/privacy" class="text-gray-400 hover:text-white">개인정보처리방침</a></li>
-                    <li><a href="/refund" class="text-gray-400 hover:text-white">환불규정</a></li>
-                </ul>
-            </div>
-            <div>
-                <h4 class="text-lg font-semibold mb-4">문의</h4>
-                <p class="text-gray-400 text-sm">
-                    이메일: contact@mindstory.co.kr<br>
-                    운영시간: 평일 10:00 - 18:00
-                </p>
-            </div>
-        </div>
-        <div class="border-t border-gray-700 mt-8 pt-8 text-center text-sm text-gray-400">
+        ${siteFooterLegalBlockHtml()}
+        <p class="mt-4 pt-4 border-t border-gray-700 text-center text-xs text-gray-500">
             © 2025 마인드스토리 원격평생교육원. All rights reserved.
-        </div>
+        </p>
     </div>
 </footer>
 `
@@ -86,11 +66,11 @@ const getCommonHead = (title: string) => `
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=1.0, user-scalable=yes">
     <title>${title} - 마인드스토리 원격평생교육원</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/static/css/app.css" />
     <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
-    <script src="/static/js/auth.js?v=2025122914"></script>
-    <script src="/static/js/utils.js?v=2025122914"></script>
+    <script src="/static/js/auth.js?v=20260327-2"></script>
+    <script src="/static/js/utils.js?v=20260327-2"></script>
     <style>
         /* 모바일 최적화 - 폰트 크기 및 터치 영역 개선 */
         @media (max-width: 768px) {
@@ -282,17 +262,23 @@ pages.get('/login', (c) => {
         // 로컬스토리지에서 저장된 로그인 정보 불러오기
         window.addEventListener('DOMContentLoaded', () => {
             const rememberedEmail = localStorage.getItem('rememberedEmail')
-            const rememberedPassword = localStorage.getItem('rememberedPassword')
             const rememberMe = localStorage.getItem('rememberMe') === 'true'
             
-            if (rememberMe && rememberedEmail && rememberedPassword) {
+            if (rememberMe && rememberedEmail) {
                 document.getElementById('email').value = rememberedEmail
-                document.getElementById('password').value = rememberedPassword
                 document.getElementById('rememberMe').checked = true
             }
         })
     </script>
     <script>
+        /** 오픈 리다이렉트 방지: 같은 사이트 경로만 허용 */
+        function safeRedirectPath(raw) {
+            if (raw == null || typeof raw !== 'string') return null
+            const t = raw.trim()
+            if (!t.startsWith('/') || t.startsWith('//')) return null
+            return t
+        }
+
         // 로그인 페이지 로드 시 즉시 로컬 세션 정리 (서버 세션 없는 경우)
         async function checkAndCleanupSession() {
             const hasLocalSession = AuthManager.isLoggedIn()
@@ -300,19 +286,22 @@ pages.get('/login', (c) => {
             if (hasLocalSession) {
                 console.log('🔍 Checking server session...')
                 try {
-                    const response = await axios.get('/api/auth/me', { timeout: 3000 })
+                    const response = await axios.get('/api/auth/me', { timeout: 3000, withCredentials: true })
                     
                     if (response.data && response.data.success) {
                         console.log('✅ Server session valid, redirecting...')
                         const urlParams = new URLSearchParams(window.location.search)
-                        const redirect = urlParams.get('redirect') || '/'
+                        const redirect = safeRedirectPath(urlParams.get('redirect')) || '/'
                         window.location.href = redirect
                     } else {
                         console.warn('⚠️ Server session invalid, clearing local session')
                         AuthManager.clearSession()
                     }
                 } catch (error) {
-                    console.error('❌ Session check failed:', error.message)
+                    const status = error?.response?.status
+                    if (status !== 401) {
+                        console.error('❌ Session check failed:', error.message)
+                    }
                     // 서버 세션 확인 실패 시 로컬 세션 강제 삭제
                     AuthManager.clearSession()
                     console.log('🧹 Local session cleared')
@@ -335,33 +324,38 @@ pages.get('/login', (c) => {
             // 아이디/비밀번호 기억하기 처리
             if (rememberMe) {
                 localStorage.setItem('rememberedEmail', email)
-                localStorage.setItem('rememberedPassword', password)
                 localStorage.setItem('rememberMe', 'true')
             } else {
                 localStorage.removeItem('rememberedEmail')
-                localStorage.removeItem('rememberedPassword')
                 localStorage.removeItem('rememberMe')
             }
             
             try {
-                const response = await axios.post('/api/auth/login', { email, password })
+                const response = await axios.post('/api/auth/login', { email, password }, { withCredentials: true })
                 
                 if (response.data.success) {
-                    AuthManager.saveSession(response.data.data.session_token, response.data.data.user)
+                    AuthManager.saveSession(response.data.data.user)
                     showToast('로그인되었습니다.', 'success')
+
+                    if (response.data.data.password_change_required) {
+                        showToast('임시 비밀번호입니다. 새 비밀번호로 변경해주세요.', 'warning')
+                        setTimeout(() => {
+                            window.location.href = '/my'
+                        }, 500)
+                        return
+                    }
                     
                     // 역할에 따른 리다이렉트
                     setTimeout(() => {
                         const urlParams = new URLSearchParams(window.location.search)
-                        const redirect = urlParams.get('redirect')
+                        const redirect = safeRedirectPath(urlParams.get('redirect'))
                         
                         if (redirect) {
-                            // 리다이렉트 파라미터가 있으면 해당 페이지로
                             window.location.href = redirect
                         } else {
                             // 관리자는 관리자 대시보드, 일반 사용자는 홈
                             const user = response.data.data.user
-                            if (user.role === 'admin') {
+                            if (user.role !== 'student') {
                                 window.location.href = '/admin/dashboard'
                             } else {
                                 window.location.href = '/'
@@ -513,7 +507,7 @@ pages.get('/register', (c) => {
                     <div class="space-y-2 pt-4 border-t">
                         <label class="flex items-center">
                             <input id="email_terms_agreed" type="checkbox" required class="mr-2 w-4 h-4">
-                            <span class="text-sm text-gray-700">(필수) <a href="/terms" class="text-indigo-600 hover:underline" target="_blank">이용약관</a>에 동의합니다</span>
+                            <span class="text-sm text-gray-700">(필수) <a href="/terms" class="text-indigo-600 hover:underline" target="_blank">서비스 이용약관</a>에 동의합니다</span>
                         </label>
                         <label class="flex items-center">
                             <input id="email_privacy_agreed" type="checkbox" required class="mr-2 w-4 h-4">
@@ -521,7 +515,7 @@ pages.get('/register', (c) => {
                         </label>
                         <label class="flex items-center">
                             <input id="email_marketing_agreed" type="checkbox" class="mr-2 w-4 h-4">
-                            <span class="text-sm text-gray-700">(선택) 마케팅 정보 수신에 동의합니다</span>
+                            <span class="text-sm text-gray-700">[선택] 마케팅 정보 수신 동의 (이메일/SMS)</span>
                         </label>
                     </div>
                     <button type="submit"
@@ -542,9 +536,24 @@ pages.get('/register', (c) => {
                         <i class="fas fa-arrow-left mr-1"></i>다른 방법 선택
                     </button>
                 </div>
-                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
-                    <p class="text-gray-700 mb-4">카카오 계정으로 간편하게 가입하실 수 있습니다.</p>
-                    <p class="text-sm text-gray-600 mb-6">카카오 계정 정보를 활용하여 빠르게 가입이 완료됩니다.</p>
+                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+                    <p class="text-gray-700 mb-4 text-center">카카오 계정으로 간편하게 가입하실 수 있습니다.</p>
+                    <p class="text-sm text-gray-600 mb-4 text-center">카카오 계정 정보를 활용하여 빠르게 가입이 완료됩니다.</p>
+                    <div class="space-y-2 mb-6 text-left max-w-md mx-auto">
+                        <label class="flex items-start gap-2">
+                            <input id="kakao_terms_agreed" type="checkbox" required class="mt-1 w-4 h-4 shrink-0">
+                            <span class="text-sm text-gray-700">(필수) <a href="/terms" class="text-indigo-600 hover:underline" target="_blank">서비스 이용약관</a>에 동의합니다</span>
+                        </label>
+                        <label class="flex items-start gap-2">
+                            <input id="kakao_privacy_agreed" type="checkbox" required class="mt-1 w-4 h-4 shrink-0">
+                            <span class="text-sm text-gray-700">(필수) <a href="/privacy" class="text-indigo-600 hover:underline" target="_blank">개인정보처리방침</a>에 동의합니다</span>
+                        </label>
+                        <label class="flex items-start gap-2">
+                            <input id="kakao_marketing_agreed" type="checkbox" class="mt-1 w-4 h-4 shrink-0">
+                            <span class="text-sm text-gray-700">[선택] 마케팅 정보 수신 동의 (이메일/SMS)</span>
+                        </label>
+                    </div>
+                    <div class="text-center">
                     <button onclick="registerWithKakao()" type="button"
                         class="w-full md:w-auto px-8 py-3 border border-transparent rounded-md shadow-sm text-sm font-medium text-gray-900 hover:opacity-90 transition-opacity"
                         style="background-color: #FEE500;">
@@ -552,6 +561,7 @@ pages.get('/register', (c) => {
                              alt="Kakao" class="w-5 h-5 inline mr-2">
                         카카오로 시작하기
                     </button>
+                    </div>
                 </div>
             </div>
             
@@ -627,7 +637,7 @@ pages.get('/register', (c) => {
                         <div class="space-y-2 pt-4 border-t">
                             <label class="flex items-center">
                                 <input id="phone_terms_agreed" type="checkbox" required class="mr-2 w-4 h-4">
-                                <span class="text-sm text-gray-700">(필수) <a href="/terms" class="text-green-600 hover:underline" target="_blank">이용약관</a>에 동의합니다</span>
+                                <span class="text-sm text-gray-700">(필수) <a href="/terms" class="text-green-600 hover:underline" target="_blank">서비스 이용약관</a>에 동의합니다</span>
                             </label>
                             <label class="flex items-center">
                                 <input id="phone_privacy_agreed" type="checkbox" required class="mr-2 w-4 h-4">
@@ -635,7 +645,7 @@ pages.get('/register', (c) => {
                             </label>
                             <label class="flex items-center">
                                 <input id="phone_marketing_agreed" type="checkbox" class="mr-2 w-4 h-4">
-                                <span class="text-sm text-gray-700">(선택) 마케팅 정보 수신에 동의합니다</span>
+                                <span class="text-sm text-gray-700">[선택] 마케팅 정보 수신 동의 (이메일/SMS)</span>
                             </label>
                         </div>
                         <button type="submit"
@@ -706,8 +716,7 @@ pages.get('/register', (c) => {
             if (method === 'email') {
                 selectRegisterMethod('email');
             } else if (method === 'kakao') {
-                console.log('[KAKAO] Redirecting to /api/auth/kakao/login');
-                window.location.href = '/api/auth/kakao/login';
+                selectRegisterMethod('kakao');
             } else if (method === 'google') {
                 console.log('[GOOGLE] Redirecting to /api/auth/google/login');
                 window.location.href = '/api/auth/google/login';
@@ -757,7 +766,15 @@ pages.get('/register', (c) => {
         }
 
         function registerWithKakao() {
-            window.location.href = '/api/auth/kakao/login'
+            const t = document.getElementById('kakao_terms_agreed')
+            const p = document.getElementById('kakao_privacy_agreed')
+            if (!t?.checked || !p?.checked) {
+                alert('서비스 이용약관 및 개인정보처리방침에 동의해 주세요.')
+                return
+            }
+            const ma = document.getElementById('kakao_marketing_agreed')?.checked
+            const q = ma ? '?marketing=1' : ''
+            window.location.href = '/api/auth/kakao/login' + q
         }
 
         // ===== 생년월일 드롭다운 초기화 =====
@@ -900,8 +917,14 @@ pages.get('/register', (c) => {
                 return
             }
             
-            // 테스트 모드: 인증번호 123456
-            showToast('인증번호가 발송되었습니다. (테스트: 123456)', 'success')
+            try {
+                await axios.post('/api/auth/phone/request', { phone }, { withCredentials: true })
+                showToast('인증번호가 발송되었습니다.', 'success')
+            } catch (e) {
+                const msg = e.response?.data?.error || '인증번호 발송에 실패했습니다.'
+                showToast(msg, 'error')
+                return
+            }
             
             // 인증번호 입력 섹션 표시
             document.getElementById('verificationCodeSection').style.display = 'block'
@@ -944,16 +967,19 @@ pages.get('/register', (c) => {
                 return
             }
             
-            // 테스트 모드: 인증번호 123456
-            if (code === '123456') {
-                window.phoneVerified = true
-                clearInterval(window.verificationTimer)
-                document.getElementById('verificationCodeSection').style.display = 'none'
-                document.getElementById('phoneVerifiedSection').style.display = 'block'
-                showToast('휴대폰 인증이 완료되었습니다.', 'success')
-            } else {
-                showToast('인증번호가 일치하지 않습니다. (테스트: 123456)', 'error')
-            }
+            const phone = document.getElementById('phone_number').value.trim()
+            axios.post('/api/auth/phone/confirm', { phone, code }, { withCredentials: true })
+                .then(() => {
+                    window.phoneVerified = true
+                    clearInterval(window.verificationTimer)
+                    document.getElementById('verificationCodeSection').style.display = 'none'
+                    document.getElementById('phoneVerifiedSection').style.display = 'block'
+                    showToast('휴대폰 인증이 완료되었습니다.', 'success')
+                })
+                .catch((e) => {
+                    const msg = e.response?.data?.error || '인증번호 확인에 실패했습니다.'
+                    showToast(msg, 'error')
+                })
         }
 
         // 전화번호 회원가입 제출
@@ -1069,21 +1095,25 @@ pages.get('/courses/:id', async (c) => {
                 const response = await axios.get(\`/api/courses/\${courseId}\`)
                 console.log('[DEBUG] API Response:', response.data)
                 
-                const { course, lessons, enrollment } = response.data.data
+                const { course, lessons, enrollment, has_paid_access } = response.data.data
                 
                 console.log('[DEBUG] Course data:', course)
                 console.log('[DEBUG] Lessons count:', lessons?.length)
                 console.log('[DEBUG] Enrollment:', enrollment)
                 
-                // 현재 사용자 확인
-                const currentUser = AuthManager.getCurrentUser()
+                // 현재 사용자 확인 (서버 세션 쿠키 기준)
+                const currentUser = await getCurrentUser()
                 console.log('[DEBUG] Current User:', currentUser)
                 
-                const isAdmin = currentUser && currentUser.role === 'admin'
-                const hasAccess = isAdmin || enrollment
+                const isAdmin = !!(currentUser && currentUser.role === 'admin')
+                const hasAccess = isAdmin || enrollment || has_paid_access === true
                 
                 console.log('[DEBUG] isAdmin:', isAdmin, 'hasAccess:', hasAccess)
                 console.log('[DEBUG] Starting HTML render...')
+                
+                const cg = ((course.category_group || 'CLASSIC') + '').toUpperCase()
+                document.body.classList.remove('theme-classic', 'theme-next')
+                document.body.classList.add(cg === 'NEXT' ? 'theme-next' : 'theme-classic')
                 
                 const detailHtml = \`
                     <!-- 과정 헤더 섹션 -->
@@ -1127,10 +1157,16 @@ pages.get('/courses/:id', async (c) => {
                                         }
                                     </div>
                                     \${isAdmin ? 
-                                        \`<button onclick="goToLesson(\${course.id}, \${lessons[0]?.id || 0}, true, true)" 
-                                                 class="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-4 rounded-xl font-bold text-lg hover:from-purple-700 hover:to-indigo-700 transition-all transform hover:scale-105 shadow-lg">
-                                            <i class="fas fa-user-shield mr-2"></i>관리자 모드로 학습하기
-                                        </button>\` :
+                                        \`<div class="w-full space-y-3">
+                                            <button type="button" onclick="goToLesson(\${course.id}, \${lessons[0]?.id || 0}, true, true)" 
+                                                 class="w-full bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-6 py-4 rounded-xl font-bold text-lg hover:from-emerald-700 hover:to-teal-700 transition-all shadow-lg">
+                                                <i class="fas fa-user-shield mr-2"></i>바로 학습 (프리패스)
+                                            </button>
+                                            <button type="button" onclick="enrollCourse(\${course.id})" 
+                                                 class="w-full bg-white text-purple-700 border-2 border-purple-200 px-6 py-3 rounded-xl font-bold hover:bg-purple-50 transition">
+                                                <i class="fas fa-clipboard-check mr-2"></i>수강 신청 (테스트)
+                                            </button>
+                                        </div>\` :
                                         \`<button onclick="enrollCourse(\${course.id})" 
                                                  class="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-4 rounded-xl font-bold text-lg hover:from-purple-700 hover:to-indigo-700 transition-all transform hover:scale-105 shadow-lg">
                                             <i class="fas fa-\${enrollment ? 'play' : 'shopping-cart'} mr-2"></i>\${enrollment ? '학습 시작하기' : '지금 수강 신청'}
@@ -1176,6 +1212,40 @@ pages.get('/courses/:id', async (c) => {
                         </div>
                     </div>
                     
+                    \${cg === 'CLASSIC' ? \`
+                    <div class="rounded-2xl border border-classic-sage/30 bg-classic-cream p-6 md:p-8 mb-8 shadow-sm">
+                        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                            <div>
+                                <p class="text-sm font-semibold text-classic-sage uppercase tracking-wide">MINDSTORY Classic · Heritage</p>
+                                <h3 class="text-xl font-bold text-classic-forest mt-1">학습 상담 & 기록</h3>
+                                <p class="text-classic-forest/80 mt-2 text-sm">상담 일지와 학습 기록을 남기고 전문가와 연결할 수 있습니다.</p>
+                            </div>
+                            <div class="flex flex-wrap gap-3">
+                                <a href="mailto:support@mindstory.kr?subject=상담%20신청" class="inline-flex items-center justify-center rounded-xl bg-classic-sage text-white px-5 py-3 font-semibold hover:opacity-90 transition">
+                                    <i class="fas fa-comments mr-2"></i>상담 신청
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    \` : \`
+                    <div class="rounded-2xl border border-next-accent/20 bg-white p-6 md:p-8 mb-8 shadow-md">
+                        <p class="text-sm font-semibold text-next-accent uppercase tracking-wide">MINDSTORY Next</p>
+                        <h3 class="text-xl font-bold text-next-ink mt-1">AI 동화 제작 진행</h3>
+                        <div class="mt-4 flex flex-wrap gap-2">
+                            \${[1,2,3,4,5].map(function(n) { return '<span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold bg-slate-100 text-next-ink">Step '+n+'</span>' }).join('')}
+                        </div>
+                        <div class="mt-6 flex flex-wrap gap-3">
+                            <button type="button" onclick="startNextDigitalBook()" class="inline-flex items-center justify-center rounded-xl bg-next-accent text-white px-5 py-3 font-semibold hover:bg-blue-700 transition">
+                                <i class="fas fa-magic mr-2"></i>AI 동화 만들기
+                            </button>
+                            <button type="button" onclick="publishDigitalBook()" class="inline-flex items-center justify-center rounded-xl border-2 border-next-accent text-next-accent px-5 py-3 font-semibold hover:bg-slate-50 transition">
+                                <i class="fas fa-barcode mr-2"></i>출판하기 (ISBN)
+                            </button>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-3">동화 초안은 로그인 후 저장되며, 과정에 ISBN이 켜져 있으면 출판 시 번호가 할당됩니다.</p>
+                    </div>
+                    \`}
+                    
                     <!-- 커리큘럼 섹션 -->
                     <div class="bg-white rounded-2xl shadow-lg p-8">
                         <div class="flex items-center justify-between mb-6">
@@ -1188,7 +1258,7 @@ pages.get('/courses/:id', async (c) => {
                         </div>
                         <div class="space-y-3">
                             \${lessons.map((lesson, index) => \`
-                                <div onclick="goToLesson(\${course.id}, \${lesson.id}, \${lesson.is_free_preview}, \${enrollment ? true : false})" 
+                                <div onclick="goToLesson(\${course.id}, \${lesson.id}, \${lesson.is_free_preview}, \${hasAccess ? true : false})" 
                                      class="group bg-gray-50 hover:bg-purple-50 border-2 border-gray-200 hover:border-purple-400 rounded-xl p-5 transition-all cursor-pointer transform hover:scale-[1.02]">
                                     <div class="flex items-center justify-between">
                                         <div class="flex items-center flex-1 gap-4">
@@ -1240,20 +1310,72 @@ pages.get('/courses/:id', async (c) => {
             }
         }
         
-        function goToLesson(courseId, lessonId, isFreePreview, isEnrolled) {
-            // 관리자는 모든 영상 시청 가능
-            const user = AuthManager.getCurrentUser()
+        let lastDigitalBookId = null
+        async function startNextDigitalBook() {
+            const user = await getCurrentUser()
+            if (!user) {
+                showToast('로그인이 필요합니다.', 'error')
+                setTimeout(function() { window.location.href = '/login?redirect=/courses/' + courseId }, 800)
+                return
+            }
+            try {
+                const r = await axios.post('/api/digital-books', {
+                    title: '나의 동화 ' + new Date().toLocaleString('ko-KR'),
+                    course_id: parseInt(courseId, 10),
+                    content_json: { step: 1, draft: true }
+                }, { withCredentials: true })
+                if (r.data && r.data.success) {
+                    lastDigitalBookId = r.data.data.id
+                    showToast('동화 초안이 저장되었습니다.', 'success')
+                }
+            } catch (e) {
+                showToast((e.response && e.response.data && e.response.data.error) || '저장 실패', 'error')
+            }
+        }
+        async function publishDigitalBook() {
+            const user = await getCurrentUser()
+            if (!user) {
+                showToast('로그인이 필요합니다.', 'error')
+                return
+            }
+            try {
+                if (!lastDigitalBookId) {
+                    const r0 = await axios.post('/api/digital-books', {
+                        title: '나의 동화',
+                        course_id: parseInt(courseId, 10),
+                        content_json: {}
+                    }, { withCredentials: true })
+                    if (r0.data && r0.data.success) lastDigitalBookId = r0.data.data.id
+                }
+                if (!lastDigitalBookId) {
+                    showToast('먼저 「AI 동화 만들기」로 초안을 만드세요.', 'error')
+                    return
+                }
+                const r = await axios.post('/api/digital-books/' + lastDigitalBookId + '/publish', {}, { withCredentials: true })
+                if (r.data && r.data.success) {
+                    var d = r.data.data
+                    showToast(d.isbn ? ('출판 완료 · ISBN ' + d.isbn) : '출판 완료', 'success')
+                    if (d.barcode_url) window.open(d.barcode_url, '_blank')
+                }
+            } catch (e) {
+                showToast((e.response && e.response.data && e.response.data.error) || '출판 실패', 'error')
+            }
+        }
+        
+        async function goToLesson(courseId, lessonId, isFreePreview, isEnrolled) {
+            // 관리자는 모든 차시 프리패스 (수강신청/결제 없이 학습 플레이어로)
+            const user = await getCurrentUser()
             if (user && user.role === 'admin') {
-                window.location.href = \`/courses/\${courseId}/lessons/\${lessonId}\`
+                window.location.href = \`/courses/\${courseId}/learn?lesson=\${lessonId}\`
                 return
             }
             
             // 무료 미리보기이거나 수강 중이면 바로 이동
             if (isFreePreview || isEnrolled) {
-                window.location.href = \`/courses/\${courseId}/lessons/\${lessonId}\`
+                window.location.href = \`/courses/\${courseId}/learn?lesson=\${lessonId}\`
             } else {
                 // 수강 신청 필요
-                if (!AuthManager.isLoggedIn()) {
+                if (!user) {
                     showToast('로그인이 필요합니다.', 'error')
                     setTimeout(() => {
                         window.location.href = '/login?redirect=/courses/' + courseId
@@ -1265,7 +1387,8 @@ pages.get('/courses/:id', async (c) => {
         }
         
         async function enrollCourse(courseId) {
-            if (!AuthManager.isLoggedIn()) {
+            const user = await getCurrentUser()
+            if (!user) {
                 showToast('로그인이 필요합니다.', 'error')
                 setTimeout(() => {
                     window.location.href = '/login?redirect=/courses/' + courseId
@@ -1275,21 +1398,18 @@ pages.get('/courses/:id', async (c) => {
             
             try {
                 // 과정 정보 다시 조회 (무료/유료 확인)
-                const courseResponse = await axios.get(\`/api/courses/\${courseId}\`)
-                const course = courseResponse.data.data
+                const courseResponse = await axios.get(\`/api/courses/\${courseId}\`, { withCredentials: true })
+                const course = courseResponse.data?.data?.course
                 
                 // price로 무료/유료 판단 (price === 0이면 무료)
-                const isFree = course.price === 0
+                const isFree = course && course.price === 0
                 
                 if (isFree) {
                     // 무료 과정: 수강신청 후 내 강의실로 이동
-                    const token = AuthManager.getSessionToken()
-                    const response = await axios.post('/api/enrollments', 
+                    const response = await axios.post(
+                        '/api/enrollments',
                         { courseId: courseId },
-                        { 
-                            headers: { 'Authorization': \`Bearer \${token}\` },
-                            withCredentials: true
-                        }
+                        { withCredentials: true }
                     )
                     
                     if (response.data.success) {

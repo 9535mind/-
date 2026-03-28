@@ -19,6 +19,13 @@ app.use('/*', requireAuth)
 app.post('/lessons/:lessonId', async (c) => {
   try {
     const user = c.get('user')
+    if (user.role === 'admin') {
+      return c.json({
+        success: true,
+        skipped: true,
+        message: '관리자 계정은 진도가 기록되지 않습니다.',
+      })
+    }
     const lessonId = c.req.param('lessonId')
     
     const {
@@ -300,7 +307,12 @@ app.get('/my-courses', async (c) => {
         c.description,
         c.thumbnail_url,
         c.total_duration_minutes,
-        u.name as instructor_name
+        u.name as instructor_name,
+        (
+          SELECT cert.certificate_number FROM certificates cert
+          WHERE cert.enrollment_id = e.id
+          ORDER BY cert.id DESC LIMIT 1
+        ) as certificate_number
       FROM enrollments e
       JOIN courses c ON e.course_id = c.id
       LEFT JOIN users u ON c.instructor_id = u.id

@@ -20,7 +20,7 @@ app.get('/my-courses', (c) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>내 강좌 - 마인드스토리 LMS</title>
-        <script src="https://cdn.tailwindcss.com"></script>
+        <link rel="stylesheet" href="/static/css/app.css" />
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script src="/static/js/auth.js"></script>
@@ -201,7 +201,7 @@ app.get('/my-courses', (c) => {
                             <!-- 버튼 -->
                             <div class="flex space-x-2">
                                 \${isCompleted && course.certificate_issued ? \`
-                                    <a href="/certificates/\${course.course_id}" 
+                                    <a href="\${course.certificate_number ? '/certificates/' + course.certificate_number : '/certificates?enrollment=' + course.enrollment_id}" 
                                        class="flex-1 text-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
                                         <i class="fas fa-certificate mr-1"></i>수료증
                                     </a>
@@ -266,7 +266,7 @@ app.get('/my-courses', (c) => {
 
         // Initialize
         document.addEventListener('DOMContentLoaded', async () => {
-            const user = await checkAuth();
+            const user = await getCurrentUser();
             if (!user) {
                 window.location.href = '/login';
                 return;
@@ -296,7 +296,7 @@ app.get('/courses/:courseId/lessons/:lessonId', (c) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>차시 상세 - 마인드스토리 LMS</title>
-        <script src="https://cdn.tailwindcss.com"></script>
+        <link rel="stylesheet" href="/static/css/app.css" />
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script src="/static/js/auth.js"></script>
@@ -525,6 +525,50 @@ app.get('/courses/:courseId/lessons/:lessonId', (c) => {
                 document.getElementById('nextLessonSection').classList.remove('hidden');
                 document.getElementById('nextLessonTitle').textContent = nextLesson.title;
                 window.nextLessonId = nextLesson.id;
+            }
+
+            // 교육자료 로드
+            loadMaterials().catch(err => console.error('loadMaterials error:', err));
+        }
+
+        async function loadMaterials() {
+            const container = document.getElementById('materialsSection');
+            if (!container) return;
+            try {
+                const res = await axios.get(\`/api/courses/\${courseId}/materials\`, { withCredentials: true });
+                const materials = res.data?.data?.materials || [];
+                if (!materials.length) {
+                    container.innerHTML = \`
+                        <p class="text-center text-gray-500 py-8">
+                            <i class="fas fa-inbox text-4xl mb-2"></i><br>
+                            등록된 교육자료가 없습니다.
+                        </p>\`;
+                    return;
+                }
+                container.innerHTML = materials.map(m => {
+                    const title = m.filename || (m.title ? (m.title + '.pdf') : '자료.pdf');
+                    const subtitle = m.lesson_number ? \`차시 \${m.lesson_number}\` : '교육자료';
+                    const disabled = m.allow_download === false;
+                    return \`
+                        <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                            <div class="flex items-center">
+                                <i class="fas fa-file-pdf text-red-600 text-2xl mr-4"></i>
+                                <div>
+                                    <p class="font-semibold text-gray-900">\${title}</p>
+                                    <p class="text-sm text-gray-600">\${subtitle}</p>
+                                </div>
+                            </div>
+                            <a href="\${m.url}" \${disabled ? 'aria-disabled=\"true\"' : ''} \${disabled ? 'onclick=\"return false;\"' : ''} class="px-4 py-2 \${disabled ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'} rounded-lg">
+                                <i class="fas fa-download mr-2"></i>
+                                다운로드
+                            </a>
+                        </div>\`;
+                }).join('');
+            } catch (e) {
+                container.innerHTML = \`
+                    <p class="text-center text-red-500 py-8">
+                        교육자료를 불러오지 못했습니다.
+                    </p>\`;
             }
         }
 

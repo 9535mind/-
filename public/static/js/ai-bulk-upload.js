@@ -326,8 +326,8 @@ async function saveAllLessons() {
 }
 
 /**
- * 헬퍼: 토큰 가져오기
+ * 헬퍼: 쿠키 기반 인증으로 토큰 직접 사용 안함
  */
 function getToken() {
-  return localStorage.getItem('session_token') || sessionStorage.getItem('session_token');
+  return null;
 }

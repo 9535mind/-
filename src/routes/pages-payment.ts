@@ -6,6 +6,7 @@
  */
 
 import { Hono } from 'hono'
+import { sitePaymentFooterHtml } from '../utils/site-footer-legal'
 
 const app = new Hono()
 
@@ -23,7 +24,7 @@ app.get('/payment/checkout/:courseId', (c) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>결제하기 - 마인드스토리</title>
-        <script src="https://cdn.tailwindcss.com"></script>
+        <link rel="stylesheet" href="/static/css/app.css" />
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script src="https://js.tosspayments.com/v1/payment-widget"></script>
@@ -91,6 +92,8 @@ app.get('/payment/checkout/:courseId', (c) => {
             </button>
         </div>
 
+        ${sitePaymentFooterHtml()}
+
         <script>
             const courseId = ${courseId}
             let paymentWidget = null
@@ -104,8 +107,8 @@ app.get('/payment/checkout/:courseId', (c) => {
             // 페이지 로드 시 실행
             async function init() {
                 try {
-                    // 로그인 확인
-                    const user = await checkAuth()
+                    // 로그인 확인 (auth.js의 getCurrentUser)
+                    const user = await getCurrentUser()
                     if (!user) {
                         alert('로그인이 필요합니다.')
                         window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname)
@@ -198,7 +201,7 @@ app.get('/success', (c) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>결제 성공 - 마인드스토리</title>
-        <script src="https://cdn.tailwindcss.com"></script>
+        <link rel="stylesheet" href="/static/css/app.css" />
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script src="/static/js/utils.js"></script>
@@ -216,6 +219,8 @@ app.get('/success', (c) => {
                 <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-8"></div>
             </div>
         </div>
+
+        ${sitePaymentFooterHtml()}
 
         <script>
             async function confirmPayment() {
@@ -272,7 +277,7 @@ app.get('/payment/fail', (c) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>결제 실패 - 마인드스토리</title>
-        <script src="https://cdn.tailwindcss.com"></script>
+        <link rel="stylesheet" href="/static/css/app.css" />
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
     </head>
     <body class="bg-gray-50">
@@ -296,6 +301,8 @@ app.get('/payment/fail', (c) => {
                 </div>
             </div>
         </div>
+
+        ${sitePaymentFooterHtml()}
 
         <script>
             // URL 파라미터에서 에러 메시지 가져오기

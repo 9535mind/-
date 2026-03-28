@@ -19,13 +19,28 @@ class CourseReviews {
     this.sortBy = 'recent';
     this.isEnrolled = false;
     this.myReview = null;
+    this.currentUser = null;
     this.init();
   }
 
   async init() {
+    await this.loadCurrentUser();
     await this.checkEnrollment();
     await this.loadReviews();
     this.attachEventListeners();
+  }
+
+  async loadCurrentUser() {
+    try {
+      const response = await fetch('/api/auth/me', { credentials: 'include' });
+      if (!response.ok) return;
+      const result = await response.json();
+      if (result && result.success && result.data) {
+        this.currentUser = result.data;
+      }
+    } catch {
+      // ignore
+    }
   }
 
   /**
@@ -33,6 +48,11 @@ class CourseReviews {
    */
   async checkEnrollment() {
     try {
+      const user = typeof AuthManager !== 'undefined' && AuthManager.getUser && AuthManager.getUser();
+      if (user && user.role === 'admin') {
+        this.isEnrolled = true;
+        return;
+      }
       const response = await fetch('/api/my/enrollments', {
         credentials: 'include'
       });
@@ -229,7 +249,7 @@ class CourseReviews {
    * 수강평 아이템 렌더링
    */
   renderReviewItem(review) {
-    const isMyReview = false; // TODO: 로그인한 사용자와 비교
+    const isMyReview = !!(this.currentUser && (review.user_id == this.currentUser.id));
 
     return `
       <div class="bg-white rounded-lg shadow p-4">

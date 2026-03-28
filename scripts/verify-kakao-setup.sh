@@ -113,8 +113,8 @@ echo ""
 echo "🖥️  3. 서버 상태 확인"
 echo "-------------------------------------------"
 
-if pm2 list | grep -q "mindstory-lms"; then
-    STATUS=$(pm2 list | grep "mindstory-lms" | awk '{print $10}')
+if pm2 list | grep -q "mslms"; then
+    STATUS=$(pm2 list | grep "mslms" | awk '{print $10}')
     if [[ "$STATUS" == "online" ]]; then
         echo -e "${GREEN}✓${NC} 서버 실행 중 (PM2)"
         PASS_COUNT=$((PASS_COUNT + 1))
@@ -164,8 +164,8 @@ echo ""
 echo "📝 5. 최근 로그 확인"
 echo "-------------------------------------------"
 
-RECENT_ERRORS=$(pm2 logs mindstory-lms --nostream --lines 100 2>/dev/null | grep -i "KAKAO.*ERROR" | wc -l)
-RECENT_SUCCESS=$(pm2 logs mindstory-lms --nostream --lines 100 2>/dev/null | grep -i "KAKAO_LOGIN" | wc -l)
+RECENT_ERRORS=$(pm2 logs mslms --nostream --lines 100 2>/dev/null | grep -i "KAKAO.*ERROR" | wc -l)
+RECENT_SUCCESS=$(pm2 logs mslms --nostream --lines 100 2>/dev/null | grep -i "KAKAO_LOGIN" | wc -l)
 
 if [ $RECENT_SUCCESS -gt 0 ]; then
     echo -e "${GREEN}✓${NC} 최근 카카오 로그인 시도: $RECENT_SUCCESS 회"
@@ -179,7 +179,7 @@ if [ $RECENT_ERRORS -gt 0 ]; then
     echo -e "${RED}✗${NC} 최근 카카오 에러: $RECENT_ERRORS 회"
     echo ""
     echo "최근 에러 로그:"
-    pm2 logs mindstory-lms --nostream --lines 100 2>/dev/null | grep -i "KAKAO.*ERROR" | tail -5
+    pm2 logs mslms --nostream --lines 100 2>/dev/null | grep -i "KAKAO.*ERROR" | tail -5
     FAIL_COUNT=$((FAIL_COUNT + 1))
 else
     echo -e "${GREEN}✓${NC} 최근 카카오 에러 없음"

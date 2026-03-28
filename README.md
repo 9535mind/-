@@ -123,7 +123,7 @@ GET /api/certificates/:number
 
 ### **Cloudflare Pages (프로덕션)**
 ```
-🌐 URL: https://mindstory-lms.pages.dev
+🌐 URL: https://mindstory.kr
 📝 상태: 배포 완료
 🔒 인증: 필요 (API 토큰)
 ```
@@ -136,7 +136,7 @@ GET /api/certificates/:number
 ```
 📧 ID: admin@lms.kr
 🔑 PW: admin123456
-🌐 URL: https://mindstory-lms.pages.dev
+🌐 URL: https://mindstory.kr
 ```
 
 **관리자 권한:**
@@ -151,7 +151,7 @@ GET /api/certificates/:number
 ```
 📧 ID: student@example.com
 🔑 PW: student123
-🌐 URL: https://mindstory-lms.pages.dev
+🌐 URL: https://mindstory.kr
 ```
 
 ---

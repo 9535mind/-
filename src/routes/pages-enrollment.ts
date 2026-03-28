@@ -5,7 +5,8 @@
 
 import { Hono } from 'hono'
 import { Bindings } from '../types/database'
-import { requireAuth } from '../middleware/auth'
+import { optionalAuth } from '../middleware/auth'
+import { siteFooterLegalBlockHtml } from '../utils/site-footer-legal'
 
 const pagesEnrollment = new Hono<{ Bindings: Bindings }>()
 
@@ -13,8 +14,12 @@ const pagesEnrollment = new Hono<{ Bindings: Bindings }>()
  * GET /enrollment
  * 수강신청 페이지 (로그인 필수)
  */
-pagesEnrollment.get('/enrollment', requireAuth, async (c) => {
+pagesEnrollment.get('/enrollment', optionalAuth, async (c) => {
   const user = c.get('user')
+  if (!user) {
+    // 로그인 후 다시 수강신청으로 돌아오도록 redirect 유지 (순환 방지)
+    return c.redirect('/login?redirect=' + encodeURIComponent('/enrollment'))
+  }
   
   return c.html(`
     <!DOCTYPE html>
@@ -28,7 +33,7 @@ pagesEnrollment.get('/enrollment', requireAuth, async (c) => {
         <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" />
         
         <!-- Tailwind CSS -->
-        <script src="https://cdn.tailwindcss.com"></script>
+        <link rel="stylesheet" href="/static/css/app.css" />
         
         <!-- FontAwesome -->
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
@@ -168,6 +173,15 @@ pagesEnrollment.get('/enrollment', requireAuth, async (c) => {
         </header>
         
         <div style="height: 80px;"></div> <!-- 헤더 높이만큼 여백 -->
+
+        ${user.role === 'admin' ? `
+        <div class="container mx-auto px-4 pt-2">
+            <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-900 text-sm leading-relaxed">
+                <strong><i class="fas fa-user-shield mr-2"></i>관리자 프리패스</strong>
+                <span class="block sm:inline sm:ml-2 mt-1 sm:mt-0">수강 신청·결제 없이도 각 강좌의 <strong>바로 학습</strong>으로 전 차시를 열 수 있습니다. 기록이 필요할 때만 수강 신청하시면 됩니다.</span>
+            </div>
+        </div>
+        ` : ''}
         
         <div class="container mx-auto px-4 py-12">
             <!-- 페이지 헤더 -->
@@ -216,14 +230,15 @@ pagesEnrollment.get('/enrollment', requireAuth, async (c) => {
         </div>
         
         <!-- 푸터 -->
-        <footer class="bg-gray-800 text-white py-12 mt-20">
-            <div class="container mx-auto px-4 text-center">
-                <p class="text-lg mb-4">마인드스토리 원격평생교육원</p>
-                <p class="text-gray-400 text-sm">© 2026 MindStory. All rights reserved.</p>
+        <footer class="bg-gray-800 text-white py-10 mt-20">
+            <div class="container mx-auto px-4 max-w-4xl">
+                ${siteFooterLegalBlockHtml()}
+                <p class="mt-8 pt-6 border-t border-gray-700 text-center text-xs text-gray-500">© 2026 (주)마인드스토리. All rights reserved.</p>
             </div>
         </footer>
         
         <script>
+            const IS_ADMIN_FREEPASS = ${user.role === 'admin' ? 'true' : 'false'}
             let allCourses = []
             let enrolledCourseIds = []
             let currentFilter = 'all'
@@ -234,19 +249,15 @@ pagesEnrollment.get('/enrollment', requireAuth, async (c) => {
                 setupFilters()
             })
             
-            // 강좌 목록 로드
+            // 강좌 목록 로드 (세션은 HttpOnly 쿠키 — Bearer null 보내면 401 발생)
             async function loadCourses() {
                 try {
                     // 1. 모든 강좌 가져오기
-                    const coursesResponse = await axios.get('/api/courses')
+                    const coursesResponse = await axios.get('/api/courses', { withCredentials: true })
                     allCourses = coursesResponse.data.data || []
                     
                     // 2. 내 수강 목록 가져오기
-                    const enrollmentsResponse = await axios.get('/api/enrollments/my', {
-                        headers: {
-                            'Authorization': 'Bearer ' + AuthManager.getSessionToken()
-                        }
-                    })
+                    const enrollmentsResponse = await axios.get('/api/enrollments/my', { withCredentials: true })
                     const enrollments = enrollmentsResponse.data.data || []
                     enrolledCourseIds = enrollments.map(e => e.course_id)
                     
@@ -339,19 +350,24 @@ pagesEnrollment.get('/enrollment', requireAuth, async (c) => {
                                 </div>
                                 
                                 <!-- 버튼 -->
-                                \${isEnrolled 
-                                    ? \`
-                                        <button class="btn-enroll btn-enrolled" disabled>
-                                            <i class="fas fa-check mr-2"></i>
-                                            수강중
+                                \${IS_ADMIN_FREEPASS
+                                    ? (isEnrolled
+                                        ? \`<button class="btn-enroll btn-enrolled" disabled><i class="fas fa-check mr-2"></i>수강중</button>\`
+                                        : \`<a href="/courses/\${course.id}/learn" class="btn-enroll" style="display:block;text-align:center;text-decoration:none;background:linear-gradient(135deg,#059669 0%,#047857 100%);box-shadow:0 4px 6px rgba(5,150,105,0.25)"><i class="fas fa-play-circle mr-2"></i>바로 학습</a>\`)
+                                    : (isEnrolled
+                                        ? \`<button class="btn-enroll btn-enrolled" disabled><i class="fas fa-check mr-2"></i>수강중</button>\`
+                                        : (isFree
+                                            ? \`
+                                        <a href="/courses/\${course.id}/learn" class="btn-enroll mb-2" style="display:block;text-align:center;text-decoration:none;background:linear-gradient(135deg,#059669 0%,#047857 100%);box-shadow:0 4px 6px rgba(5,150,105,0.2)">
+                                            <i class="fas fa-play-circle mr-2"></i>
+                                            바로 학습 (수강신청 없이)
+                                        </a>
+                                        <button type="button" class="btn-enroll mb-2" style="background:#e5e7eb;color:#374151;font-weight:600" onclick="enrollCourse(\${course.id}, 0)">
+                                            <i class="fas fa-clipboard-check mr-2"></i>
+                                            수강 기록만 남기기 (선택)
                                         </button>
                                     \`
-                                    : \`
-                                        <button class="btn-enroll" onclick="enrollCourse(\${course.id}, \${course.price})">
-                                            <i class="fas fa-\${isFree ? 'gift' : 'shopping-cart'} mr-2"></i>
-                                            \${isFree ? '무료 수강신청' : '결제하기'}
-                                        </button>
-                                    \`
+                                            : \`<button class="btn-enroll" onclick="enrollCourse(\${course.id}, \${course.price})"><i class="fas fa-shopping-cart mr-2"></i>결제하기</button>\`))
                                 }
                             </div>
                         </div>
@@ -378,28 +394,18 @@ pagesEnrollment.get('/enrollment', requireAuth, async (c) => {
                 })
             }
             
-            // 수강신청
+            // 수강신청 (무료는 선택 — 기록용으로만 등록)
             async function enrollCourse(courseId, price) {
                 try {
                     if (price === 0) {
-                        // 무료 강좌: 즉시 수강신청
                         const response = await axios.post('/api/enrollments', 
                             { courseId },
-                            {
-                                headers: {
-                                    'Authorization': 'Bearer ' + AuthManager.getSessionToken()
-                                },
-                                withCredentials: true
-                            }
+                            { withCredentials: true }
                         )
                         
                         if (response.data.success) {
-                            showToast('수강 신청이 완료되었습니다!', 'success')
-                            
-                            // 1초 후 내 강의실로 이동
-                            setTimeout(() => {
-                                window.location.href = '/my-courses'
-                            }, 1000)
+                            showToast('수강 기록이 등록되었습니다. 내 강의실에서 확인할 수 있어요.', 'success')
+                            await loadCourses()
                         }
                     } else {
                         // 유료 강좌: 결제 페이지로 이동

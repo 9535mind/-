@@ -11,6 +11,70 @@ import { validateLessonContent, validateVideoUrl, extractYouTubeId, extractApiVi
 
 const courses = new Hono<{ Bindings: Bindings }>()
 
+function escapeXml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
+}
+
+function splitTitleLines(title: string, maxPerLine = 18): string[] {
+  const normalized = title.trim().replace(/\s+/g, ' ')
+  if (!normalized) return ['마인드스토리 강좌']
+  if (normalized.length <= maxPerLine) return [normalized]
+  return [normalized.slice(0, maxPerLine), normalized.slice(maxPerLine, maxPerLine * 2)]
+}
+
+/**
+ * 강좌 제목 기반 SVG 썸네일 생성
+ * - 보라색 그라데이션 + 학습 아이콘 + 제목 오버레이
+ */
+function generateCourseThumbnailSvg(title: string): string {
+  const safeTitle = escapeXml(title || '마인드스토리 강좌')
+  const lines = splitTitleLines(safeTitle, 18)
+  const line1 = lines[0] || '마인드스토리 강좌'
+  const line2 = lines[1] || ''
+  const y1 = line2 ? 542 : 565
+
+  return `
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675" role="img" aria-label="${safeTitle}">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6D28D9"/>
+      <stop offset="58%" stop-color="#4F46E5"/>
+      <stop offset="100%" stop-color="#A21CAF"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="82%" cy="18%" r="52%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="14" flood-color="#1E1B4B" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="675" fill="url(#bgGrad)"/>
+  <rect width="1200" height="675" fill="url(#glow)"/>
+  <rect x="64" y="72" width="260" height="140" rx="24" fill="#FFFFFF" fill-opacity="0.06"/>
+  <rect x="928" y="120" width="200" height="100" rx="20" fill="#FFFFFF" fill-opacity="0.08"/>
+  <circle cx="1040" cy="540" r="92" fill="#FFFFFF" fill-opacity="0.05"/>
+
+  <g transform="translate(600,285)" filter="url(#shadow)">
+    <path d="M-84 -44c31-18 59-19 84-7v111c-25-12-53-11-84 7z" fill="#FFFFFF" fill-opacity="0.86"/>
+    <path d="M84 -44c-31-18-59-19-84-7v111c25-12 53-11 84 7z" fill="#FFFFFF" fill-opacity="0.72"/>
+    <path d="M0 -51v118" stroke="#FFFFFF" stroke-opacity="0.55" stroke-width="4"/>
+  </g>
+
+  <g transform="translate(80,502)">
+    <rect width="1040" height="132" rx="20" fill="#0F172A" fill-opacity="0.28"/>
+    <text x="40" y="${y1}" fill="#FFFFFF" font-size="52" font-weight="700" font-family="Pretendard, Apple SD Gothic Neo, Noto Sans KR, sans-serif" letter-spacing="-1">${line1}</text>
+    ${line2 ? `<text x="40" y="596" fill="#FFFFFF" font-size="44" font-weight="600" font-family="Pretendard, Apple SD Gothic Neo, Noto Sans KR, sans-serif" letter-spacing="-0.6">${line2}</text>` : ''}
+  </g>
+</svg>`.trim()
+}
+
 /**
  * GET /api/courses
  * 과정 목록 조회 (공개된 과정만)
@@ -19,13 +83,23 @@ courses.get('/', optionalAuth, async (c) => {
   try {
     const { DB } = c.env
     const user = c.get('user')
+    const rawCg = (c.req.query('category_group') || '').trim().toUpperCase()
+    const cg = rawCg === 'CLASSIC' || rawCg === 'NEXT' ? rawCg : null
 
-    // 관리자는 모든 과정, 일반 사용자는 공개된 과정만 (published, active)
-    const query = user?.role === 'admin' 
-      ? `SELECT * FROM courses ORDER BY created_at DESC`
-      : `SELECT * FROM courses WHERE status IN ('published', 'active') ORDER BY created_at DESC`
+    const cgSql = cg ? `AND UPPER(IFNULL(category_group, 'CLASSIC')) = ?` : ''
+    const orderBy =
+      cg === 'CLASSIC'
+        ? 'highlight_classic DESC, IFNULL(display_order, 0) ASC, created_at DESC'
+        : 'created_at DESC'
 
-    const result = await DB.prepare(query).all<Course>()
+    const query =
+      user?.role === 'admin'
+        ? `SELECT * FROM courses WHERE 1=1 ${cgSql} ORDER BY ${orderBy}`
+        : `SELECT * FROM courses WHERE status IN ('published', 'active') ${cgSql} ORDER BY ${orderBy}`
+
+    const result = cg
+      ? await DB.prepare(query).bind(cg).all<Course>()
+      : await DB.prepare(query).all<Course>()
 
     return c.json(successResponse(result.results))
 
@@ -106,13 +180,52 @@ courses.get('/:id', optionalAuth, async (c) => {
     
     const studentCount = studentCountResult?.count || 0
 
+    let has_paid_access = false
+    if (user) {
+      try {
+        const paidOrder = await DB.prepare(`
+          SELECT 1 as ok FROM orders
+          WHERE user_id = ? AND course_id = ? AND status = 'paid'
+          LIMIT 1
+        `)
+          .bind(user.id, courseId)
+          .first<{ ok: number }>()
+        if (paidOrder) {
+          has_paid_access = true
+        }
+      } catch {
+        // orders 테이블 미적용 환경
+      }
+      if (!has_paid_access) {
+        try {
+          const paidLegacy = await DB.prepare(`
+            SELECT 1 as ok FROM enrollments e
+            JOIN payments p ON e.payment_id = p.id
+            WHERE e.user_id = ? AND e.course_id = ? AND p.status = 'completed'
+            LIMIT 1
+          `)
+            .bind(user.id, courseId)
+            .first<{ ok: number }>()
+          if (paidLegacy) {
+            has_paid_access = true
+          }
+        } catch {
+          // payments 테이블 없음 등
+        }
+      }
+      if (user.role === 'admin') {
+        has_paid_access = true
+      }
+    }
+
     return c.json(successResponse({
       course: {
         ...course,
         student_count: studentCount
       },
       lessons: lessons.results,
-      enrollment
+      enrollment,
+      has_paid_access
     }))
 
   } catch (error) {
@@ -321,6 +434,88 @@ courses.get('/:id/lessons', optionalAuth, async (c) => {
 })
 
 /**
+ * GET /api/courses/:courseId/materials
+ * 교육자료 목록 (차시 문서/자료)
+ */
+courses.get('/:courseId/materials', requireAuth, async (c) => {
+  try {
+    const courseId = c.req.param('courseId')
+    const user = c.get('user') as { id: number; role: string }
+    const { DB } = c.env
+
+    const course = await DB.prepare(`SELECT id, price, status FROM courses WHERE id = ?`).bind(courseId).first<{
+      id: number
+      price: number
+      status: string
+    }>()
+    if (!course) return c.json(errorResponse('강좌를 찾을 수 없습니다.'), 404)
+
+    // 비공개 과정은 관리자만
+    if (!['published', 'active'].includes(course.status) && user.role !== 'admin') {
+      return c.json(errorResponse('접근 권한이 없습니다.'), 403)
+    }
+
+    if (user.role !== 'admin' && Number(course.price || 0) > 0) {
+      // 유료 강좌는 수강(또는 결제) 사용자만 자료 접근
+      const enrollment = await DB.prepare(
+        `SELECT id FROM enrollments WHERE user_id = ? AND course_id = ? LIMIT 1`
+      )
+        .bind(user.id, courseId)
+        .first<{ id: number }>()
+      if (!enrollment) {
+        return c.json(errorResponse('수강 신청이 필요합니다.'), 403)
+      }
+    }
+
+    // 자료는 lessons.document_url 기반
+    const rows = await DB.prepare(
+      `
+      SELECT 
+        id as lesson_id,
+        lesson_number,
+        title,
+        document_url,
+        document_filename,
+        document_size_kb,
+        allow_download
+      FROM lessons
+      WHERE course_id = ?
+        AND document_url IS NOT NULL
+        AND TRIM(document_url) <> ''
+      ORDER BY lesson_number ASC
+      `
+    )
+      .bind(courseId)
+      .all<{
+        lesson_id: number
+        lesson_number: number
+        title: string
+        document_url: string
+        document_filename?: string
+        document_size_kb?: number
+        allow_download: number
+      }>()
+
+    return c.json(
+      successResponse({
+        materials: rows.results.map((m) => ({
+          lesson_id: m.lesson_id,
+          lesson_number: m.lesson_number,
+          title: m.title,
+          url: m.document_url,
+          filename: m.document_filename || `lesson-${m.lesson_number}.pdf`,
+          size_kb: m.document_size_kb || null,
+          allow_download: m.allow_download === 1,
+        })),
+      })
+    )
+  } catch (error) {
+    console.error('Get course materials error:', error)
+    return c.json(errorResponse('서버 오류가 발생했습니다.'), 500)
+  }
+})
+
+/**
  * POST /api/courses/:id/lessons
  * 차시 생성 (관리자 전용)
  */
@@ -457,71 +652,6 @@ courses.post('/:id/lessons', requireAdmin, async (c) => {
 })
 
 /**
- * GET /api/courses/:courseId/lessons/:lessonId
- * 차시 상세 조회
- */
-courses.get('/:courseId/lessons/:lessonId', optionalAuth, async (c) => {
-  try {
-    const courseId = c.req.param('courseId')
-    const lessonId = c.req.param('lessonId')
-    console.log('📚 Fetching lesson:', { courseId, lessonId })
-    
-    const { DB } = c.env
-    if (!DB) {
-      console.error('❌ DB binding not found')
-      return c.json(errorResponse('데이터베이스 연결 오류'), 500)
-    }
-    
-    const user = c.get('user')
-    console.log('👤 User:', user ? user.email : 'anonymous')
-
-    // 🔐 로그인 필수
-    if (!user) {
-      return c.json(errorResponse('로그인이 필요합니다.'), 401)
-    }
-
-    const lesson = await DB.prepare(`
-      SELECT * FROM lessons WHERE id = ? AND course_id = ?
-    `).bind(lessonId, courseId).first<Lesson>()
-
-    console.log('📖 Lesson found:', lesson ? lesson.title : 'not found')
-
-    if (!lesson) {
-      return c.json(errorResponse('차시를 찾을 수 없습니다.'), 404)
-    }
-
-    // 🔐 수강 신청 정보 조회 (관리자는 모든 강좌 접근 가능)
-    const isAdmin = user.role === 'admin'
-    let enrollment = null
-    
-    if (!isAdmin) {
-      try {
-        enrollment = await DB.prepare(`
-          SELECT * FROM enrollments 
-          WHERE user_id = ? AND course_id = ?
-        `).bind(user.id, courseId).first()
-        
-        // 🔐 수강 등록 확인: 무료 미리보기가 아니면 수강 등록 필수
-        if (!enrollment && !lesson.is_free_preview) {
-          console.warn('⚠️ Access denied: Not enrolled')
-          return c.json(errorResponse('이 강좌에 수강 등록이 필요합니다.'), 403)
-        }
-      } catch (enrollError) {
-        console.error('⚠️ Enrollment query error:', enrollError)
-        return c.json(errorResponse('수강 정보를 확인할 수 없습니다.'), 500)
-      }
-    }
-
-    console.log('✅ Returning lesson data')
-    return c.json(successResponse({ lesson, enrollment }))
-
-  } catch (error) {
-    console.error('❌ Get lesson error:', error)
-    return c.json(errorResponse('서버 오류가 발생했습니다: ' + (error as Error).message), 500)
-  }
-})
-
-/**
  * PUT /api/courses/:courseId/lessons/:lessonId
  * 차시 수정 (관리자 전용)
  */
@@ -631,34 +761,10 @@ courses.delete('/:courseId/lessons/:lessonId', requireAdmin, async (c) => {
 courses.post('/:courseId/extract-thumbnail', requireAdmin, async (c) => {
   try {
     const courseId = parseInt(c.req.param('courseId'))
-    const { DB, VIDEO_STORAGE, STORAGE } = c.env
+    const { DB } = c.env
+    const payload = await c.req.json<{ title?: string }>().catch(() => ({}))
 
-    // 1. 강좌의 첫 번째 영상 차시 찾기
-    const lessonResult = await DB.prepare(`
-      SELECT * FROM lessons 
-      WHERE course_id = ? AND content_type = 'video' AND video_url IS NOT NULL
-      ORDER BY lesson_number ASC
-      LIMIT 1
-    `).bind(courseId).first<Lesson>()
-
-    if (!lessonResult) {
-      return c.json(errorResponse('영상이 업로드된 차시가 없습니다.'), 400)
-    }
-
-    const videoUrl = lessonResult.video_url
-
-    // 2. 영상이 R2에 저장되어 있는지 확인
-    if (!videoUrl || !VIDEO_STORAGE) {
-      return c.json(errorResponse('영상 파일을 찾을 수 없습니다.'), 400)
-    }
-
-    // 3. 현재는 간단한 구현: 첫 번째 영상 URL을 썸네일로 사용
-    // TODO: 실제로는 FFmpeg를 사용하여 영상에서 프레임을 추출해야 함
-    // Cloudflare Workers 환경에서는 FFmpeg를 직접 실행할 수 없으므로,
-    // 외부 서비스 (예: Cloudflare Images, AWS Lambda) 또는
-    // 업로드 시점에 클라이언트에서 썸네일을 생성하는 방법을 사용해야 함
-
-    // 임시 솔루션: 강좌 제목으로 기본 썸네일 생성
+    // 강좌 제목 조회 (또는 요청 title 우선)
     const courseResult = await DB.prepare(`
       SELECT title FROM courses WHERE id = ?
     `).bind(courseId).first<{ title: string }>()
@@ -667,25 +773,21 @@ courses.post('/:courseId/extract-thumbnail', requireAdmin, async (c) => {
       return c.json(errorResponse('강좌를 찾을 수 없습니다.'), 404)
     }
 
-    // 기본 썸네일 URL 생성 (SVG 데이터 URL)
-    const firstChar = courseResult.title.charAt(0).toUpperCase()
-    const colors = ['8B5CF6', 'EC4899', '3B82F6', '10B981', 'F59E0B', 'EF4444']
-    const color = colors[courseResult.title.charCodeAt(0) % colors.length]
-    
-    const svg = `<svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
-      <rect width="400" height="300" fill="#${color}"/>
-      <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" 
-        font-family="Arial, sans-serif" font-size="120" font-weight="bold" fill="white">
-        ${firstChar}
-      </text>
-    </svg>`
-    
+    const title = (payload.title || courseResult.title || '').trim() || '마인드스토리 강좌'
+    const svg = generateCourseThumbnailSvg(title)
     const thumbnailUrl = `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`
+
+    // 생성 즉시 강좌 썸네일 반영
+    await DB.prepare(`
+      UPDATE courses
+      SET thumbnail_url = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).bind(thumbnailUrl, courseId).run()
 
     return c.json(successResponse({
       thumbnail_url: thumbnailUrl,
-      message: '기본 썸네일이 생성되었습니다. 실제 영상 썸네일 추출은 업로드 시점에 처리됩니다.',
-      video_url: videoUrl
+      title,
+      message: '강좌 제목 기반 SVG 썸네일이 생성되어 적용되었습니다.'
     }))
 
   } catch (error) {
@@ -735,7 +837,7 @@ courses.get('/:courseId/lessons/:lessonId', optionalAuth, async (c) => {
     if (!isAdmin) {
       enrollment = await DB.prepare(`
         SELECT * FROM enrollments 
-        WHERE user_id = ? AND course_id = ? AND status IN ('active', 'completed')
+        WHERE user_id = ? AND course_id = ?
       `).bind(user.id, courseId).first()
       
       // 🔐 수강 등록 확인: 무료 미리보기가 아니면 수강 등록 필수

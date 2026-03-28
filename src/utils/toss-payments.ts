@@ -6,27 +6,7 @@
  * - 웹훅 검증
  */
 
-import { Bindings } from '../types/database'
-
-// 토스페이먼츠 환경 설정
-const TOSS_CONFIG = {
-  // 테스트 환경 (개발용)
-  test: {
-    clientKey: 'test_ck_D5GePWvyJnrK0W0k6q8gLzN97Eoq', // 테스트용 공개 키
-    secretKey: 'test_sk_zXLkKEypNArWmo50nX3lmeaxYG5R', // 테스트용 시크릿 키 (환경변수로 관리 필요)
-  },
-  // 운영 환경 (실제 결제)
-  production: {
-    clientKey: '', // 운영 환경 발급 대기
-    secretKey: '', // 운영 환경 발급 대기 (wrangler secret put)
-  }
-}
-
-// 환경 선택
-const ENV = 'test' // 'production'으로 변경 시 실제 결제
-const API_BASE = ENV === 'test' 
-  ? 'https://api.tosspayments.com/v1'
-  : 'https://api.tosspayments.com/v1'
+const API_BASE = 'https://api.tosspayments.com/v1'
 
 /**
  * 결제 요청 데이터 생성
@@ -80,12 +60,14 @@ export async function cancelPayment(
   cancelAmount?: number, // 부분 취소 금액 (선택)
   secretKey?: string
 ): Promise<any> {
-  const secret = secretKey || TOSS_CONFIG[ENV].secretKey
+  if (!secretKey) {
+    throw new Error('TOSS_SECRET_KEY가 설정되지 않았습니다.')
+  }
 
   const response = await fetch(`${API_BASE}/payments/${paymentKey}/cancel`, {
     method: 'POST',
     headers: {
-      'Authorization': `Basic ${btoa(secret + ':')}`,
+      'Authorization': `Basic ${btoa(secretKey + ':')}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
@@ -109,12 +91,14 @@ export async function getPayment(
   paymentKey: string,
   secretKey?: string
 ): Promise<any> {
-  const secret = secretKey || TOSS_CONFIG[ENV].secretKey
+  if (!secretKey) {
+    throw new Error('TOSS_SECRET_KEY가 설정되지 않았습니다.')
+  }
 
   const response = await fetch(`${API_BASE}/payments/${paymentKey}`, {
     method: 'GET',
     headers: {
-      'Authorization': `Basic ${btoa(secret + ':')}`,
+      'Authorization': `Basic ${btoa(secretKey + ':')}`,
     }
   })
 
@@ -130,14 +114,58 @@ export async function getPayment(
  * 웹훅 서명 검증
  * 토스페이먼츠에서 전송한 웹훅이 위조되지 않았는지 확인
  */
-export function verifyWebhookSignature(
+function hexToBytes(hex: string): Uint8Array | null {
+  const clean = hex.trim().toLowerCase()
+  if (!/^[0-9a-f]+$/.test(clean) || clean.length % 2 !== 0) {
+    return null
+  }
+  const out = new Uint8Array(clean.length / 2)
+  for (let i = 0; i < clean.length; i += 2) {
+    out[i / 2] = parseInt(clean.slice(i, i + 2), 16)
+  }
+  return out
+}
+
+function base64ToBytes(b64: string): Uint8Array | null {
+  try {
+    const bin = atob(b64.trim())
+    const out = new Uint8Array(bin.length)
+    for (let i = 0; i < bin.length; i++) {
+      out[i] = bin.charCodeAt(i)
+    }
+    return out
+  } catch {
+    return null
+  }
+}
+
+export async function verifyWebhookSignature(
   requestBody: string,
   signature: string,
   secretKey: string
-): boolean {
-  // HMAC-SHA256 검증 로직
-  // 실제 구현 시 crypto 라이브러리 사용
-  return true // 임시
+): Promise<boolean> {
+  if (!requestBody || !signature || !secretKey) {
+    return false
+  }
+
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(secretKey),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  )
+  const mac = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(requestBody))
+  const macBytes = new Uint8Array(mac)
+
+  const normalized = signature.replace(/^sha256=/i, '').trim()
+  const fromHex = hexToBytes(normalized)
+  const fromBase64 = base64ToBytes(normalized)
+  const provided = fromHex ?? fromBase64
+  if (!provided || provided.length !== macBytes.length) {
+    return false
+  }
+  return crypto.subtle.timingSafeEqual(macBytes, provided)
 }
 
 /**
@@ -185,7 +213,7 @@ export function calculateRefundAmount(
  * 결제 위젯 스크립트 생성
  */
 export function generatePaymentWidgetScript(): string {
-  const clientKey = TOSS_CONFIG[ENV].clientKey
+  const clientKey = 'test_ck_D5GePWvyJnrK0W0k6q8gLzN97Eoq'
   
   return `
 <!-- 토스페이먼츠 결제 위젯 -->

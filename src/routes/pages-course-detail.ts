@@ -5,6 +5,7 @@
 
 import { Hono } from 'hono'
 import type { Bindings } from '../types/database'
+import { siteFooterLegalBlockHtml } from '../utils/site-footer-legal'
 
 const app = new Hono<{ Bindings: Bindings }>()
 
@@ -22,9 +23,10 @@ app.get('/courses/:id', async (c) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>강좌 상세 - 마인드스토리 LMS</title>
-        <script src="https://cdn.tailwindcss.com"></script>
+        <link rel="stylesheet" href="/static/css/app.css" />
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+        <script src="https://cdn.iamport.kr/js/iamport.payment-1.2.0.js"></script>
         <script src="/static/js/auth.js"></script>
         <script src="/static/js/utils.js"></script>
         <script src="/static/js/content-protection.js"></script>
@@ -97,13 +99,16 @@ app.get('/courses/:id', async (c) => {
                             </div>
                         </div>
 
-                        <!-- 수강 버튼 -->
-                        <div class="flex gap-4">
-                            <button id="enrollBtn" onclick="handleEnroll()" class="flex-1 bg-purple-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-purple-700 transition">
-                                <i class="fas fa-play-circle mr-2"></i>지금 수강하기
+                        <!-- 수강 / 결제 버튼 -->
+                        <div class="flex flex-wrap gap-4">
+                            <button id="enrollBtn" onclick="handleEnroll()" class="flex-1 min-w-[200px] bg-purple-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-purple-700 transition">
+                                <i class="fas fa-play-circle mr-2"></i><span id="enrollBtnLabel">지금 수강하기</span>
                             </button>
-                            <button id="learnBtn" onclick="handleStartLearning()" class="hidden flex-1 bg-green-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-700 transition">
-                                <i class="fas fa-book-reader mr-2"></i>학습 시작하기
+                            <button type="button" id="buyCourseBtn" onclick="handleBuyCourse()" class="hidden flex-1 min-w-[200px] bg-amber-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-amber-700 transition">
+                                <i class="fas fa-shopping-cart mr-2"></i>강의 구매하기
+                            </button>
+                            <button id="learnBtn" onclick="handleStartLearning()" class="hidden flex-1 min-w-[200px] bg-green-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-700 transition">
+                                <i class="fas fa-book-reader mr-2"></i><span id="learnBtnLabel">학습 시작하기</span>
                             </button>
                         </div>
                     </div>
@@ -156,24 +161,33 @@ app.get('/courses/:id', async (c) => {
             </div>
         </main>
 
+        <footer class="bg-gray-900 text-white border-t border-gray-800">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                ${siteFooterLegalBlockHtml()}
+            </div>
+        </footer>
+
         <script>
             const courseId = ${courseId};
             let courseData = null;
             let lessonsData = [];
             let enrollment = null;
+            let detailUser = null;
+            let hasPaidAccessFlag = false;
 
             // 페이지 로드 시 초기화
             document.addEventListener('DOMContentLoaded', async () => {
                 await checkAuth();
                 await loadCourseData();
                 await loadLessons();
+                await loadMaterials();
             });
 
             // 인증 확인
             async function checkAuth() {
-                const user = await getCurrentUser();
-                if (user) {
-                    document.getElementById('headerUserName').textContent = user.name;
+                detailUser = await getCurrentUser();
+                if (detailUser) {
+                    document.getElementById('headerUserName').textContent = detailUser.name;
                     document.getElementById('loginBtn').classList.add('hidden');
                     document.getElementById('logoutBtn').classList.remove('hidden');
                 }
@@ -191,6 +205,9 @@ app.get('/courses/:id', async (c) => {
 
                     courseData = response.data.course;
                     enrollment = response.data.enrollment;
+                    hasPaidAccessFlag = response.data.has_paid_access === true;
+                    const hasPaidAccess = hasPaidAccessFlag;
+                    const isAdmin = detailUser && detailUser.role === 'admin';
 
                     // 강좌 정보 표시
                     document.getElementById('courseTitle').textContent = courseData.title;
@@ -229,15 +246,77 @@ app.get('/courses/:id', async (c) => {
                         document.getElementById('coursePrice').textContent = '미정';
                     }
 
-                    // 수강 버튼 표시
-                    if (enrollment) {
-                        document.getElementById('enrollBtn').classList.add('hidden');
-                        document.getElementById('learnBtn').classList.remove('hidden');
+                    // 수강 버튼: 관리자는 프리패스 학습 + (미수강 시) 일반 수강신청·결제 흐름도 시험 가능
+                    const enrollBtn = document.getElementById('enrollBtn');
+                    const learnBtn = document.getElementById('learnBtn');
+                    const enrollLbl = document.getElementById('enrollBtnLabel');
+                    const learnLbl = document.getElementById('learnBtnLabel');
+                    if (enrollLbl) enrollLbl.textContent = isAdmin ? '수강 신청 (테스트)' : '지금 수강하기';
+                    if (learnLbl) learnLbl.textContent = isAdmin ? '바로 학습 (프리패스)' : '학습 시작하기';
+
+                    enrollBtn.classList.add('hidden');
+                    learnBtn.classList.add('hidden');
+                    if (isAdmin) {
+                        learnBtn.classList.remove('hidden');
+                        if (!enrollment) enrollBtn.classList.remove('hidden');
+                    } else if (enrollment) {
+                        learnBtn.classList.remove('hidden');
+                    } else {
+                        enrollBtn.classList.remove('hidden');
+                    }
+
+                    const finalPrice = (courseData.discount_price != null && courseData.discount_price > 0)
+                        ? courseData.discount_price
+                        : (courseData.price || 0);
+                    const isPaidCourse = finalPrice > 0 && courseData.is_free !== 1;
+                    const buyBtn = document.getElementById('buyCourseBtn');
+                    if (isPaidCourse && !hasPaidAccess) {
+                        buyBtn.classList.remove('hidden');
+                    } else {
+                        buyBtn.classList.add('hidden');
                     }
 
                 } catch (error) {
                     console.error('강좌 로드 에러:', error);
                     showError('강좌 정보를 불러오는 중 오류가 발생했습니다.');
+                }
+            }
+
+            // 교육자료 로드 (lessons.document_url 기반)
+            async function loadMaterials() {
+                const container = document.getElementById('contentMaterials');
+                if (!container) return;
+                try {
+                    const resp = await axios.get(\`/api/courses/\${courseId}/materials\`, { withCredentials: true });
+                    const materials = resp.data?.data?.materials || [];
+                    if (!materials.length) {
+                        return; // 기존 "없음" UI 유지
+                    }
+
+                    const listHtml = materials.map(m => {
+                        const title = m.filename || (m.title ? (m.title + '.pdf') : '자료.pdf');
+                        const subtitle = m.lesson_number ? \`차시 \${m.lesson_number}\` : '교육자료';
+                        const disabled = m.allow_download === false;
+                        return \`
+                          <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                            <div class="flex items-center">
+                              <i class="fas fa-file-pdf text-red-600 text-2xl mr-4"></i>
+                              <div>
+                                <p class="font-semibold text-gray-900">\${title}</p>
+                                <p class="text-sm text-gray-600">\${subtitle}</p>
+                              </div>
+                            </div>
+                            <a href="\${m.url}" \${disabled ? 'aria-disabled=\"true\" onclick=\"return false;\"' : ''} class="px-4 py-2 \${disabled ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-purple-600 text-white hover:bg-purple-700'} rounded-lg">
+                              <i class="fas fa-download mr-2"></i>다운로드
+                            </a>
+                          </div>\`
+                    }).join('')
+
+                    container.innerHTML = \`
+                      <div class="space-y-3">\${listHtml}</div>\`
+                } catch (e) {
+                    // 자료 로드는 실패해도 페이지 자체는 동작
+                    console.warn('loadMaterials failed', e)
                 }
             }
 
@@ -295,7 +374,7 @@ app.get('/courses/:id', async (c) => {
                                     </div>
                                 </div>
                                 <div class="mt-5 md:mt-0 md:ml-4 w-full md:w-auto">
-                                    \${enrollment || lesson.is_free || lesson.is_free_preview ? \`
+                                    \${enrollment || hasPaidAccessFlag || (detailUser && detailUser.role === 'admin') || lesson.is_free || lesson.is_free_preview ? \`
                                         <button onclick="playLesson(\${lesson.id})" class="w-full md:w-auto bg-green-600 text-white px-8 py-4 md:px-4 md:py-2 rounded-xl hover:bg-green-700 transition text-xl md:text-sm font-bold shadow-lg">
                                             <i class="fas fa-play-circle mr-2 text-2xl md:text-base"></i>재생
                                         </button>
@@ -375,6 +454,68 @@ app.get('/courses/:id', async (c) => {
                 }
             }
 
+            // PortOne(아임포트) — 강의 구매
+            async function handleBuyCourse() {
+                const user = await getCurrentUser();
+                if (!user) {
+                    if (confirm('로그인이 필요합니다. 로그인 페이지로 이동할까요?')) {
+                        window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname);
+                    }
+                    return;
+                }
+                if (typeof IMP === 'undefined') {
+                    alert('결제 모듈을 불러오지 못했습니다. 새로고침 후 다시 시도해주세요.');
+                    return;
+                }
+                try {
+                    const cfgRes = await apiRequest('GET', '/api/portone/public-config');
+                    if (!cfgRes.success || !cfgRes.data || !cfgRes.data.impCode) {
+                        alert('결제 설정이 완료되지 않았습니다. 관리자에게 문의해주세요.');
+                        return;
+                    }
+                    const prepRes = await apiRequest('POST', '/api/portone/prepare', { course_id: Number(courseId) });
+                    const merchantUid = prepRes.data && (prepRes.data.merchant_uid || prepRes.data.merchantUid);
+                    if (!prepRes.success || !prepRes.data || !merchantUid) {
+                        alert(prepRes.error || '주문 준비에 실패했습니다.');
+                        return;
+                    }
+                    const d = prepRes.data;
+                    IMP.init(cfgRes.data.impCode);
+                    IMP.request_pay({
+                        pg: cfgRes.data.pg || 'html5_inicis',
+                        pay_method: 'card',
+                        merchant_uid: merchantUid,
+                        name: d.orderName,
+                        amount: d.amount,
+                        buyer_email: d.buyerEmail,
+                        buyer_name: d.buyerName,
+                    }, async function (rsp) {
+                        if (!rsp.success) {
+                            alert(rsp.error_msg || '결제가 취소되었습니다.');
+                            return;
+                        }
+                        try {
+                            const done = await apiRequest('POST', '/api/portone/complete', {
+                                imp_uid: rsp.imp_uid,
+                                merchant_uid: rsp.merchant_uid
+                            });
+                            if (done.success) {
+                                alert('결제가 완료되었습니다.');
+                                location.reload();
+                            } else {
+                                alert(done.error || '결제 확인에 실패했습니다. 고객센터로 문의해주세요.');
+                            }
+                        } catch (err) {
+                            console.error(err);
+                            alert('결제 확인 요청 중 오류가 발생했습니다.');
+                        }
+                    });
+                } catch (e) {
+                    console.error(e);
+                    alert('결제를 시작할 수 없습니다.');
+                }
+            }
+
             // 학습 시작
             function handleStartLearning() {
                 window.location.href = \`/courses/\${courseId}/learn\`;
@@ -393,7 +534,7 @@ app.get('/courses/:id', async (c) => {
             // 로그아웃
             function handleLogout() {
                 if (confirm('로그아웃 하시겠습니까?')) {
-                    localStorage.removeItem('session_token');
+                    localStorage.removeItem('user');
                     window.location.href = '/';
                 }
             }

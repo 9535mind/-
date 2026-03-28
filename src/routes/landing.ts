@@ -12,6 +12,11 @@
 
 import { Hono } from 'hono'
 import { Bindings } from '../types/database'
+import {
+  FOOTER_HTML_REVISION,
+  siteFooterLegalBlockHtml,
+  siteOrganizationJsonLdScriptHtml,
+} from '../utils/site-footer-legal'
 
 const landing = new Hono<{ Bindings: Bindings }>()
 
@@ -26,33 +31,27 @@ landing.get('/', (c) => {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=1.0, user-scalable=yes">
-        <title>마인드스토리 원격평생교육원 - 마음을 이해하고 성장하는 여정</title>
+        <title>마인드스토리 (MINDSTORY) - 나를 성장시키는 학습 플랫폼</title>
+        <meta name="description" content="마인드스토리는 다양한 지식과 경험을 나누는 온라인 학습 플랫폼입니다." />
+        <link rel="canonical" href="https://mindstory.kr/" />
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content="마인드스토리 (MINDSTORY) - 나를 성장시키는 학습 플랫폼" />
+        <meta property="og:description" content="마인드스토리는 다양한 지식과 경험을 나누는 온라인 학습 플랫폼입니다." />
+        <meta property="og:image" content="https://mindstory.kr/static/images/og-image.png" />
+        <meta property="og:url" content="https://mindstory.kr/" />
+        <meta property="og:site_name" content="마인드스토리" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="마인드스토리 (MINDSTORY) - 나를 성장시키는 학습 플랫폼" />
+        <meta name="twitter:description" content="마인드스토리는 다양한 지식과 경험을 나누는 온라인 학습 플랫폼입니다." />
+        <meta name="twitter:image" content="https://mindstory.kr/static/images/og-image.png" />
+        <meta name="ms-footer-revision" content="${FOOTER_HTML_REVISION}" />
+        ${siteOrganizationJsonLdScriptHtml()}
         
         <!-- Pretendard 폰트 -->
         <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" />
         
-        <!-- Tailwind CSS -->
-        <script src="https://cdn.tailwindcss.com"></script>
-        <script>
-          tailwind.config = {
-            theme: {
-              extend: {
-                fontFamily: {
-                  sans: ['Pretendard Variable', 'Pretendard', '-apple-system', 'BlinkMacSystemFont', 'system-ui', 'Roboto', 'Helvetica Neue', 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'sans-serif'],
-                },
-                letterSpacing: {
-                  tighter: '-0.05em',
-                },
-                lineHeight: {
-                  relaxed: '1.7',
-                },
-                borderRadius: {
-                  '2xl': '16px',
-                },
-              },
-            },
-          }
-        </script>
+        <!-- Tailwind CSS (PostCSS 빌드 → /static/css/app.css) -->
+        <link rel="stylesheet" href="/static/css/app.css" />
         
         <!-- FontAwesome -->
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
@@ -61,8 +60,8 @@ landing.get('/', (c) => {
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         
         <!-- Custom Scripts -->
-        <script src="/static/js/auth.js?v=20260101"></script>
-        <script src="/static/js/utils.js?v=20260101"></script>
+        <script src="/static/js/auth.js?v=20260327-2"></script>
+        <script src="/static/js/utils.js?v=20260327-2"></script>
         <!-- Popup removed: Phase 2 cleanup -->
         <!-- <script src="/static/js/popup.js?v=20260101"></script> -->
         
@@ -282,8 +281,13 @@ landing.get('/', (c) => {
                             마인드스토리 원격평생교육원
                         </a>
                     </div>
-                    <nav class="hidden md:flex space-x-8 items-center text-lg">
+                    <nav class="hidden md:flex space-x-6 lg:space-x-8 items-center text-lg flex-wrap">
                         <a href="/" class="text-gray-700 hover:text-indigo-600 transition-colors duration-200 font-medium">홈</a>
+                        <div class="flex items-center gap-3 text-base">
+                            <a href="/courses/classic" class="text-classic-sage hover:underline font-semibold">Classic</a>
+                            <span class="text-gray-300">|</span>
+                            <a href="/courses/next" class="text-next-accent hover:underline font-semibold">Next</a>
+                        </div>
                         <a href="#courses" class="text-gray-700 hover:text-indigo-600 transition-colors duration-200 font-medium">과정 안내</a>
                         <a href="/enrollment" class="text-indigo-600 hover:text-indigo-700 transition-colors duration-200 font-bold">
                             <i class="fas fa-graduation-cap mr-1"></i>
@@ -332,8 +336,8 @@ landing.get('/', (c) => {
                         마인드스토리 원격평생교육원
                     </p>
                     <p class="text-lg md:text-xl lg:text-2xl mb-12 opacity-90 leading-relaxed max-w-4xl mx-auto">
-                        마인드 타임 코칭, 부모-자녀 대화법, 감정코칭까지<br>
-                        전문가와 함께하는 온라인 평생교육
+                        진로캠프, 메타인지 학습클리닉, 부모자녀 소통, 미술심리까지<br>
+                        전문가와 함께 마음을 읽고 성장하는 마인드스토리 평생교육
                     </p>
                     <div class="flex flex-col sm:flex-row justify-center gap-6">
                         <a href="/enrollment" class="cta-button text-xl px-10 py-4 inline-block text-center">
@@ -345,6 +349,28 @@ landing.get('/', (c) => {
                             과정 둘러보기
                         </button>
                     </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- MINDSTORY 듀얼 브랜드 -->
+        <section class="py-20 bg-white border-y border-gray-100">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <h2 class="text-3xl md:text-4xl font-bold text-center text-gray-900 mb-4">MINDSTORY 두 가지 길</h2>
+                <p class="text-center text-gray-600 text-lg mb-12 max-w-2xl mx-auto">깊이 있는 학습(Classic)과 확장되는 창작(Next)을 선택하세요.</p>
+                <div class="grid md:grid-cols-2 gap-8">
+                    <a href="/courses/classic" class="group rounded-3xl border-2 border-classic-sage/30 bg-classic-cream p-10 shadow-lg hover:shadow-xl hover:border-classic-sage transition flex flex-col min-h-[280px]">
+                        <span class="text-sm font-bold text-classic-sage tracking-widest uppercase">Heritage · Classic</span>
+                        <h3 class="text-2xl md:text-3xl font-bold text-classic-forest mt-3 group-hover:text-classic-sage transition">본질의 깊이</h3>
+                        <p class="text-classic-forest/80 mt-4 flex-1 leading-relaxed">상담·진로·기록 중심의 차분한 커리큘럼. 베이지와 그린 톤으로 집중과 성찰을 돕습니다.</p>
+                        <span class="mt-6 inline-flex items-center text-classic-sage font-semibold">Classic 강좌 보기 <i class="fas fa-arrow-right ml-2 group-hover:translate-x-1 transition-transform"></i></span>
+                    </a>
+                    <a href="/courses/next" class="group rounded-3xl border-2 border-slate-200 bg-gradient-to-br from-white via-slate-50 to-blue-50/80 p-10 shadow-lg hover:shadow-xl hover:border-next-accent/40 transition flex flex-col min-h-[280px]">
+                        <span class="text-sm font-bold text-next-accent tracking-widest uppercase">Next · Create</span>
+                        <h3 class="text-2xl md:text-3xl font-bold text-next-ink mt-3 group-hover:text-next-accent transition">미래의 확장</h3>
+                        <p class="text-slate-600 mt-4 flex-1 leading-relaxed">AI 동화·기술·창작. 블루와 실버 포인트의 세련된 Next 라인에서 단계별로 완성도를 높입니다.</p>
+                        <span class="mt-6 inline-flex items-center text-next-accent font-semibold">Next 강좌 보기 <i class="fas fa-arrow-right ml-2 group-hover:translate-x-1 transition-transform"></i></span>
+                    </a>
                 </div>
             </div>
         </section>
@@ -469,8 +495,19 @@ landing.get('/', (c) => {
                 <div class="grid md:grid-cols-2 gap-12 items-center">
                     <!-- 좌측: 이미지 -->
                     <div class="relative group">
-                        <img src="https://www.genspark.ai/api/files/s/Nx5k1tgA" alt="마인드스토리 교육" class="rounded-2xl shadow-2xl w-full transition-transform duration-300 group-hover:scale-105" loading="lazy">
-                        <div class="absolute inset-0 bg-gradient-to-t from-purple-900/60 via-transparent to-transparent rounded-2xl"></div>
+                        <div
+                            class="relative rounded-2xl shadow-2xl w-full min-h-[320px] md:min-h-[420px] overflow-hidden transition-transform duration-300 group-hover:scale-105"
+                            style="background-image: linear-gradient(160deg, rgba(109,40,217,0.82), rgba(79,70,229,0.72)), url('/static/images/mindstory-education-hero.svg'); background-size: cover; background-position: center;"
+                            aria-label="마인드스토리 원격평생교육원 온라인 강의 안내 이미지"
+                            role="img"
+                        >
+                            <div class="absolute inset-0 bg-gradient-to-t from-purple-950/55 via-transparent to-purple-900/30"></div>
+                            <div class="absolute left-6 right-6 bottom-6">
+                                <p class="text-white text-sm md:text-base font-semibold drop-shadow-md">
+                                    마인드스토리 원격평생교육원 온라인 강의 안내 이미지
+                                </p>
+                            </div>
+                        </div>
                     </div>
                     
                     <!-- 우측: 텍스트 -->
@@ -694,35 +731,12 @@ landing.get('/', (c) => {
         </section>
 
         <!-- 푸터 -->
-        <footer class="bg-gray-900 text-white py-12">
+        <footer class="bg-gray-900 text-white py-10">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div class="grid md:grid-cols-3 gap-12">
-                    <div>
-                        <h4 class="text-xl font-bold mb-4">마인드스토리 원격평생교육원</h4>
-                        <p class="text-gray-400 leading-relaxed">
-                            시간 관리와 심리학을 결합한<br>
-                            전문 교육 플랫폼
-                        </p>
-                    </div>
-                    <div>
-                        <h4 class="text-xl font-bold mb-4">바로가기</h4>
-                        <ul class="space-y-3">
-                            <li><a href="#" class="text-gray-400 hover:text-white transition-colors">이용약관</a></li>
-                            <li><a href="#" class="text-gray-400 hover:text-white transition-colors">개인정보처리방침</a></li>
-                            <li><a href="#" class="text-gray-400 hover:text-white transition-colors">환불규정</a></li>
-                        </ul>
-                    </div>
-                    <div>
-                        <h4 class="text-xl font-bold mb-4">문의</h4>
-                        <p class="text-gray-400 leading-relaxed">
-                            이메일: contact@mindstory.co.kr<br>
-                            운영시간: 평일 10:00 - 18:00
-                        </p>
-                    </div>
-                </div>
-                <div class="border-t border-gray-800 mt-12 pt-8 text-center text-gray-400">
+                ${siteFooterLegalBlockHtml()}
+                <p class="mt-4 pt-4 border-t border-gray-800 text-center text-xs text-gray-500">
                     © 2026 마인드스토리 원격평생교육원. All rights reserved.
-                </div>
+                </p>
             </div>
         </footer>
 

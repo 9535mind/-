@@ -10,10 +10,19 @@ import {
   confirmPayment, 
   cancelPayment, 
   calculateRefundAmount,
+  verifyWebhookSignature,
   BUSINESS_INFO 
 } from '../utils/toss-payments'
 
 const payments = new Hono<{ Bindings: Bindings }>()
+
+function getTossSecretKey(c: { env: Bindings }): string {
+  const secretKey = c.env.TOSS_SECRET_KEY
+  if (!secretKey) {
+    throw new Error('TOSS_SECRET_KEY 환경변수가 설정되지 않았습니다.')
+  }
+  return secretKey
+}
 
 /**
  * 내 결제 내역
@@ -119,8 +128,7 @@ payments.post('/confirm', requireAuth, async (c) => {
   const { DB } = c.env
 
   try {
-    // 시크릿 키 가져오기 (환경변수 또는 기본값)
-    const secretKey = c.env.TOSS_SECRET_KEY || 'test_sk_zXLkKEypNArWmo50nX3lmeaxYG5R'
+    const secretKey = getTossSecretKey(c)
 
     // 토스페이먼츠 결제 승인 요청
     const tossPayment = await confirmPayment(paymentKey, orderId, amount, secretKey)
@@ -137,6 +145,21 @@ payments.post('/confirm', requireAuth, async (c) => {
     // 금액 검증
     if (payment.final_amount !== amount) {
       return c.json(errorResponse('결제 금액이 일치하지 않습니다.'), 400)
+    }
+    if (payment.user_id !== user.id) {
+      return c.json(errorResponse('본인 결제만 승인할 수 있습니다.'), 403)
+    }
+    if (payment.status !== 'pending') {
+      return c.json(errorResponse('이미 처리된 결제입니다.'), 400)
+    }
+    if (tossPayment.orderId && tossPayment.orderId !== orderId) {
+      return c.json(errorResponse('결제 주문 정보가 일치하지 않습니다.'), 400)
+    }
+    if (
+      typeof tossPayment.totalAmount === 'number' &&
+      tossPayment.totalAmount !== amount
+    ) {
+      return c.json(errorResponse('PG 결제 금액 검증에 실패했습니다.'), 400)
     }
 
     // 결제 상태 업데이트
@@ -157,6 +180,13 @@ payments.post('/confirm', requireAuth, async (c) => {
       tossPayment.receipt?.url || '',
       payment.id
     ).run()
+
+    console.info('[PAYMENT_CONFIRMED]', {
+      userId: user.id,
+      paymentId: payment.id,
+      orderId: payment.order_id,
+      amount: payment.final_amount,
+    })
 
     // 수강 신청 생성 (또는 기존 체험 등록 업데이트)
     const endDate = new Date()
@@ -196,6 +226,20 @@ payments.post('/confirm', requireAuth, async (c) => {
     }
 
     // TODO: 이메일/SMS 발송
+    try {
+      // 외부 연동 전 단계: 발송 이벤트를 DB에 기록
+      await DB.prepare(`
+        INSERT INTO notification_events (user_id, channel, event_type, status, to_address, subject, body, related_order_id)
+        VALUES (?, 'log', 'payment_completed', 'sent', ?, ?, ?, NULL)
+      `).bind(
+        user.id,
+        user.email,
+        `결제 완료 안내`,
+        `결제가 완료되었습니다. 주문번호: ${payment.order_id}, 결제금액: ${payment.final_amount}`
+      ).run()
+    } catch (e) {
+      console.warn('[notification_events] payment_completed insert failed:', e)
+    }
 
     return c.json(successResponse({
       paymentId: payment.id,
@@ -266,7 +310,7 @@ payments.post('/:id/refund', requireAdmin, async (c) => {
     }
 
     // 토스페이먼츠 환불 요청
-    const secretKey = c.env.TOSS_SECRET_KEY || 'test_sk_zXLkKEypNArWmo50nX3lmeaxYG5R'
+    const secretKey = getTossSecretKey(c)
     
     const cancelResult = await cancelPayment(
       payment.payment_key,
@@ -274,6 +318,7 @@ payments.post('/:id/refund', requireAdmin, async (c) => {
       refundCalc.refundAmount < payment.final_amount ? refundCalc.refundAmount : undefined,
       secretKey
     )
+    void cancelResult
 
     // DB 업데이트
     await DB.prepare(`
@@ -293,7 +338,28 @@ payments.post('/:id/refund', requireAdmin, async (c) => {
       WHERE payment_id = ?
     `).bind(paymentId).run()
 
+    console.info('[PAYMENT_REFUNDED]', {
+      adminUserId: c.get('user')?.id,
+      paymentId: payment.id,
+      orderId: payment.order_id,
+      refundAmount: refundCalc.refundAmount,
+    })
+
     // TODO: 환불 완료 이메일/SMS 발송
+    try {
+      // 외부 연동 전 단계: 발송 이벤트를 DB에 기록
+      await DB.prepare(`
+        INSERT INTO notification_events (user_id, channel, event_type, status, to_address, subject, body, related_order_id)
+        VALUES (?, 'log', 'refund_completed', 'sent', ?, ?, ?, NULL)
+      `).bind(
+        payment.user_id,
+        payment.buyer_email || null,
+        `환불 완료 안내`,
+        `환불이 완료되었습니다. 주문번호: ${payment.order_id}, 환불금액: ${refundCalc.refundAmount}`
+      ).run()
+    } catch (e) {
+      console.warn('[notification_events] refund_completed insert failed:', e)
+    }
 
     return c.json(successResponse({
       refundAmount: refundCalc.refundAmount,
@@ -312,14 +378,21 @@ payments.post('/:id/refund', requireAdmin, async (c) => {
  * POST /api/payments/webhook
  */
 payments.post('/webhook', async (c) => {
-  const webhookData = await c.req.json()
-  const signature = c.req.header('toss-signature') || ''
-
   const { DB } = c.env
 
   try {
-    // TODO: 웹훅 서명 검증
-    // verifyWebhookSignature(JSON.stringify(webhookData), signature, secretKey)
+    const rawBody = await c.req.text()
+    const webhookData = JSON.parse(rawBody)
+    const signature =
+      c.req.header('toss-signature') ||
+      c.req.header('x-toss-signature') ||
+      ''
+
+    const secretKey = getTossSecretKey(c)
+    const valid = await verifyWebhookSignature(rawBody, signature, secretKey)
+    if (!valid) {
+      return c.json({ success: false, error: '유효하지 않은 웹훅 서명입니다.' }, 401)
+    }
 
     console.log('웹훅 수신:', webhookData)
 
@@ -334,6 +407,7 @@ payments.post('/webhook', async (c) => {
           SET status = ?
           WHERE order_id = ?
         `).bind(status.toLowerCase(), orderId).run()
+        console.info('[PAYMENT_WEBHOOK_STATUS_CHANGED]', { orderId, status: status.toLowerCase() })
 
         break
 

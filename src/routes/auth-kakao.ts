@@ -3,7 +3,7 @@
  * /api/auth/kakao/*
  */
 
-import { Hono } from 'hono'
+import { Context, Hono } from 'hono'
 import { Bindings, User } from '../types/database'
 import { 
   successResponse, 
@@ -11,8 +11,84 @@ import {
   generateSessionToken,
   addDays
 } from '../utils/helpers'
+import { applySessionCookie } from '../utils/session-cookie'
+import {
+  envRedirectUriHostname,
+  isLocalDevHostname,
+  KAKAO_OAUTH_REDIRECT_URI,
+  requestHostname,
+  SITE_PUBLIC_ORIGIN,
+} from '../utils/oauth-public'
 
 const authKakao = new Hono<{ Bindings: Bindings }>()
+
+/**
+ * 브라우저가 실제로 접속한 공개 origin (Cloudflare Pages 등 프록시 대응)
+ */
+function getRequestOrigin(c: Context<{ Bindings: Bindings }>): string {
+  const reqUrl = new URL(c.req.url)
+  const protoRaw =
+    c.req.header('x-forwarded-proto') || reqUrl.protocol.replace(':', '') || 'https'
+  const proto = protoRaw.split(',')[0]?.trim() || 'https'
+  const hostRaw =
+    c.req.header('x-forwarded-host') || c.req.header('host') || reqUrl.host
+  const host = hostRaw.split(',')[0]?.trim() || reqUrl.host
+  return `${proto}://${host}`
+}
+
+/**
+ * *.pages.dev 등으로 OAuth를 시작하면 redirect_uri가 예전 호스트로 잡혀 KOE006이 난다.
+ * 로컬 개발(localhost)은 그대로 둔다.
+ */
+function redirectKakaoOAuthToCanonicalOrigin(c: Context<{ Bindings: Bindings }>): Response | undefined {
+  const raw =
+    c.req.header('x-forwarded-host') ||
+    c.req.header('host') ||
+    new URL(c.req.url).host
+  const h = raw.split(',')[0].trim().split(':')[0]
+  if (!h || h === 'mindstory.kr' || h.endsWith('.mindstory.kr')) return undefined
+  if (h === 'localhost' || h === '127.0.0.1') return undefined
+  const u = new URL(c.req.url)
+  return c.redirect(`${SITE_PUBLIC_ORIGIN}${u.pathname}${u.search}`, 302)
+}
+
+function isAllowedKakaoRedirectUrl(urlStr: string): boolean {
+  try {
+    const u = new URL(urlStr)
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return false
+    const pathOk = u.pathname.replace(/\/$/, '') === '/api/auth/kakao/callback'
+    if (!pathOk) return false
+    const h = u.hostname
+    return (
+      h === 'mindstory.kr' ||
+      h.endsWith('.mindstory.kr') ||
+      h === 'localhost' ||
+      h === '127.0.0.1'
+    )
+  } catch {
+    return false
+  }
+}
+
+/**
+ * 로컬/프로덕션 redirect_uri 결정.
+ * - 프로덕션(비로컬): 항상 https://mindstory.kr/... 고정 — Cloudflare에 남은 pages.dev 시크릿 때문에 KOE006 나는 것을 원천 차단
+ * - 로컬: KAKAO_REDIRECT_URI가 유효하면 사용, 아니면 localhost 기본값
+ */
+function resolveKakaoRedirectUri(c: Context<{ Bindings: Bindings }>): string {
+  const h = requestHostname(c)
+  if (isLocalDevHostname(h)) {
+    const fromEnv = (c.env.KAKAO_REDIRECT_URI || '').trim().replace(/\/$/, '')
+    if (fromEnv && isAllowedKakaoRedirectUrl(fromEnv)) return fromEnv
+    return 'http://localhost:3000/api/auth/kakao/callback'
+  }
+
+  const fromEnv = (c.env.KAKAO_REDIRECT_URI || '').trim().replace(/\/$/, '')
+  if (fromEnv && fromEnv !== KAKAO_OAUTH_REDIRECT_URI) {
+    console.warn('[KAKAO_REDIRECT] Production ignores KAKAO_REDIRECT_URI (use mindstory.kr only):', fromEnv)
+  }
+  return KAKAO_OAUTH_REDIRECT_URI
+}
 
 /**
  * GET /api/auth/kakao/login
@@ -20,20 +96,34 @@ const authKakao = new Hono<{ Bindings: Bindings }>()
  */
 authKakao.get('/login', async (c) => {
   try {
-    // 환경 변수에서 카카오 설정 읽기
-    const clientId = c.env.KAKAO_CLIENT_ID || 'your_kakao_rest_api_key'
-    const redirectUri = c.env.KAKAO_REDIRECT_URI || 'http://localhost:3000/api/auth/kakao/callback'
-    
-    // 디버그: 설정값 로그
-    console.log('[KAKAO_LOGIN] Client ID:', clientId)
+    const forceCanon = redirectKakaoOAuthToCanonicalOrigin(c)
+    if (forceCanon) return forceCanon
+
+    const clientId = (c.env.KAKAO_CLIENT_ID || '').trim()
+    const redirectUri = resolveKakaoRedirectUri(c)
+
+    if (!clientId || clientId === 'your_kakao_rest_api_key') {
+      console.error('[KAKAO_LOGIN] KAKAO_CLIENT_ID 미설정 또는 플레이스홀더')
+      return c.json(errorResponse('카카오 REST API 키(KAKAO_CLIENT_ID)가 서버에 설정되지 않았습니다.'), 503)
+    }
+
+    console.log('[KAKAO_LOGIN] Client ID prefix:', clientId.slice(0, 12) + '…')
     console.log('[KAKAO_LOGIN] Redirect URI:', redirectUri)
+    console.log('[KAKAO_LOGIN] Request origin:', getRequestOrigin(c))
     
     // 카카오 인증 URL 생성
     const kakaoAuthUrl = new URL('https://kauth.kakao.com/oauth/authorize')
     kakaoAuthUrl.searchParams.set('client_id', clientId)
     kakaoAuthUrl.searchParams.set('redirect_uri', redirectUri)
     kakaoAuthUrl.searchParams.set('response_type', 'code')
-    
+
+    const marketingParam = c.req.query('marketing')
+    const marketing =
+      marketingParam === '1' ||
+      marketingParam === 'true' ||
+      marketingParam === 'yes'
+    kakaoAuthUrl.searchParams.set('state', marketing ? 'm1' : 'm0')
+
     console.log('[KAKAO_LOGIN] Full OAuth URL:', kakaoAuthUrl.toString())
     
     // 카카오 로그인 페이지로 리다이렉트
@@ -43,6 +133,38 @@ authKakao.get('/login', async (c) => {
     console.error('Kakao login start error:', error)
     return c.json(errorResponse('카카오 로그인 시작에 실패했습니다.'), 500)
   }
+})
+
+/**
+ * GET /api/auth/kakao/debug
+ * 운영 환경에서 실제로 사용 중인 설정을 "일부 마스킹"하여 확인
+ */
+authKakao.get('/debug', (c) => {
+  const forceCanon = redirectKakaoOAuthToCanonicalOrigin(c)
+  if (forceCanon) return forceCanon
+
+  const clientId = (c.env.KAKAO_CLIENT_ID || '').trim()
+  const clientSecret = (c.env.KAKAO_CLIENT_SECRET || '').trim()
+  const h = requestHostname(c)
+  const origin = getRequestOrigin(c)
+  /** 비로컬 호스트에서는 JSON에 상수만 노출(에지 캐시·구 Worker 혼선 방지) */
+  const redirectUri = isLocalDevHostname(h) ? resolveKakaoRedirectUri(c) : KAKAO_OAUTH_REDIRECT_URI
+
+  return c.json(
+    successResponse({
+      origin,
+      redirectUri,
+      canonicalRedirectUri: KAKAO_OAUTH_REDIRECT_URI,
+      sitePublicOrigin: SITE_PUBLIC_ORIGIN,
+      kakaoRedirectPolicy: 'hostname-local-only-v3',
+      envKakaoRedirectUriPresent: !!(c.env.KAKAO_REDIRECT_URI || '').trim(),
+      envKakaoRedirectHostname: envRedirectUriHostname(c.env.KAKAO_REDIRECT_URI),
+      envNextPublicSiteUrl: (c.env.NEXT_PUBLIC_SITE_URL || '').trim() || null,
+      clientIdPrefix: clientId ? clientId.slice(0, 8) : null,
+      clientIdLength: clientId ? clientId.length : 0,
+      hasClientSecret: !!clientSecret,
+    })
+  )
 })
 
 /**
@@ -57,6 +179,8 @@ authKakao.get('/callback', async (c) => {
     console.log('[KAKAO_CALLBACK] All params:', allParams)
     
     const code = c.req.query('code')
+    const oauthState = c.req.query('state') || 'm0'
+    const marketingForNewUser = oauthState === 'm1' ? 1 : 0
     const error = c.req.query('error')
     const errorDescription = c.req.query('error_description')
     
@@ -114,13 +238,13 @@ authKakao.get('/callback', async (c) => {
             </ol>
             <hr>
             <h3>필요한 설정:</h3>
-            <p><strong>Redirect URI:</strong><br>
+            <p><strong>Redirect URI (아래 값을 카카오 콘솔에 그대로 등록):</strong><br>
             <code style="background: #f4f4f4; padding: 5px; display: block; word-break: break-all;">
-            ${c.env.KAKAO_REDIRECT_URI || 'https://3000-ieu1ambselnpjf2cme9se-c81df28e.sandbox.novita.ai/api/auth/kakao/callback'}
+            ${resolveKakaoRedirectUri(c)}
             </code></p>
-            <p><strong>Web 플랫폼 도메인:</strong><br>
+            <p><strong>Web 플랫폼 사이트 도메인 (루트만, 경로 없음):</strong><br>
             <code style="background: #f4f4f4; padding: 5px; display: block; word-break: break-all;">
-            https://3000-ieu1ambselnpjf2cme9se-c81df28e.sandbox.novita.ai
+            ${getRequestOrigin(c)}
             </code></p>
             <hr>
             <p style="margin-top: 30px;">
@@ -137,35 +261,83 @@ authKakao.get('/callback', async (c) => {
       `)
     }
     
-    const clientId = c.env.KAKAO_CLIENT_ID || 'your_kakao_rest_api_key'
-    const redirectUri = c.env.KAKAO_REDIRECT_URI || 'http://localhost:3000/api/auth/kakao/callback'
-    
+    const clientId = (c.env.KAKAO_CLIENT_ID || '').trim()
+    const redirectUri = resolveKakaoRedirectUri(c)
+    const clientSecret = c.env.KAKAO_CLIENT_SECRET?.trim()
+
+    if (!clientId) {
+      return c.html(`
+        <html><head><meta charset="UTF-8"></head><body>
+          <script>alert('서버에 KAKAO_CLIENT_ID가 없습니다.'); window.location.href='/login';</script>
+        </body></html>
+      `)
+    }
+
     console.log('[KAKAO_CALLBACK] Code received:', code.substring(0, 10) + '...')
     console.log('[KAKAO_CALLBACK] Using redirect_uri:', redirectUri)
-    
-    // 1. 액세스 토큰 요청
+
+    // 1. 액세스 토큰 요청 (실패 시 client_secret 없이 1회 재시도)
     console.log('[KAKAO_CALLBACK] Requesting access token...')
-    const tokenResponse = await fetch('https://kauth.kakao.com/oauth/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        grant_type: 'authorization_code',
-        client_id: clientId,
-        redirect_uri: redirectUri,
-        code: code,
-      }).toString(),
+
+    async function requestToken(params: URLSearchParams) {
+      return await fetch('https://kauth.kakao.com/oauth/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: params.toString(),
+      })
+    }
+
+    const tokenParamsWithSecret = new URLSearchParams({
+      grant_type: 'authorization_code',
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      code: code,
     })
-    
+    if (clientSecret) {
+      tokenParamsWithSecret.set('client_secret', clientSecret)
+    }
+
+    const tokenParamsWithoutSecret = new URLSearchParams({
+      grant_type: 'authorization_code',
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      code: code,
+    })
+
+    let tokenResponse = await requestToken(tokenParamsWithSecret)
     console.log('[KAKAO_CALLBACK] Token response status:', tokenResponse.status)
-    
+
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text()
       console.error('[KAKAO_CALLBACK] Token request failed:', errorText)
-      throw new Error(`Failed to get access token: ${tokenResponse.status} - ${errorText}`)
+
+      const shouldRetryWithoutSecret =
+        clientSecret &&
+        (errorText.includes('KOE010') || errorText.includes('invalid_client'))
+
+      if (shouldRetryWithoutSecret) {
+        console.warn(
+          '[KAKAO_CALLBACK] KOE010/invalid_client. Retrying token request without client_secret...'
+        )
+        const retryResponse = await requestToken(tokenParamsWithoutSecret)
+        console.log('[KAKAO_CALLBACK] Retry token response status:', retryResponse.status)
+
+        if (!retryResponse.ok) {
+          const retryErrorText = await retryResponse.text().catch(() => '')
+          console.error('[KAKAO_CALLBACK] Retry token request failed:', retryErrorText)
+          throw new Error(
+            `Failed to get access token: ${tokenResponse.status} - ${errorText} (retry: ${retryResponse.status} - ${retryErrorText})`
+          )
+        }
+
+        tokenResponse = retryResponse
+      } else {
+        throw new Error(`Failed to get access token: ${tokenResponse.status} - ${errorText}`)
+      }
     }
-    
+
     const tokenData = await tokenResponse.json<{
       access_token: string
       token_type: string
@@ -260,17 +432,18 @@ authKakao.get('/callback', async (c) => {
         `)
       }
       
-      // 신규 회원 가입
+      // 신규 회원 가입 (간편가입: 약관·개인정보는 가입 절차에서 동의한 것으로 처리, 마케팅은 OAuth state 반영)
       const result = await DB.prepare(`
         INSERT INTO users (
           email, password_hash, name, social_provider, social_id, 
-          profile_image_url, role
-        ) VALUES (?, '', ?, 'kakao', ?, ?, 'student')
+          profile_image_url, role, terms_agreed, privacy_agreed, marketing_agreed
+        ) VALUES (?, '', ?, 'kakao', ?, ?, 'student', 1, 1, ?)
       `).bind(
         email,
         kakaoUser.kakao_account.profile.nickname,
         kakaoUser.id.toString(),
-        kakaoUser.kakao_account.profile.profile_image_url || null
+        kakaoUser.kakao_account.profile.profile_image_url || null,
+        marketingForNewUser
       ).run()
       
       userId = result.meta.last_row_id as number
@@ -311,15 +484,8 @@ authKakao.get('/callback', async (c) => {
     console.log('[KAKAO_CALLBACK] Setting session cookie and redirecting...')
     console.log('[KAKAO_CALLBACK] Login SUCCESS for user:', user.name)
     
-    // HTTPS 환경에서 Secure 플래그 필수!
-    // Sandbox 환경은 항상 HTTPS이므로 강제 설정
-    const isSecure = true  // Cloudflare/Sandbox는 항상 HTTPS
-    const secureCookie = isSecure ? '; Secure' : ''
-    
-    console.log('[KAKAO_CALLBACK] Cookie will be Secure:', isSecure)
-    
-    c.header('Set-Cookie', `session_token=${sessionToken}; Path=/; HttpOnly; SameSite=Lax${secureCookie}; Max-Age=${7 * 24 * 60 * 60}`)
-    console.log('[KAKAO_CALLBACK] Cookie header set successfully')
+    applySessionCookie(c, sessionToken, 7 * 24 * 60 * 60)
+    console.log('[KAKAO_CALLBACK] Session cookie set successfully')
     
     return c.html(`
       <html>
@@ -329,8 +495,6 @@ authKakao.get('/callback', async (c) => {
         </head>
         <body>
           <script>
-            // localStorage에 세션 정보 저장 (클라이언트 호환성)
-            localStorage.setItem('session_token', '${sessionToken}');
             localStorage.setItem('user', JSON.stringify({
               id: ${user.id},
               email: '${user.email}',
@@ -338,8 +502,6 @@ authKakao.get('/callback', async (c) => {
               role: '${user.role}',
               profile_image_url: ${user.profile_image_url ? `'${user.profile_image_url}'` : 'null'}
             }));
-            
-            // 메인 페이지로 이동
             alert('카카오 로그인 성공! 환영합니다, ${user.name}님!');
             window.location.href = '/';
           </script>
@@ -352,15 +514,21 @@ authKakao.get('/callback', async (c) => {
     console.error('[KAKAO_CALLBACK] Error type:', error?.constructor?.name)
     console.error('[KAKAO_CALLBACK] Error message:', error?.message)
     console.error('[KAKAO_CALLBACK] Full error:', error)
-    
+
+    const errMessage = error?.message ? String(error.message) : '알 수 없는 오류'
+    const errName = error?.constructor?.name ? String(error.constructor.name) : 'Error'
+
     return c.html(`
       <html>
         <head>
           <title>로그인 실패</title>
+          <meta charset="UTF-8">
         </head>
         <body>
           <script>
-            alert('카카오 로그인에 실패했습니다. 다시 시도해주세요.');
+            const errName = ${JSON.stringify(errName)};
+            const errMessage = ${JSON.stringify(errMessage)};
+            alert('카카오 로그인에 실패했습니다.\\n' + errName + ': ' + errMessage);
             window.location.href = '/login';
           </script>
         </body>

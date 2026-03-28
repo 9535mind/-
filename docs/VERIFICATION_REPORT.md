@@ -129,8 +129,8 @@ async function loadYouTubePlayer(lesson) {
 
 #### ✅ **HTML 확인**
 ```html
-<!-- 외부 라이브러리 -->
-<script src="https://cdn.tailwindcss.com"></script>
+<!-- 스타일: Tailwind는 빌드 산출물 사용 (프로덕션 권장, postcss + tailwind CLI) -->
+<link rel="stylesheet" href="/static/css/app.css" />
 <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
 
 <!-- 인증 시스템 -->

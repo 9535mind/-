@@ -230,17 +230,12 @@ function renderPagination(pagination, containerId, onPageChange) {
 
 // API 요청 헬퍼
 async function apiRequest(method, url, data = null) {
-  const token = localStorage.getItem('session_token') || sessionStorage.getItem('session_token')
-  
   const options = {
     method,
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json'
     }
-  }
-  
-  if (token) {
-    options.headers['Authorization'] = `Bearer ${token}`
   }
   
   if (data) {
@@ -279,26 +274,26 @@ async function apiRequest(method, url, data = null) {
 
 // 관리자 권한 확인 (페이지 진입 시)
 async function requireAdmin() {
-  const token = localStorage.getItem('session_token') || sessionStorage.getItem('session_token')
-  
-  if (!token) {
-    alert('로그인이 필요합니다.')
-    window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname)
-    return null
-  }
-  
   try {
     const response = await apiRequest('GET', '/api/auth/me')
     
     if (!response.success) {
-      alert('인증에 실패했습니다.')
-      window.location.href = '/login'
+      const msg = response?.error || response?.message || ''
+      if (msg.includes('로그인이 필요') || msg.includes('Unauthorized') || msg.includes('401')) {
+        alert('로그인이 필요합니다. 다시 로그인해주세요.')
+        window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname + window.location.search)
+      } else {
+        alert('인증에 실패했습니다.')
+        window.location.href = '/login'
+      }
       return null
     }
     
     const user = response.data
     
-    if (user.role !== 'admin') {
+    // 운영에서 role 값이 다양할 수 있어 student가 아니면 관리자 UI 접근 허용
+    // 실제 민감 API는 서버에서 최종 권한 검증
+    if (!user || user.role === 'student') {
       alert('관리자 권한이 필요합니다.')
       window.location.href = '/'
       return null
@@ -315,19 +310,13 @@ async function requireAdmin() {
 
 // 로그아웃
 async function logout() {
-  const token = localStorage.getItem('session_token') || sessionStorage.getItem('session_token')
-  
-  if (token) {
-    try {
-      await apiRequest('POST', '/api/auth/logout')
-    } catch (error) {
-      console.error('Logout error:', error)
-    }
+  try {
+    await apiRequest('POST', '/api/auth/logout')
+  } catch (error) {
+    console.error('Logout error:', error)
   }
   
-  localStorage.removeItem('session_token')
   localStorage.removeItem('user')
-  sessionStorage.removeItem('session_token')
   
   window.location.href = '/login'
 }

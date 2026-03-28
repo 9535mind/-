@@ -7,20 +7,109 @@
 let currentCourseId = null;
 let currentCourseTitle = '';
 let currentCoursePrice = 0;
+/** 'payment_required' | 'trial_complete' | 'free_course_complete' */
+let currentModalContext = 'payment_required';
 
 /**
- * 유료 전환 팝업 표시
- * @param {Object} options - { courseId, courseTitle, coursePrice, lessonNumber, lessonTitle }
+ * 유료 전환·회기 안내 팝업 표시
+ * @param {Object} options - { courseId, courseTitle, coursePrice, lessonNumber, lessonTitle, context?, totalLessons? }
  */
 function showPaymentRequiredModal(options) {
-  const { courseId, courseTitle, coursePrice, lessonNumber, lessonTitle } = options;
-  
+  const {
+    courseId,
+    courseTitle,
+    coursePrice = 0,
+    lessonNumber = 2,
+    lessonTitle = '',
+    context = 'payment_required',
+    totalLessons = 0
+  } = options;
+
   currentCourseId = courseId;
   currentCourseTitle = courseTitle;
   currentCoursePrice = coursePrice;
+  currentModalContext = context;
 
-  // 모달 HTML 생성
-  const modalHTML = `
+  let modalHTML;
+
+  if (context === 'trial_complete') {
+    modalHTML = `
+    <div id="paymentRequiredModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fade-in">
+      <div class="bg-white rounded-lg shadow-2xl max-w-md w-full mx-4 animate-slide-up">
+        <div class="p-6 border-b bg-gradient-to-r from-emerald-500 to-teal-600 rounded-t-lg">
+          <div class="flex items-center justify-center mb-2">
+            <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center">
+              <i class="fas fa-flag-checkered text-3xl text-emerald-600"></i>
+            </div>
+          </div>
+          <h3 class="text-xl font-bold text-white text-center leading-snug">
+            첫 회기(0회기 무료 체험)를 완료했습니다
+          </h3>
+        </div>
+        <div class="p-6">
+          <div class="mb-4 text-center">
+            <p class="text-gray-700 mb-2"><strong class="text-emerald-700">"${courseTitle}"</strong></p>
+            <p class="text-sm text-gray-600 mb-3">
+              다음 회기부터는 <strong>정식 수강신청·결제</strong> 후 <strong>${lessonNumber}강부터 전체 차시</strong>를 이어서 수강할 수 있습니다.
+            </p>
+            <div class="inline-block px-4 py-2 bg-emerald-50 rounded-lg">
+              <span class="text-2xl font-bold text-emerald-700">${Number(coursePrice).toLocaleString()}원</span>
+            </div>
+          </div>
+          <div class="bg-gray-50 rounded-lg p-4 text-sm text-gray-600">
+            <p class="flex items-start gap-2">
+              <i class="fas fa-info-circle text-emerald-600 mt-0.5"></i>
+              <span>수강신청 페이지에서 동일 강좌를 선택한 뒤 결제를 진행해 주세요.</span>
+            </p>
+          </div>
+        </div>
+        <div class="p-6 border-t bg-gray-50 rounded-b-lg">
+          <div class="flex space-x-3">
+            <button type="button" onclick="closePaymentRequiredModal()" class="flex-1 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-100 transition">
+              <i class="fas fa-times mr-2"></i>나중에
+            </button>
+            <button type="button" onclick="proceedToPayment()" class="flex-1 px-4 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-lg hover:from-emerald-700 hover:to-teal-700 transition shadow-lg">
+              <i class="fas fa-user-check mr-2"></i>수강신청·결제
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  } else if (context === 'free_course_complete') {
+    modalHTML = `
+    <div id="paymentRequiredModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fade-in">
+      <div class="bg-white rounded-lg shadow-2xl max-w-md w-full mx-4 animate-slide-up">
+        <div class="p-6 border-b bg-gradient-to-r from-sky-500 to-indigo-600 rounded-t-lg">
+          <div class="flex items-center justify-center mb-2">
+            <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center">
+              <i class="fas fa-trophy text-3xl text-indigo-600"></i>
+            </div>
+          </div>
+          <h3 class="text-xl font-bold text-white text-center leading-snug">
+            무료 강좌 전 차시를 완료했습니다
+          </h3>
+        </div>
+        <div class="p-6">
+          <p class="text-center text-gray-700 mb-2"><strong class="text-indigo-700">"${courseTitle}"</strong></p>
+          <p class="text-sm text-gray-600 text-center mb-4">
+            다음 회기·신규 과정은 <strong>수강신청</strong> 페이지에서 안내됩니다. 관심 있는 유료 과정도 함께 둘러보세요.
+          </p>
+          ${totalLessons ? `<p class="text-xs text-center text-gray-500">완료 차시: ${totalLessons}차시</p>` : ''}
+        </div>
+        <div class="p-6 border-t bg-gray-50 rounded-b-lg">
+          <div class="flex space-x-3">
+            <button type="button" onclick="closePaymentRequiredModal()" class="flex-1 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-100 transition">
+              닫기
+            </button>
+            <button type="button" onclick="proceedToEnrollmentPage()" class="flex-1 px-4 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition shadow-lg">
+              <i class="fas fa-clipboard-list mr-2"></i>수강신청·과정 보기
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  } else {
+    modalHTML = `
     <div id="paymentRequiredModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fade-in">
       <div class="bg-white rounded-lg shadow-2xl max-w-md w-full mx-4 animate-slide-up">
         <!-- 헤더 -->
@@ -45,7 +134,7 @@ function showPaymentRequiredModal(options) {
               1강 무료 체험을 완료하셨습니다!
             </p>
             <div class="inline-block px-4 py-2 bg-indigo-50 rounded-lg">
-              <span class="text-2xl font-bold text-indigo-600">${coursePrice.toLocaleString()}원</span>
+              <span class="text-2xl font-bold text-indigo-600">${Number(coursePrice).toLocaleString()}원</span>
             </div>
           </div>
 
@@ -57,7 +146,7 @@ function showPaymentRequiredModal(options) {
             <ul class="space-y-2 text-sm text-gray-600">
               <li class="flex items-start">
                 <i class="fas fa-video text-indigo-500 mr-2 mt-1"></i>
-                <span>전체 ${lessonNumber}강 이상 무제한 시청</span>
+                <span>전 차시 무제한 시청</span>
               </li>
               <li class="flex items-start">
                 <i class="fas fa-certificate text-indigo-500 mr-2 mt-1"></i>
@@ -102,6 +191,7 @@ function showPaymentRequiredModal(options) {
       </div>
     </div>
   `;
+  }
 
   // 기존 모달 제거
   const existingModal = document.getElementById('paymentRequiredModal');
@@ -161,12 +251,14 @@ function proceedToPayment() {
  */
 async function checkLessonAccess(enrollmentId, lessonId, courseId) {
   try {
+    const tok = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;
+    const headers = {};
+    if (tok) headers['Authorization'] = `Bearer ${tok}`;
     const response = await fetch(
       `/api/enrollments/${enrollmentId}/lessons/${lessonId}/check-access`,
       {
-        headers: {
-          'Authorization': `Bearer ${getToken()}`
-        }
+        credentials: 'include',
+        headers
       }
     );
 

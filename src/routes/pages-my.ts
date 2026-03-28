@@ -29,7 +29,9 @@ const getHeader = (currentPage = '') => `
 /**
  * 내 강의실 페이지
  */
-pagesMy.get('/my-courses', (c) => {
+// NOTE: /my-courses 는 pages-student.ts 가 담당 (진도 기반 UI)
+// 이 페이지는 삭제하지 않고 legacy 경로로 유지한다.
+pagesMy.get('/my-courses-legacy', (c) => {
   return c.html(`
     <!DOCTYPE html>
     <html lang="ko">
@@ -37,7 +39,7 @@ pagesMy.get('/my-courses', (c) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>내 강의실 - 마인드스토리</title>
-        <script src="https://cdn.tailwindcss.com"></script>
+        <link rel="stylesheet" href="/static/css/app.css" />
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script src="/static/js/auth.js"></script>
@@ -49,6 +51,12 @@ pagesMy.get('/my-courses', (c) => {
         
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <h1 class="text-3xl font-bold text-gray-900 mb-8">내 강의실</h1>
+
+            <div id="adminFreepassSection" class="hidden mb-8 rounded-xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
+                <p class="font-semibold text-amber-900 mb-1"><i class="fas fa-user-shield mr-2 text-amber-700"></i>관리자 프리패스</p>
+                <p class="text-sm text-amber-800 mb-4">수강 신청 없이도 모든 강좌를 바로 열 수 있습니다. 공식 수강 기록이 필요하면 수강신청 페이지에서 일반 사용자처럼 신청하세요.</p>
+                <div id="adminFreepassGrid" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+            </div>
             
             <!-- 탭 메뉴 -->
             <div class="border-b border-gray-200 mb-6">
@@ -85,6 +93,37 @@ pagesMy.get('/my-courses', (c) => {
             if (user) {
                 document.getElementById('userName').textContent = user.name + '님'
             }
+
+            const isAdminUser = user && user.role === 'admin'
+
+            function escapeAdminHtml(s) {
+                if (s == null) return ''
+                return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;')
+            }
+
+            async function loadAdminFreepassCourses() {
+                if (!isAdminUser) return
+                const section = document.getElementById('adminFreepassSection')
+                const grid = document.getElementById('adminFreepassGrid')
+                if (!section || !grid) return
+                section.classList.remove('hidden')
+                try {
+                    const r = await axios.get('/api/courses', { withCredentials: true })
+                    const list = r.data.data || []
+                    if (!list.length) {
+                        grid.innerHTML = '<p class="text-sm text-gray-600">등록된 강좌가 없습니다.</p>'
+                        return
+                    }
+                    grid.innerHTML = list.map(c => {
+                        const t = escapeAdminHtml(c.title)
+                        return \`<a href="/courses/\${c.id}/learn" class="block rounded-lg border border-amber-200/80 bg-white px-4 py-3 shadow-sm hover:border-indigo-400 transition text-left"><span class="font-medium text-gray-900">\${t}</span><span class="mt-1 block text-xs text-indigo-600">바로 학습 →</span></a>\`
+                    }).join('')
+                } catch (e) {
+                    console.error(e)
+                    grid.innerHTML = '<p class="text-sm text-red-600">강좌 목록을 불러오지 못했습니다.</p>'
+                }
+            }
+            if (isAdminUser) loadAdminFreepassCourses()
             
             let currentStatus = 'active'
             
@@ -103,9 +142,8 @@ pagesMy.get('/my-courses', (c) => {
                 
                 try {
                     const url = status === 'all' ? '/api/enrollments/my' : \`/api/enrollments/my?status=\${status}\`
-                    const token = AuthManager.getSessionToken()
                     const response = await axios.get(url, {
-                        headers: token ? { 'Authorization': \`Bearer \${token}\` } : {}
+                        withCredentials: true
                     })
                     const enrollments = response.data.data
                     
@@ -161,7 +199,7 @@ pagesMy.get('/my-courses', (c) => {
                                 <!-- 액션 버튼 -->
                                 <div class="mt-4 flex space-x-2">
                                     \${enrollment.status === 'active' ? \`
-                                        <a href="/learn/\${enrollment.id}" 
+                                        <a href="/courses/\${enrollment.course_id}/learn" 
                                            class="flex-1 bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 text-center">
                                             학습하기
                                         </a>
@@ -190,6 +228,8 @@ pagesMy.get('/my-courses', (c) => {
   `)
 })
 
+// /my-courses 는 pages-student.ts 가 처리 (index.tsx 라우팅 순서에서 우선)
+
 /**
  * 내 정보 (프로필) 페이지
  */
@@ -201,7 +241,7 @@ pagesMy.get('/my-profile', (c) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>내 정보 - 마인드스토리</title>
-        <script src="https://cdn.tailwindcss.com"></script>
+        <link rel="stylesheet" href="/static/css/app.css" />
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script src="/static/js/auth.js"></script>
@@ -233,6 +273,11 @@ pagesMy.get('/my-profile', (c) => {
                         <label class="block text-sm font-medium text-gray-700 mb-1">생년월일</label>
                         <input type="date" id="birth_date" class="w-full px-4 py-2 border border-gray-300 rounded-lg" />
                     </div>
+                    <label class="flex items-start gap-2 pt-2">
+                        <input type="checkbox" id="marketing_agreed" class="mt-1 w-4 h-4 shrink-0" />
+                        <span class="text-sm text-gray-700">[선택] 마케팅 및 광고성 정보 수신 동의 (이메일/SMS)</span>
+                    </label>
+                    <p class="text-xs text-gray-500">동의 철회는 언제든지 가능하며, <a href="/privacy" class="text-indigo-600 underline" target="_blank">개인정보처리방침</a>을 참고해 주세요.</p>
                     <button onclick="updateProfile()" class="w-full bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700">
                         정보 수정
                     </button>
@@ -338,9 +383,7 @@ pagesMy.get('/my-profile', (c) => {
             async function loadUserProfile() {
                 try {
                     const response = await axios.get('/api/auth/me', {
-                        headers: {
-                            'Authorization': \`Bearer \${getSessionToken()}\`
-                        }
+                        withCredentials: true
                     });
 
                     if (response.data.success) {
@@ -368,11 +411,10 @@ pagesMy.get('/my-profile', (c) => {
                     const response = await axios.put('/api/auth/profile', {
                         name: document.getElementById('name').value,
                         phone: document.getElementById('phone').value,
-                        birth_date: document.getElementById('birth_date').value
+                        birth_date: document.getElementById('birth_date').value,
+                        marketing_agreed: document.getElementById('marketing_agreed').checked
                     }, {
-                        headers: {
-                            'Authorization': \`Bearer \${getSessionToken()}\`
-                        }
+                        withCredentials: true
                     });
 
                     if (response.data.success) {
@@ -410,9 +452,7 @@ pagesMy.get('/my-profile', (c) => {
                         current_password: currentPassword,
                         new_password: newPassword
                     }, {
-                        headers: {
-                            'Authorization': \`Bearer \${getSessionToken()}\`
-                        }
+                        withCredentials: true
                     });
 
                     if (response.data.success) {
@@ -431,9 +471,7 @@ pagesMy.get('/my-profile', (c) => {
                 // 수강/결제 내역 확인
                 try {
                     const response = await axios.get('/api/auth/check-withdrawal', {
-                        headers: {
-                            'Authorization': \`Bearer \${getSessionToken()}\`
-                        }
+                        withCredentials: true
                     });
 
                     document.getElementById('withdrawalModal').classList.remove('hidden');
@@ -505,9 +543,7 @@ pagesMy.get('/my-profile', (c) => {
                         reason: reason,
                         reason_detail: reasonDetail
                     }, {
-                        headers: {
-                            'Authorization': \`Bearer \${getSessionToken()}\`
-                        }
+                        withCredentials: true
                     });
 
                     if (response.data.success) {

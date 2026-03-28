@@ -3,6 +3,17 @@
  * 저작권 보호를 위한 클라이언트 측 보안 기능
  */
 
+;(function initMindstoryDevFlag() {
+  if (typeof window === 'undefined') return
+  if (typeof window.isDevelopment === 'boolean') return
+  const h = window.location.hostname
+  window.isDevelopment =
+    h === 'localhost' ||
+    h === '127.0.0.1' ||
+    h.includes('sandbox') ||
+    h.endsWith('.local')
+})()
+
 // ========================================
 // 1. 우클릭 방지
 // ========================================
@@ -166,11 +177,7 @@ document.addEventListener('visibilitychange', () => {
 // 7. 콘솔 경고 메시지 (개발 환경에서만)
 // ========================================
 // 개발자 도구 감지 시에만 경고 표시
-const isDevelopment = window.location.hostname === 'localhost' || 
-                      window.location.hostname.includes('sandbox') ||
-                      window.location.hostname.includes('127.0.0.1');
-
-if (typeof window !== 'undefined' && isDevelopment) {
+if (typeof window !== 'undefined' && window.isDevelopment) {
   console.log(
     '%c⚠️ 경고!',
     'color: red; font-size: 40px; font-weight: bold;'
@@ -222,25 +229,36 @@ function showSecurityAlert(message) {
   }
 }
 
-/**
- * 보안 이벤트 로깅
- * 현재는 로컬 콘솔 로그만 사용 (서버 API 비활성화)
- */
-function logSecurityEvent(eventType) {
+// ========================================
+// 서버 보안 이벤트 로깅
+// ========================================
+let lastSecurityLogAt = 0;
+function logSecurityEvent(eventType, details = null) {
   try {
-    // 개발 환경에서만 콘솔 로그 출력
-    if (window.location.hostname === 'localhost' || window.location.hostname.includes('sandbox')) {
+    if (window.isDevelopment) {
       console.debug(`[SECURITY] ${eventType}`, {
         timestamp: new Date().toISOString(),
-        page: window.location.pathname
-      });
+        page: window.location.pathname,
+        details,
+      })
     }
-    
-    // 서버 로그 API는 현재 비활성화
-    // 필요 시 백엔드 구현 후 활성화
-    // fetch('/api/security/log', { ... })
-  } catch (err) {
-    // 에러 무시
+    const now = Date.now();
+    // 과도한 로깅 방지 (3초당 1회)
+    if (now - lastSecurityLogAt < 3000) return;
+    lastSecurityLogAt = now;
+
+    fetch('/api/security/log', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        event_type: eventType,
+        path: window.location.pathname,
+        details
+      })
+    }).catch(() => {});
+  } catch {
+    // ignore
   }
 }
 
@@ -291,6 +309,6 @@ window.addEventListener('beforeunload', () => {
 });
 
 // 개발 환경에서만 로드 완료 로그 출력
-if (isDevelopment) {
+if (window.isDevelopment) {
   console.log('✅ 보안 모듈 로드 완료');
 }

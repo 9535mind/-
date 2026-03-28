@@ -4,10 +4,32 @@
 
 import { Hono } from 'hono'
 import { Bindings, DashboardStats } from '../types/database'
-import { successResponse, errorResponse } from '../utils/helpers'
+import { successResponse, errorResponse, hashPassword } from '../utils/helpers'
 import { requireAdmin } from '../middleware/auth'
+import { approveBookSubmission } from '../services/publishPipeline'
+import { ean13Svg } from '../utils/ean13-svg'
+import { buildPublishingReportHtml } from '../utils/publish-helper'
 
 const admin = new Hono<{ Bindings: Bindings }>()
+
+function generateTemporaryPassword(length: number = 14): string {
+  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
+  const lower = 'abcdefghijkmnopqrstuvwxyz'
+  const digits = '23456789'
+  const symbols = '!@#$%^&*'
+  const all = upper + lower + digits + symbols
+
+  const pick = (chars: string) => chars[crypto.getRandomValues(new Uint32Array(1))[0] % chars.length]
+  const required = [pick(upper), pick(lower), pick(digits), pick(symbols)]
+  const rest = Array.from({ length: Math.max(0, length - required.length) }, () => pick(all))
+  const chars = [...required, ...rest]
+
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = crypto.getRandomValues(new Uint32Array(1))[0] % (i + 1)
+    ;[chars[i], chars[j]] = [chars[j], chars[i]]
+  }
+  return chars.join('')
+}
 
 // 대시보드 통계 (상세)
 admin.get('/dashboard/stats', requireAdmin, async (c) => {
@@ -84,22 +106,95 @@ admin.get('/dashboard', requireAdmin, async (c) => {
   return c.json(successResponse(stats))
 })
 
-// 전체 회원 목록
+/** 오늘의 핵심 지표 — 중앙 관제탑 카드용 */
+admin.get('/dashboard/pulse', requireAdmin, async (c) => {
+  const { DB } = c.env
+  try {
+    const signupRow = await DB.prepare(`
+      SELECT COUNT(*) as c FROM users
+      WHERE deleted_at IS NULL AND date(created_at) = date('now')
+    `).first<{ c: number }>()
+    const signup_today = Number(signupRow?.c ?? 0)
+
+    let payment_today = 0
+    try {
+      const pay = await DB.prepare(`
+        SELECT COALESCE(SUM(amount), 0) as s FROM orders
+        WHERE status = 'paid' AND paid_at IS NOT NULL
+        AND date(paid_at) = date('now')
+      `).first<{ s: number }>()
+      payment_today = Number(pay?.s ?? 0)
+    } catch {
+      try {
+        const pay2 = await DB.prepare(`
+          SELECT COALESCE(SUM(final_amount), 0) as s FROM payments
+          WHERE status = 'completed' AND paid_at IS NOT NULL
+          AND date(paid_at) = date('now')
+        `).first<{ s: number }>()
+        payment_today = Number(pay2?.s ?? 0)
+      } catch {
+        payment_today = 0
+      }
+    }
+
+    let unanswered_inquiries = 0
+    try {
+      const inq = await DB.prepare(`
+        SELECT COUNT(*) as c FROM support_inquiries WHERE status = 'open'
+      `).first<{ c: number }>()
+      unanswered_inquiries = Number(inq?.c ?? 0)
+    } catch {
+      unanswered_inquiries = 0
+    }
+
+    return c.json(
+      successResponse({
+        signup_today,
+        payment_today,
+        unanswered_inquiries,
+      }),
+    )
+  } catch (error) {
+    console.error('Dashboard pulse error:', error)
+    return c.json(errorResponse('지표 조회 실패'), 500)
+  }
+})
+
+// 전체 회원 목록 (검색: ?q=이메일·이름 부분일치)
 admin.get('/users', requireAdmin, async (c) => {
   const { DB } = c.env
   const page = parseInt(c.req.query('page') || '1')
   const limit = parseInt(c.req.query('limit') || '20')
   const offset = (page - 1) * limit
+  const q = (c.req.query('q') || '').trim()
+  const like = q ? `%${q.replace(/%/g, '\\%')}%` : ''
+
+  const whereSearch = q
+    ? `AND (email LIKE ? ESCAPE '\\' OR name LIKE ? ESCAPE '\\')`
+    : ''
 
   const [users, total] = await Promise.all([
-    DB.prepare(`
+    q
+      ? DB.prepare(`
+      SELECT id, email, name, phone, role, created_at
+      FROM users
+      WHERE deleted_at IS NULL ${whereSearch}
+      ORDER BY created_at DESC
+      LIMIT ? OFFSET ?
+    `).bind(like, like, limit, offset).all()
+      : DB.prepare(`
       SELECT id, email, name, phone, role, created_at
       FROM users
       WHERE deleted_at IS NULL
       ORDER BY created_at DESC
       LIMIT ? OFFSET ?
     `).bind(limit, offset).all(),
-    DB.prepare(`SELECT COUNT(*) as count FROM users`).first()
+    q
+      ? DB.prepare(`
+      SELECT COUNT(*) as count FROM users
+      WHERE deleted_at IS NULL ${whereSearch}
+    `).bind(like, like).first()
+      : DB.prepare(`SELECT COUNT(*) as count FROM users WHERE deleted_at IS NULL`).first(),
   ])
 
   return c.json({
@@ -143,6 +238,23 @@ admin.get('/enrollments', requireAdmin, async (c) => {
       totalPages: Math.ceil((total?.count || 0) / limit)
     }
   })
+})
+
+/** DELETE /api/admin/enrollments/:id — 수강 취소(관리자) */
+admin.delete('/enrollments/:id', requireAdmin, async (c) => {
+  const { DB } = c.env
+  const enrollmentId = c.req.param('id')
+  try {
+    await DB.prepare(`DELETE FROM lesson_progress WHERE enrollment_id = ?`).bind(enrollmentId).run()
+    const result = await DB.prepare(`DELETE FROM enrollments WHERE id = ?`).bind(enrollmentId).run()
+    if (result.meta.changes === 0) {
+      return c.json(errorResponse('수강 정보를 찾을 수 없습니다'), 404)
+    }
+    return c.json(successResponse(null, '수강이 취소되었습니다'))
+  } catch (error) {
+    console.error('Delete enrollment error:', error)
+    return c.json(errorResponse('수강 취소 실패'), 500)
+  }
 })
 
 // 전체 결제 내역
@@ -240,12 +352,22 @@ admin.post('/courses', requireAdmin, async (c) => {
       title,
       description,
       thumbnail_url,
-      status = 'draft'
+      status = 'draft',
+      category_group: rawCg,
     } = body
 
     // 필수 필드 검증
     if (!title || !description) {
       return c.json(errorResponse('필수 항목을 입력해주세요'), 400)
+    }
+
+    let categoryGroup = 'CLASSIC'
+    if (rawCg !== undefined && rawCg !== null && String(rawCg).trim() !== '') {
+      const cg = String(rawCg).trim().toUpperCase()
+      if (cg !== 'CLASSIC' && cg !== 'NEXT') {
+        return c.json(errorResponse('category_group은 CLASSIC 또는 NEXT'), 400)
+      }
+      categoryGroup = cg
     }
 
     // 현재 로그인한 관리자의 ID를 instructor_id로 사용
@@ -255,14 +377,16 @@ admin.post('/courses', requireAdmin, async (c) => {
     const result = await DB.prepare(`
       INSERT INTO courses (
         title, description, thumbnail_url, instructor_id, status,
+        category_group,
         created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+      ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
     `).bind(
       title,
       description,
       thumbnail_url || null,
       instructorId,
-      status
+      status,
+      categoryGroup
     ).run()
 
     return c.json(successResponse({
@@ -286,7 +410,8 @@ admin.put('/courses/:id', requireAdmin, async (c) => {
       title,
       description,
       thumbnail_url,
-      status
+      status,
+      category_group: rawCg,
     } = body
 
     // 필수 필드 검증
@@ -294,7 +419,34 @@ admin.put('/courses/:id', requireAdmin, async (c) => {
       return c.json(errorResponse('필수 항목을 입력해주세요'), 400)
     }
 
-    const result = await DB.prepare(`
+    let categoryGroup: string | null = null
+    if (rawCg !== undefined && rawCg !== null && String(rawCg).trim() !== '') {
+      const cg = String(rawCg).trim().toUpperCase()
+      if (cg !== 'CLASSIC' && cg !== 'NEXT') {
+        return c.json(errorResponse('category_group은 CLASSIC 또는 NEXT'), 400)
+      }
+      categoryGroup = cg
+    }
+
+    const result = categoryGroup
+      ? await DB.prepare(`
+      UPDATE courses SET
+        title = ?,
+        description = ?,
+        thumbnail_url = ?,
+        status = ?,
+        category_group = ?,
+        updated_at = datetime('now')
+      WHERE id = ?
+    `).bind(
+        title,
+        description,
+        thumbnail_url || null,
+        status,
+        categoryGroup,
+        courseId
+      ).run()
+      : await DB.prepare(`
       UPDATE courses SET
         title = ?,
         description = ?,
@@ -303,12 +455,12 @@ admin.put('/courses/:id', requireAdmin, async (c) => {
         updated_at = datetime('now')
       WHERE id = ?
     `).bind(
-      title,
-      description,
-      thumbnail_url || null,
-      status,
-      courseId
-    ).run()
+        title,
+        description,
+        thumbnail_url || null,
+        status,
+        courseId
+      ).run()
 
     if (result.meta.changes === 0) {
       return c.json(errorResponse('강좌를 찾을 수 없습니다'), 404)
@@ -318,6 +470,83 @@ admin.put('/courses/:id', requireAdmin, async (c) => {
   } catch (error) {
     console.error('Update course error:', error)
     return c.json(errorResponse('강좌 수정 실패: ' + (error as Error).message), 500)
+  }
+})
+
+/** PATCH /api/admin/courses/:id — 상태·브랜드·Classic 상단 노출 등 */
+admin.patch('/courses/:id', requireAdmin, async (c) => {
+  const { DB } = c.env
+  const courseId = c.req.param('id')
+  try {
+    const body = await c.req.json()
+    const {
+      status,
+      highlight_classic,
+      category_group,
+      isbn_enabled,
+      course_subtype,
+      feature_flags,
+    } = body as {
+      status?: string
+      highlight_classic?: number
+      category_group?: string
+      isbn_enabled?: number
+      course_subtype?: string
+      feature_flags?: string
+    }
+
+    const sets: string[] = []
+    const vals: unknown[] = []
+
+    if (status !== undefined) {
+      const allowed = ['draft', 'inactive', 'active', 'published']
+      if (!allowed.includes(status)) {
+        return c.json(errorResponse('허용되지 않는 상태입니다'), 400)
+      }
+      sets.push('status = ?')
+      vals.push(status)
+    }
+    if (highlight_classic !== undefined) {
+      sets.push('highlight_classic = ?')
+      vals.push(highlight_classic ? 1 : 0)
+    }
+    if (category_group !== undefined) {
+      const cg = String(category_group).toUpperCase()
+      if (cg !== 'CLASSIC' && cg !== 'NEXT') {
+        return c.json(errorResponse('category_group은 CLASSIC 또는 NEXT'), 400)
+      }
+      sets.push('category_group = ?')
+      vals.push(cg)
+    }
+    if (isbn_enabled !== undefined) {
+      sets.push('isbn_enabled = ?')
+      vals.push(isbn_enabled ? 1 : 0)
+    }
+    if (course_subtype !== undefined) {
+      sets.push('course_subtype = ?')
+      vals.push(String(course_subtype).toUpperCase())
+    }
+    if (feature_flags !== undefined) {
+      sets.push('feature_flags = ?')
+      vals.push(typeof feature_flags === 'string' ? feature_flags : JSON.stringify(feature_flags))
+    }
+
+    if (sets.length === 0) {
+      return c.json(errorResponse('갱신할 필드가 없습니다'), 400)
+    }
+
+    vals.push(courseId)
+    const sql = `UPDATE courses SET ${sets.join(', ')}, updated_at = datetime('now') WHERE id = ?`
+    const result = await DB.prepare(sql)
+      .bind(...vals)
+      .run()
+    if (result.meta.changes === 0) {
+      return c.json(errorResponse('강좌를 찾을 수 없습니다'), 404)
+    }
+    return c.json(successResponse({ id: courseId }, '강좌가 갱신되었습니다'))
+  } catch (error) {
+    console.error('Patch course error:', error)
+    return c.json(errorResponse('강좌 상태 변경 실패'), 500)
   }
 })
 
@@ -356,7 +585,7 @@ admin.delete('/courses/:id', requireAdmin, async (c) => {
  * GET /api/admin/videos
  * 모든 영상 목록 조회 (관리자 전용)
  */
-admin.get('/videos', async (c) => {
+admin.get('/videos', requireAdmin, async (c) => {
   try {
     const { DB } = c.env
 
@@ -396,7 +625,7 @@ admin.post('/users/:userId/reset-password', requireAdmin, async (c) => {
   try {
     const userId = c.req.param('userId')
     const { mode } = await c.req.json<{ mode?: 'manual' | 'ai' }>()
-    const { DB, GEMINI_API_KEY, GEMINI_BASE_URL } = c.env
+    const { DB } = c.env
     
     // 사용자 존재 확인
     const user = await DB.prepare(`
@@ -407,72 +636,23 @@ admin.post('/users/:userId/reset-password', requireAdmin, async (c) => {
       return c.json(errorResponse('사용자를 찾을 수 없습니다.'), 404)
     }
     
-    let newPassword = ''
+    // 예측 가능한 기본값 금지: 항상 랜덤 임시 비밀번호 발급
+    let newPassword = generateTemporaryPassword()
     
-    if (mode === 'ai' && GEMINI_API_KEY) {
-      // AI로 안전한 비밀번호 생성
-      try {
-        const baseURL = GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta'
-        const prompt = `사용자 이름: ${user.name}
+    const hashedPassword = await hashPassword(newPassword)
 
-다음 규칙으로 비밀번호를 생성해주세요:
-1. 8-12자 길이
-2. 영문 대소문자, 숫자, 특수문자(!@#$%^&*) 중 3가지 이상 포함
-3. 사용자 이름과 관련되면서도 예측하기 어려운 패턴
-4. JSON 형식으로 응답: {"password": "생성된비밀번호"}`
-
-        const response = await fetch(`${baseURL}/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            contents: [{
-              parts: [{
-                text: `당신은 안전한 비밀번호 생성 전문가입니다. 8-12자리의 기억하기 쉬우면서도 안전한 비밀번호를 생성합니다.\n\n${prompt}`
-              }]
-            }],
-            generationConfig: {
-              temperature: 0.9,
-              maxOutputTokens: 100
-            }
-          })
-        })
-        
-        if (response.ok) {
-          const data = await response.json()
-          const content = data.candidates[0].content.parts[0].text
-          
-          try {
-            const jsonMatch = content.match(/\{[\s\S]*\}/)
-            if (jsonMatch) {
-              const parsed = JSON.parse(jsonMatch[0])
-              newPassword = parsed.password
-            }
-          } catch (e) {
-            // JSON 파싱 실패 시 기본값
-            newPassword = 'password123'
-          }
-        } else {
-          newPassword = 'password123'
-        }
-      } catch (error) {
-        console.error('AI password generation error:', error)
-        newPassword = 'password123'
-      }
-    } else {
-      // 수동 초기화: password123
-      newPassword = 'password123'
+    try {
+      await DB.prepare(`
+        UPDATE users 
+        SET password_hash = ?, password_reset_required = 1, updated_at = datetime('now') 
+        WHERE id = ?
+      `).bind(hashedPassword, userId).run()
+    } catch {
+      // 마이그레이션 적용 전 호환성
+      await DB.prepare(`
+        UPDATE users SET password_hash = ?, updated_at = datetime('now') WHERE id = ?
+      `).bind(hashedPassword, userId).run()
     }
-    
-    // 비밀번호 해시 (실제로는 bcrypt 사용해야 하지만, 간단히 처리)
-    // 주의: 프로덕션에서는 반드시 bcrypt 등 안전한 해시 사용
-    const hashedPassword = newPassword // TODO: 실제 해싱 적용
-    
-    // 비밀번호 업데이트
-    await DB.prepare(`
-      UPDATE users SET password = ? WHERE id = ?
-    `).bind(hashedPassword, userId).run()
     
     console.log(`Password reset for user ${userId}: ${newPassword}`)
     
@@ -487,7 +667,26 @@ admin.post('/users/:userId/reset-password', requireAdmin, async (c) => {
   }
 })
 
-export default admin
+// 회원별 수강 목록(진도 요약)
+admin.get('/users/:userId/enrollments', requireAdmin, async (c) => {
+  const { DB } = c.env
+  const userId = c.req.param('userId')
+  try {
+    const rows = await DB.prepare(`
+      SELECT e.id, e.course_id, e.enrolled_at, e.progress, e.completed_at,
+             c.title as course_title,
+             (SELECT ROUND(AVG(COALESCE(lp.watch_percentage,0)),0) FROM lesson_progress lp WHERE lp.enrollment_id = e.id) as avg_progress
+      FROM enrollments e
+      JOIN courses c ON c.id = e.course_id
+      WHERE e.user_id = ?
+      ORDER BY e.enrolled_at DESC
+    `).bind(userId).all()
+    return c.json(successResponse(rows.results ?? []))
+  } catch (error) {
+    console.error('Get user enrollments error:', error)
+    return c.json(errorResponse('수강 목록 조회 실패'), 500)
+  }
+})
 
 // 회원 상세 조회
 admin.get('/users/:userId', requireAdmin, async (c) => {
@@ -538,3 +737,244 @@ admin.get('/users/:userId', requireAdmin, async (c) => {
     return c.json(errorResponse('회원 정보 조회 실패'), 500)
   }
 })
+
+/** POST /api/admin/isbn/bulk — ISBN 대량 등록 */
+admin.post('/isbn/bulk', requireAdmin, async (c) => {
+  const { DB } = c.env
+  try {
+    const body = await c.req.json<{ numbers?: string[] }>()
+    const raw = body.numbers
+    if (!Array.isArray(raw) || raw.length === 0) {
+      return c.json(errorResponse('numbers 배열이 필요합니다'), 400)
+    }
+    let inserted = 0
+    for (const n of raw) {
+      const isbn = String(n).replace(/\D/g, '')
+      if (isbn.length !== 13) continue
+      try {
+        await DB.prepare(
+          `INSERT INTO isbn_inventory (isbn_number, status) VALUES (?, 'AVAILABLE')`,
+        )
+          .bind(isbn)
+          .run()
+        inserted++
+      } catch {
+        /* UNIQUE 등 무시 */
+      }
+    }
+    return c.json(successResponse({ inserted, total_requested: raw.length }))
+  } catch (error) {
+    console.error('ISBN bulk error:', error)
+    return c.json(errorResponse('ISBN 등록 실패'), 500)
+  }
+})
+
+/** GET /api/admin/isbn/stats */
+admin.get('/isbn/stats', requireAdmin, async (c) => {
+  const { DB } = c.env
+  try {
+    const a = await DB.prepare(`SELECT COUNT(*) as c FROM isbn_inventory WHERE status = 'AVAILABLE'`).first<{
+      c: number
+    }>()
+    const u = await DB.prepare(`SELECT COUNT(*) as c FROM isbn_inventory WHERE status = 'USED'`).first<{ c: number }>()
+    return c.json(
+      successResponse({
+        available: Number(a?.c ?? 0),
+        used: Number(u?.c ?? 0),
+      }),
+    )
+  } catch (error) {
+    console.error('ISBN stats error:', error)
+    return c.json(errorResponse('통계 조회 실패'), 500)
+  }
+})
+
+/** GET /api/admin/digital-books — 발행·ISBN 연계 현황 */
+admin.get('/digital-books', requireAdmin, async (c) => {
+  const { DB } = c.env
+  try {
+    const rows = await DB.prepare(`
+      SELECT db.id, db.user_id, u.name as user_name, u.email,
+             db.course_id, c.title as course_title,
+             db.title, db.isbn_number, db.barcode_url, db.status, db.updated_at
+      FROM digital_books db
+      JOIN users u ON u.id = db.user_id
+      LEFT JOIN courses c ON c.id = db.course_id
+      ORDER BY db.updated_at DESC
+      LIMIT 200
+    `).all()
+    return c.json(successResponse(rows.results ?? []))
+  } catch (error) {
+    console.error('Admin digital-books error:', error)
+    return c.json(errorResponse('목록 조회 실패'), 500)
+  }
+})
+
+/** GET /api/admin/book-submissions — 출판 검수 대기열 */
+admin.get('/book-submissions', requireAdmin, async (c) => {
+  const { DB } = c.env
+  const status = (c.req.query('status') || 'pending').trim().toLowerCase()
+  const allowed = ['pending', 'approved', 'rejected', 'all']
+  const st = allowed.includes(status) ? status : 'pending'
+  try {
+    let sql = `
+      SELECT s.*, u.name as user_name, u.email as user_email
+      FROM book_submissions s
+      JOIN users u ON u.id = s.user_id
+    `
+    const bind: string[] = []
+    if (st !== 'all') {
+      sql += ` WHERE s.status = ?`
+      bind.push(st)
+    }
+    sql += ` ORDER BY s.created_at DESC LIMIT 200`
+    const rows = bind.length
+      ? await DB.prepare(sql).bind(bind[0]).all()
+      : await DB.prepare(sql).all()
+    return c.json(successResponse(rows.results ?? []))
+  } catch (error) {
+    console.error('book-submissions list error:', error)
+    return c.json(errorResponse('제출 목록 조회 실패'), 500)
+  }
+})
+
+/** GET /api/admin/book-submissions/:id */
+admin.get('/book-submissions/:id', requireAdmin, async (c) => {
+  const { DB } = c.env
+  const id = parseInt(c.req.param('id'), 10)
+  if (Number.isNaN(id)) return c.json(errorResponse('잘못된 ID'), 400)
+  try {
+    const row = await DB.prepare(
+      `SELECT s.*, u.name as user_name, u.email as user_email
+       FROM book_submissions s
+       JOIN users u ON u.id = s.user_id
+       WHERE s.id = ?`,
+    )
+      .bind(id)
+      .first()
+    if (!row) return c.json(errorResponse('없음'), 404)
+    return c.json(successResponse(row))
+  } catch (error) {
+    console.error('book-submissions get error:', error)
+    return c.json(errorResponse('조회 실패'), 500)
+  }
+})
+
+/** POST /api/admin/publish/reject */
+admin.post('/publish/reject', requireAdmin, async (c) => {
+  const { DB } = c.env
+  try {
+    const body = await c.req.json<{ submission_id?: number; reason?: string }>()
+    const sid = body.submission_id
+    const reason = (body.reason || '').trim()
+    if (sid === undefined || Number.isNaN(Number(sid))) {
+      return c.json(errorResponse('submission_id가 필요합니다'), 400)
+    }
+    if (!reason) return c.json(errorResponse('반려 사유를 입력하세요'), 400)
+    const r = await DB.prepare(
+      `UPDATE book_submissions SET status = 'rejected', rejection_reason = ?, updated_at = datetime('now')
+       WHERE id = ? AND status = 'pending'`,
+    )
+      .bind(reason, sid)
+      .run()
+    if (r.meta.changes !== 1) return c.json(errorResponse('대기 중인 제출만 반려할 수 있습니다'), 400)
+    return c.json(successResponse({ submission_id: sid }, '반려 처리되었습니다'))
+  } catch (error) {
+    console.error('publish reject error:', error)
+    return c.json(errorResponse('반려 처리 실패'), 500)
+  }
+})
+
+/** POST /api/admin/publish/approve — ISBN 1건 자동 할당 + published_books */
+admin.post('/publish/approve', requireAdmin, async (c) => {
+  const { DB } = c.env
+  try {
+    const body = await c.req.json<{ submission_id?: number }>()
+    const sid = body.submission_id
+    if (sid === undefined || Number.isNaN(Number(sid))) {
+      return c.json(errorResponse('submission_id가 필요합니다'), 400)
+    }
+    const result = await approveBookSubmission(DB, Number(sid))
+    if (!result.ok) return c.json(errorResponse(result.reason), 400)
+    return c.json(
+      successResponse(
+        {
+          published_book_id: result.published_book_id,
+          isbn: result.isbn,
+          barcode_path: result.barcode_path,
+        },
+        '승인 및 ISBN 할당이 완료되었습니다',
+      ),
+    )
+  } catch (error) {
+    console.error('publish approve error:', error)
+    return c.json(errorResponse('승인 처리 실패'), 500)
+  }
+})
+
+/** GET /api/admin/published-books/:id/barcode.svg */
+admin.get('/published-books/:id/barcode.svg', requireAdmin, async (c) => {
+  const { DB } = c.env
+  const id = parseInt(c.req.param('id'), 10)
+  if (Number.isNaN(id)) return c.text('Not found', 404)
+  try {
+    const row = await DB.prepare(`SELECT isbn_number FROM published_books WHERE id = ?`).bind(id).first<{
+      isbn_number: string | null
+    }>()
+    if (!row?.isbn_number) return c.text('Not found', 404)
+    const svg = ean13Svg(row.isbn_number)
+    return new Response(svg, {
+      headers: {
+        'Content-Type': 'image/svg+xml; charset=utf-8',
+        'Cache-Control': 'public, max-age=86400',
+      },
+    })
+  } catch {
+    return c.text('Error', 500)
+  }
+})
+
+/** GET /api/admin/published-books/:id/report.html — 출판 의뢰 리포트 (인쇄·PDF용) */
+admin.get('/published-books/:id/report.html', requireAdmin, async (c) => {
+  const { DB } = c.env
+  const id = parseInt(c.req.param('id'), 10)
+  if (Number.isNaN(id)) return c.text('Not found', 404)
+  try {
+    const row = await DB.prepare(
+      `SELECT pb.title, pb.author_name, pb.isbn_number, pb.summary, pb.manuscript_url, bs.author_intent
+       FROM published_books pb
+       JOIN book_submissions bs ON bs.id = pb.submission_id
+       WHERE pb.id = ?`,
+    )
+      .bind(id)
+      .first<{
+        title: string
+        author_name: string
+        isbn_number: string
+        summary: string
+        manuscript_url: string
+        author_intent: string | null
+      }>()
+    if (!row) return c.text('Not found', 404)
+    const svg = ean13Svg(row.isbn_number)
+    const html = buildPublishingReportHtml({
+      title: row.title,
+      authorName: row.author_name,
+      isbn: row.isbn_number,
+      summary: row.summary || '',
+      authorIntent: row.author_intent || undefined,
+      barcodeSvgOrUrl: svg,
+    })
+    return new Response(html, {
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'private, no-store',
+      },
+    })
+  } catch (error) {
+    console.error('report.html error:', error)
+    return c.text('Error', 500)
+  }
+})
+
+export default admin

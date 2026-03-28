@@ -1,10 +1,18 @@
-# 카카오 로그인 설정
-# https://developers.kakao.com 에서 발급받은 REST API 키를 입력하세요
+# 로컬 개발용 (.dev.vars 로 복사 후 값 입력)
+# 프로덕션: Cloudflare Pages → Settings → Variables / Secrets
+
+# 공식 도메인(참고): https://mindstory.kr
+# 카카오 Redirect URI(프로덕션): https://mindstory.kr/api/auth/kakao/callback
+# 구글 Redirect URI(프로덕션): https://mindstory.kr/api/auth/google/callback
+
 KAKAO_CLIENT_ID=your_kakao_rest_api_key_here
 KAKAO_REDIRECT_URI=http://localhost:3000/api/auth/kakao/callback
 
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_REDIRECT_URI=http://localhost:3000/api/auth/google/callback
+
 # R2 Storage 설정 (영상 저장소)
-# Cloudflare Dashboard에서 R2 API 토큰을 생성하여 입력하세요
 R2_ACCOUNT_ID=your_cloudflare_account_id
 R2_ACCESS_KEY_ID=your_r2_access_key_id
 R2_SECRET_ACCESS_KEY=your_r2_secret_access_key

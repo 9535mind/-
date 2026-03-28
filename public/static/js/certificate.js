@@ -203,7 +203,7 @@ class CertificateManager {
             이 수료증은 Mindstory LMS에서 발급한 공식 수료증입니다.
           </p>
           <p style="font-size: 11px; color: #bbb; margin-top: 5px;">
-            수료증 진위 확인: https://mindstory-lms.pages.dev/certificates/${certificate.certificate_number}
+            수료증 진위 확인: ${window.location.origin}/certificates/${certificate.certificate_number}
           </p>
         </div>
       </div>

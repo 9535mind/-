@@ -2,21 +2,27 @@
  * 관리자 강좌 관리 JavaScript
  */
 
-// 개발 환경 확인
-const isDevelopment = window.location.hostname === 'localhost' || 
-                      window.location.hostname.includes('sandbox') ||
-                      window.location.hostname.includes('127.0.0.1');
+;(function initMindstoryDevFlag() {
+  if (typeof window === 'undefined') return
+  if (typeof window.isDevelopment === 'boolean') return
+  const h = window.location.hostname
+  window.isDevelopment =
+    h === 'localhost' ||
+    h === '127.0.0.1' ||
+    h.includes('sandbox') ||
+    h.endsWith('.local')
+})()
 
 // DEBUG 로그 헬퍼 함수 (개발 환경에서만 출력)
 function DEBUG(...args) {
-  if (isDevelopment) {
+  if (window.isDevelopment) {
     console.log('[DEBUG]', ...args);
   }
 }
 
 // DEBUG 에러 로그
 DEBUG.error = function(...args) {
-  if (isDevelopment) {
+  if (window.isDevelopment) {
     console.error('[DEBUG]', ...args);
   }
 };
@@ -455,6 +461,8 @@ function openNewCourseModal() {
   document.getElementById('modalTitle').textContent = '새 강좌 등록';
   document.getElementById('courseForm').reset();
   document.getElementById('courseId').value = '';
+  const customTitleInput = document.getElementById('thumbnailCustomTitle');
+  if (customTitleInput) customTitleInput.value = '';
   
   // 썸네일 미리보기 숨김
   document.getElementById('thumbnailPreview').classList.add('hidden');
@@ -486,6 +494,8 @@ async function editCourse(courseId) {
       document.getElementById('modalTitle').textContent = `강좌 수정: ${course.title}`;
       document.getElementById('courseId').value = course.id;
       document.getElementById('courseTitle').value = course.title || '';
+      const customTitleInput = document.getElementById('thumbnailCustomTitle');
+      if (customTitleInput) customTitleInput.value = '';
       document.getElementById('courseDescription').value = course.description || '';
       document.getElementById('courseThumbnail').value = course.thumbnail_url || '';
       document.getElementById('courseType').value = course.course_type || 'general';
@@ -942,6 +952,9 @@ function escapeHtml(text) {
 // 동영상 썸네일 자동 추출
 async function extractVideoThumbnail() {
   const courseId = document.getElementById('courseId').value;
+  const customTitle = (document.getElementById('thumbnailCustomTitle')?.value || '').trim();
+  const fallbackTitle = (document.getElementById('courseTitle')?.value || '').trim();
+  const title = customTitle || fallbackTitle;
   
   if (!courseId) {
     alert('먼저 강좌를 저장한 후에 썸네일을 추출해주세요.');
@@ -955,7 +968,9 @@ async function extractVideoThumbnail() {
   progressBar.style.width = '30%';
   
   try {
-    const response = await apiRequest('POST', `/api/courses/${courseId}/extract-thumbnail`);
+    const response = await apiRequest('POST', `/api/courses/${courseId}/extract-thumbnail`, {
+      title: title || undefined
+    });
     
     progressBar.style.width = '100%';
     
@@ -966,7 +981,7 @@ async function extractVideoThumbnail() {
       // 미리보기 표시
       showThumbnailPreview(response.data.thumbnail_url);
       
-      alert('✅ 동영상 썸네일이 추출되었습니다!\n저장 버튼을 클릭하여 변경사항을 저장하세요.');
+      alert(`✅ 썸네일이 생성되었습니다!\n제목: ${response?.data?.title || title || '강좌 기본 제목'}\n저장 버튼을 클릭하여 변경사항을 저장하세요.`);
     } else {
       throw new Error(response.message || '썸네일 추출에 실패했습니다.');
     }

@@ -5,15 +5,14 @@
 // Axios 전역 설정: Cookie 자동 전송 활성화
 axios.defaults.withCredentials = true;
 
-// AuthManager 클래스
+// AuthManager 클래스 (HttpOnly 쿠키 기반)
 class AuthManager {
-  static saveSession(token, user) {
-    localStorage.setItem('session_token', token)
+  static saveSession(user) {
     localStorage.setItem('user', JSON.stringify(user))
   }
 
   static getSessionToken() {
-    return localStorage.getItem('session_token') || sessionStorage.getItem('session_token')
+    return null
   }
 
   static getUser() {
@@ -26,55 +25,43 @@ class AuthManager {
   }
 
   static isLoggedIn() {
-    return !!this.getSessionToken()
+    return !!this.getUser()
   }
 
   static isAdmin() {
     const user = this.getUser()
-    return user && user.role === 'admin'
+    return user && user.role !== 'student'
   }
 
   static clearSession() {
-    localStorage.removeItem('session_token')
     localStorage.removeItem('user')
-    sessionStorage.removeItem('session_token')
   }
 }
 
 // AuthManager를 window 객체에 명시적으로 등록
 window.AuthManager = AuthManager
 
-// 세션 토큰 가져오기
+// 세션 토큰 가져오기 (쿠키 전용 운영으로 토큰 노출 금지)
 function getSessionToken() {
-  return localStorage.getItem('session_token') || sessionStorage.getItem('session_token');
+  return null;
 }
 
-// 세션 토큰 저장
+// 세션 토큰 저장 (호환용 no-op)
 function setSessionToken(token, remember = false) {
-  if (remember) {
-    localStorage.setItem('session_token', token);
-  } else {
-    sessionStorage.setItem('session_token', token);
-  }
+  return;
 }
 
-// 세션 토큰 삭제
+// 세션 토큰 삭제 (호환용 no-op)
 function clearSessionToken() {
-  localStorage.removeItem('session_token');
-  sessionStorage.removeItem('session_token');
+  return;
 }
 
 // 로그아웃
 async function logout() {
-  const token = getSessionToken();
-  if (token) {
-    try {
-      await axios.post('/api/auth/logout', {}, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
+  try {
+    await axios.post('/api/auth/logout', {});
+  } catch (error) {
+    console.error('Logout error:', error);
   }
   
   clearSessionToken();
@@ -83,16 +70,8 @@ async function logout() {
 
 // 현재 사용자 정보 가져오기 (리다이렉트 제거)
 async function getCurrentUser() {
-  const token = getSessionToken();
-  if (!token) {
-    console.warn('⚠️ No session token found');
-    return null;
-  }
-
   try {
-    const response = await axios.get('/api/auth/me', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
+    const response = await axios.get('/api/auth/me');
     
     if (response.data.success) {
       return response.data.data;
@@ -101,10 +80,11 @@ async function getCurrentUser() {
       return null;
     }
   } catch (error) {
-    console.error('Get user error:', error);
+    // 로그인 전/만료 상태(401)는 정상 시나리오이므로 조용히 처리
     if (error.response?.status === 401) {
-      console.warn('⚠️ Unauthorized - token may be expired');
+      return null;
     }
+    console.error('Get user error:', error);
     return null;
   }
 }
@@ -112,7 +92,7 @@ async function getCurrentUser() {
 // 관리자 권한 확인
 async function requireAdmin() {
   const user = await getCurrentUser();
-  if (!user || user.role !== 'admin') {
+  if (!user || user.role === 'student') {
     alert('관리자 권한이 필요합니다.');
     window.location.href = '/';
     return null;
@@ -122,11 +102,9 @@ async function requireAdmin() {
 
 // API 요청 헬퍼 (자동으로 토큰 포함)
 async function apiRequest(method, url, data = null) {
-  const token = getSessionToken();
   const config = {
     method,
-    url,
-    headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+    url
   };
 
   if (data) {
@@ -155,29 +133,44 @@ async function apiRequest(method, url, data = null) {
   }
 }
 
+// 서버 세션 쿠키 기준으로 localStorage 동기화
+async function syncUserSession() {
+  const serverUser = await getCurrentUser()
+  if (serverUser) {
+    AuthManager.saveSession(serverUser)
+    return serverUser
+  }
+  AuthManager.clearSession()
+  return null
+}
+
 // 헤더 업데이트 (로그인 상태 표시)
-function updateHeader() {
+async function updateHeader() {
   const authButtons = document.getElementById('headerAuthButtons')
   const userMenu = document.getElementById('headerUserMenu')
   const userName = document.getElementById('headerUserName')
   const adminLink = document.getElementById('adminLink')
   const adminModeSwitch = document.getElementById('adminModeSwitch')
 
-  if (AuthManager.isLoggedIn()) {
-    const user = AuthManager.getUser()
+  // 먼저 로컬 정보를 보여주고, 서버 세션으로 최종 동기화
+  let user = AuthManager.getUser()
+  if (!user) {
+    user = await syncUserSession()
+  } else {
+    // 로컬에 값이 있어도 권한/이름 변경을 반영하기 위해 최신화
+    user = await syncUserSession()
+  }
+
+  if (user) {
     
     if (authButtons) authButtons.style.display = 'none'
     if (userMenu) userMenu.style.display = 'flex'
-    if (userName && user) userName.textContent = user.name + ' 님'
+    if (userName) userName.textContent = user.name + ' 님'
     
-    // 관리자인 경우 모드 전환 버튼 표시
-    if (user && user.role === 'admin') {
-      // 이전 adminLink는 숨김 (모드 전환 버튼으로 대체)
-      if (adminLink) adminLink.style.display = 'none'
-      
-      // 관리자 모드 전환 버튼 표시
-      if (adminModeSwitch) adminModeSwitch.style.display = 'flex'
-    }
+    // 로그인 사용자에게 관리자 페이지 진입 버튼은 항상 노출
+    // 실제 접근 권한은 서버(/admin, /api/admin)에서 최종 검증한다.
+    if (adminLink) adminLink.style.display = 'none'
+    if (adminModeSwitch) adminModeSwitch.style.display = 'flex'
   } else {
     if (authButtons) authButtons.style.display = 'flex'
     if (userMenu) userMenu.style.display = 'none'
@@ -188,15 +181,10 @@ function updateHeader() {
 
 // 로그아웃 처리
 async function handleLogout() {
-  const token = AuthManager.getSessionToken()
-  if (token) {
-    try {
-      await axios.post('/api/auth/logout', {}, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-    } catch (error) {
-      console.error('Logout error:', error)
-    }
+  try {
+    await axios.post('/api/auth/logout', {})
+  } catch (error) {
+    console.error('Logout error:', error)
   }
 
   AuthManager.clearSession()

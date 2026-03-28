@@ -119,8 +119,11 @@ payments.post('/confirm', requireAuth, async (c) => {
   const { DB } = c.env
 
   try {
-    // 시크릿 키 가져오기 (환경변수 또는 기본값)
-    const secretKey = c.env.TOSS_SECRET_KEY || 'test_sk_zXLkKEypNArWmo50nX3lmeaxYG5R'
+    // 시크릿 키는 환경변수에서만 로드 (하드코딩 금지)
+    const secretKey = c.env.TOSS_SECRET_KEY
+    if (!secretKey) {
+      return c.json(errorResponse('TOSS_SECRET_KEY 환경변수가 설정되지 않았습니다.'), 500)
+    }
 
     // 토스페이먼츠 결제 승인 요청
     const tossPayment = await confirmPayment(paymentKey, orderId, amount, secretKey)
@@ -245,7 +248,10 @@ payments.post('/:id/refund', requireAdmin, async (c) => {
     }
 
     // 토스페이먼츠 환불 요청
-    const secretKey = c.env.TOSS_SECRET_KEY || 'test_sk_zXLkKEypNArWmo50nX3lmeaxYG5R'
+    const secretKey = c.env.TOSS_SECRET_KEY
+    if (!secretKey) {
+      return c.json(errorResponse('TOSS_SECRET_KEY 환경변수가 설정되지 않았습니다.'), 500)
+    }
     
     const cancelResult = await cancelPayment(
       payment.payment_key,

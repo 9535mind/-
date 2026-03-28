@@ -4,7 +4,7 @@
 module.exports = {
   apps: [
     {
-      name: 'mindstory-lms',
+      name: 'mslms',
       script: 'npx',
       args: 'wrangler pages dev dist --d1=mindstory-production --local --ip 0.0.0.0 --port 3000',
       env: {

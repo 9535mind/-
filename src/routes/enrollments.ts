@@ -483,6 +483,17 @@ enrollments.get('/:enrollmentId/lessons/:lessonId/check-access', requireAuth, as
       }, 404)
     }
 
+    if (user.role === 'admin') {
+      return c.json({
+        success: true,
+        hasAccess: true,
+        reason: 'admin',
+        courseTitle: enrollment.course_title,
+        lessonNumber: lesson.lesson_number,
+        lessonTitle: lesson.title,
+      })
+    }
+
     // 무료 강좌인 경우 - 모든 차시 접근 가능
     const isFree = enrollment.price === 0
     if (isFree) {
@@ -497,9 +508,16 @@ enrollments.get('/:enrollmentId/lessons/:lessonId/check-access', requireAuth, as
     }
 
     // 유료 강좌인 경우 - 결제 여부 확인
-    const hasPaid = enrollment.payment_id !== null
+    // enrollments 테이블 스키마가 payment_id를 보장하지 않을 수 있어,
+    // orders.status='paid'를 기준으로 판정한다.
+    const paidOrder = await DB.prepare(`
+      SELECT 1 as ok
+      FROM orders
+      WHERE user_id = ? AND course_id = ? AND status = 'paid'
+      LIMIT 1
+    `).bind(user.id, enrollment.course_id).first<{ ok: number }>()
 
-    if (hasPaid) {
+    if (paidOrder) {
       // 결제 완료 - 모든 차시 접근 가능
       return c.json({
         success: true,

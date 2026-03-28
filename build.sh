@@ -10,11 +10,12 @@ else
 fi
 
 echo "📝 _routes.json 생성 중..."
+# exclude: Worker 우회 정적 경로(실제 public 파일). Clean URL 리다이렉트와 무관.
 cat > dist/_routes.json << 'ROUTES'
 {
   "version": 1,
   "include": ["/*"],
-  "exclude": ["/uploads/*", "/static/*"]
+  "exclude": ["/uploads/*", "/static/*", "/pg-business-info.html"]
 }
 ROUTES
 echo "✅ _routes.json 생성 완료"

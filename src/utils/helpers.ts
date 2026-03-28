@@ -3,6 +3,7 @@
  */
 
 import { Context } from 'hono'
+import { getCookie } from 'hono/cookie'
 import { ApiResponse } from '../types/database'
 
 /**
@@ -27,21 +28,7 @@ export function errorResponse(error: string, message?: string): ApiResponse {
   }
 }
 
-import bcrypt from 'bcryptjs'
-
-/**
- * 비밀번호 해시 (bcrypt 사용)
- */
-export async function hashPassword(password: string): Promise<string> {
-  return await bcrypt.hash(password, 10)
-}
-
-/**
- * 비밀번호 검증
- */
-export async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  return await bcrypt.compare(password, hash)
-}
+export { hashPassword, verifyPassword } from './password'
 
 /**
  * 세션 토큰 생성
@@ -123,13 +110,26 @@ export function isValidPhone(phone: string): boolean {
 export async function getCurrentUser(c: Context) {
   // 쿠키나 헤더에서 세션 토큰 추출
   const authHeader = c.req.header('Authorization')
+  // Hono 내장 쿠키 파서 우선 사용 (Workers 환경에서 가장 안정적)
+  const cookieToken = getCookie(c, 'session_token') || null
+  // 구형/특수 환경 호환: Cookie 헤더 직접 파싱 fallback
   const cookieHeader = c.req.header('Cookie')
-  let cookieToken = null
-  if (cookieHeader) {
-    const match = cookieHeader.match(/session_token=([^;]+)/)
-    if (match) cookieToken = match[1]
+  let cookieTokenFallback: string | null = null
+  if (!cookieToken && cookieHeader) {
+    const match = cookieHeader.match(/(?:^|;\s*)session_token=([^;]+)/)
+    if (match) cookieTokenFallback = match[1]
   }
-  const sessionToken = authHeader?.replace('Bearer ', '') || cookieToken
+
+  const bearer = authHeader?.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : authHeader
+  const rawToken = bearer || cookieToken || cookieTokenFallback
+  let sessionToken = rawToken
+  if (rawToken) {
+    try {
+      sessionToken = decodeURIComponent(rawToken)
+    } catch {
+      sessionToken = rawToken
+    }
+  }
   
   if (!sessionToken) {
     return null
@@ -137,30 +137,54 @@ export async function getCurrentUser(c: Context) {
 
   const env = c.env as { DB: D1Database }
   
-  // 세션 조회 (명시적 컬럼 선택으로 id 중복 방지)
-  const session = await env.DB.prepare(`
-    SELECT 
-      u.id, u.email, u.name, u.role, u.created_at, u.updated_at,
-      u.social_provider, u.social_id, u.profile_image_url,
-      u.deleted_at, u.deletion_reason,
-      s.session_token, s.expires_at
-    FROM sessions s
-    JOIN users u ON s.user_id = u.id
-    WHERE s.session_token = ? 
-      AND s.expires_at > datetime('now')
-      AND u.deleted_at IS NULL
-  `).bind(sessionToken).first()
+  // 세션 조회 (배포 환경의 users 스키마 차이 대비: 확장 컬럼 실패 시 최소 컬럼으로 폴백)
+  let session: Record<string, unknown> | null = null
+  try {
+    session = await env.DB.prepare(`
+      SELECT 
+        u.id, u.email, u.name, u.role, u.created_at, u.updated_at,
+        u.phone, u.birth_date,
+        u.terms_agreed, u.privacy_agreed, u.marketing_agreed,
+        u.social_provider, u.social_id, u.profile_image_url,
+        u.deleted_at, u.deletion_reason,
+        s.session_token, s.expires_at
+      FROM sessions s
+      JOIN users u ON s.user_id = u.id
+      WHERE s.session_token = ? 
+        AND s.expires_at > datetime('now')
+        AND u.deleted_at IS NULL
+    `).bind(sessionToken).first()
+  } catch (e) {
+    console.warn('[getCurrentUser] extended user columns unavailable, fallback query used:', e)
+    session = await env.DB.prepare(`
+      SELECT 
+        u.id, u.email, u.name, u.role,
+        u.created_at, u.updated_at, u.deleted_at,
+        s.session_token, s.expires_at
+      FROM sessions s
+      JOIN users u ON s.user_id = u.id
+      WHERE s.session_token = ?
+        AND s.expires_at > datetime('now')
+        AND u.deleted_at IS NULL
+    `).bind(sessionToken).first()
+  }
   
   if (!session) {
     return null
   }
   
   // 세션 활동 시간 업데이트
-  await env.DB.prepare(`
-    UPDATE user_sessions 
-    SET last_activity_at = datetime('now')
-    WHERE session_token = ?
-  `).bind(sessionToken).run()
+  // user_sessions 테이블이 없는 환경(또는 스키마 불일치)에서도 인증이 깨지지 않게 방어
+  try {
+    await env.DB.prepare(`
+      UPDATE user_sessions 
+      SET last_activity_at = datetime('now')
+      WHERE session_token = ?
+    `).bind(sessionToken).run()
+  } catch (e) {
+    // 세션은 sessions 테이블로 유효성 확인이 끝났으므로, 활동 기록 실패는 무시
+    console.warn('[getCurrentUser] user_sessions update skipped:', e)
+  }
   
   return session
 }
@@ -170,7 +194,7 @@ export async function getCurrentUser(c: Context) {
  */
 export async function isAdmin(c: Context): Promise<boolean> {
   const user = await getCurrentUser(c)
-  return user?.role === 'admin'
+  return !!user && user.role === 'admin'
 }
 
 /**

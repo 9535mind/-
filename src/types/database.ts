@@ -12,6 +12,14 @@ export type Bindings = {
   APIVIDEO_BASE_URL?: string; // api.video base URL
   GEMINI_API_KEY?: string;   // Gemini API key
   GEMINI_BASE_URL?: string;  // Gemini API base URL
+  TOSS_SECRET_KEY?: string;  // Toss Payments secret key
+  /** PortOne(구 아임포트) — https://admin.portone.io */
+  PORTONE_IMP_KEY?: string;
+  PORTONE_IMP_SECRET?: string;
+  /** 고객사 식별코드 — 클라이언트 IMP.init()에 사용 */
+  PORTONE_IMP_CODE?: string;
+  /** 예: html5_inicis, kakaopay 등 (가맹점 콘솔 PG 설정과 일치) */
+  PORTONE_PG?: string;
   
   // OAuth (Google)
   GOOGLE_CLIENT_ID?: string;
@@ -22,6 +30,9 @@ export type Bindings = {
   KAKAO_CLIENT_ID?: string;
   KAKAO_CLIENT_SECRET?: string;
   KAKAO_REDIRECT_URI?: string;
+
+  /** 공개 사이트 URL(참고용·디버그; OAuth 콜백은 코드 상수 사용) */
+  NEXT_PUBLIC_SITE_URL?: string;
   
   // JWT
   JWT_SECRET?: string;
@@ -47,6 +58,7 @@ export interface User {
   social_provider?: string;
   social_id?: string;
   profile_image_url?: string;
+  password_reset_required?: number;
   deleted_at?: string;
   deletion_reason?: string;
   created_at: string;
@@ -66,6 +78,9 @@ export interface CreateUserInput {
 }
 
 // Course Types
+export type CategoryGroup = 'CLASSIC' | 'NEXT'
+export type CourseSubtype = 'COUNSELING' | 'CAREER' | 'FAIRY_TALE' | 'TECH'
+
 export interface Course {
   id: number;
   title: string;
@@ -85,6 +100,15 @@ export interface Course {
   published_at?: string;
   display_order: number;
   is_featured: number;
+  /** MINDSTORY 브랜드: Classic(상담·진로 중심) / Next(AI·창작) */
+  category_group?: CategoryGroup | string;
+  course_subtype?: CourseSubtype | string;
+  /** JSON 문자열: { "isbn_auto": true, "ai_editor": true } */
+  feature_flags?: string;
+  /** Next 동화 등 ISBN 자동 할당 허용 */
+  isbn_enabled?: number;
+  /** Classic 메인 노출 우선순위(관리자 트렌드 토글) */
+  highlight_classic?: number;
   created_at: string;
   updated_at: string;
 }
@@ -391,6 +415,37 @@ export enum ErrorCode {
   NOT_ENROLLED = 'NOT_ENROLLED',
   CERTIFICATE_NOT_ELIGIBLE = 'CERTIFICATE_NOT_ELIGIBLE',
   REVIEW_ALREADY_EXISTS = 'REVIEW_ALREADY_EXISTS',
+}
+
+/** 출판 검수 대기열 (book_submissions) */
+export interface BookSubmission {
+  id: number
+  user_id: number
+  title: string
+  author_name: string
+  summary: string
+  manuscript_url: string
+  author_intent: string
+  status: 'pending' | 'approved' | 'rejected'
+  isbn_number?: string | null
+  published_book_id?: number | null
+  rejection_reason?: string | null
+  created_at: string
+  updated_at: string
+}
+
+/** 승인 후 정식 출판 스냅샷 (published_books) */
+export interface PublishedBook {
+  id: number
+  submission_id: number
+  user_id: number
+  title: string
+  author_name: string
+  summary: string
+  manuscript_url: string
+  isbn_number: string
+  barcode_path?: string | null
+  created_at: string
 }
 
 // Extended API Response with Error Code

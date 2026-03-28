@@ -67,14 +67,16 @@ reviews.post('/:courseId/reviews', requireAuth, async (c) => {
       return throwNotFoundError(c, '강좌')
     }
 
-    // 수강 여부 확인
-    const enrollment = await DB.prepare(`
-      SELECT id FROM enrollments 
-      WHERE user_id = ? AND course_id = ?
-    `).bind(user.id, courseId).first()
+    // 수강 여부 확인 (관리자는 수강 신청 없이 수강평 작성 가능)
+    if (user.role !== 'admin') {
+      const enrollment = await DB.prepare(`
+        SELECT id FROM enrollments 
+        WHERE user_id = ? AND course_id = ?
+      `).bind(user.id, courseId).first()
 
-    if (!enrollment) {
-      return throwForbiddenError(c, '수강 중인 강좌에만 리뷰를 작성할 수 있습니다.')
+      if (!enrollment) {
+        return throwForbiddenError(c, '수강 중인 강좌에만 리뷰를 작성할 수 있습니다.')
+      }
     }
 
     // 기존 리뷰 확인

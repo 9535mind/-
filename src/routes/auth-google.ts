@@ -3,7 +3,7 @@
  * /api/auth/google/*
  */
 
-import { Hono } from 'hono'
+import { Context, Hono } from 'hono'
 import { Bindings, User } from '../types/database'
 import { 
   successResponse, 
@@ -12,8 +12,78 @@ import {
   addDays,
   hashPassword
 } from '../utils/helpers'
+import { applySessionCookie } from '../utils/session-cookie'
+import {
+  envRedirectUriHostname,
+  GOOGLE_OAUTH_REDIRECT_URI,
+  isLocalDevHostname,
+  requestHostname,
+  SITE_PUBLIC_ORIGIN,
+} from '../utils/oauth-public'
 
 const authGoogle = new Hono<{ Bindings: Bindings }>()
+
+function getRequestOrigin(c: Context<{ Bindings: Bindings }>): string {
+  const reqUrl = new URL(c.req.url)
+  const protoRaw =
+    c.req.header('x-forwarded-proto') || reqUrl.protocol.replace(':', '') || 'https'
+  const proto = protoRaw.split(',')[0]?.trim() || 'https'
+  const hostRaw =
+    c.req.header('x-forwarded-host') || c.req.header('host') || reqUrl.host
+  const host = hostRaw.split(',')[0]?.trim() || reqUrl.host
+  return `${proto}://${host}`
+}
+
+function isAllowedRedirectHost(hostname: string): boolean {
+  return (
+    hostname === 'mindstory.kr' ||
+    hostname.endsWith('.mindstory.kr') ||
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1'
+  )
+}
+
+/** *.pages.dev 등에서 OAuth 시작 시 구글·쿠키 도메인 불일치 방지 */
+function redirectGoogleOAuthToCanonicalOrigin(c: Context<{ Bindings: Bindings }>): Response | undefined {
+  const raw =
+    c.req.header('x-forwarded-host') ||
+    c.req.header('host') ||
+    new URL(c.req.url).host
+  const h = raw.split(',')[0].trim().split(':')[0]
+  if (!h || h === 'mindstory.kr' || h.endsWith('.mindstory.kr')) return undefined
+  if (h === 'localhost' || h === '127.0.0.1') return undefined
+  const u = new URL(c.req.url)
+  return c.redirect(`${SITE_PUBLIC_ORIGIN}${u.pathname}${u.search}`, 302)
+}
+
+function isAllowedGoogleRedirectUrl(urlStr: string): boolean {
+  try {
+    const u = new URL(urlStr)
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return false
+    if (u.pathname.replace(/\/$/, '') !== '/api/auth/google/callback') return false
+    return isAllowedRedirectHost(u.hostname)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * 프로덕션(비로컬)은 항상 mindstory.kr 콜백 고정 — 잘못된 Cloudflare 시크릿·옛 도메인 무시
+ */
+function resolveGoogleRedirectUri(c: Context<{ Bindings: Bindings }>): string {
+  const h = requestHostname(c)
+  if (isLocalDevHostname(h)) {
+    const fromEnv = (c.env.GOOGLE_REDIRECT_URI || '').trim().replace(/\/$/, '')
+    if (fromEnv && isAllowedGoogleRedirectUrl(fromEnv)) return fromEnv
+    return 'http://localhost:3000/api/auth/google/callback'
+  }
+
+  const fromEnv = (c.env.GOOGLE_REDIRECT_URI || '').trim().replace(/\/$/, '')
+  if (fromEnv && fromEnv !== GOOGLE_OAUTH_REDIRECT_URI) {
+    console.warn('[GOOGLE_REDIRECT] Production ignores GOOGLE_REDIRECT_URI (use mindstory.kr only):', fromEnv)
+  }
+  return GOOGLE_OAUTH_REDIRECT_URI
+}
 
 /**
  * GET /api/auth/google/login
@@ -21,20 +91,21 @@ const authGoogle = new Hono<{ Bindings: Bindings }>()
  */
 authGoogle.get('/login', async (c) => {
   try {
-    // 환경 변수 검증
+    const forceCanon = redirectGoogleOAuthToCanonicalOrigin(c)
+    if (forceCanon) return forceCanon
+
     const clientId = c.env.GOOGLE_CLIENT_ID
-    const redirectUri = c.env.GOOGLE_REDIRECT_URI
+    const redirectUri = resolveGoogleRedirectUri(c)
     
     // 디버깅 로그
     console.log('[GOOGLE_LOGIN] c.env keys:', Object.keys(c.env))
     console.log('[GOOGLE_LOGIN] GOOGLE_CLIENT_ID exists:', !!clientId)
     console.log('[GOOGLE_LOGIN] GOOGLE_REDIRECT_URI exists:', !!redirectUri)
     
-    // 필수 환경 변수 검증
-    if (!clientId || !redirectUri) {
+    if (!clientId) {
       console.error('[GOOGLE_LOGIN] Missing environment variables:', {
         GOOGLE_CLIENT_ID: !!clientId,
-        GOOGLE_REDIRECT_URI: !!redirectUri
+        GOOGLE_REDIRECT_URI: !!redirectUri,
       })
       return c.json(errorResponse('Google 로그인 설정이 완료되지 않았습니다.'), 500)
     }
@@ -59,6 +130,31 @@ authGoogle.get('/login', async (c) => {
     console.error('Google login start error:', error)
     return c.json(errorResponse('Google 로그인 시작에 실패했습니다.'), 500)
   }
+})
+
+authGoogle.get('/debug', (c) => {
+  const forceCanon = redirectGoogleOAuthToCanonicalOrigin(c)
+  if (forceCanon) return forceCanon
+
+  const clientId = (c.env.GOOGLE_CLIENT_ID || '').trim()
+  const clientSecret = (c.env.GOOGLE_CLIENT_SECRET || '').trim()
+  const h = requestHostname(c)
+  const redirectUri = isLocalDevHostname(h) ? resolveGoogleRedirectUri(c) : GOOGLE_OAUTH_REDIRECT_URI
+  return c.json(
+    successResponse({
+      origin: getRequestOrigin(c),
+      redirectUri,
+      canonicalRedirectUri: GOOGLE_OAUTH_REDIRECT_URI,
+      sitePublicOrigin: SITE_PUBLIC_ORIGIN,
+      googleRedirectPolicy: 'hostname-local-only-v3',
+      envGoogleRedirectUriPresent: !!(c.env.GOOGLE_REDIRECT_URI || '').trim(),
+      envGoogleRedirectHostname: envRedirectUriHostname(c.env.GOOGLE_REDIRECT_URI),
+      envNextPublicSiteUrl: (c.env.NEXT_PUBLIC_SITE_URL || '').trim() || null,
+      clientIdPrefix: clientId ? clientId.slice(0, 8) : null,
+      clientIdLength: clientId ? clientId.length : 0,
+      hasClientSecret: !!clientSecret,
+    })
+  )
 })
 
 /**
@@ -101,12 +197,11 @@ authGoogle.get('/callback', async (c) => {
       return c.json(errorResponse('인증 코드가 없습니다.'), 400)
     }
     
-    // 환경 변수 검증
     const clientId = c.env.GOOGLE_CLIENT_ID
     const clientSecret = c.env.GOOGLE_CLIENT_SECRET
-    const redirectUri = c.env.GOOGLE_REDIRECT_URI
+    const redirectUri = resolveGoogleRedirectUri(c)
     
-    if (!clientId || !clientSecret || !redirectUri) {
+    if (!clientId || !clientSecret) {
       console.error('[GOOGLE_CALLBACK] Missing environment variables')
       return c.json(errorResponse('Google 로그인 설정이 완료되지 않았습니다.'), 500)
     }
@@ -278,15 +373,8 @@ authGoogle.get('/callback', async (c) => {
     console.log('[GOOGLE_CALLBACK] Setting session cookie and redirecting...')
     console.log('[GOOGLE_CALLBACK] Login SUCCESS for user:', user.name)
     
-    // HTTPS 환경에서 Secure 플래그 필수!
-    // Sandbox 환경은 항상 HTTPS이므로 강제 설정
-    const isSecure = true  // Cloudflare/Sandbox는 항상 HTTPS
-    const secureCookie = isSecure ? '; Secure' : ''
-    
-    console.log('[GOOGLE_CALLBACK] Cookie will be Secure:', isSecure)
-    
-    c.header('Set-Cookie', `session_token=${sessionToken}; Path=/; HttpOnly; SameSite=Lax${secureCookie}; Max-Age=${7 * 24 * 60 * 60}`)
-    console.log('[GOOGLE_CALLBACK] Cookie header set successfully')
+    applySessionCookie(c, sessionToken, 7 * 24 * 60 * 60)
+    console.log('[GOOGLE_CALLBACK] Session cookie set successfully')
     
     return c.html(`
       <html>
@@ -296,8 +384,6 @@ authGoogle.get('/callback', async (c) => {
         </head>
         <body>
           <script>
-            // localStorage에 세션 정보 저장 (클라이언트 호환성)
-            localStorage.setItem('session_token', '${sessionToken}');
             localStorage.setItem('user', JSON.stringify({
               id: ${user.id},
               email: '${user.email}',
@@ -305,8 +391,6 @@ authGoogle.get('/callback', async (c) => {
               role: '${user.role}',
               profile_image_url: ${user.profile_image_url ? `'${user.profile_image_url}'` : 'null'}
             }));
-            
-            // 메인 페이지로 이동
             alert('구글 로그인 성공! 환영합니다, ${user.name}님!');
             window.location.href = '/';
           </script>

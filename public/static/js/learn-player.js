@@ -8,6 +8,8 @@ let courseData = null;
 let lessonsData = [];
 let currentLesson = null;
 let enrollmentData = null;
+/** 관리자는 수강 신청·결제 검사 없이 전 차시 수강 */
+let learnPlayerIsAdmin = false;
 let player = null; // YouTube or api.video player
 let progressUpdateInterval = null;
 let currentUserId = null;
@@ -15,8 +17,17 @@ let currentUserName = null;
 let isRedirecting = false; // 리다이렉트 방지 플래그
 let isInitialized = false; // 초기화 완료 플래그
 let authToken = localStorage.getItem('token'); // 인증 토큰
+/** /api/courses/:id 의 has_paid_access (세션 쿠키 기준) */
+let hasPaidAccess = false;
+// 진도 저장용 상태
+let lastProgressSentAtMs = 0;
+let lastPositionSeconds = 0;
 
 const PROGRESS_UPDATE_INTERVAL = 5000; // 5초마다 진도 업데이트
+
+if (typeof axios !== 'undefined') {
+    axios.defaults.withCredentials = true;
+}
 
 // courseId는 HTML에서 window.COURSE_ID로 전달됨
 const courseId = window.COURSE_ID;
@@ -52,7 +63,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // URL에서 lessonId 파라미터 확인
     const urlParams = new URLSearchParams(window.location.search);
-    const lessonIdParam = urlParams.get('lessonId');
+    const lessonIdParam = urlParams.get('lessonId') || urlParams.get('lesson');
     
     if (lessonIdParam && lessonsData.length > 0) {
         const lesson = lessonsData.find(l => l.id === parseInt(lessonIdParam));
@@ -88,6 +99,7 @@ async function loadCourseData() {
         }
         
         const isAdmin = user && user.role === 'admin';
+        learnPlayerIsAdmin = !!isAdmin;
         currentUserId = user?.id;
         currentUserName = user?.name || user?.email;
         console.log('👤 User:', currentUserName, '(ID:', currentUserId, ') Role:', user.role);
@@ -102,6 +114,13 @@ async function loadCourseData() {
         // 응답 데이터 추출 (API는 { success: true, data: { course: {...}, lessons: [...] } } 구조)
         const apiData = response.data.data || response.data;
         courseData = apiData.course || apiData;
+        // 유료 결제(또는 관리자 프리패스) 여부 반영
+        // 서버가 내려주는 has_paid_access를 학습 플레이어 전역에도 저장해야
+        // 결제 유도 모달/차시 제한 로직이 올바르게 동작한다.
+        hasPaidAccess = apiData && apiData.has_paid_access === true;
+        if (learnPlayerIsAdmin) {
+            hasPaidAccess = true;
+        }
         
         // 데이터 유효성 검증
         if (!courseData || !courseData.title) {
@@ -181,7 +200,8 @@ async function loadLessons() {
 async function loadEnrollment() {
     try {
         const response = await axios.get(`/api/enrollments/my`, {
-            headers: authToken ? { 'Authorization': `Bearer ${authToken}` } : {}
+            headers: authToken ? { 'Authorization': `Bearer ${authToken}` } : {},
+            withCredentials: true
         });
         
         if (response.data.success && response.data.data) {
@@ -250,16 +270,15 @@ async function loadLesson(lessonId) {
             return;
         }
 
-        // ✅ 차시 접근 권한 확인 (enrollmentData가 없으면 스킵)
-        if (enrollmentData && enrollmentData.id) {
+        // ✅ 차시 접근 권한 확인 (관리자·미수강은 스킵)
+        if (!learnPlayerIsAdmin && enrollmentData && enrollmentData.id) {
             try {
                 console.log(`🔐 Checking access for lesson ${lessonId}, enrollment ${enrollmentData.id}`);
                 const accessResponse = await axios.get(
                     `/api/enrollments/${enrollmentData.id}/lessons/${lessonId}/check-access`,
                     {
-                        headers: {
-                            'Authorization': `Bearer ${authToken}`
-                        }
+                        headers: authToken ? { 'Authorization': `Bearer ${authToken}` } : {},
+                        withCredentials: true
                     }
                 );
 
@@ -688,13 +707,17 @@ async function loadApiVideoPlayer(lesson) {
  * 진도율 추적 시작 (임시 비활성화 - API 미구현)
  */
 function startProgressTracking() {
-    // stopProgressTracking();
-    // progressUpdateInterval = setInterval(() => {
-    //     updateProgress().catch(err => {
-    //         console.error('❌ Progress tracking error:', err);
-    //     });
-    // }, PROGRESS_UPDATE_INTERVAL);
-    console.log('ℹ️ Progress tracking disabled (API not implemented)');
+    stopProgressTracking();
+    // 관리자는 서버에서 진도 기록을 스킵하므로 호출해도 무방하지만,
+    // 불필요한 트래픽을 줄이기 위해 클라이언트도 스킵한다.
+    if (learnPlayerIsAdmin) return;
+    lastProgressSentAtMs = Date.now();
+    lastPositionSeconds = 0;
+    progressUpdateInterval = setInterval(() => {
+        updateProgress().catch(err => {
+            console.error('❌ Progress tracking error:', err);
+        });
+    }, PROGRESS_UPDATE_INTERVAL);
 }
 
 /**
@@ -741,9 +764,30 @@ async function updateProgress() {
         // UI 업데이트
         updateProgressUI(watchPercentage);
 
+        // 서버에 진도율 전송
+        const now = Date.now();
+        const secondsDelta = Math.max(0, Math.floor((now - (lastProgressSentAtMs || now)) / 1000));
+        const positionSeconds = Math.max(0, Math.floor(currentTime));
+        const positionDelta = Math.max(0, positionSeconds - (lastPositionSeconds || 0));
+        // 플레이어 이벤트가 불안정한 환경에서는 시간을 더 보수적으로 잡는다.
+        const watchTimeSeconds = Math.max(0, Math.min(positionDelta, secondsDelta + 2));
+
+        lastProgressSentAtMs = now;
+        lastPositionSeconds = positionSeconds;
+
+        await axios.post(
+            `/api/progress/lessons/${currentLesson.id}`,
+            {
+                watch_percentage: Math.min(watchPercentage, 100),
+                last_position_seconds: positionSeconds,
+                watch_time_seconds: watchTimeSeconds,
+                is_completed: 0
+            },
+            { withCredentials: true }
+        );
+
     } catch (error) {
-        // 진도 업데이트 에러 무시 (API 미구현)
-        // console.error('❌ Failed to update progress:', error);
+        // 진도 업데이트 에러는 UX를 깨지 않게 조용히 처리
     }
 }
 
@@ -770,7 +814,22 @@ async function markLessonCompleted() {
     if (!currentLesson) return;
     
     console.log('🎓 Lesson completed:', currentLesson.title);
-    console.log('⚠️ Progress tracking not implemented yet (lesson_progress table required)');
+    // 서버에 완료 기록 (관리자는 서버에서 스킵)
+    try {
+        await axios.post(
+            `/api/progress/lessons/${currentLesson.id}`,
+            {
+                watch_percentage: 100,
+                last_position_seconds: Math.max(0, Math.floor(lastPositionSeconds || 0)),
+                watch_time_seconds: 0,
+                is_completed: 1
+            },
+            { withCredentials: true }
+        );
+    } catch (e) {
+        // 완료 기록 실패는 UI 흐름을 막지 않음
+        console.warn('⚠️ Failed to persist completion:', e?.message || e);
+    }
     
     // 차시 목록 UI 업데이트 (시각적 효과만)
     const lesson = lessonsData.find(l => l.id === currentLesson.id);
@@ -778,9 +837,43 @@ async function markLessonCompleted() {
         lesson.completed = true;
         renderLessonList();
     }
+
+    const currentIndex = lessonsData.findIndex(l => l.id === currentLesson.id);
+    const isLastLesson = currentIndex >= 0 && currentIndex === lessonsData.length - 1;
+    const price = courseData ? Number(courseData.price) : 0;
+    const isPaidCourse = price > 0;
+    const isFreeCourse = price === 0;
+
+    // 무료 강좌(가격 0): 전 차시 완료 시 다음 회기·수강신청 안내
+    if (isFreeCourse && isLastLesson && !learnPlayerIsAdmin && window.showPaymentRequiredModal) {
+        window.showPaymentRequiredModal({
+            context: 'free_course_complete',
+            courseId: courseData.id,
+            courseTitle: courseData.title,
+            coursePrice: 0,
+            lessonNumber: currentLesson.lesson_number,
+            lessonTitle: currentLesson.title,
+            totalLessons: lessonsData.length
+        });
+        return;
+    }
+
+    // 유료 강좌·미결제: 1강(0회기 무료 체험) 완료 → 다음 회기 안내 + 결제·수강신청 유도
+    if (isPaidCourse && !hasPaidAccess && !learnPlayerIsAdmin && currentLesson.lesson_number === 1 && window.showPaymentRequiredModal) {
+        const nextLn = lessonsData.find(l => l.lesson_number === 2);
+        window.showPaymentRequiredModal({
+            context: 'trial_complete',
+            courseId: courseData.id,
+            courseTitle: courseData.title,
+            coursePrice: courseData.price,
+            lessonNumber: nextLn ? nextLn.lesson_number : 2,
+            lessonTitle: nextLn ? nextLn.title : '2강',
+            totalLessons: lessonsData.length
+        });
+        return;
+    }
     
     // 다음 차시로 자동 이동 제안
-    const currentIndex = lessonsData.findIndex(l => l.id === currentLesson.id);
     if (currentIndex >= 0 && currentIndex < lessonsData.length - 1) {
         const nextLesson = lessonsData[currentIndex + 1];
         if (confirm(`✅ 차시를 완료했습니다!\n\n다음 차시 "${nextLesson.title}"로 이동하시겠습니까?`)) {

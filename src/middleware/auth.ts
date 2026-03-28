@@ -4,7 +4,7 @@
 
 import { Context, Next } from 'hono'
 import { HTTPException } from 'hono/http-exception'
-import { getCurrentUser, isAdmin } from '../utils/helpers'
+import { getCurrentUser } from '../utils/helpers'
 
 /**
  * 로그인 필수 미들웨어
