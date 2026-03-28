@@ -29,7 +29,7 @@ const auth = new Hono<{ Bindings: Bindings }>()
 auth.post('/register', async (c) => {
   try {
     const body = await c.req.json<CreateUserInput>()
-    const { email, password, name, phone, birth_date, terms_agreed, privacy_agreed, marketing_agreed } = body
+    const { email, password, name, phone, birth_date, terms_agreed, privacy_agreed } = body
 
     // 입력 검증
     if (!email || !password || !name) {
@@ -39,10 +39,6 @@ auth.post('/register', async (c) => {
     if (!terms_agreed || !privacy_agreed) {
       return c.json(errorResponse('이용약관 및 개인정보처리방침에 동의해주세요.'), 400)
     }
-
-    const ta = 1
-    const pa = 1
-    const ma = marketing_agreed ? 1 : 0
 
     if (!isValidEmail(email)) {
       return c.json(errorResponse('올바른 이메일 형식이 아닙니다.'), 400)
@@ -71,6 +67,7 @@ auth.post('/register', async (c) => {
     let userId: number
 
     // 탈퇴한 사용자: FK 때문에 DELETE 대신 계정 복구(UPDATE)
+    // 프로덕션 D1 등 일부 DB 에는 terms_* 컬럼이 없음 — 존재하는 컬럼만 갱신
     if (existingUser && existingUser.deleted_at) {
       await DB.prepare(`
         UPDATE users SET
@@ -83,19 +80,16 @@ auth.post('/register', async (c) => {
           social_provider = NULL,
           social_id = NULL,
           profile_image_url = NULL,
-          terms_agreed = ?,
-          privacy_agreed = ?,
-          marketing_agreed = ?,
           updated_at = datetime('now')
         WHERE id = ?
-      `).bind(email, hashedPassword, name, ta, pa, ma, existingUser.id).run()
+      `).bind(email, hashedPassword, name, existingUser.id).run()
       userId = existingUser.id
       await DB.prepare(`DELETE FROM sessions WHERE user_id = ?`).bind(userId).run()
     } else {
       const result = await DB.prepare(`
-        INSERT INTO users (email, password_hash, name, role, terms_agreed, privacy_agreed, marketing_agreed)
-        VALUES (?, ?, ?, 'student', ?, ?, ?)
-      `).bind(email, hashedPassword, name, ta, pa, ma).run()
+        INSERT INTO users (email, password_hash, name, role)
+        VALUES (?, ?, ?, 'student')
+      `).bind(email, hashedPassword, name).run()
 
       if (!result.success) {
         return c.json(errorResponse('회원가입에 실패했습니다.'), 500)

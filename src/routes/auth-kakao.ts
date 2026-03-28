@@ -491,28 +491,8 @@ authKakao.get('/callback', async (c) => {
     
     applySessionCookie(c, sessionToken, 7 * 24 * 60 * 60)
     console.log('[KAKAO_CALLBACK] Session cookie set successfully')
-    
-    return c.html(`
-      <html>
-        <head>
-          <title>로그인 중...</title>
-          <meta charset="UTF-8">
-        </head>
-        <body>
-          <script>
-            localStorage.setItem('user', JSON.stringify({
-              id: ${user.id},
-              email: '${user.email}',
-              name: '${user.name}',
-              role: '${user.role}',
-              profile_image_url: ${user.profile_image_url ? `'${user.profile_image_url}'` : 'null'}
-            }));
-            alert('카카오 로그인 성공! 환영합니다, ${user.name}님!');
-            window.location.href = '/';
-          </script>
-        </body>
-      </html>
-    `)
+
+    return c.redirect('/', 302)
     
   } catch (error) {
     console.error('[KAKAO_CALLBACK] ===== ERROR OCCURRED =====')

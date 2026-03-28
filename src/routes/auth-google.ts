@@ -380,28 +380,10 @@ authGoogle.get('/callback', async (c) => {
     
     applySessionCookie(c, sessionToken, 7 * 24 * 60 * 60)
     console.log('[GOOGLE_CALLBACK] Session cookie set successfully')
-    
-    return c.html(`
-      <html>
-        <head>
-          <title>로그인 중...</title>
-          <meta charset="UTF-8">
-        </head>
-        <body>
-          <script>
-            localStorage.setItem('user', JSON.stringify({
-              id: ${user.id},
-              email: '${user.email}',
-              name: '${user.name}',
-              role: '${user.role}',
-              profile_image_url: ${user.profile_image_url ? `'${user.profile_image_url}'` : 'null'}
-            }));
-            alert('구글 로그인 성공! 환영합니다, ${user.name}님!');
-            window.location.href = '/';
-          </script>
-        </body>
-      </html>
-    `)
+
+    // HTML+alert+location 이동은 일부 환경에서 Set-Cookie 적용 전에 JS가 도는 느낌을 주고,
+    // 다음 요청(/api/auth/me)이 401 → 로그인 화면으로 되돌아가는 현상이 있음. 302 로 쿠키와 리다이렉트를 한 응답으로 맞춤.
+    return c.redirect('/', 302)
     
   } catch (error) {
     console.error('[GOOGLE_CALLBACK] ===== ERROR OCCURRED =====')
