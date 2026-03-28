@@ -280,6 +280,8 @@ pages.get('/login', (c) => {
         }
 
         let loginSessionCheckAbort = null
+        /** 로그인 폼 제출~리다이렉트 전까지 true — 늦게 도착하는 초기 /me 401 이 saveSession 을 지우지 않게 함 */
+        let loginFlowActive = false
 
         // 로그인 페이지 로드 시 즉시 로컬 세션 정리 (서버 세션 없는 경우)
         async function checkAndCleanupSession() {
@@ -302,12 +304,17 @@ pages.get('/login', (c) => {
                     const redirect = safeRedirectPath(urlParams.get('redirect')) || '/'
                     window.location.href = redirect
                 } else {
+                    if (loginFlowActive) return
                     console.warn('⚠️ Server session invalid, clearing local session')
                     AuthManager.clearSession()
                 }
             } catch (error) {
                 if (axios.isCancel?.(error) || error.code === 'ERR_CANCELED' || error.name === 'CanceledError') {
                     console.log('ℹ️ Session check cancelled (로그인 시도)')
+                    return
+                }
+                if (loginFlowActive) {
+                    console.log('ℹ️ 로그인 처리 중 — 초기 세션 확인 응답 무시')
                     return
                 }
                 const status = error?.response?.status
@@ -323,12 +330,13 @@ pages.get('/login', (c) => {
 
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault()
+            loginFlowActive = true
             loginSessionCheckAbort?.abort()
-            
+
             const email = document.getElementById('email').value
             const password = document.getElementById('password').value
             const rememberMe = document.getElementById('rememberMe').checked
-            
+
             // 아이디/비밀번호 기억하기 처리
             if (rememberMe) {
                 localStorage.setItem('rememberedEmail', email)
@@ -337,11 +345,26 @@ pages.get('/login', (c) => {
                 localStorage.removeItem('rememberedEmail')
                 localStorage.removeItem('rememberMe')
             }
-            
+
             try {
                 const response = await axios.post('/api/auth/login', { email, password }, { withCredentials: true })
-                
+
                 if (response.data.success) {
+                    // Set-Cookie 반영 후 서버 세션 확인 — 성공 토스트 후 곧바로 관리자 화면에서 인증 실패 나는 현상 방지
+                    let verify
+                    try {
+                        verify = await axios.get('/api/auth/me', { withCredentials: true, timeout: 8000 })
+                    } catch (verr) {
+                        loginFlowActive = false
+                        showToast('세션이 브라우저에 저장되지 않았습니다. 쿠키 차단·시크릿 모드·다른 주소(www/비www)를 확인해주세요.', 'error')
+                        return
+                    }
+                    if (!verify.data || !verify.data.success) {
+                        loginFlowActive = false
+                        showToast('서버 세션을 확인하지 못했습니다. 잠시 후 다시 로그인해주세요.', 'error')
+                        return
+                    }
+
                     AuthManager.saveSession(response.data.data.user)
                     showToast('로그인되었습니다.', 'success')
 
@@ -349,19 +372,17 @@ pages.get('/login', (c) => {
                         showToast('임시 비밀번호입니다. 새 비밀번호로 변경해주세요.', 'warning')
                         setTimeout(() => {
                             window.location.href = '/my'
-                        }, 500)
+                        }, 400)
                         return
                     }
-                    
-                    // 역할에 따른 리다이렉트
+
                     setTimeout(() => {
                         const urlParams = new URLSearchParams(window.location.search)
                         const redirect = safeRedirectPath(urlParams.get('redirect'))
-                        
+
                         if (redirect) {
                             window.location.href = redirect
                         } else {
-                            // 관리자는 관리자 대시보드, 일반 사용자는 홈
                             const user = response.data.data.user
                             if (user.role !== 'student') {
                                 window.location.href = '/admin/dashboard'
@@ -369,9 +390,12 @@ pages.get('/login', (c) => {
                                 window.location.href = '/'
                             }
                         }
-                    }, 500)
+                    }, 400)
+                } else {
+                    loginFlowActive = false
                 }
             } catch (error) {
+                loginFlowActive = false
                 const message = error.response?.data?.error || '로그인에 실패했습니다.'
                 showToast(message, 'error')
             }

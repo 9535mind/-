@@ -261,6 +261,7 @@ async function apiRequest(method, url, data = null) {
       if (contentType.includes('text/html')) {
         return {
           success: false,
+          _httpStatus: response.status,
           error: `서버 오류 (${response.status})`,
           message: `API 요청 실패: ${url}`
         }
@@ -270,6 +271,7 @@ async function apiRequest(method, url, data = null) {
         return {
           ...parsed,
           success: false,
+          _httpStatus: response.status,
           error: parsed.error || parsed.message || text || `HTTP ${response.status}`,
           message: parsed.message || parsed.error || text || `HTTP ${response.status}`
         }
@@ -278,6 +280,7 @@ async function apiRequest(method, url, data = null) {
       const fallback = text || `HTTP ${response.status}`
       return {
         success: false,
+        _httpStatus: response.status,
         error: fallback,
         message: fallback
       }
@@ -286,55 +289,96 @@ async function apiRequest(method, url, data = null) {
     if (!parsed || typeof parsed !== 'object') {
       return {
         success: false,
+        _httpStatus: response.status,
         error: '서버 응답 형식 오류',
         message: (text || '').slice(0, 200)
       }
+    }
+    if (parsed.success === true) {
+      return { ...parsed, _httpStatus: response.status }
     }
     return parsed
   } catch (error) {
     console.error('API Request failed:', error, 'URL:', url)
     return {
       success: false,
+      _httpStatus: 0,
       error: error.message,
       message: '네트워크 오류가 발생했습니다.'
     }
   }
 }
 
+function sleepMs(ms) {
+  return new Promise(function (resolve) {
+    setTimeout(resolve, ms)
+  })
+}
+
 // 관리자 권한 확인 (페이지 진입 시)
+// 로그인 직후·에지 지연·일시 429 등으로 /me 가 한 번 실패하면 로그인 화면으로내던 문제 → 짧게 재시도
 async function requireAdmin() {
-  try {
-    const response = await apiRequest('GET', '/api/auth/me')
-    
-    if (!response.success) {
-      const msg = response?.error || response?.message || ''
-      if (msg.includes('로그인이 필요') || msg.includes('Unauthorized') || msg.includes('401')) {
+  const maxTry = 3
+  const pauseMs = [0, 450, 900]
+
+  for (let i = 0; i < maxTry; i++) {
+    try {
+      if (pauseMs[i] > 0) await sleepMs(pauseMs[i])
+
+      const response = await apiRequest('GET', '/api/auth/me')
+      const st = response._httpStatus
+      const msg = String(response?.error || '') + ' ' + String(response?.message || '')
+
+      if (response.success && response.data) {
+        const user = response.data
+        if (!user || user.role === 'student') {
+          alert('관리자 권한이 필요합니다.')
+          window.location.href = '/'
+          return null
+        }
+        return user
+      }
+
+      if (response.data && typeof response.data.id === 'number' && response.data.email) {
+        const user = response.data
+        if (user.role === 'student') {
+          alert('관리자 권한이 필요합니다.')
+          window.location.href = '/'
+          return null
+        }
+        return user
+      }
+
+      const is429 = st === 429 || msg.includes('너무 많') || msg.includes('요청이 너무')
+      const is401 = st === 401 || msg.includes('로그인이 필요') || msg.includes('Unauthorized') || msg.includes('401')
+      const isNet = st === 0
+
+      if (i < maxTry - 1 && (is429 || is401 || isNet || st >= 500)) {
+        console.warn('[requireAdmin] /api/auth/me 재시도', { try: i + 1, st })
+        continue
+      }
+
+      if (is401) {
         alert('로그인이 필요합니다. 다시 로그인해주세요.')
         window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname + window.location.search)
-      } else {
-        alert('인증에 실패했습니다.')
-        window.location.href = '/login'
+        return null
       }
+
+      if (is429) {
+        alert('요청이 많습니다. 잠시 후 새로고침(F5) 해주세요.')
+        return null
+      }
+
+      alert('일시적으로 인증을 확인하지 못했습니다. 새로고침 후 다시 시도해주세요.')
+      return null
+    } catch (err) {
+      console.error('Auth error:', err)
+      if (i < maxTry - 1) continue
+      alert('일시적으로 인증을 확인하지 못했습니다. 새로고침 후 다시 시도해주세요.')
       return null
     }
-    
-    const user = response.data
-    
-    // 운영에서 role 값이 다양할 수 있어 student가 아니면 관리자 UI 접근 허용
-    // 실제 민감 API는 서버에서 최종 권한 검증
-    if (!user || user.role === 'student') {
-      alert('관리자 권한이 필요합니다.')
-      window.location.href = '/'
-      return null
-    }
-    
-    return user
-  } catch (error) {
-    console.error('Auth error:', error)
-    alert('인증에 실패했습니다.')
-    window.location.href = '/login'
-    return null
   }
+  return null
 }
 
 // 로그아웃
