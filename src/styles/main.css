@@ -2,17 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
-/* MINDSTORY 테마 훅 (강좌 상세 등에서 body.theme-classic | theme-next) */
+/* MINDSTORY 테마 훅 — Classic/Next 동일 고딕 스택 (Pretendard 우선), 컬러만 테마별 유지 */
+.theme-classic,
+.theme-next {
+  font-family: 'Pretendard Variable', 'Pretendard', ui-sans-serif, system-ui, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+}
 .theme-classic {
-  font-family: 'Pretendard Variable', 'Pretendard', 'Nanum Myeongjo', Georgia, serif;
   background-color: #fdfcf8;
 }
 .theme-next {
-  font-family: ui-sans-serif, system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   background-color: #ffffff;
 }
 
-/* 기존 public/static/style.css 호환 (Tailwind 빌드에 포함) */
+/* 전역 h1도 프로젝트 기본 산세리프와 통일 (구 Arial 오버라이드 제거) */
 h1 {
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Pretendard Variable', 'Pretendard', ui-sans-serif, system-ui, sans-serif;
 }

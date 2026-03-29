@@ -4,7 +4,7 @@
  * export:
  * - siteHeaderNavCoursesGlassStyles()
  * - siteHeaderFullMarkup(options)
- * - siteHeaderDrawerControlScript(variant)
+ * - siteHeaderDrawerControlScript(variant) — 드로어 + (hover:none 시) 데스크톱 과정 안내 클릭 토글
  * - (하위 호환) siteNavMobileToggleScript — 사용 중인 곳 없으면 제거 가능
  */
 
@@ -50,7 +50,72 @@ export function siteHeaderNavCoursesGlassStyles(): string {
   -webkit-backdrop-filter: blur(20px);
   overflow: hidden;
 }
-.site-nav-dd-panel { min-width: 15.5rem; }
+/* —— 데스크톱 과정 안내 드롭다운 (opacity/visibility, 호버 경로 브릿지) —— */
+.site-nav-dd-root {
+  position: relative;
+}
+/* 버튼 아래~패널 사이 빈틈: 호버 시에만 포인터 수신 (닫힌 상태에선 통과) */
+.site-nav-dd-root::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  width: 100%;
+  min-width: 15.5rem;
+  top: 100%;
+  height: 0.625rem;
+  z-index: 59;
+  pointer-events: none;
+}
+.site-nav-dd-root:hover::after,
+.site-nav-dd-root:focus-within::after,
+.site-nav-dd-root.is-open::after {
+  pointer-events: auto;
+}
+.site-nav-dd-panel {
+  min-width: 15.5rem;
+  position: absolute;
+  left: 0;
+  top: calc(100% + 0.625rem);
+  z-index: 60;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(10px);
+  transition:
+    opacity 0.2s ease,
+    visibility 0.2s ease,
+    transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.site-nav-dd-chevron {
+  transition: transform 0.2s ease;
+}
+/* PC + 정밀 포인터(마우스): 호버·포커스로 표시 */
+@media (min-width: 768px) and (hover: hover) {
+  .site-nav-dd-root:hover .site-nav-dd-panel,
+  .site-nav-dd-root:focus-within .site-nav-dd-panel {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(0);
+  }
+  .site-nav-dd-root:hover .site-nav-dd-chevron,
+  .site-nav-dd-root:focus-within .site-nav-dd-chevron {
+    transform: rotate(180deg);
+  }
+}
+/* 넓은 화면이지만 터치 위주: 클릭 토글(.is-open) + 포커스 진입 */
+@media (min-width: 768px) and (hover: none) {
+  .site-nav-dd-root.is-open .site-nav-dd-panel,
+  .site-nav-dd-root:focus-within .site-nav-dd-panel {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(0);
+  }
+  .site-nav-dd-root.is-open .site-nav-dd-chevron {
+    transform: rotate(180deg);
+  }
+}
 .site-nav-dd-link {
   display: block;
   padding: 0.75rem 1rem;
@@ -107,12 +172,12 @@ export function siteHeaderNavCoursesGlassStyles(): string {
 }
 
 function navCoursesDropdownDesktop(): string {
-  return `<div class="relative group/nav-dd site-nav-dd-root">
-  <button type="button" class="flex items-center gap-1.5 text-gray-700 hover:text-indigo-600 transition-colors duration-200 font-medium rounded-lg px-1 py-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40" aria-haspopup="true" aria-expanded="false" aria-controls="site-nav-dd-panel">
+  return `<div class="site-nav-dd-root">
+  <button type="button" class="site-nav-dd-trigger flex items-center gap-1.5 text-gray-700 hover:text-indigo-600 transition-colors duration-200 font-medium rounded-lg px-1 py-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40" aria-haspopup="true" aria-expanded="false" aria-controls="site-nav-dd-panel">
     과정 안내
-    <i class="fas fa-chevron-down text-[0.65rem] opacity-55 transition-transform duration-200 group-hover/nav-dd:rotate-180 group-focus-within/nav-dd:rotate-180" aria-hidden="true"></i>
+    <i class="site-nav-dd-chevron fas fa-chevron-down text-[0.65rem] opacity-55" aria-hidden="true"></i>
   </button>
-  <div id="site-nav-dd-panel" role="menu" aria-label="과정 안내 하위 메뉴" class="site-nav-dd-panel absolute left-0 top-full z-[60] mt-2 opacity-0 invisible pointer-events-none translate-y-0.5 transition-all duration-200 ease-out group-hover/nav-dd:opacity-100 group-hover/nav-dd:visible group-hover/nav-dd:pointer-events-auto group-hover/nav-dd:translate-y-0 group-focus-within/nav-dd:opacity-100 group-focus-within/nav-dd:visible group-focus-within/nav-dd:pointer-events-auto group-focus-within/nav-dd:translate-y-0">
+  <div id="site-nav-dd-panel" role="menu" aria-label="과정 안내 하위 메뉴" class="site-nav-dd-panel">
     <div class="site-nav-titanium-outer site-nav-dd-tremor">
       <div class="site-nav-titanium-inner py-1">
         <a href="/courses/classic" role="menuitem" class="site-nav-dd-link text-classic-sage font-semibold">
@@ -224,7 +289,7 @@ export function siteHeaderFullMarkup(opts: SiteHeaderOptions): string {
       <button type="button" onclick="handleLogout()" class="w-full px-4 py-3 rounded-xl text-left text-gray-700 font-medium border border-slate-200/60 hover:bg-white/60">로그아웃</button>
     </div>`
 
-  return `<header class="sticky top-0 z-50 shadow-sm shadow-slate-900/5" data-ms-header="two-tier" data-ms-header-rev="20260328">
+  return `<header class="sticky top-0 z-50 shadow-sm shadow-slate-900/5" data-ms-header="two-tier" data-ms-header-rev="20260329-dd-hover">
   <!-- 데스크톱 1단: 유틸 -->
   <div class="site-header-util-bar hidden md:block">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-end items-center gap-4 py-2 text-sm">
@@ -317,6 +382,44 @@ export function siteHeaderDrawerControlScript(variant: SiteHeaderVariant): strin
     drawer.querySelectorAll('a[href]').forEach(function(a){
       a.addEventListener('click',function(){ closeD(); });
     });
+  })();
+  (function(){
+    function setupDesktopCoursesDd(){
+      if(!window.matchMedia('(min-width: 768px)').matches) return;
+      if(!window.matchMedia('(hover: none)').matches) return;
+      var root=document.querySelector('.site-nav-dd-root');
+      if(!root) return;
+      var btn=root.querySelector('.site-nav-dd-trigger');
+      var panel=document.getElementById('site-nav-dd-panel');
+      if(!btn||!panel) return;
+      btn.addEventListener('click',function(e){
+        e.preventDefault();
+        var o=root.classList.toggle('is-open');
+        btn.setAttribute('aria-expanded',o?'true':'false');
+      });
+      document.addEventListener('click',function(ev){
+        if(!root.contains(ev.target)){
+          root.classList.remove('is-open');
+          btn.setAttribute('aria-expanded','false');
+        }
+      },true);
+      panel.querySelectorAll('a[href]').forEach(function(a){
+        a.addEventListener('click',function(){
+          root.classList.remove('is-open');
+          btn.setAttribute('aria-expanded','false');
+        });
+      });
+      document.addEventListener('keydown',function(ev){
+        if(ev.key==='Escape'){
+          root.classList.remove('is-open');
+          btn.setAttribute('aria-expanded','false');
+        }
+      });
+    }
+    if(document.readyState==='loading')
+      document.addEventListener('DOMContentLoaded',setupDesktopCoursesDd);
+    else
+      setupDesktopCoursesDd();
   })();`
 }
 

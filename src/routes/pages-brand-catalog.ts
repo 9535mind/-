@@ -60,10 +60,13 @@ app.get('/courses/classic', (c) => {
       'theme-classic bg-classic-cream',
       `
   <main class="max-w-7xl mx-auto px-4 py-12">
-    <div class="mb-10">
-      <span class="text-classic-sage font-semibold text-sm tracking-widest uppercase">Heritage</span>
-      <h1 class="text-3xl md:text-4xl font-bold text-classic-forest mt-2">Classic 강좌</h1>
-      <p class="text-classic-forest/80 mt-2 max-w-2xl">본질의 깊이 — 상담·진로·학습의 기록이 쌓이는 차분한 여정입니다.</p>
+    <div class="mb-10 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+      <div>
+        <span class="text-classic-sage font-semibold text-sm tracking-widest uppercase">Heritage</span>
+        <h1 class="text-3xl md:text-4xl font-bold text-classic-forest mt-2 tracking-tight">Classic 강좌</h1>
+        <p class="text-classic-forest/80 mt-2 max-w-2xl leading-relaxed">본질의 깊이 — 상담·진로·학습의 기록이 쌓이는 차분한 여정입니다.</p>
+      </div>
+      <div class="rounded-xl bg-white border border-classic-sage/25 px-4 py-2 text-xs text-classic-forest/70 shadow-sm shrink-0">헤리티지 모드 · 세이지 포인트</div>
     </div>
     <div id="gridClassic" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
     <script>
@@ -102,10 +105,10 @@ app.get('/courses/next', (c) => {
     <div class="mb-10 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
       <div>
         <span class="text-next-accent font-semibold text-sm tracking-widest uppercase">Next</span>
-        <h1 class="text-3xl md:text-4xl font-bold text-next-ink mt-2">Next 강좌</h1>
-        <p class="text-slate-600 mt-2 max-w-2xl">미래의 확장 — AI 동화·기술·창작으로 이어지는 세련된 학습 라인입니다.</p>
+        <h1 class="text-3xl md:text-4xl font-bold text-next-ink mt-2 tracking-tight">Next 강좌</h1>
+        <p class="text-slate-600 mt-2 max-w-2xl leading-relaxed">미래의 확장 — AI 동화·기술·창작으로 이어지는 세련된 학습 라인입니다.</p>
       </div>
-      <div class="rounded-xl bg-white border border-slate-200 px-4 py-2 text-xs text-slate-500 shadow-sm">라이트 모드 · 블루 포인트</div>
+      <div class="rounded-xl bg-white border border-slate-200 px-4 py-2 text-xs text-slate-500 shadow-sm shrink-0">라이트 모드 · 블루 포인트</div>
     </div>
     <div id="gridNext" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
     <script>
