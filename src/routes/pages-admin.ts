@@ -10,8 +10,19 @@ import { Hono } from 'hono'
 import { adminHubPageHtml } from '../utils/admin-hub-html'
 import { Bindings } from '../types/database'
 import { STATIC_JS_CACHE_QUERY } from '../utils/static-js-cache-bust'
+import { requireAdmin } from '../middleware/auth'
 
 const pagesAdmin = new Hono<{ Bindings: Bindings }>()
+
+/** 매직 펜슬 → 관제탑 해당 패널 (전용 편집 페이지 없을 때) */
+pagesAdmin.get('/notice/edit/:id', requireAdmin, (c) => {
+  void c.req.param('id')
+  return c.redirect('/admin/dashboard#support', 302)
+})
+
+pagesAdmin.get('/course/edit/:id', requireAdmin, (c) => {
+  return c.redirect('/admin/dashboard#courses', 302)
+})
 
 /**
  * GET /admin
@@ -68,7 +79,7 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
     </head>
     <body class="bg-gray-100">
         <!-- 관리자 헤더 -->
-        <nav class="bg-purple-700 text-white shadow-lg">
+        <nav class="ms-admin-top-bar bg-purple-700 text-white shadow-lg">
             <div class="max-w-7xl mx-auto px-4 py-4">
                 <div class="flex justify-between items-center">
                     <h1 class="text-2xl font-bold">
@@ -76,10 +87,10 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
                         차시 관리
                     </h1>
                     <div class="flex items-center space-x-4">
-                        <a href="/" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition-colors">
+                        <a href="/" class="bg-indigo-500 hover:bg-indigo-400 border border-white/25 text-white px-4 py-2 rounded font-semibold shadow-sm transition-colors">
                             <i class="fas fa-users mr-1"></i>수강생 모드
                         </a>
-                        <span id="adminName">로딩중...</span>
+                        <span class="inline-flex items-center max-w-[min(14rem,55vw)]"><span id="adminName" class="text-purple-100 text-sm font-medium truncate" data-ms-name-default="text-purple-100 text-sm font-medium truncate">로딩중...</span></span>
                         <button onclick="logout()" class="bg-white text-purple-700 px-4 py-2 rounded hover:bg-gray-100">
                             <i class="fas fa-sign-out-alt mr-1"></i>로그아웃
                         </button>
@@ -411,8 +422,9 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
               const user = await requireAdmin();
               if (!user) return;
 
-              // 관리자 이름 표시
-              document.getElementById('adminName').textContent = user.name;
+              if (typeof applyHeaderUserDisplay === 'function') {
+                applyHeaderUserDisplay(document.getElementById('adminName'), user)
+              }
 
               // 강좌 정보 로드
               await loadCourseInfo();
@@ -1247,7 +1259,7 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
         </style>
         
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
-        <script src="/static/js/auth.js"></script>
+        <script src="/static/js/auth.js?v=20260329-admin-name"></script>
         <script src="/static/js/admin-lessons.js"></script>
         <script src="/static/js/security.js${STATIC_JS_CACHE_QUERY}"></script>
     </body>
@@ -1282,7 +1294,7 @@ pagesAdmin.get('/users/:userId/classroom', async (c) => {
     </head>
     <body class="bg-gray-100">
         <!-- 관리자 헤더 -->
-        <nav class="bg-purple-700 text-white shadow-lg">
+        <nav class="ms-admin-top-bar bg-purple-700 text-white shadow-lg">
             <div class="max-w-7xl mx-auto px-4 py-4">
                 <div class="flex justify-between items-center">
                     <h1 class="text-2xl font-bold">
@@ -1290,7 +1302,7 @@ pagesAdmin.get('/users/:userId/classroom', async (c) => {
                         학생 내강의실
                     </h1>
                     <div class="flex items-center space-x-4">
-                        <span id="adminName">로딩중...</span>
+                        <span class="inline-flex items-center max-w-[min(14rem,55vw)]"><span id="adminName" class="text-purple-100 text-sm font-medium truncate" data-ms-name-default="text-purple-100 text-sm font-medium truncate">로딩중...</span></span>
                         <a href="/admin/users" class="bg-white text-purple-700 px-4 py-2 rounded hover:bg-gray-100">
                             <i class="fas fa-arrow-left mr-1"></i>회원 관리로
                         </a>
@@ -1342,7 +1354,7 @@ pagesAdmin.get('/users/:userId/classroom', async (c) => {
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
-        <script src="/static/js/auth.js"></script>
+        <script src="/static/js/auth.js?v=20260329-admin-name"></script>
         <script>
             const userId = ${userId};
             let currentTab = 'ongoing';
@@ -1351,7 +1363,9 @@ pagesAdmin.get('/users/:userId/classroom', async (c) => {
             document.addEventListener('DOMContentLoaded', async () => {
                 const admin = await requireAdmin();
                 if (!admin) return;
-                document.getElementById('adminName').textContent = admin.name;
+                if (typeof applyHeaderUserDisplay === 'function') {
+                  applyHeaderUserDisplay(document.getElementById('adminName'), admin)
+                }
                 
                 await loadStudentInfo();
                 await loadEnrollments();
@@ -1546,7 +1560,7 @@ pagesAdmin.get('/users/:userId', async (c) => {
     </head>
     <body class="bg-gray-100">
         <!-- 관리자 헤더 -->
-        <nav class="bg-purple-700 text-white shadow-lg">
+        <nav class="ms-admin-top-bar bg-purple-700 text-white shadow-lg">
             <div class="max-w-7xl mx-auto px-4 py-4">
                 <div class="flex justify-between items-center">
                     <h1 class="text-2xl font-bold">
@@ -1554,7 +1568,7 @@ pagesAdmin.get('/users/:userId', async (c) => {
                         회원 상세
                     </h1>
                     <div class="flex items-center space-x-4">
-                        <span id="adminName">로딩중...</span>
+                        <span class="inline-flex items-center max-w-[min(14rem,55vw)]"><span id="adminName" class="text-purple-100 text-sm font-medium truncate" data-ms-name-default="text-purple-100 text-sm font-medium truncate">로딩중...</span></span>
                         <a href="/admin/users" class="bg-white text-purple-700 px-4 py-2 rounded hover:bg-gray-100">
                             <i class="fas fa-arrow-left mr-1"></i>회원 관리로
                         </a>
@@ -1698,14 +1712,16 @@ pagesAdmin.get('/users/:userId', async (c) => {
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
-        <script src="/static/js/auth.js"></script>
+        <script src="/static/js/auth.js?v=20260329-admin-name"></script>
         <script>
             const userId = ${userId};
 
             document.addEventListener('DOMContentLoaded', async () => {
                 const admin = await requireAdmin();
                 if (!admin) return;
-                document.getElementById('adminName').textContent = admin.name;
+                if (typeof applyHeaderUserDisplay === 'function') {
+                  applyHeaderUserDisplay(document.getElementById('adminName'), admin)
+                }
                 
                 await loadUserDetail();
             });

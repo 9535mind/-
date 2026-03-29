@@ -34,7 +34,7 @@ app.get('/payment/checkout/:courseId', (c) => {
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script src="https://js.tosspayments.com/v1/payment-widget"></script>
-        <script src="/static/js/auth.js"></script>
+        <script src="/static/js/auth.js?v=20260329-admin-name"></script>
         <script src="/static/js/utils.js"></script>
         ${siteFloatingQuickMenuStyles()}
     </head>

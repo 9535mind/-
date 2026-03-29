@@ -25,7 +25,7 @@ app.get('/admin/analytics', (c) => {
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-        <script src="/static/js/auth.js"></script>
+        <script src="/static/js/auth.js?v=20260329-admin-name"></script>
     </head>
     <body class="bg-gray-50">
         <!-- 헤더 -->
@@ -37,7 +37,7 @@ app.get('/admin/analytics', (c) => {
                         홈으로
                     </a>
                     <h1 class="text-2xl font-bold text-gray-900">학습 분석</h1>
-                    <span id="adminName" class="text-gray-700"></span>
+                    <span class="inline-flex items-center max-w-[min(14rem,50vw)] justify-end"><span id="adminName" class="text-gray-700 font-semibold truncate" data-ms-name-default="text-gray-700 font-semibold truncate"></span></span>
                 </div>
             </div>
         </header>
@@ -389,7 +389,9 @@ app.get('/admin/analytics', (c) => {
                 return;
             }
 
-            document.getElementById('adminName').textContent = user.name + ' 님';
+            if (typeof applyHeaderUserDisplay === 'function') {
+              applyHeaderUserDisplay(document.getElementById('adminName'), user)
+            }
             
             loadOverview();
             loadTrends();

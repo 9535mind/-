@@ -166,6 +166,35 @@ async function syncUserSession() {
   return null
 }
 
+/** 유틸 바·모바일 드로어·관제탑 등 — 관리자만 초록 배지 (role === 'admin' 엄격 일치). 스타일은 /static/css/app.css */
+const HEADER_USER_NAME_CLASS_USER = 'font-semibold text-slate-900'
+
+function setHeaderDisplayNameEl(el, user) {
+  if (!el) return
+  const defaultCls = el.getAttribute('data-ms-name-default')
+  if (user && user.role === 'admin') {
+    el.className = 'header-user-admin-badge'
+  } else {
+    el.className = defaultCls || HEADER_USER_NAME_CLASS_USER
+  }
+}
+
+/** 이름 + 배지 (admin 전용 페이지 스크립트에서 재사용) */
+function applyHeaderUserDisplay(el, user) {
+  if (!el) return
+  if (user) {
+    el.textContent = user.name + ' 님'
+    setHeaderDisplayNameEl(el, user)
+  } else {
+    el.textContent = ''
+    const defaultCls = el.getAttribute('data-ms-name-default')
+    el.className = defaultCls || HEADER_USER_NAME_CLASS_USER
+  }
+}
+
+window.setHeaderDisplayNameEl = setHeaderDisplayNameEl
+window.applyHeaderUserDisplay = applyHeaderUserDisplay
+
 // 헤더 업데이트 (로그인 상태 표시)
 async function updateHeader() {
   const path = (window.location.pathname || '').replace(/\/$/, '') || '/'
@@ -184,6 +213,9 @@ async function updateHeader() {
   const mUserMenu = document.getElementById('mHeaderUserMenu')
   const mUserName = document.getElementById('mHeaderUserName')
   const mAdminSwitch = document.getElementById('mAdminModeSwitch')
+  const adminNameEl = document.getElementById('adminName')
+  const loginBtn = document.getElementById('loginBtn')
+  const logoutBtn = document.getElementById('logoutBtn')
 
   // 먼저 로컬 정보를 보여주고, 서버 세션으로 최종 동기화
   let user = AuthManager.getUser()
@@ -198,7 +230,9 @@ async function updateHeader() {
     
     if (authButtons) authButtons.style.display = 'none'
     if (userMenu) userMenu.style.display = 'flex'
-    if (userName) userName.textContent = user.name + ' 님'
+    if (userName) {
+      applyHeaderUserDisplay(userName, user)
+    }
     
     // 관리자 모드 링크는 role === 'admin' 일 때만 노출 (학생에게 버튼만 보이고 막히는 혼선 방지)
     if (adminLink) adminLink.style.display = 'none'
@@ -208,18 +242,44 @@ async function updateHeader() {
 
     if (mAuthButtons) mAuthButtons.style.display = 'none'
     if (mUserMenu) mUserMenu.style.display = 'flex'
-    if (mUserName) mUserName.textContent = user.name + ' 님'
+    if (mUserName) {
+      applyHeaderUserDisplay(mUserName, user)
+    }
     if (mAdminSwitch) mAdminSwitch.style.display = user.role === 'admin' ? 'block' : 'none'
+
+    if (adminNameEl) {
+      applyHeaderUserDisplay(adminNameEl, user)
+    }
+    if (loginBtn) loginBtn.classList.add('hidden')
+    if (logoutBtn) logoutBtn.classList.remove('hidden')
   } else {
     if (authButtons) authButtons.style.display = 'flex'
     if (userMenu) userMenu.style.display = 'none'
+    if (userName) {
+      applyHeaderUserDisplay(userName, null)
+    }
     if (adminLink) adminLink.style.display = 'none'
     if (adminModeSwitch) adminModeSwitch.style.display = 'none'
 
     if (mAuthButtons) mAuthButtons.style.display = 'flex'
     if (mUserMenu) mUserMenu.style.display = 'none'
+    if (mUserName) {
+      applyHeaderUserDisplay(mUserName, null)
+    }
     if (mAdminSwitch) mAdminSwitch.style.display = 'none'
+
+    if (adminNameEl) {
+      applyHeaderUserDisplay(adminNameEl, null)
+    }
+    if (loginBtn) loginBtn.classList.remove('hidden')
+    if (logoutBtn) logoutBtn.classList.add('hidden')
   }
+}
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('DOMContentLoaded', function () {
+    updateHeader()
+  })
 }
 
 // 로그아웃 처리

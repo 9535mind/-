@@ -11,7 +11,9 @@
  */
 
 import { Hono } from 'hono'
-import { Bindings } from '../types/database'
+import { Bindings, User } from '../types/database'
+import { optionalAuth } from '../middleware/auth'
+import { resolveAdminCommandPulse } from '../utils/site-header-admin-ssr'
 import {
   FOOTER_HTML_REVISION,
   siteFooterLegalBlockHtml,
@@ -29,13 +31,15 @@ import {
   siteHeaderNavCoursesGlassStyles,
 } from '../utils/site-header-courses-nav'
 
-const landing = new Hono<{ Bindings: Bindings }>()
+const landing = new Hono<{ Bindings: Bindings; Variables: { user?: User } }>()
+landing.use('*', optionalAuth)
 
 /**
  * GET /
  * 홈페이지 (랜딩 페이지)
  */
-landing.get('/', (c) => {
+landing.get('/', async (c) => {
+  const adminCommandPulse = await resolveAdminCommandPulse(c)
   return c.html(`
     <!DOCTYPE html>
     <html lang="ko">
@@ -71,7 +75,7 @@ landing.get('/', (c) => {
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         
         <!-- Custom Scripts -->
-        <script src="/static/js/auth.js?v=20260328-2"></script>
+        <script src="/static/js/auth.js?v=20260329-admin-name"></script>
         <script src="/static/js/utils.js?v=20260327-2"></script>
         
         <style>
@@ -283,7 +287,7 @@ landing.get('/', (c) => {
         <script src="/static/js/content-protection.js${STATIC_JS_CACHE_QUERY}"></script>
     </head>
     <body>
-        ${siteHeaderFullMarkup({ variant: 'landing', showEnrollment: true })}
+        ${siteHeaderFullMarkup({ variant: 'landing', showEnrollment: true, adminCommandPulse })}
 
         <!-- 히어로 섹션 -->
         <section class="hero-section text-white py-20 md:py-24">
@@ -766,7 +770,6 @@ landing.get('/', (c) => {
             // 페이지 로드 시 실행
             document.addEventListener('DOMContentLoaded', () => {
                 loadCourses()
-                updateHeader()
                 ${siteHeaderDrawerControlScript('landing')}
                 ${siteFloatingQuickMenuScript()}
                 // 히어로 이미지 슬라이더

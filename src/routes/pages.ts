@@ -2,8 +2,10 @@
  * 페이지 라우트 (HTML 페이지 서빙)
  */
 
-import { Hono } from 'hono'
-import { Bindings } from '../types/database'
+import { Context, Hono } from 'hono'
+import { Bindings, User } from '../types/database'
+import { optionalAuth } from '../middleware/auth'
+import { resolveAdminCommandPulse } from '../utils/site-header-admin-ssr'
 import { siteFooterLegalBlockHtml } from '../utils/site-footer-legal'
 import {
   siteFloatingQuickMenuMarkup,
@@ -16,10 +18,14 @@ import {
   siteHeaderNavCoursesGlassStyles,
 } from '../utils/site-header-courses-nav'
 
-const pages = new Hono<{ Bindings: Bindings }>()
+const pages = new Hono<{ Bindings: Bindings; Variables: { user?: User } }>()
+pages.use('*', optionalAuth)
 
-// 공통 헤더/푸터 컴포넌트
-const getHeader = () => siteHeaderFullMarkup({ variant: 'pages' })
+// 공통 헤더/푸터 컴포넌트 (SSR: 관리자 미처리 문의 시 커맨드 센터 펄스)
+const getHeader = async (c: Context) => {
+  const adminCommandPulse = await resolveAdminCommandPulse(c)
+  return siteHeaderFullMarkup({ variant: 'pages', adminCommandPulse })
+}
 
 const getFooter = () => `
 <footer class="bg-gray-800 text-white py-8 mt-12">
@@ -43,7 +49,7 @@ const getCommonHead = (title: string) => `
     <link rel="stylesheet" href="/static/css/app.css" />
     <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
-    <script src="/static/js/auth.js?v=20260328-2"></script>
+    <script src="/static/js/auth.js?v=20260329-admin-name"></script>
     <script src="/static/js/utils.js?v=20260328-1"></script>
     <style>
         /* 모바일 최적화 - 폰트 크기 및 터치 영역 개선 */
@@ -135,7 +141,6 @@ const getCommonFoot = () => `
 <script>
   // 헤더 업데이트 (로그인 상태 및 관리자 링크 자동 처리)
   document.addEventListener('DOMContentLoaded', () => {
-    updateHeader()
     ${siteHeaderDrawerControlScript('pages')}
     ${siteFloatingQuickMenuScript()}
   })
@@ -147,10 +152,10 @@ const getCommonFoot = () => `
 /**
  * 로그인 페이지
  */
-pages.get('/login', (c) => {
+pages.get('/login', async (c) => {
   return c.html(`
     ${getCommonHead('로그인')}
-    ${getHeader()}
+    ${await getHeader(c)}
     
     <div class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
         <div class="max-w-md w-full space-y-8">
@@ -418,10 +423,10 @@ pages.get('/login', (c) => {
 /**
  * 회원가입 페이지 - 3가지 방법 (이메일, 카카오, 전화번호)
  */
-pages.get('/register', (c) => {
+pages.get('/register', async (c) => {
   return c.html(`
     ${getCommonHead('회원가입')}
-    ${getHeader()}
+    ${await getHeader(c)}
     
     <div class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
         <div class="max-w-2xl w-full space-y-8">
@@ -1113,7 +1118,7 @@ pages.get('/courses/:id', async (c) => {
   
   return c.html(`
     ${getCommonHead('과정 상세')}
-    ${getHeader()}
+    ${await getHeader(c)}
     
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div id="courseDetail">
@@ -1834,7 +1839,7 @@ pages.get('/courses/:courseId/lessons/:lessonId', async (c) => {
 pages.get('/courses', async (c) => {
   return c.html(`
     ${getCommonHead('전체 강좌')}
-    ${getHeader()}
+    ${await getHeader(c)}
     
     <main class="min-h-screen bg-gray-50 py-12">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

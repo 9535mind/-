@@ -5,15 +5,18 @@
 
 import { Hono } from 'hono'
 import { STATIC_JS_CACHE_QUERY } from '../utils/static-js-cache-bust'
-import type { Bindings } from '../types/database'
+import type { Bindings, User } from '../types/database'
+import { optionalAuth } from '../middleware/auth'
 import {
   siteFloatingQuickMenuMarkup,
   siteFloatingQuickMenuScript,
   siteFloatingQuickMenuStyles,
 } from '../utils/site-floating-quick-menu'
 import { siteFooterLegalBlockHtml } from '../utils/site-footer-legal'
+import { adminMagicPencilHtml, siteHeaderNavCoursesGlassStyles } from '../utils/site-header-courses-nav'
 
-const app = new Hono<{ Bindings: Bindings }>()
+const app = new Hono<{ Bindings: Bindings; Variables: { user?: User } }>()
+app.use('*', optionalAuth)
 
 /**
  * GET /courses/:id
@@ -21,7 +24,11 @@ const app = new Hono<{ Bindings: Bindings }>()
  */
 app.get('/courses/:id', async (c) => {
   const courseId = c.req.param('id')
-  
+  const isAdmin = (c.get('user') as User | undefined)?.role === 'admin'
+  const editPencil = isAdmin
+    ? adminMagicPencilHtml(`/admin/course/edit/${encodeURIComponent(courseId)}`, '강좌 수정')
+    : ''
+
   return c.html(`
     <!DOCTYPE html>
     <html lang="ko">
@@ -33,9 +40,10 @@ app.get('/courses/:id', async (c) => {
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script src="https://cdn.iamport.kr/js/iamport.payment-1.2.0.js"></script>
-        <script src="/static/js/auth.js"></script>
+        <script src="/static/js/auth.js?v=20260329-admin-name"></script>
         <script src="/static/js/utils.js"></script>
         <script src="/static/js/content-protection.js${STATIC_JS_CACHE_QUERY}"></script>
+        ${siteHeaderNavCoursesGlassStyles()}
         ${siteFloatingQuickMenuStyles()}
     </head>
     <body class="bg-gray-50">
@@ -48,7 +56,7 @@ app.get('/courses/:id', async (c) => {
                         마인드스토리 LMS
                     </a>
                     <div class="flex items-center space-x-4">
-                        <span id="headerUserName" class="text-purple-100"></span>
+                        <span class="inline-flex items-center max-w-[min(12rem,45vw)]"><span id="headerUserName" class="text-purple-100 font-medium truncate" data-ms-name-default="text-purple-100 font-medium truncate"></span></span>
                         <button id="logoutBtn" onclick="handleLogout()" class="hidden bg-white text-purple-700 px-4 py-2 rounded-lg hover:bg-purple-50 transition">
                             <i class="fas fa-sign-out-alt mr-2"></i>로그아웃
                         </button>
@@ -82,9 +90,12 @@ app.get('/courses/:id', async (c) => {
                         <h1 id="courseTitle" class="text-3xl font-bold text-gray-900 mb-4">
                             로딩 중...
                         </h1>
-                        <p id="courseDescription" class="text-gray-600 mb-6">
-                            로딩 중...
-                        </p>
+                        <div class="flex items-start gap-2 mb-6">
+                            <p id="courseDescription" class="text-gray-600 flex-1 min-w-0">
+                                로딩 중...
+                            </p>
+                            ${editPencil}
+                        </div>
                         
                         <!-- 강좌 통계 -->
                         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -196,7 +207,6 @@ app.get('/courses/:id', async (c) => {
             async function checkAuth() {
                 detailUser = await getCurrentUser();
                 if (detailUser) {
-                    document.getElementById('headerUserName').textContent = detailUser.name;
                     document.getElementById('loginBtn').classList.add('hidden');
                     document.getElementById('logoutBtn').classList.remove('hidden');
                 }

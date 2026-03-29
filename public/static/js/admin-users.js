@@ -14,7 +14,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (!user) return;
 
   // 관리자 이름 표시
-  document.getElementById('adminName').textContent = user.name;
+  if (typeof applyHeaderUserDisplay === 'function') {
+    applyHeaderUserDisplay(document.getElementById('adminName'), user)
+  }
 
   // 회원 목록 로드
   await loadUsers();

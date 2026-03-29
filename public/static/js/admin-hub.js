@@ -48,8 +48,6 @@ let courseModalLessons = []
 document.addEventListener('DOMContentLoaded', async () => {
   const user = await requireAdmin()
   if (!user) return
-  const nameEl = document.getElementById('adminName')
-  if (nameEl) nameEl.textContent = user.name + ' 님'
 
   initHubMobileNav()
   window.addEventListener('hashchange', applyHashRoute)

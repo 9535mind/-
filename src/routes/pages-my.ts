@@ -52,7 +52,7 @@ pagesMy.get('/my-courses-legacy', (c) => {
         <link rel="stylesheet" href="/static/css/app.css" />
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
-        <script src="/static/js/auth.js"></script>
+        <script src="/static/js/auth.js?v=20260329-admin-name"></script>
         <script src="/static/js/utils.js"></script>
         <script src="/static/js/content-protection.js${STATIC_JS_CACHE_QUERY}"></script>
         ${siteFloatingQuickMenuStyles()}
@@ -257,7 +257,7 @@ pagesMy.get('/my-profile', (c) => {
         <link rel="stylesheet" href="/static/css/app.css" />
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
-        <script src="/static/js/auth.js"></script>
+        <script src="/static/js/auth.js?v=20260329-admin-name"></script>
         <script src="/static/js/utils.js"></script>
         ${siteFloatingQuickMenuStyles()}
     </head>

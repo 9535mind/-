@@ -59,7 +59,7 @@ export function adminHubPageHtml(): string {
     </div>
   </aside>
 
-  <nav class="bg-gradient-to-r from-slate-900 via-indigo-900 to-slate-900 text-white shadow-xl sticky top-0 z-50">
+  <nav class="ms-admin-top-bar bg-gradient-to-r from-slate-900 via-indigo-900 to-slate-900 text-white shadow-xl sticky top-0 z-50">
     <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
       <div class="min-w-0 flex-1 md:flex-none">
         <p class="text-xs text-indigo-200 uppercase tracking-widest">Mindstory LMS</p>
@@ -72,10 +72,10 @@ export function adminHubPageHtml(): string {
         <button type="button" id="hubMobileNavToggle" class="md:hidden inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15" aria-label="메뉴 열기" aria-expanded="false">
           <span class="text-lg" aria-hidden="true">☰</span>
         </button>
-        <a href="/" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-sm whitespace-nowrap">
+        <a href="/" class="bg-indigo-500 hover:bg-indigo-400 border border-white/20 text-white px-3 py-2 rounded-lg text-sm font-semibold whitespace-nowrap shadow-sm">
           <i class="fas fa-graduation-cap mr-1"></i>수강생 사이트
         </a>
-        <span id="adminName" class="text-sm text-indigo-100 hidden sm:inline">…</span>
+        <span class="inline-flex items-center max-w-[min(14rem,50vw)]"><span id="adminName" class="text-sm text-indigo-100 hidden sm:inline truncate" data-ms-name-default="text-sm text-indigo-100 hidden sm:inline truncate">…</span></span>
         <button type="button" onclick="logout()" class="bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg text-sm whitespace-nowrap">
           <i class="fas fa-sign-out-alt mr-1"></i>로그아웃
         </button>
@@ -533,7 +533,7 @@ export function adminHubPageHtml(): string {
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
-  <script src="/static/js/auth.js"></script>
+  <script src="/static/js/auth.js?v=20260329-admin-name"></script>
   <script src="/static/js/utils.js"></script>
   <script src="/static/js/admin-hub.js"></script>
   <script src="/static/js/admin-isbn.js"></script>

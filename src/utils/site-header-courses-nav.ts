@@ -14,10 +14,19 @@ export interface SiteHeaderOptions {
   variant: SiteHeaderVariant
   /** 랜딩 전용: 수강신청 GNB 노출 */
   showEnrollment?: boolean
+  /** SSR: 관리자 + 미처리 support_inquiries 가 있으면 커맨드 센터에 초록 펄스 점 */
+  adminCommandPulse?: boolean
 }
 
 function id(variant: SiteHeaderVariant, suffix: string): string {
   return `siteHeader-${variant}-${suffix}`
+}
+
+/** 관리자 퀵 수정 연필 (숫자·알파벳 ID 경로용; href는 호출부에서 검증) */
+export function adminMagicPencilHtml(href: string, ariaLabel: string): string {
+  const h = href.replace(/"/g, '&quot;')
+  const a = ariaLabel.replace(/"/g, '&quot;')
+  return `<a href="${h}" class="admin-magic-pencil" title="관리자 수정" aria-label="${a}"><i class="fas fa-pencil-alt" aria-hidden="true"></i></a>`
 }
 
 /** 페이지 <head>에 한 번 */
@@ -31,7 +40,75 @@ export function siteHeaderNavCoursesGlassStyles(): string {
 }
 .site-nav-dd-root:hover .site-nav-dd-tremor,
 .site-nav-dd-root:focus-within .site-nav-dd-tremor {
-  animation: steelTremor 0.1s linear infinite;
+  animation: steelTremor 0.1s linear 0s 12 forwards;
+  animation-fill-mode: forwards;
+}
+/* 커맨드 센터: 새 상담·문의 알림 (초록 펄스) */
+@keyframes siteCmdCenterPulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.55);
+  }
+  50% {
+    opacity: 0.72;
+    transform: scale(1.2);
+    box-shadow: 0 0 0 5px rgba(34, 197, 94, 0);
+  }
+}
+.site-cmd-center-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.site-cmd-center-pulse-dot {
+  position: absolute;
+  top: -3px;
+  right: -4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: rgb(34 197 94);
+  animation: siteCmdCenterPulse 1.75s ease-in-out infinite;
+  pointer-events: none;
+}
+.site-header-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+/* 매직 펜슬 (관리자 퀵 수정 링크) */
+@keyframes adminMagicPencilTremor {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(0.45px, -0.38px); }
+  50% { transform: translate(-0.4px, 0.48px); }
+  75% { transform: translate(0.42px, 0.3px); }
+}
+a.admin-magic-pencil {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 0.3rem;
+  color: rgb(148 163 184);
+  font-size: 0.68rem;
+  line-height: 1;
+  flex-shrink: 0;
+  text-decoration: none;
+  opacity: 0.72;
+  vertical-align: middle;
+}
+a.admin-magic-pencil:hover,
+a.admin-magic-pencil:focus-visible {
+  color: rgb(22 163 74);
+  opacity: 1;
+  animation: adminMagicPencilTremor 0.1s linear 0s 12 forwards;
+  animation-fill-mode: forwards;
 }
 .site-nav-titanium-outer {
   border-radius: 14px;
@@ -236,6 +313,10 @@ function enrollmentLink(className: string): string {
 export function siteHeaderFullMarkup(opts: SiteHeaderOptions): string {
   const v = opts.variant
   const showEnroll = opts.showEnrollment === true
+  const cmdPulse = opts.adminCommandPulse === true
+  const cmdPulseDot = cmdPulse
+    ? '<span class="site-cmd-center-pulse-dot" aria-hidden="true"></span><span class="site-header-sr-only">새 문의 또는 상담 요청이 있습니다</span>'
+    : ''
   const bid = (s: string) => id(v, s)
 
   const coursesAllLink =
@@ -280,9 +361,10 @@ export function siteHeaderFullMarkup(opts: SiteHeaderOptions): string {
       <a href="/register" class="px-4 py-3 rounded-xl text-center bg-indigo-600 text-white font-semibold hover:bg-indigo-700">회원가입</a>
     </div>
     <div id="mHeaderUserMenu" class="flex flex-col gap-3 px-2 pt-2" style="display:none">
-      <p class="text-sm text-slate-600"><span class="font-semibold text-slate-900" id="mHeaderUserName"></span></p>
+      <p class="text-sm text-slate-600 inline-flex items-center flex-wrap gap-1"><span class="font-semibold text-slate-900" id="mHeaderUserName"></span></p>
       <div id="mAdminModeSwitch" style="display:none">
-        <a href="/admin/dashboard" class="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl bg-slate-800 text-white text-sm font-semibold hover:bg-slate-900 transition-colors">
+        <a href="/admin/dashboard" class="site-cmd-center-wrap flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl bg-slate-800 text-white text-sm font-semibold hover:bg-slate-900 transition-colors">
+          ${cmdPulseDot}
           <i class="fas fa-terminal text-xs opacity-80"></i> 커맨드 센터
         </a>
       </div>
@@ -298,9 +380,10 @@ export function siteHeaderFullMarkup(opts: SiteHeaderOptions): string {
         <a href="/register" class="inline-flex items-center rounded-lg bg-indigo-600 text-white px-3 py-1.5 text-sm font-semibold hover:bg-indigo-700">회원가입</a>
       </div>
       <div id="headerUserMenu" class="items-center gap-4 flex-wrap justify-end" style="display:none">
-        <span class="text-slate-700"><span id="headerUserName" class="font-semibold text-slate-900"></span></span>
+        <span class="text-slate-700 inline-flex items-center"><span id="headerUserName" class="font-semibold text-slate-900" data-ms-name-default="font-semibold text-slate-900"></span></span>
         <div id="adminModeSwitch" class="items-center" style="display:none">
-          <a href="/admin/dashboard" class="inline-flex items-center gap-1.5 rounded-lg border border-slate-300/80 bg-white/80 px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-white hover:border-indigo-300 transition-colors">
+          <a href="/admin/dashboard" class="site-cmd-center-wrap inline-flex items-center gap-1.5 rounded-lg border border-slate-300/80 bg-white/80 px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-white hover:border-indigo-300 transition-colors">
+            ${cmdPulseDot}
             <i class="fas fa-terminal text-[10px] opacity-70"></i> 커맨드 센터
           </a>
         </div>

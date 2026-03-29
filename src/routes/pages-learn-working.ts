@@ -26,7 +26,7 @@ app.get('/courses/:courseId/learn', async (c) => {
         <link rel="stylesheet" href="/static/css/app.css" />
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
-        <script src="/static/js/auth.js"></script>
+        <script src="/static/js/auth.js?v=20260329-admin-name"></script>
         <style>
             .lesson-item.active {
                 background-color: #EBF8FF;
@@ -96,7 +96,7 @@ app.get('/courses/:courseId/learn', async (c) => {
                         <i class="fas fa-arrow-left mr-2"></i>
                         강좌로 돌아가기
                     </a>
-                    <span id="headerUserName" class="text-gray-700"></span>
+                    <span class="inline-flex items-center max-w-[min(11rem,40vw)]"><span id="headerUserName" class="text-gray-700 font-semibold truncate" data-ms-name-default="text-gray-700 font-semibold truncate"></span></span>
                 </div>
             </div>
         </header>
@@ -754,7 +754,6 @@ app.get('/courses/:courseId/learn', async (c) => {
                 return;
             }
 
-            document.getElementById('headerUserName').textContent = user.name + ' 님';
             loadCourseData();
         });
 

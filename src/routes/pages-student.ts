@@ -28,7 +28,7 @@ app.get('/my-courses', (c) => {
         <link rel="stylesheet" href="/static/css/app.css" />
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
-        <script src="/static/js/auth.js"></script>
+        <script src="/static/js/auth.js?v=20260329-admin-name"></script>
         ${siteFloatingQuickMenuStyles()}
     </head>
     <body class="bg-gray-50">
@@ -44,7 +44,7 @@ app.get('/my-courses', (c) => {
                         <a href="/courses" class="text-gray-600 hover:text-gray-900">전체 강좌</a>
                         <a href="/my-courses" class="text-blue-600 font-semibold">내 강좌</a>
                         <a href="/community" class="text-gray-600 hover:text-gray-900">공지 · FAQ</a>
-                        <span id="headerUserName" class="text-gray-700"></span>
+                        <span class="inline-flex items-center max-w-[min(11rem,40vw)]"><span id="headerUserName" class="text-gray-700 font-semibold truncate" data-ms-name-default="text-gray-700 font-semibold truncate"></span></span>
                         <button onclick="logout()" class="text-red-600 hover:text-red-700">
                             <i class="fas fa-sign-out-alt mr-1"></i>로그아웃
                         </button>
@@ -281,7 +281,6 @@ app.get('/my-courses', (c) => {
                 return;
             }
 
-            document.getElementById('headerUserName').textContent = user.name + ' 님';
             loadMyCourses();
         });
         </script>
@@ -308,7 +307,7 @@ app.get('/courses/:courseId/lessons/:lessonId', (c) => {
         <link rel="stylesheet" href="/static/css/app.css" />
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
-        <script src="/static/js/auth.js"></script>
+        <script src="/static/js/auth.js?v=20260329-admin-name"></script>
         ${siteFloatingQuickMenuStyles()}
     </head>
     <body class="bg-gray-50">
@@ -320,7 +319,7 @@ app.get('/courses/:courseId/lessons/:lessonId', (c) => {
                         <i class="fas fa-arrow-left mr-2"></i>
                         강좌로 돌아가기
                     </a>
-                    <span id="headerUserName" class="text-gray-700"></span>
+                    <span class="inline-flex items-center max-w-[min(11rem,40vw)]"><span id="headerUserName" class="text-gray-700 font-semibold truncate" data-ms-name-default="text-gray-700 font-semibold truncate"></span></span>
                 </div>
             </div>
         </header>
@@ -609,7 +608,6 @@ app.get('/courses/:courseId/lessons/:lessonId', (c) => {
                 return;
             }
 
-            document.getElementById('headerUserName').textContent = user.name + ' 님';
             loadLessonDetail();
         });
         </script>

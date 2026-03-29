@@ -11,8 +11,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const user = await requireAdmin();
   if (!user) return;
 
-  // 관리자 이름 표시
-  document.getElementById('adminName').textContent = user.name;
+  if (typeof applyHeaderUserDisplay === 'function') {
+    applyHeaderUserDisplay(document.getElementById('adminName'), user)
+  }
 
   // 대시보드 데이터 로드
   await loadDashboardData();

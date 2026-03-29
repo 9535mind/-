@@ -4,7 +4,9 @@
  */
 
 import { Hono } from 'hono'
-import { Bindings } from '../types/database'
+import { Bindings, User } from '../types/database'
+import { optionalAuth } from '../middleware/auth'
+import { resolveAdminCommandPulse } from '../utils/site-header-admin-ssr'
 import { siteFooterLegalBlockHtml } from '../utils/site-footer-legal'
 import {
   siteFloatingQuickMenuMarkup,
@@ -12,12 +14,14 @@ import {
   siteFloatingQuickMenuStyles,
 } from '../utils/site-floating-quick-menu'
 import {
+  adminMagicPencilHtml,
   siteHeaderDrawerControlScript,
   siteHeaderFullMarkup,
   siteHeaderNavCoursesGlassStyles,
 } from '../utils/site-header-courses-nav'
 
-const app = new Hono<{ Bindings: Bindings }>()
+const app = new Hono<{ Bindings: Bindings; Variables: { user?: User } }>()
+app.use('*', optionalAuth)
 
 type BoardTone = 'notice' | 'event' | 'faq'
 
@@ -127,11 +131,13 @@ function boardCommunityStyles(): string {
 .board-row-glass:focus-within .board-badge-tremor,
 .board-badge-tremor:hover,
 .board-badge-tremor:focus-visible {
-  animation: boardSteelTremor 0.1s linear infinite;
+  animation: boardSteelTremor 0.1s linear 0s 12 forwards;
+  animation-fill-mode: forwards;
 }
 .board-card-glass:active .board-badge-tremor,
 .board-card-glass:focus-within .board-badge-tremor {
-  animation: boardSteelTremor 0.1s linear infinite;
+  animation: boardSteelTremor 0.1s linear 0s 12 forwards;
+  animation-fill-mode: forwards;
 }
 .board-glass-shell {
   border-radius: 1rem;
@@ -171,7 +177,7 @@ function boardCommunityStyles(): string {
 </style>`
 }
 
-function renderDesktopRows(items: BoardItem[]): string {
+function renderDesktopRows(items: BoardItem[], isAdmin: boolean): string {
   return items
     .map(
       (it) => `
@@ -179,14 +185,24 @@ function renderDesktopRows(items: BoardItem[]): string {
   <div class="w-[5.5rem] shrink-0 flex items-center">
     <span class="board-badge-tremor board-tone-${it.tone}">${esc(it.badge)}</span>
   </div>
-  <div class="board-row-title min-w-0">${esc(it.title)}</div>
+  <div class="board-row-title min-w-0 inline-flex items-center flex-wrap gap-0">
+    <span>${esc(it.title)}</span>
+    ${
+      isAdmin
+        ? adminMagicPencilHtml(
+            `/admin/notice/edit/${encodeURIComponent(it.id)}`,
+            `항목 수정 (${it.id})`,
+          )
+        : ''
+    }
+  </div>
   <time class="board-row-meta w-28 shrink-0 text-right" datetime="${esc(it.date)}">${esc(it.date)}</time>
 </article>`,
     )
     .join('')
 }
 
-function renderMobileCards(items: BoardItem[]): string {
+function renderMobileCards(items: BoardItem[], isAdmin: boolean): string {
   return items
     .map(
       (it) => `
@@ -195,7 +211,17 @@ function renderMobileCards(items: BoardItem[]): string {
     <span class="board-badge-tremor board-tone-${it.tone}">${esc(it.badge)}</span>
     <time class="board-card-date" datetime="${esc(it.date)}">${esc(it.date)}</time>
   </div>
-  <h3 class="board-card-title">${esc(it.title)}</h3>
+  <h3 class="board-card-title inline-flex items-baseline flex-wrap gap-0">
+    <span>${esc(it.title)}</span>
+    ${
+      isAdmin
+        ? adminMagicPencilHtml(
+            `/admin/notice/edit/${encodeURIComponent(it.id)}`,
+            `항목 수정 (${it.id})`,
+          )
+        : ''
+    }
+  </h3>
   ${it.excerpt ? `<p class="board-card-excerpt mt-2">${esc(it.excerpt)}</p>` : ''}
 </article>`,
     )
@@ -207,6 +233,7 @@ function sectionBlock(
   heading: string,
   sub: string,
   items: BoardItem[],
+  isAdmin: boolean,
 ): string {
   return `
 <section id="${sectionId}" class="scroll-mt-28 mb-14">
@@ -222,15 +249,17 @@ function sectionBlock(
       <span class="flex-1">제목</span>
       <span class="w-28 text-right shrink-0">등록일</span>
     </div>
-    ${renderDesktopRows(items)}
+    ${renderDesktopRows(items, isAdmin)}
   </div>
   <div class="md:hidden space-y-3 px-0.5">
-    ${renderMobileCards(items)}
+    ${renderMobileCards(items, isAdmin)}
   </div>
 </section>`
 }
 
-app.get('/community', (c) => {
+app.get('/community', async (c) => {
+  const adminCommandPulse = await resolveAdminCommandPulse(c)
+  const isAdmin = (c.get('user') as User | undefined)?.role === 'admin'
   const main = `
 <main class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 pb-6">
   <header class="mb-8">
@@ -254,14 +283,14 @@ app.get('/community', (c) => {
   <link rel="stylesheet" href="/static/css/app.css" />
   <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
-  <script src="/static/js/auth.js?v=20260328-2"></script>
+  <script src="/static/js/auth.js?v=20260329-admin-name"></script>
   <script src="/static/js/utils.js?v=20260328-1"></script>
   ${siteHeaderNavCoursesGlassStyles()}
   ${siteFloatingQuickMenuStyles()}
   ${boardCommunityStyles()}
 </head>
 <body class="bg-slate-50">
-  ${siteHeaderFullMarkup({ variant: 'pages' })}
+  ${siteHeaderFullMarkup({ variant: 'pages', adminCommandPulse })}
   ${main}
   <footer class="bg-gray-800 text-white py-8 mt-4">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -274,7 +303,6 @@ app.get('/community', (c) => {
   ${siteFloatingQuickMenuMarkup()}
   <script>
     document.addEventListener('DOMContentLoaded', function () {
-      updateHeader();
       ${siteHeaderDrawerControlScript('pages')}
       ${siteFloatingQuickMenuScript()}
     });

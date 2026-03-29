@@ -30,7 +30,7 @@ app.get('/about', (c) => {
         <link rel="stylesheet" href="/static/css/app.css" />
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
-        <script src="/static/js/auth.js"></script>
+        <script src="/static/js/auth.js?v=20260329-admin-name"></script>
         ${siteFloatingQuickMenuStyles()}
     </head>
     <body class="bg-gray-50">
@@ -48,9 +48,18 @@ app.get('/about', (c) => {
                         <a href="/community" class="text-gray-700 hover:text-indigo-600">공지 · FAQ</a>
                         <a href="/my-courses" class="text-gray-700 hover:text-indigo-600">내 강의실</a>
                     </nav>
+                    <div class="flex items-center gap-3">
                     <div id="headerAuthButtons" class="flex items-center space-x-4">
                         <a href="/login" class="text-gray-700 hover:text-indigo-600">로그인</a>
                         <a href="/register" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">회원가입</a>
+                    </div>
+                    <div id="headerUserMenu" class="items-center gap-3 flex flex-wrap justify-end" style="display:none">
+                        <span class="text-gray-700 inline-flex items-center max-w-[min(12rem,50vw)]"><span id="headerUserName" class="font-semibold text-gray-900" data-ms-name-default="font-semibold text-gray-900"></span></span>
+                        <div id="adminModeSwitch" class="items-center" style="display:none">
+                          <a href="/admin/dashboard" class="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 hover:border-indigo-400">커맨드 센터</a>
+                        </div>
+                        <button type="button" onclick="handleLogout()" class="text-gray-600 hover:text-indigo-600 text-sm font-medium">로그아웃</button>
+                    </div>
                     </div>
                 </div>
             </div>
@@ -190,8 +199,6 @@ app.get('/about', (c) => {
         ${siteFloatingQuickMenuMarkup()}
 
         <script>
-            // 헤더 업데이트
-            updateHeader();
             ${siteFloatingQuickMenuScript()}
         </script>
         <script src="/static/js/security.js${STATIC_JS_CACHE_QUERY}"></script>
