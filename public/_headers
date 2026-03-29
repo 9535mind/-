@@ -1,0 +1,8 @@
+# Cloudflare Pages 정적 자산 — Worker가 내려주는 HTML과 별개로 /static JS·CSS 에지 캐시 억제
+# (배포 후에도 Enterprise Chrome이 옛 content-protection.js 등을 붙잡는 경우 완화)
+/static/*
+  Cache-Control: private, no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0
+  Pragma: no-cache
+
+/build.txt
+  Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0

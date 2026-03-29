@@ -51,6 +51,7 @@ import youtubeProxy from './routes/youtube-proxy'
 import security from './routes/security'
 import { FOOTER_HTML_REVISION } from './utils/site-footer-legal'
 import { LEGACY_PAGES_HOSTNAMES, SITE_PUBLIC_ORIGIN } from './utils/oauth-public'
+import { ENTERPRISE_HTML_HEAD_INJECT } from './utils/enterprise-client-head'
 
 const app = new Hono<{ Bindings: Bindings }>()
 
@@ -84,13 +85,30 @@ app.use('*', async (c, next) => {
   await next()
 })
 
-// HTML 응답은 에지·브라우저 캐시로 옛 페이지가 보이지 않도록 (푸터 등 배포 후 반영)
+// HTML: 캐시 금지 + Enterprise Chrome 유령 SW·옛 <head> 대응(등록된 SW unregister, meta 힌트)
 app.use('*', async (c, next) => {
   await next()
   const ct = c.res.headers.get('Content-Type') || ''
-  if (ct.includes('text/html')) {
-    c.res.headers.set('Cache-Control', 'private, no-cache, no-store, must-revalidate')
+  if (!ct.includes('text/html')) return
+
+  const res = c.res
+  const headers = new Headers(res.headers)
+  headers.set('Cache-Control', 'private, no-cache, no-store, must-revalidate')
+
+  let body: string
+  try {
+    body = await res.clone().text()
+  } catch {
+    c.res = new Response(res.body, { status: res.status, statusText: res.statusText, headers })
+    return
   }
+
+  if (/<head[\s>]/i.test(body)) {
+    body = body.replace(/<head(\s[^>]*)?>/i, (m) => `${m}\n${ENTERPRISE_HTML_HEAD_INJECT}\n`)
+    headers.delete('Content-Length')
+  }
+
+  c.res = new Response(body, { status: res.status, statusText: res.statusText, headers })
 })
 
 // OAuth(리다이렉트·디버그 JSON) 에지 캐시 방지 — 옛 redirectUri·진단 값 혼선 방지
