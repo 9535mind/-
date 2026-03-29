@@ -362,8 +362,9 @@ export function siteHeaderFullMarkup(opts: SiteHeaderOptions): string {
     </div>
     <div id="mHeaderUserMenu" class="flex flex-col gap-3 px-2 pt-2" style="display:none">
       <p class="text-sm text-slate-600 inline-flex items-center flex-wrap gap-1"><span class="font-semibold text-slate-900" id="mHeaderUserName"></span></p>
-      <div id="mAdminModeSwitch" style="display:none">
-        <a href="/admin/dashboard" class="site-cmd-center-wrap flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl bg-slate-800 text-white text-sm font-semibold hover:bg-slate-900 transition-colors">
+      <div id="mAdminModeSwitch" class="flex flex-col gap-2" style="display:none">
+        <button type="button" id="mHeaderViewToggleBtn" class="hidden w-full text-xs font-medium px-3 py-2 rounded-md transition-colors justify-center items-center" aria-label="관리자 뷰 전환"></button>
+        <a id="mHeaderCommandCenterLink" href="/admin/dashboard" class="site-cmd-center-wrap flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl bg-slate-800 text-white text-sm font-semibold hover:bg-slate-900 transition-colors">
           ${cmdPulseDot}
           <i class="fas fa-terminal text-xs opacity-80"></i> 커맨드 센터
         </a>
@@ -381,8 +382,9 @@ export function siteHeaderFullMarkup(opts: SiteHeaderOptions): string {
       </div>
       <div id="headerUserMenu" class="items-center gap-4 flex-wrap justify-end" style="display:none">
         <span class="text-slate-700 inline-flex items-center"><span id="headerUserName" class="font-semibold text-slate-900" data-ms-name-default="font-semibold text-slate-900"></span></span>
-        <div id="adminModeSwitch" class="items-center" style="display:none">
-          <a href="/admin/dashboard" class="site-cmd-center-wrap inline-flex items-center gap-1.5 rounded-lg border border-slate-300/80 bg-white/80 px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-white hover:border-indigo-300 transition-colors">
+        <div id="adminModeSwitch" class="items-center gap-2 flex-wrap" style="display:none">
+          <button type="button" id="headerViewToggleBtn" class="hidden text-xs font-medium px-2 py-1 rounded-md transition-colors whitespace-nowrap" aria-label="관리자 뷰 전환"></button>
+          <a id="headerCommandCenterLink" href="/admin/dashboard" class="site-cmd-center-wrap inline-flex items-center gap-1.5 rounded-lg border border-slate-300/80 bg-white/80 px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-white hover:border-indigo-300 transition-colors">
             ${cmdPulseDot}
             <i class="fas fa-terminal text-[10px] opacity-70"></i> 커맨드 센터
           </a>

@@ -11,6 +11,11 @@ import {
   SITE_INTERNET_DOMAIN,
 } from '../utils/site-footer-legal'
 import {
+  siteAiChatWidgetMarkup,
+  siteAiChatWidgetScript,
+  siteAiChatWidgetStyles,
+} from '../utils/site-ai-chat-widget'
+import {
   siteFloatingQuickMenuMarkup,
   siteFloatingQuickMenuScript,
   siteFloatingQuickMenuStyles,
@@ -31,6 +36,7 @@ app.get('/company', (c) => {
     <link rel="stylesheet" href="/static/css/app.css" />
     <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
     ${siteFloatingQuickMenuStyles()}
+    ${siteAiChatWidgetStyles()}
 </head>
 <body class="bg-gray-50 text-gray-900 min-h-screen">
     <header class="bg-white border-b border-gray-200 shadow-sm">
@@ -94,7 +100,8 @@ app.get('/company', (c) => {
         </p>
     </main>
     ${siteFloatingQuickMenuMarkup()}
-    <script>${siteFloatingQuickMenuScript()}</script>
+    ${siteAiChatWidgetMarkup()}
+    <script>${siteFloatingQuickMenuScript()}${siteAiChatWidgetScript()}</script>
 </body>
 </html>
   `)

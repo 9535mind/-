@@ -6,6 +6,11 @@
 
 import { Hono } from 'hono'
 import {
+  siteAiChatWidgetMarkup,
+  siteAiChatWidgetScript,
+  siteAiChatWidgetStyles,
+} from '../utils/site-ai-chat-widget'
+import {
   siteFloatingQuickMenuMarkup,
   siteFloatingQuickMenuScript,
   siteFloatingQuickMenuStyles,
@@ -55,8 +60,9 @@ app.get('/about', (c) => {
                     </div>
                     <div id="headerUserMenu" class="items-center gap-3 flex flex-wrap justify-end" style="display:none">
                         <span class="text-gray-700 inline-flex items-center max-w-[min(12rem,50vw)]"><span id="headerUserName" class="font-semibold text-gray-900" data-ms-name-default="font-semibold text-gray-900"></span></span>
-                        <div id="adminModeSwitch" class="items-center" style="display:none">
-                          <a href="/admin/dashboard" class="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 hover:border-indigo-400">커맨드 센터</a>
+                        <div id="adminModeSwitch" class="items-center gap-2 flex-wrap" style="display:none">
+                          <button type="button" id="headerViewToggleBtn" class="hidden text-xs font-medium px-2 py-1 rounded-md transition-colors whitespace-nowrap" aria-label="관리자 뷰 전환"></button>
+                          <a id="headerCommandCenterLink" href="/admin/dashboard" class="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 hover:border-indigo-400">커맨드 센터</a>
                         </div>
                         <button type="button" onclick="handleLogout()" class="text-gray-600 hover:text-indigo-600 text-sm font-medium">로그아웃</button>
                     </div>
@@ -197,9 +203,11 @@ app.get('/about', (c) => {
             </div>
         </footer>
         ${siteFloatingQuickMenuMarkup()}
+        ${siteAiChatWidgetMarkup()}
 
         <script>
             ${siteFloatingQuickMenuScript()}
+            ${siteAiChatWidgetScript()}
         </script>
         <script src="/static/js/security.js${STATIC_JS_CACHE_QUERY}"></script>
     </body>

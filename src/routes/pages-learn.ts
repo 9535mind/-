@@ -8,6 +8,11 @@ import { getCookie } from 'hono/cookie'
 import type { Bindings } from '../types/database'
 import { SQL_SESSION_S_VALID } from '../utils/helpers'
 import {
+  siteAiChatWidgetMarkup,
+  siteAiChatWidgetScript,
+  siteAiChatWidgetStyles,
+} from '../utils/site-ai-chat-widget'
+import {
   siteFloatingQuickMenuMarkup,
   siteFloatingQuickMenuScript,
   siteFloatingQuickMenuStyles,
@@ -121,8 +126,14 @@ app.get('/courses/:courseId/learn', async (c) => {
                     font-size: 1rem !important; /* 0.8 * 1.25 */
                     min-height: 44px; /* iOS 권장 터치 크기 */
                 }
+                #ms-ai-chat-root button,
+                #ms-ai-chat-root input {
+                    min-width: 0 !important;
+                }
             }
         </style>
+        ${siteFloatingQuickMenuStyles()}
+        ${siteAiChatWidgetStyles()}
     </head>
     <body class="bg-gray-50">
         <!-- 헤더 -->
@@ -214,10 +225,12 @@ app.get('/courses/:courseId/learn', async (c) => {
             </div>
         </footer>
         ${siteFloatingQuickMenuMarkup()}
+        ${siteAiChatWidgetMarkup()}
 
         <!-- Course ID 전역 변수 설정 -->
         <script>
             ${siteFloatingQuickMenuScript()}
+            ${siteAiChatWidgetScript()}
         window.COURSE_ID = ${courseId};
         console.log('🎯 Course ID set:', window.COURSE_ID);
         </script>

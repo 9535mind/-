@@ -32,6 +32,8 @@ export interface RateLimitOptions {
   windowMs?: number  // 시간 윈도우 (기본: 1분)
   max?: number       // 최대 요청 수 (기본: 100)
   message?: string   // 제한 초과 시 메시지
+  /** IP별 카운터를 경로와 분리 (예: ai-chat) */
+  bucket?: string
 }
 
 /**
@@ -41,6 +43,8 @@ export const rateLimiter = (options: RateLimitOptions = {}) => {
   const windowMs = options.windowMs || 60000  // 1분
   const max = options.max || 100
   const message = options.message || '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.'
+
+  const bucket = options.bucket
 
   return async (c: Context, next: Next) => {
     // 만료된 엔트리 정리 (매 요청 시)
@@ -53,7 +57,7 @@ export const rateLimiter = (options: RateLimitOptions = {}) => {
                'unknown'
 
     const now = Date.now()
-    const key = `ratelimit:${ip}`
+    const key = bucket ? `ratelimit:${bucket}:${ip}` : `ratelimit:${ip}`
 
     // 현재 IP의 요청 정보 가져오기
     if (!store[key] || store[key].resetTime < now) {

@@ -6,6 +6,11 @@ import { Hono } from 'hono'
 import { Bindings } from '../types/database'
 import { STATIC_JS_CACHE_QUERY } from '../utils/static-js-cache-bust'
 import {
+  siteAiChatWidgetMarkup,
+  siteAiChatWidgetScript,
+  siteAiChatWidgetStyles,
+} from '../utils/site-ai-chat-widget'
+import {
   siteFloatingQuickMenuMarkup,
   siteFloatingQuickMenuScript,
   siteFloatingQuickMenuStyles,
@@ -93,9 +98,11 @@ pagesMy.get('/my-courses-legacy', (c) => {
             </div>
         </div>
         ${siteFloatingQuickMenuMarkup()}
+        ${siteAiChatWidgetMarkup()}
         
         <script>
             ${siteFloatingQuickMenuScript()}
+            ${siteAiChatWidgetScript()}
             // 로그인 확인
             if (!AuthManager.isLoggedIn()) {
                 window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname)
@@ -260,6 +267,7 @@ pagesMy.get('/my-profile', (c) => {
         <script src="/static/js/auth.js?v=20260329-admin-name"></script>
         <script src="/static/js/utils.js"></script>
         ${siteFloatingQuickMenuStyles()}
+        ${siteAiChatWidgetStyles()}
     </head>
     <body class="bg-gray-50">
         ${getHeader('profile')}
@@ -391,9 +399,11 @@ pagesMy.get('/my-profile', (c) => {
         </div>
 
         ${siteFloatingQuickMenuMarkup()}
+        ${siteAiChatWidgetMarkup()}
 
         <script>
             ${siteFloatingQuickMenuScript()}
+            ${siteAiChatWidgetScript()}
             let currentUser = null;
 
             // 페이지 로드 시 사용자 정보 로드

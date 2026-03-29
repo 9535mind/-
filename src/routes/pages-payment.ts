@@ -8,6 +8,11 @@
 import { Hono } from 'hono'
 import { sitePaymentFooterHtml } from '../utils/site-footer-legal'
 import {
+  siteAiChatWidgetMarkup,
+  siteAiChatWidgetScript,
+  siteAiChatWidgetStyles,
+} from '../utils/site-ai-chat-widget'
+import {
   siteFloatingQuickMenuMarkup,
   siteFloatingQuickMenuScript,
   siteFloatingQuickMenuStyles,
@@ -37,6 +42,7 @@ app.get('/payment/checkout/:courseId', (c) => {
         <script src="/static/js/auth.js?v=20260329-admin-name"></script>
         <script src="/static/js/utils.js"></script>
         ${siteFloatingQuickMenuStyles()}
+        ${siteAiChatWidgetStyles()}
     </head>
     <body class="bg-gray-50">
         <div class="max-w-4xl mx-auto px-4 py-8">
@@ -101,7 +107,8 @@ app.get('/payment/checkout/:courseId', (c) => {
 
         ${sitePaymentFooterHtml()}
         ${siteFloatingQuickMenuMarkup()}
-        <script>${siteFloatingQuickMenuScript()}</script>
+        ${siteAiChatWidgetMarkup()}
+        <script>${siteFloatingQuickMenuScript()}${siteAiChatWidgetScript()}</script>
 
         <script>
             const courseId = ${courseId}
@@ -215,6 +222,7 @@ app.get('/success', (c) => {
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script src="/static/js/utils.js"></script>
         ${siteFloatingQuickMenuStyles()}
+        ${siteAiChatWidgetStyles()}
     </head>
     <body class="bg-gray-50">
         <div class="max-w-2xl mx-auto px-4 py-16">
@@ -232,7 +240,8 @@ app.get('/success', (c) => {
 
         ${sitePaymentFooterHtml()}
         ${siteFloatingQuickMenuMarkup()}
-        <script>${siteFloatingQuickMenuScript()}</script>
+        ${siteAiChatWidgetMarkup()}
+        <script>${siteFloatingQuickMenuScript()}${siteAiChatWidgetScript()}</script>
 
         <script>
             async function confirmPayment() {
@@ -292,6 +301,7 @@ app.get('/payment/fail', (c) => {
         <link rel="stylesheet" href="/static/css/app.css" />
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         ${siteFloatingQuickMenuStyles()}
+        ${siteAiChatWidgetStyles()}
     </head>
     <body class="bg-gray-50">
         <div class="max-w-2xl mx-auto px-4 py-16">
@@ -317,7 +327,8 @@ app.get('/payment/fail', (c) => {
 
         ${sitePaymentFooterHtml()}
         ${siteFloatingQuickMenuMarkup()}
-        <script>${siteFloatingQuickMenuScript()}</script>
+        ${siteAiChatWidgetMarkup()}
+        <script>${siteFloatingQuickMenuScript()}${siteAiChatWidgetScript()}</script>
 
         <script>
             // URL 파라미터에서 에러 메시지 가져오기

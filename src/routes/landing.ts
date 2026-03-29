@@ -21,6 +21,11 @@ import {
 } from '../utils/site-footer-legal'
 import { STATIC_JS_CACHE_QUERY } from '../utils/static-js-cache-bust'
 import {
+  siteAiChatWidgetMarkup,
+  siteAiChatWidgetScript,
+  siteAiChatWidgetStyles,
+} from '../utils/site-ai-chat-widget'
+import {
   siteFloatingQuickMenuMarkup,
   siteFloatingQuickMenuScript,
   siteFloatingQuickMenuStyles,
@@ -75,7 +80,7 @@ landing.get('/', async (c) => {
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         
         <!-- Custom Scripts -->
-        <script src="/static/js/auth.js?v=20260329-admin-name"></script>
+        <script src="/static/js/auth.js?v=20260329-magic-pencil"></script>
         <script src="/static/js/utils.js?v=20260327-2"></script>
         
         <style>
@@ -284,6 +289,7 @@ landing.get('/', async (c) => {
         </style>
         ${siteHeaderNavCoursesGlassStyles()}
         ${siteFloatingQuickMenuStyles()}
+        ${siteAiChatWidgetStyles()}
         <script src="/static/js/content-protection.js${STATIC_JS_CACHE_QUERY}"></script>
     </head>
     <body>
@@ -326,24 +332,51 @@ landing.get('/', async (c) => {
             </div>
         </section>
 
-        <!-- MINDSTORY 듀얼 브랜드 -->
+        <!-- MINDSTORY 시그니처 라인업 -->
         <section class="py-20 bg-white border-y border-gray-100">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <h2 class="text-3xl md:text-4xl font-bold text-center text-gray-900 mb-4">MINDSTORY 두 가지 길</h2>
-                <p class="text-center text-gray-600 text-lg mb-12 max-w-2xl mx-auto">깊이 있는 학습(Classic)과 확장되는 창작(Next)을 선택하세요.</p>
-                <div class="grid md:grid-cols-2 gap-8">
-                    <a href="/courses/classic" class="group rounded-3xl border-2 border-classic-sage/30 bg-classic-cream p-10 shadow-lg hover:shadow-xl hover:border-classic-sage transition flex flex-col min-h-[280px]">
-                        <span class="text-sm font-bold text-classic-sage tracking-widest uppercase">Heritage · Classic</span>
-                        <h3 class="text-2xl md:text-3xl font-bold text-classic-forest mt-3 group-hover:text-classic-sage transition">본질의 깊이</h3>
-                        <p class="text-classic-forest/80 mt-4 flex-1 leading-relaxed">상담·진로·기록 중심의 차분한 커리큘럼. 베이지와 그린 톤으로 집중과 성찰을 돕습니다.</p>
-                        <span class="mt-6 inline-flex items-center text-classic-sage font-semibold">Classic 강좌 보기 <i class="fas fa-arrow-right ml-2 group-hover:translate-x-1 transition-transform"></i></span>
-                    </a>
-                    <a href="/courses/next" class="group rounded-3xl border-2 border-slate-200 bg-gradient-to-br from-white via-slate-50 to-blue-50/80 p-10 shadow-lg hover:shadow-xl hover:border-next-accent/40 transition flex flex-col min-h-[280px]">
-                        <span class="text-sm font-bold text-next-accent tracking-widest uppercase">Next · Create</span>
-                        <h3 class="text-2xl md:text-3xl font-bold text-next-ink mt-3 group-hover:text-next-accent transition">미래의 확장</h3>
-                        <p class="text-slate-600 mt-4 flex-1 leading-relaxed">AI 동화·기술·창작. 블루와 실버 포인트의 세련된 Next 라인에서 단계별로 완성도를 높입니다.</p>
-                        <span class="mt-6 inline-flex items-center text-next-accent font-semibold">Next 강좌 보기 <i class="fas fa-arrow-right ml-2 group-hover:translate-x-1 transition-transform"></i></span>
-                    </a>
+                <h2 class="text-3xl md:text-4xl font-bold text-center text-gray-900 mb-4">MINDSTORY 시그니처 라인업</h2>
+                <p class="text-center text-gray-600 text-lg mb-12 max-w-3xl mx-auto">Classic · Next · 공동훈련(NCS) 세 가지 로드맵으로 목표와 수준에 맞는 학습을 설계합니다.</p>
+                <div class="grid grid-cols-1 gap-8 lg:grid-cols-3 lg:items-stretch">
+                    <div class="group relative flex h-full min-h-[300px] rounded-3xl border border-yellow-900/10 bg-gradient-to-br from-white via-slate-50 to-slate-100 shadow-lg backdrop-blur-md transition-all duration-300 hover:-translate-y-[5px] hover:shadow-xl hover:shadow-[0_20px_25px_-5px_rgba(0,0,0,0.06),0_32px_64px_-12px_rgba(113,63,18,0.1),0_48px_96px_-24px_rgba(6,78,59,0.08)]">
+                        <a href="/courses/classic" class="absolute inset-0 z-0 rounded-3xl" aria-label="MindStory Classic 강좌 목록으로 이동"></a>
+                        <div class="relative z-10 flex h-full min-h-[300px] flex-1 flex-col p-8 sm:p-10 pointer-events-none">
+                            <span class="text-xs font-bold text-classic-sage tracking-widest uppercase">FUNDAMENTAL COURSE</span>
+                            <div class="relative mt-3 pr-7" data-ms-magic-pencil-wrap data-ms-pencil-href="/admin/dashboard#courses" data-ms-pencil-label="랜딩 시그니처 Classic 제목 편집 (교육·강좌)">
+                                <h3 class="text-2xl md:text-3xl xl:text-4xl font-extrabold leading-tight text-classic-forest tracking-tight transition-colors group-hover:text-classic-sage pointer-events-none">MindStory Classic</h3>
+                            </div>
+                            <div class="relative mt-4 flex flex-1 flex-col pr-7" data-ms-magic-pencil-wrap data-ms-pencil-href="/admin/dashboard#courses" data-ms-pencil-label="랜딩 시그니처 Classic 설명 편집 (교육·강좌)">
+                                <p class="text-classic-forest/80 flex-1 leading-relaxed pointer-events-none">상담·진로·학습의 뿌리를 내립니다. 변하지 않는 가치를 배우는 프리미엄 입문 과정.</p>
+                            </div>
+                            <span class="mt-6 inline-flex items-center rounded-full border border-amber-900/25 bg-emerald-50/90 px-5 py-2 text-sm font-semibold text-classic-forest shadow-sm transition-all duration-300 group-hover:border-classic-sage group-hover:bg-classic-sage group-hover:text-white group-hover:shadow-md pointer-events-none sm:px-6">Classic 강좌 보기 <i class="fas fa-arrow-right ml-2 text-xs transition-transform group-hover:translate-x-1"></i></span>
+                        </div>
+                    </div>
+                    <div class="group relative flex h-full min-h-[300px] rounded-3xl border border-slate-300 bg-gradient-to-br from-white via-slate-50 to-slate-100 shadow-lg backdrop-blur-md transition-all duration-300 hover:-translate-y-[5px] hover:shadow-xl hover:shadow-[0_20px_25px_-5px_rgba(0,0,0,0.06),0_32px_64px_-12px_rgba(51,65,85,0.12),0_48px_96px_-24px_rgba(30,64,175,0.09)]">
+                        <a href="/courses/next" class="absolute inset-0 z-0 rounded-3xl" aria-label="MindStory Next 강좌 목록으로 이동"></a>
+                        <div class="relative z-10 flex h-full min-h-[300px] flex-1 flex-col p-8 sm:p-10 pointer-events-none">
+                            <span class="text-xs font-bold text-next-accent tracking-widest uppercase">ADVANCED MASTER</span>
+                            <div class="relative mt-3 pr-7" data-ms-magic-pencil-wrap data-ms-pencil-href="/admin/dashboard#courses" data-ms-pencil-label="랜딩 시그니처 Next 제목 편집 (교육·강좌)">
+                                <h3 class="text-2xl md:text-3xl xl:text-4xl font-extrabold leading-tight text-next-ink tracking-tight transition-colors group-hover:text-next-accent pointer-events-none">MindStory Next</h3>
+                            </div>
+                            <div class="relative mt-4 flex flex-1 flex-col pr-7" data-ms-magic-pencil-wrap data-ms-pencil-href="/admin/dashboard#courses" data-ms-pencil-label="랜딩 시그니처 Next 설명 편집 (교육·강좌)">
+                                <p class="flex-1 leading-relaxed text-slate-600 pointer-events-none">AI 동화·창작·기술을 융합합니다. 한계를 넘어 전문가로 도약하는 심화 실전 과정.</p>
+                            </div>
+                            <span class="mt-6 inline-flex items-center rounded-full border border-slate-400/55 bg-blue-50/90 px-5 py-2 text-sm font-semibold text-next-ink shadow-sm transition-all duration-300 group-hover:border-next-accent group-hover:bg-next-accent group-hover:text-white group-hover:shadow-md pointer-events-none sm:px-6">Next 강좌 보기 <i class="fas fa-arrow-right ml-2 text-xs transition-transform group-hover:translate-x-1"></i></span>
+                        </div>
+                    </div>
+                    <div class="group relative flex h-full min-h-[300px] rounded-3xl border border-indigo-300/50 bg-gradient-to-br from-white via-slate-50 to-indigo-50/50 shadow-lg shadow-indigo-500/10 ring-1 ring-indigo-400/25 backdrop-blur-md transition-all duration-300 hover:-translate-y-[5px] hover:shadow-xl hover:shadow-[0_0_0_1px_rgba(99,102,241,0.2),0_20px_50px_-12px_rgba(67,56,202,0.28),0_12px_40px_-8px_rgba(59,130,246,0.15)]">
+                        <a href="/community" class="absolute inset-0 z-0 rounded-3xl" aria-label="공동훈련 협약 및 서류 안내 — 공지·FAQ로 이동"></a>
+                        <div class="relative z-10 flex h-full min-h-[300px] flex-1 flex-col p-8 sm:p-10 pointer-events-none">
+                            <span class="text-xs font-bold tracking-widest text-indigo-700 uppercase">NCS 직업훈련</span>
+                            <div class="relative mt-3 pr-7" data-ms-magic-pencil-wrap data-ms-pencil-href="/admin/dashboard#courses" data-ms-pencil-label="랜딩 시그니처 공동훈련 제목 편집 (교육·강좌)">
+                                <h3 class="text-2xl md:text-3xl xl:text-[1.65rem] font-extrabold leading-snug tracking-tight text-indigo-950 transition-colors group-hover:text-indigo-700 pointer-events-none xl:leading-tight">MindStory Consortium : 국가인증 공동훈련</h3>
+                            </div>
+                            <div class="relative mt-4 flex flex-1 flex-col pr-7" data-ms-magic-pencil-wrap data-ms-pencil-href="/admin/dashboard#courses" data-ms-pencil-label="랜딩 시그니처 공동훈련 설명 편집 (교육·강좌)">
+                                <p class="flex-1 leading-relaxed text-slate-700 pointer-events-none">산업인력공단 협약 기업 및 자사 직원을 위한 국가 직무능력표준(NCS) 기반의 전문 직업훈련 과정입니다.</p>
+                            </div>
+                            <span class="mt-6 inline-flex items-center rounded-full border border-indigo-400/40 bg-indigo-50/95 px-5 py-2 text-sm font-semibold text-indigo-900 shadow-sm transition-all duration-300 group-hover:border-indigo-500 group-hover:bg-indigo-600 group-hover:text-white group-hover:shadow-md pointer-events-none sm:px-6">협약 및 서류 안내 <i class="fas fa-arrow-right ml-2 text-xs transition-transform group-hover:translate-x-1"></i></span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </section>
@@ -772,6 +805,7 @@ landing.get('/', async (c) => {
                 loadCourses()
                 ${siteHeaderDrawerControlScript('landing')}
                 ${siteFloatingQuickMenuScript()}
+                ${siteAiChatWidgetScript()}
                 // 히어로 이미지 슬라이더
                 initHeroSlider()
             })

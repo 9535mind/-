@@ -52,9 +52,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   initHubMobileNav()
   window.addEventListener('hashchange', applyHashRoute)
   applyHashRoute()
-  await loadDashboardStats()
-  await loadDashboardPulse()
-  await loadDashboardSideLists()
+  if (document.getElementById('statTotalUsers')) await loadDashboardStats()
+  if (document.getElementById('pulseSignup')) await loadDashboardPulse()
+  if (document.getElementById('hubRecentPayments') || document.getElementById('hubRecentEnrollments')) {
+    await loadDashboardSideLists()
+  }
   bindHubDashboardCardClicks()
 
   document.getElementById('userSearchBtn')?.addEventListener('click', () => {
@@ -114,9 +116,8 @@ function updateGnbActiveState(tab) {
   document.querySelectorAll('[data-hub-group]').forEach((el) => {
     const g = el.getAttribute('data-hub-group')
     const on = g === group
-    el.classList.toggle('ring-1', on)
-    el.classList.toggle('ring-indigo-400/80', on)
-    el.classList.toggle('rounded-lg', on)
+    const btn = el.querySelector('.hub-gnb-trigger')
+    if (btn) btn.classList.toggle('hub-gnb-trigger--active', on)
   })
   document.querySelectorAll('a[data-hub-panel]').forEach((el) => {
     const id = el.getAttribute('data-hub-panel')

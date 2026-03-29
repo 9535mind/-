@@ -8,6 +8,11 @@ import { STATIC_JS_CACHE_QUERY } from '../utils/static-js-cache-bust'
 import type { Bindings, User } from '../types/database'
 import { optionalAuth } from '../middleware/auth'
 import {
+  siteAiChatWidgetMarkup,
+  siteAiChatWidgetScript,
+  siteAiChatWidgetStyles,
+} from '../utils/site-ai-chat-widget'
+import {
   siteFloatingQuickMenuMarkup,
   siteFloatingQuickMenuScript,
   siteFloatingQuickMenuStyles,
@@ -45,6 +50,7 @@ app.get('/courses/:id', async (c) => {
         <script src="/static/js/content-protection.js${STATIC_JS_CACHE_QUERY}"></script>
         ${siteHeaderNavCoursesGlassStyles()}
         ${siteFloatingQuickMenuStyles()}
+        ${siteAiChatWidgetStyles()}
     </head>
     <body class="bg-gray-50">
         <!-- 헤더 -->
@@ -185,9 +191,11 @@ app.get('/courses/:id', async (c) => {
             </div>
         </footer>
         ${siteFloatingQuickMenuMarkup()}
+        ${siteAiChatWidgetMarkup()}
 
         <script>
             ${siteFloatingQuickMenuScript()}
+            ${siteAiChatWidgetScript()}
             const courseId = ${courseId};
             let courseData = null;
             let lessonsData = [];

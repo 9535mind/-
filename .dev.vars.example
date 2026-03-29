@@ -1,18 +1,3 @@
-# 로컬 개발용 (.dev.vars 로 복사 후 값 입력)
-# 프로덕션: Cloudflare Pages → Settings → Variables / Secrets
-
-# 공식 도메인(참고): https://mindstory.kr
-# 카카오 Redirect URI(프로덕션): https://mindstory.kr/api/auth/kakao/callback
-# 구글 Redirect URI(프로덕션): https://mindstory.kr/api/auth/google/callback
-
-KAKAO_CLIENT_ID=your_kakao_rest_api_key_here
-KAKAO_REDIRECT_URI=http://localhost:3000/api/auth/kakao/callback
-
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-GOOGLE_REDIRECT_URI=http://localhost:3000/api/auth/google/callback
-
-# R2 Storage 설정 (영상 저장소)
-R2_ACCOUNT_ID=your_cloudflare_account_id
-R2_ACCESS_KEY_ID=your_r2_access_key_id
-R2_SECRET_ACCESS_KEY=your_r2_secret_access_key
+# 로컬 Worker 바인딩용 — 복사: copy .dev.vars.example .dev.vars 후 값 입력
+# 또는 루트에 .env 에 OPENAI_API_KEY 만 두고 `npm run dev` / `npm run dev:sandbox` 시 자동으로 .dev.vars 에 병합됩니다.
+OPENAI_API_KEY=

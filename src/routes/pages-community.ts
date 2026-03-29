@@ -9,6 +9,11 @@ import { optionalAuth } from '../middleware/auth'
 import { resolveAdminCommandPulse } from '../utils/site-header-admin-ssr'
 import { siteFooterLegalBlockHtml } from '../utils/site-footer-legal'
 import {
+  siteAiChatWidgetMarkup,
+  siteAiChatWidgetScript,
+  siteAiChatWidgetStyles,
+} from '../utils/site-ai-chat-widget'
+import {
   siteFloatingQuickMenuMarkup,
   siteFloatingQuickMenuScript,
   siteFloatingQuickMenuStyles,
@@ -287,6 +292,7 @@ app.get('/community', async (c) => {
   <script src="/static/js/utils.js?v=20260328-1"></script>
   ${siteHeaderNavCoursesGlassStyles()}
   ${siteFloatingQuickMenuStyles()}
+  ${siteAiChatWidgetStyles()}
   ${boardCommunityStyles()}
 </head>
 <body class="bg-slate-50">
@@ -301,10 +307,12 @@ app.get('/community', async (c) => {
     </div>
   </footer>
   ${siteFloatingQuickMenuMarkup()}
+  ${siteAiChatWidgetMarkup()}
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       ${siteHeaderDrawerControlScript('pages')}
       ${siteFloatingQuickMenuScript()}
+      ${siteAiChatWidgetScript()}
     });
   </script>
 </body>

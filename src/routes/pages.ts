@@ -8,6 +8,11 @@ import { optionalAuth } from '../middleware/auth'
 import { resolveAdminCommandPulse } from '../utils/site-header-admin-ssr'
 import { siteFooterLegalBlockHtml } from '../utils/site-footer-legal'
 import {
+  siteAiChatWidgetMarkup,
+  siteAiChatWidgetScript,
+  siteAiChatWidgetStyles,
+} from '../utils/site-ai-chat-widget'
+import {
   siteFloatingQuickMenuMarkup,
   siteFloatingQuickMenuScript,
   siteFloatingQuickMenuStyles,
@@ -37,6 +42,7 @@ const getFooter = () => `
     </div>
 </footer>
 ${siteFloatingQuickMenuMarkup()}
+${siteAiChatWidgetMarkup()}
 `
 
 const getCommonHead = (title: string) => `
@@ -129,10 +135,15 @@ const getCommonHead = (title: string) => `
                 min-width: 0 !important;
                 font-size: 0.68rem !important;
             }
+            #ms-ai-chat-root button,
+            #ms-ai-chat-root input {
+                min-width: 0 !important;
+            }
         }
     </style>
     ${siteHeaderNavCoursesGlassStyles()}
     ${siteFloatingQuickMenuStyles()}
+    ${siteAiChatWidgetStyles()}
 </head>
 <body class="bg-gray-50">
 `
@@ -143,6 +154,7 @@ const getCommonFoot = () => `
   document.addEventListener('DOMContentLoaded', () => {
     ${siteHeaderDrawerControlScript('pages')}
     ${siteFloatingQuickMenuScript()}
+    ${siteAiChatWidgetScript()}
   })
 </script>
 </body>

@@ -7,6 +7,11 @@ import { Hono } from 'hono'
 import { Bindings } from '../types/database'
 import { optionalAuth } from '../middleware/auth'
 import {
+  siteAiChatWidgetMarkup,
+  siteAiChatWidgetScript,
+  siteAiChatWidgetStyles,
+} from '../utils/site-ai-chat-widget'
+import {
   siteFloatingQuickMenuMarkup,
   siteFloatingQuickMenuScript,
   siteFloatingQuickMenuStyles,
@@ -50,6 +55,7 @@ pagesEnrollment.get('/enrollment', optionalAuth, async (c) => {
         <script src="/static/js/auth.js?v=20260329-admin-name"></script>
         <script src="/static/js/utils.js"></script>
         ${siteFloatingQuickMenuStyles()}
+        ${siteAiChatWidgetStyles()}
         
         <style>
             * {
@@ -243,9 +249,11 @@ pagesEnrollment.get('/enrollment', optionalAuth, async (c) => {
             </div>
         </footer>
         ${siteFloatingQuickMenuMarkup()}
+        ${siteAiChatWidgetMarkup()}
         
         <script>
             ${siteFloatingQuickMenuScript()}
+            ${siteAiChatWidgetScript()}
             const IS_ADMIN_FREEPASS = ${user.role === 'admin' ? 'true' : 'false'}
             let allCourses = []
             let enrolledCourseIds = []

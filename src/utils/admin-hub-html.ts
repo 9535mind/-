@@ -3,6 +3,11 @@
  * /admin/dashboard 에서만 로드, 다른 /admin/* 는 여기로 리다이렉트
  */
 import { STATIC_JS_CACHE_QUERY } from './static-js-cache-bust'
+import {
+  siteAiChatWidgetMarkup,
+  siteAiChatWidgetScript,
+  siteAiChatWidgetStyles,
+} from './site-ai-chat-widget'
 
 export function adminHubPageHtml(): string {
   return `<!DOCTYPE html>
@@ -13,6 +18,48 @@ export function adminHubPageHtml(): string {
   <title>중앙 관제탑 — 마인드스토리 원격평생교육원</title>
   <link rel="stylesheet" href="/static/css/app.css" />
   <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+  ${siteAiChatWidgetStyles()}
+  <style id="hub-gnb-titanium">
+    /* 관제탑 데스크톱 서브 GNB — 다크 티타늄 (SaaS) */
+    #hubDesktopGnb .hub-gnb-trigger {
+      -webkit-tap-highlight-color: transparent;
+    }
+    #hubDesktopGnb .hub-gnb-trigger-label {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+      line-height: 1.2;
+    }
+    #hubDesktopGnb .hub-gnb-trigger--active .hub-gnb-trigger-label::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: -0.45rem;
+      height: 2px;
+      border-radius: 9999px;
+      background: linear-gradient(90deg, rgb(52 211 153), rgb(45 212 191));
+      box-shadow: 0 0 12px rgba(52, 211, 153, 0.35);
+    }
+    #hubDesktopGnb .hub-gnb-chevron {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+      margin-top: 1px;
+      color: currentColor;
+    }
+    #hubDesktopGnb .hub-gnb-trigger--active {
+      color: rgb(255 255 255);
+      font-weight: 600;
+    }
+    #hubDesktopGnb .hub-gnb-trigger:hover .hub-gnb-chevron,
+    #hubDesktopGnb .hub-gnb-trigger:focus-visible .hub-gnb-chevron,
+    #hubDesktopGnb .hub-gnb-trigger--active .hub-gnb-chevron {
+      opacity: 1;
+    }
+  </style>
 </head>
 <body class="bg-slate-100 min-h-screen">
   <div id="hubMobileBackdrop" class="fixed inset-0 z-[100] bg-black/50 opacity-0 pointer-events-none transition-opacity md:hidden" aria-hidden="true"></div>
@@ -81,11 +128,14 @@ export function adminHubPageHtml(): string {
         </button>
       </div>
     </div>
-    <div class="hidden md:block border-t border-white/10">
-      <div class="max-w-7xl mx-auto px-4 py-2 flex flex-wrap items-center gap-1 lg:gap-2" id="hubDesktopGnb">
+    <div class="hidden md:block border-t border-white/5 bg-black/10">
+      <div class="max-w-7xl mx-auto px-4 py-2.5 flex flex-wrap items-end gap-6 lg:gap-8" id="hubDesktopGnb">
         <div class="relative group" data-hub-group="ops">
-          <button type="button" class="hub-gnb-trigger px-3 py-2 rounded-lg text-sm font-medium text-indigo-100 hover:bg-white/10 border border-transparent group-hover:border-white/20 flex items-center gap-1">
-            운영 센터 <i class="fas fa-chevron-down text-[10px] opacity-70"></i>
+          <button type="button" class="hub-gnb-trigger relative z-10 inline-flex flex-col items-center justify-end rounded-md border-0 bg-transparent px-3 py-1.5 text-sm font-medium text-slate-300 transition-all duration-200 hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/40">
+            <span class="hub-gnb-trigger-label">
+              운영 센터
+              <i class="fas fa-chevron-down hub-gnb-chevron text-[10px] text-current opacity-80 transition-opacity duration-200" aria-hidden="true"></i>
+            </span>
           </button>
           <div class="absolute left-0 top-full pt-1 min-w-[14rem] opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-150 z-50 pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto">
             <div class="rounded-xl bg-slate-800 border border-white/10 shadow-xl py-2 text-sm">
@@ -97,8 +147,11 @@ export function adminHubPageHtml(): string {
           </div>
         </div>
         <div class="relative group" data-hub-group="edu">
-          <button type="button" class="hub-gnb-trigger px-3 py-2 rounded-lg text-sm font-medium text-indigo-100 hover:bg-white/10 border border-transparent group-hover:border-white/20 flex items-center gap-1">
-            교육 및 자격 <i class="fas fa-chevron-down text-[10px] opacity-70"></i>
+          <button type="button" class="hub-gnb-trigger relative z-10 inline-flex flex-col items-center justify-end rounded-md border-0 bg-transparent px-3 py-1.5 text-sm font-medium text-slate-300 transition-all duration-200 hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/40">
+            <span class="hub-gnb-trigger-label">
+              교육 및 자격
+              <i class="fas fa-chevron-down hub-gnb-chevron text-[10px] text-current opacity-80 transition-opacity duration-200" aria-hidden="true"></i>
+            </span>
           </button>
           <div class="absolute left-0 top-full pt-1 min-w-[15rem] opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-150 z-50 pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto">
             <div class="rounded-xl bg-slate-800 border border-white/10 shadow-xl py-2 text-sm">
@@ -110,8 +163,11 @@ export function adminHubPageHtml(): string {
           </div>
         </div>
         <div class="relative group" data-hub-group="pub">
-          <button type="button" class="hub-gnb-trigger px-3 py-2 rounded-lg text-sm font-medium text-indigo-100 hover:bg-white/10 border border-transparent group-hover:border-white/20 flex items-center gap-1">
-            출판 및 ISBN <i class="fas fa-chevron-down text-[10px] opacity-70"></i>
+          <button type="button" class="hub-gnb-trigger relative z-10 inline-flex flex-col items-center justify-end rounded-md border-0 bg-transparent px-3 py-1.5 text-sm font-medium text-slate-300 transition-all duration-200 hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/40">
+            <span class="hub-gnb-trigger-label">
+              출판 및 ISBN
+              <i class="fas fa-chevron-down hub-gnb-chevron text-[10px] text-current opacity-80 transition-opacity duration-200" aria-hidden="true"></i>
+            </span>
           </button>
           <div class="absolute left-0 top-full pt-1 min-w-[14rem] opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-150 z-50 pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto">
             <div class="rounded-xl bg-slate-800 border border-white/10 shadow-xl py-2 text-sm">
@@ -122,8 +178,11 @@ export function adminHubPageHtml(): string {
           </div>
         </div>
         <div class="relative group" data-hub-group="sys">
-          <button type="button" class="hub-gnb-trigger px-3 py-2 rounded-lg text-sm font-medium text-indigo-100 hover:bg-white/10 border border-transparent group-hover:border-white/20 flex items-center gap-1">
-            시스템 지원 <i class="fas fa-chevron-down text-[10px] opacity-70"></i>
+          <button type="button" class="hub-gnb-trigger relative z-10 inline-flex flex-col items-center justify-end rounded-md border-0 bg-transparent px-3 py-1.5 text-sm font-medium text-slate-300 transition-all duration-200 hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/40">
+            <span class="hub-gnb-trigger-label">
+              시스템 지원
+              <i class="fas fa-chevron-down hub-gnb-chevron text-[10px] text-current opacity-80 transition-opacity duration-200" aria-hidden="true"></i>
+            </span>
           </button>
           <div class="absolute left-0 top-full pt-1 min-w-[14rem] opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-150 z-50 pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto">
             <div class="rounded-xl bg-slate-800 border border-white/10 shadow-xl py-2 text-sm">
@@ -138,92 +197,111 @@ export function adminHubPageHtml(): string {
   </nav>
 
   <main class="max-w-7xl mx-auto px-4 py-6">
-    <!-- 대시보드 -->
-    <section id="panel-dashboard" class="hub-panel space-y-6">
-      <p class="text-sm text-slate-600">카드를 클릭하면 요약 설명을 보고, 관련 관리 탭으로 바로 이동할 수 있습니다.</p>
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <button type="button" data-hub-kpi="users" class="hub-kpi-card group rounded-2xl bg-white shadow-lg border border-slate-200 p-6 flex flex-col justify-between text-left cursor-pointer transition hover:shadow-xl hover:border-indigo-300 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 active:scale-[0.99]">
-          <div class="flex justify-between items-start gap-2">
-            <div>
-              <p class="text-sm font-medium text-slate-500">총 회원수</p>
-              <p class="text-3xl font-bold text-purple-600 mt-1 tabular-nums" id="statTotalUsers">—</p>
-            </div>
-            <span class="rounded-full bg-purple-100 text-purple-700 p-3 shrink-0 group-hover:bg-purple-200 transition-colors"><i class="fas fa-users"></i></span>
-          </div>
-          <p class="text-xs text-slate-400 mt-3">삭제되지 않은 전체 회원 계정 수</p>
-        </button>
-        <button type="button" data-hub-kpi="courses" class="hub-kpi-card group rounded-2xl bg-white shadow-lg border border-slate-200 p-6 flex flex-col justify-between text-left cursor-pointer transition hover:shadow-xl hover:border-blue-300 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 active:scale-[0.99]">
-          <div class="flex justify-between items-start gap-2">
-            <div>
-              <p class="text-sm font-medium text-slate-500">총 강좌수</p>
-              <p class="text-3xl font-bold text-blue-600 mt-1 tabular-nums" id="statTotalCourses">—</p>
-            </div>
-            <span class="rounded-full bg-blue-100 text-blue-700 p-3 shrink-0 group-hover:bg-blue-200 transition-colors"><i class="fas fa-book"></i></span>
-          </div>
-          <p class="text-xs text-slate-400 mt-3">상태가 <code class="text-[11px] bg-slate-100 px-1 rounded">published</code>인 강좌</p>
-        </button>
-        <button type="button" data-hub-kpi="revenue" class="hub-kpi-card group rounded-2xl bg-white shadow-lg border border-slate-200 p-6 flex flex-col justify-between text-left cursor-pointer transition hover:shadow-xl hover:border-emerald-300 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 active:scale-[0.99]">
-          <div class="flex justify-between items-start gap-2">
-            <div>
-              <p class="text-sm font-medium text-slate-500">이번 달 매출</p>
-              <p class="text-3xl font-bold text-emerald-600 mt-1 tabular-nums" id="statMonthlyRevenue">—</p>
-            </div>
-            <span class="rounded-full bg-emerald-100 text-emerald-700 p-3 shrink-0 group-hover:bg-emerald-200 transition-colors"><i class="fas fa-won-sign"></i></span>
-          </div>
-          <p class="text-xs text-slate-400 mt-3">당월 결제·주문 합계 (API 집계 기준)</p>
-        </button>
-        <button type="button" data-hub-kpi="enrollments" class="hub-kpi-card group rounded-2xl bg-white shadow-lg border border-slate-200 p-6 flex flex-col justify-between text-left cursor-pointer transition hover:shadow-xl hover:border-amber-300 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 active:scale-[0.99]">
-          <div class="flex justify-between items-start gap-2">
-            <div>
-              <p class="text-sm font-medium text-slate-500">활성 수강생</p>
-              <p class="text-3xl font-bold text-orange-600 mt-1 tabular-nums" id="statActiveEnrollments">—</p>
-            </div>
-            <span class="rounded-full bg-orange-100 text-orange-700 p-3 shrink-0 group-hover:bg-orange-200 transition-colors"><i class="fas fa-graduation-cap"></i></span>
-          </div>
-          <p class="text-xs text-slate-400 mt-3">수강 완료 전(진행 중) 수강신청 건수</p>
-        </button>
-      </div>
-      <h2 class="text-sm font-semibold text-slate-700 uppercase tracking-wide">오늘의 지표</h2>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <button type="button" data-hub-pulse="signup" class="hub-pulse-card group rounded-2xl bg-white shadow-lg border border-slate-200 p-6 flex flex-col justify-between text-left w-full cursor-pointer transition hover:shadow-xl hover:border-indigo-300 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 active:scale-[0.99]">
-          <div class="flex justify-between items-start">
-            <div>
-              <p class="text-sm font-medium text-slate-500">오늘의 신규 가입자</p>
-              <p class="text-3xl font-bold text-indigo-600 mt-1 tabular-nums" id="pulseSignup">—</p>
-            </div>
-            <span class="rounded-full bg-indigo-100 text-indigo-700 p-3 group-hover:bg-indigo-200 transition-colors"><i class="fas fa-user-plus"></i></span>
-          </div>
-          <p class="text-xs text-slate-400 mt-3">오늘 00:00 ~ 현재 기준 가입 완료 회원</p>
-        </button>
-        <button type="button" data-hub-pulse="payment" class="hub-pulse-card group rounded-2xl bg-white shadow-lg border border-slate-200 p-6 flex flex-col justify-between text-left w-full cursor-pointer transition hover:shadow-xl hover:border-emerald-300 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 active:scale-[0.99]">
-          <div class="flex justify-between items-start">
-            <div>
-              <p class="text-sm font-medium text-slate-500">오늘의 결제 금액</p>
-              <p class="text-3xl font-bold text-emerald-600 mt-1 tabular-nums" id="pulsePayment">—</p>
-            </div>
-            <span class="rounded-full bg-emerald-100 text-emerald-700 p-3 group-hover:bg-emerald-200 transition-colors"><i class="fas fa-won-sign"></i></span>
-          </div>
-          <p class="text-xs text-slate-400 mt-3">오늘 결제 완료 주문 합계 (orders / payments)</p>
-        </button>
-        <button type="button" data-hub-pulse="inquiry" class="hub-pulse-card group rounded-2xl bg-white shadow-lg border border-slate-200 p-6 flex flex-col justify-between text-left w-full cursor-pointer transition hover:shadow-xl hover:border-amber-300 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 active:scale-[0.99]">
-          <div class="flex justify-between items-start">
-            <div>
-              <p class="text-sm font-medium text-slate-500">미답변 문의</p>
-              <p class="text-3xl font-bold text-amber-600 mt-1 tabular-nums" id="pulseInquiries">—</p>
-            </div>
-            <span class="rounded-full bg-amber-100 text-amber-700 p-3 group-hover:bg-amber-200 transition-colors"><i class="fas fa-inbox"></i></span>
-          </div>
-          <p class="text-xs text-slate-400 mt-3">support_inquiries.status = open (마이그레이션 적용 후 집계)</p>
-        </button>
-      </div>
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div class="bg-white rounded-xl shadow border border-slate-200 p-4">
-          <h3 class="font-semibold text-slate-800 mb-3"><i class="fas fa-bolt mr-2 text-indigo-500"></i>최근 결제</h3>
-          <div id="hubRecentPayments" class="space-y-2 text-sm text-slate-600 min-h-[120px]">로딩 중…</div>
+    <!-- 대시보드 (실무 KPI + 목업 데이터 — API 연동 시 교체) -->
+    <section id="panel-dashboard" class="hub-panel space-y-0">
+      <p class="text-sm text-slate-500 mb-4">오늘 기준 요약입니다. <span class="text-slate-400">(데모 데이터)</span></p>
+
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+          <p class="text-sm font-medium text-slate-500">오늘 신규 가입</p>
+          <p class="text-3xl font-bold text-slate-900 mt-2 tabular-nums">12명</p>
+          <p class="text-xs text-slate-500 mt-2">B2B 승인 대기 1명</p>
         </div>
-        <div class="bg-white rounded-xl shadow border border-slate-200 p-4">
-          <h3 class="font-semibold text-slate-800 mb-3"><i class="fas fa-user-plus mr-2 text-indigo-500"></i>최근 수강신청</h3>
-          <div id="hubRecentEnrollments" class="space-y-2 text-sm text-slate-600 min-h-[120px]">로딩 중…</div>
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+          <p class="text-sm font-medium text-slate-500">오늘 수강 신청</p>
+          <p class="text-3xl font-bold text-slate-900 mt-2 tabular-nums">18건</p>
+          <p class="text-xs text-slate-500 mt-2">MindStory Classic 12건</p>
+        </div>
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+          <p class="text-sm font-medium text-slate-500">오늘 결제 금액</p>
+          <p class="text-3xl font-bold text-emerald-600 mt-2 tabular-nums">₩ 1,250,000</p>
+          <p class="text-xs text-emerald-700/80 mt-2">전일 대비 ▲ 12%</p>
+        </div>
+        <div class="rounded-xl border border-rose-200/90 bg-rose-50 shadow-sm p-5 ring-1 ring-rose-100/80">
+          <p class="text-sm font-semibold text-rose-800">즉시 처리 필요</p>
+          <p class="text-3xl font-bold text-rose-600 mt-2 tabular-nums">8건</p>
+          <p class="text-xs text-rose-700/90 mt-2">누적 미처리 업무 · 우선 확인</p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+          <h2 class="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
+            <span class="text-lg" aria-hidden="true">🚨</span> Action Required <span class="text-sm font-normal text-slate-500">(할 일 목록)</span>
+          </h2>
+          <ul class="space-y-2">
+            <li>
+              <a href="#payments" class="flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50/50 px-4 py-3 text-sm text-slate-800 transition hover:bg-slate-100 hover:border-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
+                <span class="font-medium">무통장 입금 확인 대기</span>
+                <span class="flex items-center gap-2 shrink-0">
+                  <span class="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">3건</span>
+                  <span class="text-slate-400" aria-hidden="true">➔</span>
+                </span>
+              </a>
+            </li>
+            <li>
+              <a href="#members" class="flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50/50 px-4 py-3 text-sm text-slate-800 transition hover:bg-slate-100 hover:border-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
+                <span class="font-medium">B2B / 강사 권한 승인 대기</span>
+                <span class="flex items-center gap-2 shrink-0">
+                  <span class="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">1건</span>
+                  <span class="text-slate-400" aria-hidden="true">➔</span>
+                </span>
+              </a>
+            </li>
+            <li>
+              <a href="#support" class="flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50/50 px-4 py-3 text-sm text-slate-800 transition hover:bg-slate-100 hover:border-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
+                <span class="font-medium">미답변 1:1 문의 및 Q&amp;A</span>
+                <span class="flex items-center gap-2 shrink-0">
+                  <span class="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">4건</span>
+                  <span class="text-slate-400" aria-hidden="true">➔</span>
+                </span>
+              </a>
+            </li>
+          </ul>
+        </div>
+
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+          <h2 class="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
+            <span class="text-lg" aria-hidden="true">💰</span> 실시간 결제 내역
+          </h2>
+          <p class="text-xs text-slate-500 mb-3">최근 5건 <span class="text-slate-400">(샘플)</span></p>
+          <ul class="divide-y divide-slate-100 text-sm">
+            <li class="flex flex-wrap items-center gap-x-3 gap-y-1 py-3 first:pt-0">
+              <span class="font-medium text-slate-900">김*성</span>
+              <span class="text-slate-500">MindStory Classic</span>
+              <span class="ml-auto font-semibold text-slate-800 tabular-nums">₩ 150,000</span>
+              <span class="rounded-md bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">결제완료</span>
+              <span class="text-xs text-slate-400 w-full sm:w-auto sm:ml-auto">10분 전</span>
+            </li>
+            <li class="flex flex-wrap items-center gap-x-3 gap-y-1 py-3">
+              <span class="font-medium text-slate-900">이*희</span>
+              <span class="text-slate-500">MindStory Next</span>
+              <span class="ml-auto font-semibold text-slate-800 tabular-nums">₩ 298,000</span>
+              <span class="rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">입금대기</span>
+              <span class="text-xs text-slate-400 w-full sm:w-auto sm:ml-auto">32분 전</span>
+            </li>
+            <li class="flex flex-wrap items-center gap-x-3 gap-y-1 py-3">
+              <span class="font-medium text-slate-900">박*준</span>
+              <span class="text-slate-500">MindStory Classic</span>
+              <span class="ml-auto font-semibold text-slate-800 tabular-nums">₩ 150,000</span>
+              <span class="rounded-md bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">결제완료</span>
+              <span class="text-xs text-slate-400 w-full sm:w-auto sm:ml-auto">1시간 전</span>
+            </li>
+            <li class="flex flex-wrap items-center gap-x-3 gap-y-1 py-3">
+              <span class="font-medium text-slate-900">최*원</span>
+              <span class="text-slate-500">메타인지 클리닉</span>
+              <span class="ml-auto font-semibold text-slate-800 tabular-nums">₩ 89,000</span>
+              <span class="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">부분취소</span>
+              <span class="text-xs text-slate-400 w-full sm:w-auto sm:ml-auto">2시간 전</span>
+            </li>
+            <li class="flex flex-wrap items-center gap-x-3 gap-y-1 py-3">
+              <span class="font-medium text-slate-900">정*아</span>
+              <span class="text-slate-500">MindStory Classic</span>
+              <span class="ml-auto font-semibold text-slate-800 tabular-nums">₩ 150,000</span>
+              <span class="rounded-md bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">결제완료</span>
+              <span class="text-xs text-slate-400 w-full sm:w-auto sm:ml-auto">어제 18:42</span>
+            </li>
+          </ul>
         </div>
       </div>
     </section>
@@ -532,10 +610,13 @@ export function adminHubPageHtml(): string {
     </div>
   </div>
 
+  ${siteAiChatWidgetMarkup()}
+  <script>${siteAiChatWidgetScript()}</script>
+
   <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
   <script src="/static/js/auth.js?v=20260329-admin-name"></script>
   <script src="/static/js/utils.js"></script>
-  <script src="/static/js/admin-hub.js"></script>
+  <script src="/static/js/admin-hub.js?v=20260328-dashboard-mock"></script>
   <script src="/static/js/admin-isbn.js"></script>
   <script src="/static/js/security.js${STATIC_JS_CACHE_QUERY}"></script>
 </body>

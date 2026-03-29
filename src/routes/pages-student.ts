@@ -6,6 +6,11 @@
 import { Hono } from 'hono'
 import type { Bindings } from '../types/database'
 import {
+  siteAiChatWidgetMarkup,
+  siteAiChatWidgetScript,
+  siteAiChatWidgetStyles,
+} from '../utils/site-ai-chat-widget'
+import {
   siteFloatingQuickMenuMarkup,
   siteFloatingQuickMenuScript,
   siteFloatingQuickMenuStyles,
@@ -30,6 +35,7 @@ app.get('/my-courses', (c) => {
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script src="/static/js/auth.js?v=20260329-admin-name"></script>
         ${siteFloatingQuickMenuStyles()}
+        ${siteAiChatWidgetStyles()}
     </head>
     <body class="bg-gray-50">
         <!-- 헤더 -->
@@ -98,9 +104,11 @@ app.get('/my-courses', (c) => {
             </div>
         </main>
         ${siteFloatingQuickMenuMarkup()}
+        ${siteAiChatWidgetMarkup()}
 
         <script>
         ${siteFloatingQuickMenuScript()}
+        ${siteAiChatWidgetScript()}
         let allCourses = [];
         let currentFilter = 'all';
 
@@ -309,6 +317,7 @@ app.get('/courses/:courseId/lessons/:lessonId', (c) => {
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script src="/static/js/auth.js?v=20260329-admin-name"></script>
         ${siteFloatingQuickMenuStyles()}
+        ${siteAiChatWidgetStyles()}
     </head>
     <body class="bg-gray-50">
         <!-- 헤더 -->
@@ -453,9 +462,11 @@ app.get('/courses/:courseId/lessons/:lessonId', (c) => {
             </div>
         </main>
         ${siteFloatingQuickMenuMarkup()}
+        ${siteAiChatWidgetMarkup()}
 
         <script>
         ${siteFloatingQuickMenuScript()}
+        ${siteAiChatWidgetScript()}
         const courseId = ${courseId};
         const lessonId = ${lessonId};
         let lessonData = null;

@@ -9,6 +9,11 @@ import { optionalAuth } from '../middleware/auth'
 import { resolveAdminCommandPulse } from '../utils/site-header-admin-ssr'
 import { siteFooterLegalBlockHtml } from '../utils/site-footer-legal'
 import {
+  siteAiChatWidgetMarkup,
+  siteAiChatWidgetScript,
+  siteAiChatWidgetStyles,
+} from '../utils/site-ai-chat-widget'
+import {
   siteFloatingQuickMenuMarkup,
   siteFloatingQuickMenuScript,
   siteFloatingQuickMenuStyles,
@@ -49,10 +54,12 @@ async function shell(c: Context, title: string, bodyClass: string, inner: string
     </div>
   </footer>
   ${siteFloatingQuickMenuMarkup()}
+  ${siteAiChatWidgetMarkup()}
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       ${siteHeaderDrawerControlScript('brand')}
       ${siteFloatingQuickMenuScript()}
+      ${siteAiChatWidgetScript()}
     })
   </script>
 </body>
@@ -80,6 +87,7 @@ app.get('/courses/classic', async (c) => {
       (async function() {
         try {
           var msAdmin = document.body.getAttribute('data-ms-admin-chrome') === '1'
+          try { if (localStorage.getItem('mindstory_view_mode') === 'student') msAdmin = false } catch (e) {}
           var res = await axios.get('/api/courses?category_group=CLASSIC')
           var list = res.data.data || []
           var el = document.getElementById('gridClassic')
@@ -128,6 +136,7 @@ app.get('/courses/next', async (c) => {
       (async function() {
         try {
           var msAdmin = document.body.getAttribute('data-ms-admin-chrome') === '1'
+          try { if (localStorage.getItem('mindstory_view_mode') === 'student') msAdmin = false } catch (e) {}
           var res = await axios.get('/api/courses?category_group=NEXT')
           var list = res.data.data || []
           var el = document.getElementById('gridNext')

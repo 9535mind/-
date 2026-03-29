@@ -169,10 +169,28 @@ async function syncUserSession() {
 /** 유틸 바·모바일 드로어·관제탑 등 — 관리자만 초록 배지 (role === 'admin' 엄격 일치). 스타일은 /static/css/app.css */
 const HEADER_USER_NAME_CLASS_USER = 'font-semibold text-slate-900'
 
+const MINDSTORY_VIEW_MODE_KEY = 'mindstory_view_mode'
+
+function getMindstoryViewMode() {
+  try {
+    var v = localStorage.getItem(MINDSTORY_VIEW_MODE_KEY)
+    if (v === 'student' || v === 'admin') return v
+  } catch (e) {}
+  return 'admin'
+}
+
+/** 관리자인데 수강생 뷰로 위장(헤더·크롬 최소화) */
+function isAdminStudentViewActive(user) {
+  return !!(user && user.role === 'admin' && getMindstoryViewMode() === 'student')
+}
+
+window.getMindstoryViewMode = getMindstoryViewMode
+window.isAdminStudentViewActive = isAdminStudentViewActive
+
 function setHeaderDisplayNameEl(el, user) {
   if (!el) return
   const defaultCls = el.getAttribute('data-ms-name-default')
-  if (user && user.role === 'admin') {
+  if (user && user.role === 'admin' && !isAdminStudentViewActive(user)) {
     el.className = 'header-user-admin-badge'
   } else {
     el.className = defaultCls || HEADER_USER_NAME_CLASS_USER
@@ -195,12 +213,130 @@ function applyHeaderUserDisplay(el, user) {
 window.setHeaderDisplayNameEl = setHeaderDisplayNameEl
 window.applyHeaderUserDisplay = applyHeaderUserDisplay
 
+/** 관리자 + 수강생 뷰: SSR된 매직 펜슬·펄스 점 등만 숨김 (일반 회원 DOM 불변) */
+function applyAdminStudentViewMask() {
+  var user = AuthManager.getUser()
+  if (!user || user.role !== 'admin' || getMindstoryViewMode() !== 'student') return
+  document.querySelectorAll('.admin-magic-pencil').forEach(function (el) {
+    el.style.display = 'none'
+    el.setAttribute('aria-hidden', 'true')
+  })
+  document.querySelectorAll('.site-cmd-center-pulse-dot').forEach(function (el) {
+    el.style.display = 'none'
+  })
+}
+
+/** JS로 주입한 매직 펜슬만 제거 (SSR 연필은 그대로) */
+function removeInjectedMagicPencils() {
+  document.querySelectorAll('a.admin-magic-pencil[data-ms-injected="1"]').forEach(function (el) {
+    el.remove()
+  })
+}
+
+/**
+ * [data-ms-magic-pencil-wrap]: 관리자이고 관리자 뷰일 때만 연필 DOM 추가. 그 외에는 추가하지 않음.
+ */
+function mountGlobalMagicPencils(user) {
+  removeInjectedMagicPencils()
+  if (!user || user.role !== 'admin' || isAdminStudentViewActive(user)) return
+  document.querySelectorAll('[data-ms-magic-pencil-wrap]').forEach(function (wrap) {
+    var href = wrap.getAttribute('data-ms-pencil-href') || '/admin/dashboard'
+    var label = wrap.getAttribute('data-ms-pencil-label') || '관리자에서 편집'
+    var a = document.createElement('a')
+    a.href = href
+    a.className = 'admin-magic-pencil admin-magic-pencil--corner'
+    a.setAttribute('data-ms-injected', '1')
+    a.title = '관리자 수정'
+    a.setAttribute('aria-label', label)
+    a.style.pointerEvents = 'auto'
+    a.style.display = 'inline-flex'
+    a.innerHTML = '<i class="fas fa-pencil-alt" aria-hidden="true"></i>'
+    a.addEventListener('click', function (e) {
+      e.stopPropagation()
+    })
+    wrap.appendChild(a)
+  })
+}
+
+/**
+ * 헤더·드로어: 커맨드 센터 앞 관리자 전용 뷰 스위치 (role === 'admin' 일 때만 노출)
+ */
+function setupAdminViewToggleButtons(user) {
+  var desktopBtn = document.getElementById('headerViewToggleBtn')
+  var mobileBtn = document.getElementById('mHeaderViewToggleBtn')
+  var cmdDesk = document.getElementById('headerCommandCenterLink')
+  var cmdMob = document.getElementById('mHeaderCommandCenterLink')
+
+  if (!user || user.role !== 'admin') {
+    ;[desktopBtn, mobileBtn].forEach(function (b) {
+      if (!b) return
+      b.classList.add('hidden')
+      b.style.display = 'none'
+      b.onclick = null
+    })
+    ;[cmdDesk, cmdMob].forEach(function (a) {
+      if (!a) return
+      a.style.display = ''
+    })
+    return
+  }
+
+  var isStudentView = getMindstoryViewMode() === 'student'
+  var label = isStudentView ? '🛠️ 관리자 뷰로 전환' : '👀 수강생 뷰로 전환'
+  var deskCls =
+    'text-xs font-medium px-2 py-1 rounded-md transition-colors whitespace-nowrap items-center justify-center ' +
+    (isStudentView
+      ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+      : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100')
+  var mobCls =
+    'w-full text-xs font-medium px-3 py-2 rounded-md transition-colors justify-center items-center ' +
+    (isStudentView
+      ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+      : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100')
+
+  function flipMode() {
+    try {
+      localStorage.setItem(MINDSTORY_VIEW_MODE_KEY, isStudentView ? 'admin' : 'student')
+    } catch (e) {}
+    location.reload()
+  }
+
+  if (desktopBtn) {
+    desktopBtn.classList.remove('hidden')
+    desktopBtn.className = deskCls
+    desktopBtn.style.display = 'inline-flex'
+    desktopBtn.textContent = label
+    desktopBtn.onclick = flipMode
+  }
+  if (mobileBtn) {
+    mobileBtn.classList.remove('hidden')
+    mobileBtn.className = mobCls
+    mobileBtn.style.display = 'flex'
+    mobileBtn.textContent = label
+    mobileBtn.onclick = flipMode
+  }
+
+  if (cmdDesk) {
+    cmdDesk.style.display = isStudentView ? 'none' : ''
+  }
+  if (cmdMob) {
+    cmdMob.style.display = isStudentView ? 'none' : 'flex'
+  }
+}
+
+function afterHeaderDomReady() {
+  var path = (window.location.pathname || '').replace(/\/$/, '') || '/'
+  if (path === '/login') return
+  applyAdminStudentViewMask()
+}
+
 // 헤더 업데이트 (로그인 상태 표시)
 async function updateHeader() {
   const path = (window.location.pathname || '').replace(/\/$/, '') || '/'
   // /login 은 페이지 인라인 스크립트가 이미 /api/auth/me 로 세션을 검사함.
   // 여기서 syncUserSession()까지 돌리면 동일 요청이 2번 나가 콘솔에 401·로그가 반복됨.
   if (path === '/login') {
+    setupAdminViewToggleButtons(null)
     return
   }
 
@@ -245,13 +381,17 @@ async function updateHeader() {
     if (mUserName) {
       applyHeaderUserDisplay(mUserName, user)
     }
-    if (mAdminSwitch) mAdminSwitch.style.display = user.role === 'admin' ? 'block' : 'none'
+    if (mAdminSwitch) {
+      mAdminSwitch.style.display = user.role === 'admin' ? 'flex' : 'none'
+    }
 
     if (adminNameEl) {
       applyHeaderUserDisplay(adminNameEl, user)
     }
     if (loginBtn) loginBtn.classList.add('hidden')
     if (logoutBtn) logoutBtn.classList.remove('hidden')
+    setupAdminViewToggleButtons(user)
+    mountGlobalMagicPencils(user)
   } else {
     if (authButtons) authButtons.style.display = 'flex'
     if (userMenu) userMenu.style.display = 'none'
@@ -273,12 +413,18 @@ async function updateHeader() {
     }
     if (loginBtn) loginBtn.classList.remove('hidden')
     if (logoutBtn) logoutBtn.classList.add('hidden')
+    setupAdminViewToggleButtons(null)
+    mountGlobalMagicPencils(null)
   }
 }
 
 if (typeof document !== 'undefined') {
   document.addEventListener('DOMContentLoaded', function () {
     updateHeader()
+      .then(afterHeaderDomReady)
+      .catch(function () {
+        afterHeaderDomReady()
+      })
   })
 }
 

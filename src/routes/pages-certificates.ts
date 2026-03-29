@@ -9,6 +9,11 @@ import { getCookie } from 'hono/cookie'
 import type { Bindings } from '../types/database'
 import { SQL_SESSION_S_VALID } from '../utils/helpers'
 import {
+  siteAiChatWidgetMarkup,
+  siteAiChatWidgetScript,
+  siteAiChatWidgetStyles,
+} from '../utils/site-ai-chat-widget'
+import {
   siteFloatingQuickMenuMarkup,
   siteFloatingQuickMenuScript,
   siteFloatingQuickMenuStyles,
@@ -185,7 +190,8 @@ app.get('/certificates/:number', async (c) => {
     </div>
   </footer>
   ${siteFloatingQuickMenuMarkup()}
-  <script>${siteFloatingQuickMenuScript()}</script>
+  ${siteAiChatWidgetMarkup()}
+  <script>${siteFloatingQuickMenuScript()}${siteAiChatWidgetScript()}</script>
 </body>
 </html>`)
   } catch (e) {

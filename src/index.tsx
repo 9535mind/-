@@ -9,7 +9,7 @@ import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
 import { serveStatic } from 'hono/cloudflare-workers'
 import { Bindings } from './types/database'
-import { generalRateLimiter, strictRateLimiter, lenientRateLimiter } from './middleware/rate-limiter'
+import { generalRateLimiter, strictRateLimiter, lenientRateLimiter, rateLimiter } from './middleware/rate-limiter'
 
 // 라우트 임포트
 import auth from './routes/auth'
@@ -33,6 +33,7 @@ import progress from './routes/progress'
 // Removed: certifications (Phase 2 cleanup)
 import upload from './routes/upload'
 import ai from './routes/ai'
+import aiChat from './routes/ai-chat'
 import reviews from './routes/reviews'  // Phase 2: 수강평/별점
 // Removed: external video APIs (Phase 2 cleanup - YouTube only)
 import aiBulkLessons from './routes/ai-bulk-lessons'
@@ -170,6 +171,17 @@ app.use('/api/upload', generalRateLimiter)
 app.use('/api/auth/me', lenientRateLimiter)
 app.use('/api/health', lenientRateLimiter)
 
+// AI 비서(OpenAI): 토큰·비용 보호 — 경로별 레이트 리밋
+app.use(
+  '/api/chat',
+  rateLimiter({
+    bucket: 'ai-chat',
+    windowMs: 60000,
+    max: 18,
+    message: 'AI 비서 요청이 많습니다. 잠시 후 다시 시도해 주세요.'
+  })
+)
+
 // 정적 파일 서빙 (Cloudflare Pages용 - root 제거)
 app.use('/static/*', serveStatic())
 app.use('/uploads/*', serveStatic()) // 업로드된 파일 서빙
@@ -197,6 +209,7 @@ app.route('/api/progress', progress)  // 진도율 추적
 app.route('/api/upload', upload)  // 파일 업로드
 app.route('/api', upload)  // 스토리지 파일 서빙
 app.route('/api/ai', ai)  // AI 도우미
+app.route('/api', aiChat) // POST /api/chat — LMS AI 비서
 // Removed external video API routes (YouTube only)
 app.route('/api/ai-bulk-lessons', aiBulkLessons)  // AI 일괄 차시 생성
 app.route('/api/analytics', analytics)  // 학습 분석 통계
