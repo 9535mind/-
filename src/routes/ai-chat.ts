@@ -40,6 +40,17 @@ function trimContent(s: string, max: number): string {
   return t.slice(0, max) + '…'
 }
 
+function normalizeDisplayName(raw: string): string {
+  const t = String(raw || '').trim().replace(/\s*님$/, '')
+  if (!t) return '방문자님'
+  return t + '님'
+}
+
+function isCertificateQuestion(message: string): boolean {
+  const q = (message || '').toLowerCase()
+  return /자격증|수료증|민간자격|공인\s*민간|국가\s*공인|자격기본법/.test(q)
+}
+
 aiChat.post('/chat', async (c) => {
   const apiKey = (c.env.OPENAI_API_KEY || '').trim()
   if (!apiKey) {
@@ -56,6 +67,7 @@ aiChat.post('/chat', async (c) => {
     message?: string
     summary?: string
     history?: ChatTurn[]
+    userName?: string
   }
   try {
     body = await c.req.json()
@@ -69,7 +81,21 @@ aiChat.post('/chat', async (c) => {
   }
 
   const summaryRaw = trimContent(String(body.summary || ''), 800)
+  const userNameRaw = trimContent(String(body.userName || ''), 80)
+  const displayName = normalizeDisplayName(userNameRaw)
   const historyIn = Array.isArray(body.history) ? body.history : []
+
+  // 자격증 관련 질문은 모호한 답변을 방지하기 위해 고정 가이드 우선 반환
+  if (isCertificateQuestion(userMessage)) {
+    const fixedReply =
+      `${displayName}, 자격증 취득에 대해 명확히 안내해 드립니다.\n\n` +
+      `마인드스토리의 공식 입장은 다음과 같습니다.\n` +
+      `- 국가 공인/공인 민간 자격증은 마인드스토리에서 직접 발행하지 않습니다.\n` +
+      `- 다만, **자격기본법**에 의한 **등록 민간자격증**과 연계된 과정을 운영하고 있습니다.\n` +
+      `- 과정별 발급 주체, 등록번호, 취득 조건(출석·평가·실습)은 상이할 수 있어, 최종 기준은 과정 상세 페이지와 담당자 안내를 확인해 주세요.\n\n` +
+      `제가 ${displayName}을 위해 과정별 자격 연계 여부와 준비 절차를 상세히 찾아보겠습니다.`
+    return c.json({ success: true, reply: fixedReply })
+  }
 
   const messages: { role: 'system' | ChatRole; content: string }[] = [
     { role: 'system', content: MINDSTORY_LMS_AI_GUIDE_SYSTEM }
@@ -80,6 +106,17 @@ aiChat.post('/chat', async (c) => {
       role: 'system',
       content:
         '아래는 이전 대화의 초간략 요약이다. 맥락 참고만 하고, 지금 질문에 직접 답하라.\n' + summaryRaw
+    })
+  }
+  if (userNameRaw) {
+    messages.push({
+      role: 'system',
+      content:
+        '현재 대화 중인 사용자의 표시 이름은 "' +
+        displayName +
+        '"이다. 답변 첫 문장에서 매번은 아니고 가끔만 이름을 자연스럽게 언급해도 된다. 예: "' +
+        displayName +
+        ', 요청하신 정보를 찾았습니다."'
     })
   }
 

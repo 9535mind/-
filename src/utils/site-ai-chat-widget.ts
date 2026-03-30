@@ -75,21 +75,21 @@ export function siteAiChatWidgetMarkup(): string {
         </button>
       </header>
       <div class="min-h-0 flex-1 overflow-y-auto bg-slate-50/40 p-4" id="ms-ai-chat-messages">
-        <div class="rounded-2xl rounded-tl-md border border-white/30 bg-white/70 px-3.5 py-2.5 text-sm leading-relaxed text-slate-700 shadow-sm backdrop-blur-sm">
-          안녕하세요! 사령관님을 돕는 마인드스토리 AI 비서입니다. MindStory Classic·Next·공동훈련(NCS) 라인업을 구분해 안내해 드릴게요. 무엇을 도와드릴까요?
+        <div id="ms-ai-chat-initial-greeting" class="rounded-2xl rounded-tl-md border border-white/30 bg-white/70 px-3.5 py-2.5 text-sm leading-relaxed text-slate-700 shadow-sm backdrop-blur-sm">
+          안녕하세요, 방문자님! 오직 방문자님을 위해 대기 중인 마인드스토리 전용 AI 비서입니다. 무엇을 도와드릴까요?
         </div>
       </div>
       <div class="shrink-0 border-t border-slate-200/50 bg-white/70 px-3 py-2 backdrop-blur-sm">
-        <p class="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">자주 묻는 질문</p>
+        <p class="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">빠른 시작</p>
         <div class="flex flex-wrap gap-1.5">
-          <button type="button" class="ms-ai-quick-btn rounded-lg border border-indigo-200/80 bg-indigo-50/90 px-2 py-1 text-left text-slate-700 transition hover:border-indigo-300 hover:bg-indigo-100/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400" data-ms-prompt="공동훈련센터(NCS) 협약 과정에 필요한 서류와 출석(mOTP) 규정, 수료 기준(진도·평가)을 알려주세요.">
-            🏢 공동훈련 서류 안내
+          <button type="button" class="ms-ai-quick-btn rounded-lg border border-indigo-200/80 bg-indigo-50/90 px-2 py-1 text-left text-slate-700 transition hover:border-indigo-300 hover:bg-indigo-100/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400" data-ms-prompt="Classic 과정 안내를 해주세요. 추천 대상, 학습 목표, 대표 강좌를 알려주세요.">
+            Classic 과정 안내
           </button>
-          <button type="button" class="ms-ai-quick-btn rounded-lg border border-emerald-200/80 bg-emerald-50/90 px-2 py-1 text-left text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-100/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400" data-ms-prompt="MindStory Classic, Next, 공동훈련 중 나에게 맞는 강좌를 추천해 주세요.">
-            📚 추천 강좌 보기
+          <button type="button" class="ms-ai-quick-btn rounded-lg border border-emerald-200/80 bg-emerald-50/90 px-2 py-1 text-left text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-100/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400" data-ms-prompt="Next 마스터 코스 안내를 해주세요. 전문가 대상 포인트, 실전 커리큘럼, 수강 후 기대 성과를 설명해 주세요.">
+            Next 마스터 코스
           </button>
-          <button type="button" class="ms-ai-quick-btn rounded-lg border border-amber-200/80 bg-amber-50/90 px-2 py-1 text-left text-slate-700 transition hover:border-amber-300 hover:bg-amber-100/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400" data-ms-prompt="로그인 방법과 모바일 OTP(mOTP) 출석 확인이 궁금합니다.">
-            🔑 로그인/출석 문의
+          <button type="button" class="ms-ai-quick-btn rounded-lg border border-amber-200/80 bg-amber-50/90 px-2 py-1 text-left text-slate-700 transition hover:border-amber-300 hover:bg-amber-100/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400" data-ms-prompt="공동훈련(NCS) 신청 절차를 알려주세요. 대상자, 필요 서류, 출석(mOTP), 수료 기준을 단계별로 설명해 주세요.">
+            공동훈련(NCS) 신청
           </button>
         </div>
       </div>
@@ -172,6 +172,49 @@ export function siteAiChatWidgetScript(): string {
     var openClasses = ['opacity-100', 'scale-100', 'pointer-events-auto'];
     var closedClasses = ['opacity-0', 'scale-95', 'pointer-events-none', 'invisible'];
 
+    function toHonorificName(rawName) {
+      var t = String(rawName || '').trim();
+      if (!t) return '방문자님';
+      var plain = t.replace(/\s*님$/, '').trim();
+      if (!plain) return '방문자님';
+      return plain === '방문자' ? '방문자님' : plain + '님';
+    }
+
+    function readHeaderUserName() {
+      var ids = ['headerUserName', 'mHeaderUserName', 'adminName'];
+      for (var i = 0; i < ids.length; i++) {
+        var el = document.getElementById(ids[i]);
+        var txt = el && el.textContent ? el.textContent.trim() : '';
+        if (txt) return txt;
+      }
+      return '';
+    }
+
+    function resolveGreetingName() {
+      try {
+        if (typeof AuthManager !== 'undefined' && AuthManager && typeof AuthManager.getUser === 'function') {
+          var u = AuthManager.getUser();
+          var n = u && u.name ? String(u.name).trim() : '';
+          if (n) return toHonorificName(n);
+        }
+      } catch (e) {}
+      var headerName = readHeaderUserName();
+      if (headerName) return toHonorificName(headerName);
+      return '방문자님';
+    }
+
+    function applyInitialGreetingName() {
+      var greetingEl = document.getElementById('ms-ai-chat-initial-greeting');
+      if (!greetingEl) return;
+      var displayName = resolveGreetingName();
+      greetingEl.textContent =
+        '안녕하세요, ' +
+        displayName +
+        '! 오직 ' +
+        displayName +
+        '을 위해 대기 중인 마인드스토리 전용 AI 비서입니다. 무엇을 도와드릴까요?';
+    }
+
     function setOpen(open) {
       root.classList.toggle('ms-ai-chat--open', open);
       fab.setAttribute('aria-expanded', open ? 'true' : 'false');
@@ -218,7 +261,12 @@ export function siteAiChatWidgetScript(): string {
         history.push({ role: 'user', content: tail[j].user });
         history.push({ role: 'assistant', content: tail[j].assistant });
       }
-      return { message: userText, summary: summary || undefined, history: history };
+      return {
+        message: userText,
+        summary: summary || undefined,
+        history: history,
+        userName: resolveGreetingName()
+      };
     }
 
     function appendUserBubble(text) {
@@ -329,6 +377,8 @@ export function siteAiChatWidgetScript(): string {
         }
       });
     });
+
+    applyInitialGreetingName();
   }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initMsAiChat);

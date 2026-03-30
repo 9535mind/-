@@ -58,6 +58,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadDashboardSideLists()
   }
   bindHubDashboardCardClicks()
+  bindHubDashboardDetailDemo()
 
   document.getElementById('userSearchBtn')?.addEventListener('click', () => {
     hubUserPage = 1
@@ -299,6 +300,319 @@ function bindHubDashboardCardClicks() {
       if (cfg) openHubKpiModal(cfg)
     })
   })
+}
+
+/** 대시보드 요약 카드 — 데모 상세 모달 (window.__ADMIN_DASHBOARD_MOCK__ 없을 때) */
+const HUB_DASHBOARD_DEMO_FALLBACK = {
+  'dash-new-signups': {
+    title: '오늘 신규 가입 상세',
+    subtitle: '데모 · 이름 · 유형 · 소속 · 가입시간 · 상태',
+    columns: ['이름', '유형', '소속', '가입시간', '상태', '처리'],
+    actionLabel: '승인',
+    rows: [
+      ['박종석', 'B2B', '(주)마인드상사', '08:12', '승인 대기'],
+      ['김지수', '일반', '—', '08:35', '가입 완료'],
+      ['이민호', '일반', '—', '08:52', '가입 완료'],
+      ['최유진', 'B2B', '(주)에듀테크', '09:05', '승인 대기'],
+    ],
+  },
+  'dash-today-enrollments': {
+    title: '오늘 수강 신청 상세',
+    subtitle: '데모 · 신청자 · 과정 · 금액 · 수단 · 상태',
+    columns: ['신청자명', '신청과정', '결제금액', '결제수단', '상태', '처리'],
+    actionLabel: '확인',
+    rows: [
+      ['김민수', 'MindStory Classic · 진로캠프', '₩150,000', '카드', '결제완료'],
+      ['이수진', 'MindStory Next · AI 동화', '₩298,000', '무통장', '입금대기'],
+      ['박준형', 'MindStory Classic', '₩150,000', '카드', '결제완료'],
+      ['최유리', '메타인지 클리닉', '₩89,000', '카드', '결제완료'],
+    ],
+  },
+  'dash-today-revenue': {
+    title: '오늘 결제 성공 내역',
+    subtitle: '데모 · 오늘 결제완료 건만',
+    columns: ['주문번호', '신청자', '신청과정', '결제금액', '결제수단', '결제시각', '처리'],
+    actionLabel: '확인',
+    rows: [
+      ['ORD-260330-001', '김민수', 'MindStory Classic · 진로캠프', '₩150,000', '카드', '08:18'],
+      ['ORD-260330-003', '박준형', 'MindStory Classic', '₩150,000', '카드', '08:51'],
+      ['ORD-260330-004', '최유리', 'MindStory Classic · 메타인지 입문', '₩150,000', '카드', '09:07'],
+    ],
+  },
+  'dash-urgent-queue': {
+    title: '즉시 처리 필요',
+    subtitle: '데모 · 유형별 구분',
+    columns: [],
+    actionLabel: '처리',
+    rows: [],
+    layout: 'sections',
+    sections: [
+      {
+        title: '무통장 입금 확인',
+        subtitle: '3건',
+        columns: ['입금자', '금액', '입금예정일', '강좌', '접수', '상태', '처리'],
+        rows: [
+          ['이희훈', '₩298,000', '당일', 'MindStory Next', '08:44', '미확인'],
+          ['홍승민', '₩150,000', '당일', 'MindStory Classic', '11:08', '미확인'],
+        ],
+        actionLabel: '승인',
+      },
+      {
+        title: 'B2B / 강사 승인',
+        subtitle: '1건',
+        columns: ['기관 · 신청', '요청 유형', '제출 서류', '접수', '상태', '처리'],
+        rows: [['(주)에듀테크 · 강사 신청', '기관 소속 강사', '이력서·자격증', '오늘 09:12', '대기']],
+        actionLabel: '승인',
+      },
+      {
+        title: '미답변 Q&A',
+        subtitle: '4건',
+        columns: ['채널', '제목', '회원', '접수', '상태', '처리'],
+        rows: [
+          ['1:1', '로그인이 안 돼요 (카카오 연동)', '김*성', '08:22', '미답변'],
+          ['Q&A', '수료증 발급 기준 문의', '이*희', '09:05', '미답변'],
+        ],
+        actionLabel: '답변 완료',
+      },
+    ],
+  },
+  'dash-action-bank': {
+    title: '무통장 입금 확인 대기',
+    subtitle: '데모 6건 (요약 배지 3건 포함) · 입금 확인 후 강좌 활성화',
+    columns: ['입금자', '금액', '입금예정일', '강좌', '접수', '처리'],
+    actionLabel: '승인',
+    rows: [
+      ['박종석', '₩150,000', '당일', 'MindStory Classic', '08:12'],
+      ['이서연', '₩298,000', '당일', 'MindStory Next', '08:44'],
+      ['최우진', '₩150,000', '익일', 'MindStory Classic', '09:05'],
+      ['정하은', '₩89,000', '당일', '메타인지 클리닉', '09:51'],
+      ['강도윤', '₩150,000', '당일', 'MindStory Classic', '10:18'],
+      ['한지민', '₩298,000', '익일', 'MindStory Next', '10:52'],
+    ],
+  },
+  'dash-action-b2b': {
+    title: 'B2B / 강사 권한 승인 대기',
+    subtitle: '데모 5건 · 기관·강사 계정 검토',
+    columns: ['기관/신청자', '요청 역할', '제출 서류', '접수', '처리'],
+    actionLabel: '승인',
+    rows: [
+      ['광주 OO학원 · 김원장', '기관 관리자', '사업자·위탁계약', '어제'],
+      ['부산 △△센터 · 이팀장', '기관 운영자', '협약서', '2일 전'],
+      ['전북 ◇◇교육 · 박대표', '기관 관리자', '사업자', '3일 전'],
+      ['강사 파견 · 최OO', '강사(심사)', '이력·자격', '오늘'],
+      ['협력사 · 정OO', '콘텐츠 편집', 'NDA', '오늘'],
+    ],
+  },
+  'dash-action-inquiry': {
+    title: '미답변 1:1 문의 · Q&A',
+    subtitle: '데모 6건 (요약 배지 4건 근접) · 답변 등록 시 목록에서 제거',
+    columns: ['채널', '제목', '회원', '접수', '상태', '처리'],
+    actionLabel: '답변 완료',
+    rows: [
+      ['1:1', '수강 연장 가능한가요?', '김*성', '08:30', '미답변'],
+      ['Q&A', 'NCS 서류 양식', '이*희', '09:12', '미답변'],
+      ['1:1', '환급 일정 문의', '박*준', '09:45', '미답변'],
+      ['1:1', 'mOTP 미인증', '최*원', '10:20', '미답변'],
+      ['Q&A', 'Classic vs Next 차이', '정*아', '10:55', '미답변'],
+      ['1:1', '결제 영수증 재발급', '강*우', '11:18', '미답변'],
+    ],
+  },
+}
+
+function getHubDashboardDemoTables() {
+  try {
+    if (typeof window !== 'undefined' && window.__ADMIN_DASHBOARD_MOCK__ && window.__ADMIN_DASHBOARD_MOCK__.tables) {
+      return window.__ADMIN_DASHBOARD_MOCK__.tables
+    }
+  } catch (e) {}
+  return HUB_DASHBOARD_DEMO_FALLBACK
+}
+
+/** 대시보드 상세 모달 — 상태·우선 등 배지 컬럼 */
+function hubDashColumnIsBadge(colName) {
+  const c = String(colName || '').trim()
+  return c === '상태' || c === '우선'
+}
+
+function hubDashBadgeHtml(raw) {
+  const t = String(raw)
+  let cls =
+    'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset max-w-[14rem] truncate '
+  if (/결제완료|가입 완료|완료|정상|승인/.test(t)) cls += 'bg-emerald-50 text-emerald-800 ring-emerald-600/20'
+  else if (/입금대기|승인 대기|대기|미확인|미답변|본인인증|서류|확인필요|부분취소|취소요청/.test(t)) cls += 'bg-amber-50 text-amber-900 ring-amber-600/25'
+  else if (/취소|거절|실패/.test(t)) cls += 'bg-rose-50 text-rose-800 ring-rose-600/20'
+  else if (/긴급|높음/.test(t)) cls += 'bg-violet-50 text-violet-800 ring-violet-600/20'
+  else if (/보통|문의|입금|B2B|시스템/.test(t)) cls += 'bg-slate-100 text-slate-700 ring-slate-500/15'
+  else cls += 'bg-emerald-50/90 text-slate-800 ring-emerald-500/15'
+  return '<span class="' + cls + '" title="' + escapeAttr(t) + '">' + escapeHtml(t) + '</span>'
+}
+
+function hubDashRenderCell(colName, cell) {
+  if (hubDashColumnIsBadge(colName)) return hubDashBadgeHtml(cell)
+  return escapeHtml(String(cell))
+}
+
+function hubDashActionButtonHtml(label) {
+  return (
+    '<button type="button" class="hub-demo-action-btn text-xs font-semibold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 px-3 py-1.5 rounded-lg shadow-sm ring-1 ring-emerald-500/20">' +
+    escapeHtml(label) +
+    '</button>'
+  )
+}
+
+function hubDashboardDetailRenderTableRows(cols, rows, defaultActionLabel) {
+  const actionLabel = defaultActionLabel || '처리'
+  const dataCols = cols.filter((c) => c !== '처리')
+  return (rows || [])
+    .map((cells, idx) => {
+      const tds = dataCols
+        .map((colName, i) => {
+          const cell = cells[i] != null ? cells[i] : ''
+          return '<td class="p-3 align-middle text-slate-800">' + hubDashRenderCell(colName, cell) + '</td>'
+        })
+        .join('')
+      const btn =
+        '<td class="p-3 text-center align-middle hub-demo-action-cell">' +
+        hubDashActionButtonHtml(actionLabel) +
+        '</td>'
+      return '<tr class="hover:bg-emerald-50/50 transition-colors" data-hub-demo-row="' + idx + '">' + tds + btn + '</tr>'
+    })
+    .join('')
+}
+
+function openHubDashboardDetailModal(kind) {
+  const cfg = getHubDashboardDemoTables()[kind]
+  if (!cfg) return
+  const modal = document.getElementById('hubDashboardDetailModal')
+  const titleEl = document.getElementById('hubDashboardDetailTitle')
+  const subEl = document.getElementById('hubDashboardDetailSubtitle')
+  const tableWrap = document.getElementById('hubDashboardDetailTableWrap')
+  const sectionsWrap = document.getElementById('hubDashboardDetailSectionsWrap')
+  const thead = document.getElementById('hubDashboardDetailThead')
+  const tbody = document.getElementById('hubDashboardDetailTbody')
+  if (!modal || !titleEl || !subEl || !tableWrap || !sectionsWrap || !thead || !tbody) return
+
+  titleEl.textContent = cfg.title
+  subEl.textContent = cfg.subtitle
+
+  const useSections = cfg.layout === 'sections' && cfg.sections && cfg.sections.length
+
+  if (useSections) {
+    tableWrap.classList.add('hidden')
+    sectionsWrap.classList.remove('hidden')
+    thead.innerHTML = ''
+    tbody.innerHTML = ''
+    const defaultAct = cfg.actionLabel || '처리'
+    sectionsWrap.innerHTML = cfg.sections
+      .map((sec) => {
+        const cols = sec.columns || []
+        const act = sec.actionLabel || defaultAct
+        const theadRow =
+          '<tr>' +
+          cols
+            .map(
+              (c) =>
+                '<th class="p-3 font-semibold whitespace-nowrap bg-slate-50/90 text-slate-700 border-b border-slate-100">' +
+                escapeHtml(c) +
+                '</th>',
+            )
+            .join('') +
+          '</tr>'
+        const body = hubDashboardDetailRenderTableRows(cols, sec.rows, act)
+        return (
+          '<section class="rounded-xl border border-slate-200 overflow-hidden shadow-sm bg-white ring-1 ring-violet-500/10">' +
+          '<div class="px-4 py-3 bg-gradient-to-r from-emerald-50/90 to-violet-50/40 border-b border-slate-100">' +
+          '<h4 class="text-sm font-bold text-slate-800">' +
+          escapeHtml(sec.title) +
+          '</h4>' +
+          (sec.subtitle
+            ? '<p class="text-xs text-violet-700/80 font-medium mt-0.5">' + escapeHtml(sec.subtitle) + '</p>'
+            : '') +
+          '</div>' +
+          '<div class="overflow-x-auto"><table class="w-full text-sm text-left">' +
+          '<thead>' +
+          theadRow +
+          '</thead><tbody class="divide-y divide-slate-100">' +
+          body +
+          '</tbody></table></div></section>'
+        )
+      })
+      .join('')
+  } else {
+    tableWrap.classList.remove('hidden')
+    sectionsWrap.classList.add('hidden')
+    sectionsWrap.innerHTML = ''
+    const cols = cfg.columns || []
+    thead.innerHTML =
+      '<tr>' +
+      cols
+        .map(
+          (c) =>
+            '<th class="p-3 font-semibold whitespace-nowrap bg-slate-50/90 text-slate-700 border-b border-slate-100">' +
+            escapeHtml(c) +
+            '</th>',
+        )
+        .join('') +
+      '</tr>'
+    const actionLabel = cfg.actionLabel || '처리'
+    tbody.innerHTML = hubDashboardDetailRenderTableRows(cols, cfg.rows, actionLabel)
+  }
+
+  modal.classList.remove('hidden')
+  modal.classList.add('flex')
+
+  const esc = (e) => {
+    if (e.key === 'Escape') {
+      closeHubDashboardDetailModal()
+      document.removeEventListener('keydown', esc)
+    }
+  }
+  openHubDashboardDetailModal._esc = esc
+  document.addEventListener('keydown', esc)
+}
+
+window.openHubDashboardDetailModal = openHubDashboardDetailModal
+
+function closeHubDashboardDetailModal() {
+  const modal = document.getElementById('hubDashboardDetailModal')
+  const sectionsWrap = document.getElementById('hubDashboardDetailSectionsWrap')
+  if (sectionsWrap) sectionsWrap.innerHTML = ''
+  if (modal) {
+    modal.classList.add('hidden')
+    modal.classList.remove('flex')
+  }
+  if (openHubDashboardDetailModal._esc) {
+    document.removeEventListener('keydown', openHubDashboardDetailModal._esc)
+    openHubDashboardDetailModal._esc = null
+  }
+}
+
+window.closeHubDashboardDetailModal = closeHubDashboardDetailModal
+
+function bindHubDashboardDetailDemo() {
+  const panel = document.getElementById('panel-dashboard')
+  if (!panel) return
+  panel.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-hub-dash-detail]')
+    if (!t) return
+    const kind = t.getAttribute('data-hub-dash-detail')
+    if (kind) openHubDashboardDetailModal(kind)
+  })
+
+  const modal = document.getElementById('hubDashboardDetailModal')
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      const btn = e.target.closest('.hub-demo-action-btn')
+      if (!btn) return
+      const tr = btn.closest('tr')
+      if (!tr) return
+      tr.classList.add('bg-emerald-50', 'transition-colors')
+      const cell = btn.closest('.hub-demo-action-cell')
+      if (cell) {
+        cell.innerHTML = '<span class="text-emerald-700 font-semibold text-sm py-1 inline-block">완료</span>'
+      }
+    })
+  }
 }
 
 async function loadDashboardSideLists() {

@@ -4,12 +4,20 @@
  */
 import { STATIC_JS_CACHE_QUERY } from './static-js-cache-bust'
 import {
+  getAdminDashboardMockInlinePayload,
+  renderRecentPaymentsHtml,
+} from './admin-dashboard-mock-data'
+import {
   siteAiChatWidgetMarkup,
   siteAiChatWidgetScript,
   siteAiChatWidgetStyles,
 } from './site-ai-chat-widget'
 
 export function adminHubPageHtml(): string {
+  const dashboardMockPayload = getAdminDashboardMockInlinePayload()
+  const dashboardMockInlineJson = JSON.stringify(dashboardMockPayload).replace(/</g, '\\u003c')
+  const dashboardRecentPaymentsHtml = renderRecentPaymentsHtml(dashboardMockPayload.recentPayments)
+
   return `<!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -202,26 +210,30 @@ export function adminHubPageHtml(): string {
       <p class="text-sm text-slate-500 mb-4">오늘 기준 요약입니다. <span class="text-slate-400">(데모 데이터)</span></p>
 
       <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+        <button type="button" data-hub-dash-detail="dash-new-signups" class="text-left bg-white rounded-xl border border-slate-200 shadow-sm p-5 w-full cursor-pointer transition hover:border-indigo-300 hover:ring-2 hover:ring-indigo-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
           <p class="text-sm font-medium text-slate-500">오늘 신규 가입</p>
           <p class="text-3xl font-bold text-slate-900 mt-2 tabular-nums">12명</p>
           <p class="text-xs text-slate-500 mt-2">B2B 승인 대기 1명</p>
-        </div>
-        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+          <p class="text-[11px] text-indigo-500 mt-2">클릭하여 상세 목록 (데모)</p>
+        </button>
+        <button type="button" data-hub-dash-detail="dash-today-enrollments" class="text-left bg-white rounded-xl border border-slate-200 shadow-sm p-5 w-full cursor-pointer transition hover:border-indigo-300 hover:ring-2 hover:ring-indigo-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
           <p class="text-sm font-medium text-slate-500">오늘 수강 신청</p>
           <p class="text-3xl font-bold text-slate-900 mt-2 tabular-nums">18건</p>
-          <p class="text-xs text-slate-500 mt-2">MindStory Classic 12건</p>
-        </div>
-        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+          <p class="text-xs text-slate-500 mt-2">Classic 12건 · Next 4건 · 메타인지 2건</p>
+          <p class="text-[11px] text-indigo-500 mt-2">클릭하여 상세 목록 (데모)</p>
+        </button>
+        <button type="button" data-hub-dash-detail="dash-today-revenue" class="text-left bg-white rounded-xl border border-slate-200 shadow-sm p-5 w-full cursor-pointer transition hover:border-indigo-300 hover:ring-2 hover:ring-indigo-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
           <p class="text-sm font-medium text-slate-500">오늘 결제 금액</p>
           <p class="text-3xl font-bold text-emerald-600 mt-2 tabular-nums">₩ 1,250,000</p>
           <p class="text-xs text-emerald-700/80 mt-2">전일 대비 ▲ 12%</p>
-        </div>
-        <div class="rounded-xl border border-rose-200/90 bg-rose-50 shadow-sm p-5 ring-1 ring-rose-100/80">
+          <p class="text-[11px] text-indigo-500 mt-2">클릭하여 상세 목록 (데모)</p>
+        </button>
+        <button type="button" data-hub-dash-detail="dash-urgent-queue" class="text-left rounded-xl border border-rose-200/90 bg-rose-50 shadow-sm p-5 w-full ring-1 ring-rose-100/80 cursor-pointer transition hover:border-rose-300 hover:ring-2 hover:ring-rose-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400">
           <p class="text-sm font-semibold text-rose-800">즉시 처리 필요</p>
           <p class="text-3xl font-bold text-rose-600 mt-2 tabular-nums">8건</p>
           <p class="text-xs text-rose-700/90 mt-2">누적 미처리 업무 · 우선 확인</p>
-        </div>
+          <p class="text-[11px] text-rose-600 mt-2 font-medium">클릭 시 8건 전체 큐 (데모)</p>
+        </button>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
@@ -231,31 +243,31 @@ export function adminHubPageHtml(): string {
           </h2>
           <ul class="space-y-2">
             <li>
-              <a href="#payments" class="flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50/50 px-4 py-3 text-sm text-slate-800 transition hover:bg-slate-100 hover:border-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
+              <button type="button" data-hub-dash-detail="dash-action-bank" class="w-full flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50/50 px-4 py-3 text-sm text-slate-800 transition hover:bg-slate-100 hover:border-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 text-left">
                 <span class="font-medium">무통장 입금 확인 대기</span>
                 <span class="flex items-center gap-2 shrink-0">
                   <span class="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">3건</span>
                   <span class="text-slate-400" aria-hidden="true">➔</span>
                 </span>
-              </a>
+              </button>
             </li>
             <li>
-              <a href="#members" class="flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50/50 px-4 py-3 text-sm text-slate-800 transition hover:bg-slate-100 hover:border-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
+              <button type="button" data-hub-dash-detail="dash-action-b2b" class="w-full flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50/50 px-4 py-3 text-sm text-slate-800 transition hover:bg-slate-100 hover:border-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 text-left">
                 <span class="font-medium">B2B / 강사 권한 승인 대기</span>
                 <span class="flex items-center gap-2 shrink-0">
                   <span class="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">1건</span>
                   <span class="text-slate-400" aria-hidden="true">➔</span>
                 </span>
-              </a>
+              </button>
             </li>
             <li>
-              <a href="#support" class="flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50/50 px-4 py-3 text-sm text-slate-800 transition hover:bg-slate-100 hover:border-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
+              <button type="button" data-hub-dash-detail="dash-action-inquiry" class="w-full flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50/50 px-4 py-3 text-sm text-slate-800 transition hover:bg-slate-100 hover:border-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 text-left">
                 <span class="font-medium">미답변 1:1 문의 및 Q&amp;A</span>
                 <span class="flex items-center gap-2 shrink-0">
                   <span class="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">4건</span>
                   <span class="text-slate-400" aria-hidden="true">➔</span>
                 </span>
-              </a>
+              </button>
             </li>
           </ul>
         </div>
@@ -264,43 +276,9 @@ export function adminHubPageHtml(): string {
           <h2 class="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
             <span class="text-lg" aria-hidden="true">💰</span> 실시간 결제 내역
           </h2>
-          <p class="text-xs text-slate-500 mb-3">최근 5건 <span class="text-slate-400">(샘플)</span></p>
-          <ul class="divide-y divide-slate-100 text-sm">
-            <li class="flex flex-wrap items-center gap-x-3 gap-y-1 py-3 first:pt-0">
-              <span class="font-medium text-slate-900">김*성</span>
-              <span class="text-slate-500">MindStory Classic</span>
-              <span class="ml-auto font-semibold text-slate-800 tabular-nums">₩ 150,000</span>
-              <span class="rounded-md bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">결제완료</span>
-              <span class="text-xs text-slate-400 w-full sm:w-auto sm:ml-auto">10분 전</span>
-            </li>
-            <li class="flex flex-wrap items-center gap-x-3 gap-y-1 py-3">
-              <span class="font-medium text-slate-900">이*희</span>
-              <span class="text-slate-500">MindStory Next</span>
-              <span class="ml-auto font-semibold text-slate-800 tabular-nums">₩ 298,000</span>
-              <span class="rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">입금대기</span>
-              <span class="text-xs text-slate-400 w-full sm:w-auto sm:ml-auto">32분 전</span>
-            </li>
-            <li class="flex flex-wrap items-center gap-x-3 gap-y-1 py-3">
-              <span class="font-medium text-slate-900">박*준</span>
-              <span class="text-slate-500">MindStory Classic</span>
-              <span class="ml-auto font-semibold text-slate-800 tabular-nums">₩ 150,000</span>
-              <span class="rounded-md bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">결제완료</span>
-              <span class="text-xs text-slate-400 w-full sm:w-auto sm:ml-auto">1시간 전</span>
-            </li>
-            <li class="flex flex-wrap items-center gap-x-3 gap-y-1 py-3">
-              <span class="font-medium text-slate-900">최*원</span>
-              <span class="text-slate-500">메타인지 클리닉</span>
-              <span class="ml-auto font-semibold text-slate-800 tabular-nums">₩ 89,000</span>
-              <span class="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">부분취소</span>
-              <span class="text-xs text-slate-400 w-full sm:w-auto sm:ml-auto">2시간 전</span>
-            </li>
-            <li class="flex flex-wrap items-center gap-x-3 gap-y-1 py-3">
-              <span class="font-medium text-slate-900">정*아</span>
-              <span class="text-slate-500">MindStory Classic</span>
-              <span class="ml-auto font-semibold text-slate-800 tabular-nums">₩ 150,000</span>
-              <span class="rounded-md bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">결제완료</span>
-              <span class="text-xs text-slate-400 w-full sm:w-auto sm:ml-auto">어제 18:42</span>
-            </li>
+          <p class="text-xs text-slate-500 mb-3">최근 8건 <span class="text-slate-400">(데모 데이터 · admin-dashboard-mock-data)</span></p>
+          <ul id="hubDashboardRecentPayments" class="divide-y divide-slate-100 text-sm">
+            ${dashboardRecentPaymentsHtml}
           </ul>
         </div>
       </div>
@@ -610,13 +588,43 @@ export function adminHubPageHtml(): string {
     </div>
   </div>
 
+  <!-- 대시보드 데모 상세 (테이블 / 유형별 섹션 모달) -->
+  <div id="hubDashboardDetailModal" class="fixed inset-0 z-[62] hidden items-center justify-center p-4 bg-black/50 backdrop-blur-[2px]" role="dialog" aria-modal="true" aria-labelledby="hubDashboardDetailTitle" onclick="if (event.target === this) closeHubDashboardDetailModal()">
+    <div class="hub-dashboard-detail-panel bg-white rounded-2xl max-w-5xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-200/90 overflow-hidden ring-1 ring-emerald-500/15" onclick="event.stopPropagation()">
+      <div class="h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-violet-600 shrink-0" aria-hidden="true"></div>
+      <div class="p-4 border-b border-slate-200 flex flex-wrap items-start justify-between gap-3 shrink-0 bg-gradient-to-br from-white to-emerald-50/40">
+        <div class="min-w-0 pr-2">
+          <h3 id="hubDashboardDetailTitle" class="text-lg font-bold text-slate-900">상세</h3>
+          <p id="hubDashboardDetailSubtitle" class="text-xs text-slate-500 mt-1">데모 데이터입니다. 실제 API 연동 시 교체됩니다.</p>
+        </div>
+        <div class="flex items-center gap-2 shrink-0 ml-auto">
+          <button type="button" id="hubDashboardDetailCsvBtn" class="button-excel hidden sm:inline-flex" onclick="hubDashboardDownloadDetailCsv()" title="현재 목록 전체를 CSV로 저장">엑셀 다운로드 (CSV)</button>
+          <button type="button" class="hub-dashboard-detail-close text-slate-400 hover:text-violet-700 hover:bg-violet-50 rounded-lg text-2xl leading-none w-10 h-10 flex items-center justify-center transition" onclick="closeHubDashboardDetailModal()" aria-label="닫기">&times;</button>
+        </div>
+      </div>
+      <div class="flex-1 overflow-auto p-4 space-y-4">
+        <div id="hubDashboardDetailTableWrap" class="bg-white rounded-xl border border-slate-200 overflow-x-auto shadow-sm">
+          <table class="w-full text-sm text-left">
+            <thead id="hubDashboardDetailThead" class="bg-slate-50 text-slate-600 border-b border-slate-200"></thead>
+            <tbody id="hubDashboardDetailTbody" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+        <div id="hubDashboardDetailSectionsWrap" class="hidden space-y-6"></div>
+      </div>
+      <div class="p-4 border-t border-slate-200 bg-gradient-to-r from-slate-50/90 to-violet-50/30 flex justify-end gap-2 shrink-0">
+        <button type="button" onclick="closeHubDashboardDetailModal()" class="px-4 py-2 rounded-lg text-sm font-medium border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-emerald-300/80 transition">닫기</button>
+      </div>
+    </div>
+  </div>
+
   ${siteAiChatWidgetMarkup()}
   <script>${siteAiChatWidgetScript()}</script>
 
+  <script>window.__ADMIN_DASHBOARD_MOCK__ = ${dashboardMockInlineJson}</script>
   <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
   <script src="/static/js/auth.js?v=20260329-admin-name"></script>
   <script src="/static/js/utils.js"></script>
-  <script src="/static/js/admin-hub.js?v=20260328-dashboard-mock"></script>
+  <script src="/static/js/admin-hub.js?v=20260330-dash-kpi-modal"></script>
   <script src="/static/js/admin-isbn.js"></script>
   <script src="/static/js/security.js${STATIC_JS_CACHE_QUERY}"></script>
 </body>
