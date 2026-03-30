@@ -318,8 +318,8 @@ const HUB_DASHBOARD_DEMO_FALLBACK = {
   },
   'dash-today-enrollments': {
     title: '오늘 수강 신청 상세',
-    subtitle: '데모 · 신청자 · 과정 · 금액 · 수단 · 상태',
-    columns: ['신청자명', '신청과정', '결제금액', '결제수단', '상태', '처리'],
+    subtitle: '데모 · 신청자 · 과정명 · 금액 · 수단 · 상태',
+    columns: ['신청자', '과정명', '결제금액', '결제수단', '상태', '처리'],
     actionLabel: '확인',
     rows: [
       ['김민수', 'MindStory Classic · 진로캠프', '₩150,000', '카드', '결제완료'],
@@ -329,19 +329,19 @@ const HUB_DASHBOARD_DEMO_FALLBACK = {
     ],
   },
   'dash-today-revenue': {
-    title: '오늘 결제 성공 내역',
-    subtitle: '데모 · 오늘 결제완료 건만',
-    columns: ['주문번호', '신청자', '신청과정', '결제금액', '결제수단', '결제시각', '처리'],
+    title: '오늘 결제 금액 · 성공 내역',
+    subtitle: '데모 · 결제자 · 과정명 · 금액 · 일시 · 상태',
+    columns: ['결제자', '과정명', '금액', '일시', '상태', '처리'],
     actionLabel: '확인',
     rows: [
-      ['ORD-260330-001', '김민수', 'MindStory Classic · 진로캠프', '₩150,000', '카드', '08:18'],
-      ['ORD-260330-003', '박준형', 'MindStory Classic', '₩150,000', '카드', '08:51'],
-      ['ORD-260330-004', '최유리', 'MindStory Classic · 메타인지 입문', '₩150,000', '카드', '09:07'],
+      ['김민수', 'MindStory Classic · 진로캠프', '₩150,000', '08:18', '결제완료'],
+      ['박준형', 'MindStory Classic', '₩150,000', '08:51', '결제완료'],
+      ['최유리', 'MindStory Classic · 메타인지 입문', '₩150,000', '09:07', '결제완료'],
     ],
   },
   'dash-urgent-queue': {
     title: '즉시 처리 필요',
-    subtitle: '데모 · 유형별 구분',
+    subtitle: '데모 · 섹션별 구분 · 유형/대상자/내용/시간',
     columns: [],
     actionLabel: '처리',
     rows: [],
@@ -350,29 +350,29 @@ const HUB_DASHBOARD_DEMO_FALLBACK = {
       {
         title: '무통장 입금 확인',
         subtitle: '3건',
-        columns: ['입금자', '금액', '입금예정일', '강좌', '접수', '상태', '처리'],
+        columns: ['유형', '대상자', '내용', '시간', '처리'],
         rows: [
-          ['이희훈', '₩298,000', '당일', 'MindStory Next', '08:44', '미확인'],
-          ['홍승민', '₩150,000', '당일', 'MindStory Classic', '11:08', '미확인'],
+          ['무통장', '이희훈', '입금 확인 — MindStory Next (₩298,000)', '08:44'],
+          ['무통장', '홍승민', '입금 확인 — MindStory Classic (₩150,000)', '11:08'],
         ],
-        actionLabel: '승인',
+        actionLabel: '입금 확인',
       },
       {
         title: 'B2B / 강사 승인',
         subtitle: '1건',
-        columns: ['기관 · 신청', '요청 유형', '제출 서류', '접수', '상태', '처리'],
-        rows: [['(주)에듀테크 · 강사 신청', '기관 소속 강사', '이력서·자격증', '오늘 09:12', '대기']],
+        columns: ['유형', '대상자', '내용', '시간', '처리'],
+        rows: [['B2B', '(주)에듀테크', '강사 권한 승인 — 제출: 이력·자격증', '09:12']],
         actionLabel: '승인',
       },
       {
         title: '미답변 Q&A',
         subtitle: '4건',
-        columns: ['채널', '제목', '회원', '접수', '상태', '처리'],
+        columns: ['유형', '대상자', '내용', '시간', '처리'],
         rows: [
-          ['1:1', '로그인이 안 돼요 (카카오 연동)', '김*성', '08:22', '미답변'],
-          ['Q&A', '수료증 발급 기준 문의', '이*희', '09:05', '미답변'],
+          ['1:1', '김*성', '로그인이 안 돼요 (카카오 연동)', '08:22'],
+          ['Q&A', '이*희', '수료증 발급 기준 문의', '09:05'],
         ],
-        actionLabel: '답변 완료',
+        actionLabel: '답변',
       },
     ],
   },
@@ -419,19 +419,96 @@ const HUB_DASHBOARD_DEMO_FALLBACK = {
   },
 }
 
+/** SSR에서 주입: window.__ADMIN_DASHBOARD_MOCK__ (별칭 window.ADMIN_DASHBOARD_MOCK 동일 참조) */
 function getHubDashboardDemoTables() {
   try {
-    if (typeof window !== 'undefined' && window.__ADMIN_DASHBOARD_MOCK__ && window.__ADMIN_DASHBOARD_MOCK__.tables) {
-      return window.__ADMIN_DASHBOARD_MOCK__.tables
+    if (typeof window !== 'undefined') {
+      const w = window
+      const payload = w.__ADMIN_DASHBOARD_MOCK__ || w.ADMIN_DASHBOARD_MOCK
+      if (payload && payload.tables) return payload.tables
     }
   } catch (e) {}
   return HUB_DASHBOARD_DEMO_FALLBACK
 }
 
-/** 대시보드 상세 모달 — 상태·우선 등 배지 컬럼 */
+/** CSV 파일명 접두사 — {접두사}_리스트_{YYYYMMDD}.csv */
+const HUB_DASH_CSV_FILE_PREFIX = {
+  'dash-new-signups': '오늘신규가입',
+  'dash-today-enrollments': '오늘수강신청',
+  'dash-today-revenue': '오늘결제금액',
+  'dash-urgent-queue': '즉시처리필요',
+  'dash-action-bank': '무통장입금확인',
+  'dash-action-b2b': 'B2B강사승인',
+  'dash-action-inquiry': '미답변문의QA',
+}
+
+function hubDashboardCsvEscapeCell(val) {
+  const s = String(val == null ? '' : val)
+  if (/["\r\n,]/.test(s)) return '"' + s.replace(/"/g, '""') + '"'
+  return s
+}
+
+function hubDashboardCsvLine(cells) {
+  return cells.map(hubDashboardCsvEscapeCell).join(',')
+}
+
+/** getHubDashboardDemoTables()[kind] 기준 전체 행 (처리 열 제외) — mock과 동일 소스 */
+function hubDashboardBuildCsvFromCfg(cfg) {
+  if (!cfg) return ''
+  if (cfg.layout === 'sections' && cfg.sections && cfg.sections.length) {
+    const lines = []
+    for (const sec of cfg.sections) {
+      const cols = (sec.columns || []).filter((c) => c !== '처리')
+      const secLabel = [sec.title, sec.subtitle].filter(Boolean).join(' ').trim()
+      lines.push(hubDashboardCsvLine(['섹션', ...cols]))
+      for (const row of sec.rows || []) {
+        const slice = row.slice(0, cols.length)
+        lines.push(hubDashboardCsvLine([secLabel, ...slice]))
+      }
+      lines.push('')
+    }
+    return lines.join('\r\n').replace(/\r\n+$/, '')
+  }
+  const cols = (cfg.columns || []).filter((c) => c !== '처리')
+  const lines = [hubDashboardCsvLine(cols)]
+  for (const row of cfg.rows || []) {
+    lines.push(hubDashboardCsvLine(row.slice(0, cols.length)))
+  }
+  return lines.join('\r\n')
+}
+
+function hubDashboardCsvDateStamp() {
+  const d = new Date()
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return '' + y + m + day
+}
+
+function hubDashboardDownloadDetailCsv() {
+  const kind = openHubDashboardDetailModal._currentKind
+  if (!kind) return
+  const cfg = getHubDashboardDemoTables()[kind]
+  if (!cfg) return
+  const csvBody = hubDashboardBuildCsvFromCfg(cfg)
+  const prefix = HUB_DASH_CSV_FILE_PREFIX[kind] || '대시보드'
+  const name = prefix + '_리스트_' + hubDashboardCsvDateStamp() + '.csv'
+  const blob = new Blob(['\uFEFF' + csvBody], { type: 'text/csv;charset=utf-8;' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = name
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(a.href)
+}
+
+window.hubDashboardDownloadDetailCsv = hubDashboardDownloadDetailCsv
+
+/** 대시보드 상세 모달 — 상태·우선·유형 등 배지 컬럼 */
 function hubDashColumnIsBadge(colName) {
   const c = String(colName || '').trim()
-  return c === '상태' || c === '우선'
+  return c === '상태' || c === '우선' || c === '유형'
 }
 
 function hubDashBadgeHtml(raw) {
@@ -442,7 +519,10 @@ function hubDashBadgeHtml(raw) {
   else if (/입금대기|승인 대기|대기|미확인|미답변|본인인증|서류|확인필요|부분취소|취소요청/.test(t)) cls += 'bg-amber-50 text-amber-900 ring-amber-600/25'
   else if (/취소|거절|실패/.test(t)) cls += 'bg-rose-50 text-rose-800 ring-rose-600/20'
   else if (/긴급|높음/.test(t)) cls += 'bg-violet-50 text-violet-800 ring-violet-600/20'
-  else if (/보통|문의|입금|B2B|시스템/.test(t)) cls += 'bg-slate-100 text-slate-700 ring-slate-500/15'
+  else if (/무통장/.test(t)) cls += 'bg-rose-50 text-rose-900 ring-rose-600/20'
+  else if (/^B2B$|^B2B /.test(t)) cls += 'bg-violet-50 text-violet-900 ring-violet-600/20'
+  else if (/^1:1$|^Q&A$/.test(t)) cls += 'bg-sky-50 text-sky-900 ring-sky-600/15'
+  else if (/보통|문의|시스템/.test(t)) cls += 'bg-slate-100 text-slate-700 ring-slate-500/15'
   else cls += 'bg-emerald-50/90 text-slate-800 ring-emerald-500/15'
   return '<span class="' + cls + '" title="' + escapeAttr(t) + '">' + escapeHtml(t) + '</span>'
 }
@@ -577,6 +657,7 @@ function closeHubDashboardDetailModal() {
   const modal = document.getElementById('hubDashboardDetailModal')
   const sectionsWrap = document.getElementById('hubDashboardDetailSectionsWrap')
   if (sectionsWrap) sectionsWrap.innerHTML = ''
+  openHubDashboardDetailModal._currentKind = null
   if (modal) {
     modal.classList.add('hidden')
     modal.classList.remove('flex')
@@ -589,14 +670,29 @@ function closeHubDashboardDetailModal() {
 
 window.closeHubDashboardDetailModal = closeHubDashboardDetailModal
 
+function hubNavigateDashboardThenOpenModal(kind) {
+  if (!kind) return
+  const onDash = (location.hash || '#dashboard').replace(/^#/, '') === 'dashboard'
+  if (!onDash) {
+    location.hash = '#dashboard'
+    setTimeout(() => openHubDashboardDetailModal(kind), 0)
+  } else {
+    openHubDashboardDetailModal(kind)
+  }
+}
+
 function bindHubDashboardDetailDemo() {
-  const panel = document.getElementById('panel-dashboard')
-  if (!panel) return
-  panel.addEventListener('click', (e) => {
+  document.addEventListener('click', (e) => {
     const t = e.target.closest('[data-hub-dash-detail]')
     if (!t) return
     const kind = t.getAttribute('data-hub-dash-detail')
-    if (kind) openHubDashboardDetailModal(kind)
+    if (!kind) return
+    const fromKpiOrPanel = t.closest('#panel-dashboard')
+    if (fromKpiOrPanel) openHubDashboardDetailModal(kind)
+    else {
+      hubNavigateDashboardThenOpenModal(kind)
+      if (typeof window.hubCloseMobileNav === 'function') window.hubCloseMobileNav()
+    }
   })
 
   const modal = document.getElementById('hubDashboardDetailModal')

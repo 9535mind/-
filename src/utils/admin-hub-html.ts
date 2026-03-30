@@ -84,6 +84,11 @@ export function adminHubPageHtml(): string {
           <a href="#members" class="hub-mobile-nav-link block px-3 py-2 rounded-lg hover:bg-white/10 text-slate-200">회원 · B2B</a>
           <a href="#enrollments" class="hub-mobile-nav-link block px-3 py-2 rounded-lg hover:bg-white/10 text-slate-200">수강신청</a>
           <a href="#payments" class="hub-mobile-nav-link block px-3 py-2 rounded-lg hover:bg-white/10 text-slate-200">결제 · 매출</a>
+          <p class="px-3 pt-2 pb-0.5 text-[10px] font-semibold text-slate-500 uppercase tracking-wide">대시보드 상세</p>
+          <button type="button" data-hub-dash-detail="dash-new-signups" class="hub-mobile-nav-link block w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 text-slate-200 text-sm">신규 가입 명단</button>
+          <button type="button" data-hub-dash-detail="dash-today-enrollments" class="hub-mobile-nav-link block w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 text-slate-200 text-sm">수강 신청 명단</button>
+          <button type="button" data-hub-dash-detail="dash-today-revenue" class="hub-mobile-nav-link block w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 text-slate-200 text-sm">결제 금액 내역</button>
+          <button type="button" data-hub-dash-detail="dash-urgent-queue" class="hub-mobile-nav-link block w-full text-left px-3 py-2 rounded-lg hover:bg-rose-900/30 text-rose-100 text-sm">즉시 처리 큐</button>
         </div>
       </details>
       <details class="border-b border-white/10 group">
@@ -146,11 +151,17 @@ export function adminHubPageHtml(): string {
             </span>
           </button>
           <div class="absolute left-0 top-full pt-1 min-w-[14rem] opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-150 z-50 pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto">
-            <div class="rounded-xl bg-slate-800 border border-white/10 shadow-xl py-2 text-sm">
+            <div class="rounded-xl bg-slate-800 border border-white/10 shadow-xl py-2 text-sm min-w-[15rem]">
               <a href="#dashboard" data-hub-panel="dashboard" class="block px-4 py-2 text-slate-100 hover:bg-indigo-600/80">대시보드</a>
               <a href="#members" data-hub-panel="members" class="block px-4 py-2 text-slate-100 hover:bg-indigo-600/80">회원 · B2B 관리</a>
               <a href="#enrollments" data-hub-panel="enrollments" class="block px-4 py-2 text-slate-100 hover:bg-indigo-600/80">수강신청</a>
               <a href="#payments" data-hub-panel="payments" class="block px-4 py-2 text-slate-100 hover:bg-indigo-600/80">결제 · 매출</a>
+              <div class="border-t border-white/10 my-1 mx-2" role="separator"></div>
+              <p class="px-4 pt-1 pb-0.5 text-[10px] font-semibold text-slate-500 uppercase tracking-wide">대시보드 상세 (데모)</p>
+              <button type="button" data-hub-dash-detail="dash-new-signups" class="block w-full text-left px-4 py-2 text-slate-100 hover:bg-indigo-600/80">오늘 신규 가입 · 명단</button>
+              <button type="button" data-hub-dash-detail="dash-today-enrollments" class="block w-full text-left px-4 py-2 text-slate-100 hover:bg-indigo-600/80">오늘 수강 신청 · 명단</button>
+              <button type="button" data-hub-dash-detail="dash-today-revenue" class="block w-full text-left px-4 py-2 text-slate-100 hover:bg-indigo-600/80">오늘 결제 금액 · 내역</button>
+              <button type="button" data-hub-dash-detail="dash-urgent-queue" class="block w-full text-left px-4 py-2 text-rose-100 hover:bg-rose-900/50">즉시 처리 필요 · 큐</button>
             </div>
           </div>
         </div>
@@ -597,10 +608,7 @@ export function adminHubPageHtml(): string {
           <h3 id="hubDashboardDetailTitle" class="text-lg font-bold text-slate-900">상세</h3>
           <p id="hubDashboardDetailSubtitle" class="text-xs text-slate-500 mt-1">데모 데이터입니다. 실제 API 연동 시 교체됩니다.</p>
         </div>
-        <div class="flex items-center gap-2 shrink-0 ml-auto">
-          <button type="button" id="hubDashboardDetailCsvBtn" class="button-excel hidden sm:inline-flex" onclick="hubDashboardDownloadDetailCsv()" title="현재 목록 전체를 CSV로 저장">엑셀 다운로드 (CSV)</button>
-          <button type="button" class="hub-dashboard-detail-close text-slate-400 hover:text-violet-700 hover:bg-violet-50 rounded-lg text-2xl leading-none w-10 h-10 flex items-center justify-center transition" onclick="closeHubDashboardDetailModal()" aria-label="닫기">&times;</button>
-        </div>
+        <button type="button" class="hub-dashboard-detail-close text-slate-400 hover:text-violet-700 hover:bg-violet-50 rounded-lg text-2xl leading-none w-10 h-10 flex items-center justify-center transition shrink-0 ml-auto" onclick="closeHubDashboardDetailModal()" aria-label="닫기">&times;</button>
       </div>
       <div class="flex-1 overflow-auto p-4 space-y-4">
         <div id="hubDashboardDetailTableWrap" class="bg-white rounded-xl border border-slate-200 overflow-x-auto shadow-sm">
@@ -611,7 +619,8 @@ export function adminHubPageHtml(): string {
         </div>
         <div id="hubDashboardDetailSectionsWrap" class="hidden space-y-6"></div>
       </div>
-      <div class="p-4 border-t border-slate-200 bg-gradient-to-r from-slate-50/90 to-violet-50/30 flex justify-end gap-2 shrink-0">
+      <div class="p-4 border-t border-slate-200 bg-gradient-to-r from-slate-50/90 to-violet-50/30 flex flex-wrap items-center justify-between gap-2 shrink-0">
+        <button type="button" class="button-excel inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 shadow-sm transition" onclick="hubDashboardDownloadDetailCsv()">📥 엑셀 다운로드 (CSV)</button>
         <button type="button" onclick="closeHubDashboardDetailModal()" class="px-4 py-2 rounded-lg text-sm font-medium border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-emerald-300/80 transition">닫기</button>
       </div>
     </div>
@@ -620,11 +629,11 @@ export function adminHubPageHtml(): string {
   ${siteAiChatWidgetMarkup()}
   <script>${siteAiChatWidgetScript()}</script>
 
-  <script>window.__ADMIN_DASHBOARD_MOCK__ = ${dashboardMockInlineJson}</script>
+  <script>window.__ADMIN_DASHBOARD_MOCK__ = ${dashboardMockInlineJson}; try { window.ADMIN_DASHBOARD_MOCK = window.__ADMIN_DASHBOARD_MOCK__ } catch (e) {}</script>
   <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
   <script src="/static/js/auth.js?v=20260329-admin-name"></script>
   <script src="/static/js/utils.js"></script>
-  <script src="/static/js/admin-hub.js?v=20260330-dash-kpi-modal"></script>
+  <script src="/static/js/admin-hub.js?v=20260330-dash-nav-modal"></script>
   <script src="/static/js/admin-isbn.js"></script>
   <script src="/static/js/security.js${STATIC_JS_CACHE_QUERY}"></script>
 </body>
