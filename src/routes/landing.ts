@@ -865,21 +865,25 @@ landing.get('/', async (c) => {
             </div>
         </footer>
         ${siteFloatingQuickMenuMarkup()}
+        ${siteAiChatWidgetMarkup()}
 
         <script>
-            // 과정 목록 로드
-            async function loadCourses() {
-                try {
-                    const response = await axios.get('/api/courses/featured')
-                    const courses = response.data.data
-                    
-                    const courseList = document.getElementById('courseList')
-                    if (courses.length === 0) {
-                        courseList.innerHTML = '<p class="col-span-3 text-center text-gray-600">등록된 과정이 없습니다.</p>'
-                        return
-                    }
-                    
-                    courseList.innerHTML = courses.map(course => \`
+            // IIFE: 함수 선언·전역 바인딩을 한 번에 처리하고, 부팅만 DOMContentLoaded(또는 이미 interactive)에서 실행
+            (function () {
+                'use strict'
+
+                async function loadLandingFeaturedCourses() {
+                    try {
+                        const response = await axios.get('/api/courses/featured')
+                        const courses = response.data.data
+
+                        const courseList = document.getElementById('courseList')
+                        if (courses.length === 0) {
+                            courseList.innerHTML = '<p class="col-span-3 text-center text-gray-600">등록된 과정이 없습니다.</p>'
+                            return
+                        }
+
+                        courseList.innerHTML = courses.map(course => \`
                         <div class="glass-card rounded-2xl overflow-hidden cursor-pointer" onclick="viewCourse(\${course.id})">
                             <div class="h-56 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center relative overflow-hidden">
                                 <div class="absolute inset-0 bg-black/20"></div>
@@ -905,44 +909,53 @@ landing.get('/', async (c) => {
                             </div>
                         </div>
                     \`).join('')
-                } catch (error) {
-                    console.error('Failed to load courses:', error)
-                    document.getElementById('courseList').innerHTML = '<p class="col-span-3 text-center text-red-600">과정 정보를 불러오는데 실패했습니다.</p>'
+                    } catch (error) {
+                        console.error('Failed to load courses:', error)
+                        document.getElementById('courseList').innerHTML = '<p class="col-span-3 text-center text-red-600">과정 정보를 불러오는데 실패했습니다.</p>'
+                    }
                 }
-            }
-            
-            function scrollToCourses() {
-                document.getElementById('courses').scrollIntoView({ behavior: 'smooth' })
-            }
-            
-            function viewCourse(id) {
-                window.location.href = \`/courses/\${id}\`
-            }
-            
-            // 페이지 로드 시 실행
-            document.addEventListener('DOMContentLoaded', () => {
-                loadCourses()
-                ${siteHeaderDrawerControlScript('landing')}
-                ${siteFloatingQuickMenuScript()}
-                ${siteAiChatWidgetScript()}
-                // 히어로 이미지 슬라이더
-                initHeroSlider()
-            })
-            
-            // 히어로 이미지 슬라이더
-            function initHeroSlider() {
-                const slides = document.querySelectorAll('.hero-slide')
-                let currentSlide = 0
-                
-                function nextSlide() {
-                    slides[currentSlide].classList.remove('active')
-                    currentSlide = (currentSlide + 1) % slides.length
-                    slides[currentSlide].classList.add('active')
+
+                function scrollToCourses() {
+                    document.getElementById('courses').scrollIntoView({ behavior: 'smooth' })
                 }
-                
-                // 5초마다 자동 전환
-                setInterval(nextSlide, 5000)
-            }
+
+                function viewCourse(id) {
+                    window.location.href = \`/courses/\${id}\`
+                }
+
+                function initHeroSlider() {
+                    const slides = document.querySelectorAll('.hero-slide')
+                    let currentSlide = 0
+
+                    function nextSlide() {
+                        slides[currentSlide].classList.remove('active')
+                        currentSlide = (currentSlide + 1) % slides.length
+                        slides[currentSlide].classList.add('active')
+                    }
+
+                    setInterval(nextSlide, 5000)
+                }
+
+                // onclick·레거시 호출용 — DOMContentLoaded 전에도 함수 참조가 준비되도록 즉시 전역에 연결
+                window.loadLandingFeaturedCourses = loadLandingFeaturedCourses
+                window.loadCourses = loadLandingFeaturedCourses
+                window.scrollToCourses = scrollToCourses
+                window.viewCourse = viewCourse
+
+                function bootLandingMind() {
+                    void loadLandingFeaturedCourses()
+                    ${siteHeaderDrawerControlScript('landing')}
+                    ${siteFloatingQuickMenuScript()}
+                    ${siteAiChatWidgetScript()}
+                    initHeroSlider()
+                }
+
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', bootLandingMind)
+                } else {
+                    bootLandingMind()
+                }
+            })()
         </script>
         <script src="/static/js/security.js${STATIC_JS_CACHE_QUERY}"></script>
     </body>

@@ -1869,7 +1869,7 @@ pages.get('/courses', async (c) => {
     ${getFooter()}
     
     <script>
-      async function loadCourses() {
+      async function loadAllCoursesGridPage() {
         try {
           const response = await axios.get('/api/courses')
           const courses = response.data.data || []
@@ -1905,7 +1905,7 @@ pages.get('/courses', async (c) => {
         }
       }
       
-      loadCourses()
+      loadAllCoursesGridPage()
     </script>
     
     ${getCommonFoot()}

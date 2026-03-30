@@ -261,12 +261,12 @@ pagesEnrollment.get('/enrollment', optionalAuth, async (c) => {
             
             // 페이지 로드 시 실행
             document.addEventListener('DOMContentLoaded', async () => {
-                await loadCourses()
+                await loadEnrollmentCoursesPage()
                 setupFilters()
             })
             
             // 강좌 목록 로드 (세션은 HttpOnly 쿠키 — Bearer null 보내면 401 발생)
-            async function loadCourses() {
+            async function loadEnrollmentCoursesPage() {
                 try {
                     // 1. 모든 강좌 가져오기
                     const coursesResponse = await axios.get('/api/courses', { withCredentials: true })
@@ -421,7 +421,7 @@ pagesEnrollment.get('/enrollment', optionalAuth, async (c) => {
                         
                         if (response.data.success) {
                             showToast('수강 기록이 등록되었습니다. 내 강의실에서 확인할 수 있어요.', 'success')
-                            await loadCourses()
+                            await loadEnrollmentCoursesPage()
                         }
                     } else {
                         // 유료 강좌: 결제 페이지로 이동

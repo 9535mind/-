@@ -237,11 +237,15 @@ a.admin-magic-pencil:focus-visible {
   color: rgb(67 56 202);
 }
 .site-nav-dd-link-body { min-width: 0; flex: 1; }
-@media (min-width: 1024px) {
+/* 과정 안내: Classic · Next · 공동훈련 안내 — 1줄 3카드 (넓은 화면) */
+@media (min-width: 900px) {
+  .site-nav-dd-panel--cards {
+    min-width: 44rem;
+  }
   .site-nav-dd-panel--cards .site-nav-titanium-inner {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.25rem;
+    gap: 0.35rem;
     min-width: 42rem;
     padding: 0.5rem;
   }
@@ -255,9 +259,17 @@ a.admin-magic-pencil:focus-visible {
     padding: 1rem 0.65rem;
     min-height: 7.25rem;
     justify-content: flex-start;
+    transition: background-color 0.2s ease, transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.22s ease;
   }
   .site-nav-dd-panel--cards .site-nav-dd-link--row:nth-of-type(3) {
     border-right: none;
+  }
+  @media (hover: hover) {
+    .site-nav-dd-panel--cards .site-nav-dd-link--row:hover {
+      background: rgba(255, 255, 255, 0.72);
+      transform: translateY(-3px);
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.07);
+    }
   }
   .site-nav-dd-panel--cards .site-nav-dd-link--summary {
     grid-column: 1 / -1;
@@ -331,11 +343,11 @@ function navCoursesDropdownDesktop(): string {
             <span class="site-nav-dd-desc">심화 마스터 과정</span>
           </span>
         </a>
-        <a href="/courses/consortium" role="menuitem" class="site-nav-dd-link site-nav-dd-link--row text-indigo-700 font-semibold">
-          <span class="site-nav-dd-ico site-nav-dd-ico--consortium" aria-hidden="true"><i class="fas fa-handshake"></i></span>
+        <a href="/courses/consortium" role="menuitem" class="site-nav-dd-link site-nav-dd-link--row text-indigo-700 font-semibold" aria-label="공동훈련 안내 페이지로 이동">
+          <span class="site-nav-dd-ico site-nav-dd-ico--consortium" aria-hidden="true"><i class="fas fa-users"></i></span>
           <span class="site-nav-dd-link-body">
-            <span class="block">Consortium</span>
-            <span class="site-nav-dd-desc">기업 및 기관 공동훈련 과정<span class="block mt-1 font-normal text-[0.65rem] leading-snug text-slate-600/95">협약 기업 임직원 및 기관 단체 수강생을 위한 전용 맞춤형 교육 서비스</span></span>
+            <span class="block">공동훈련 안내</span>
+            <span class="site-nav-dd-desc">기업 및 기관 맞춤형 협력 과정</span>
           </span>
         </a>
         <a href="/#signature-lineup" role="menuitem" class="site-nav-dd-link site-nav-dd-link--summary border-t border-slate-200/50 text-sm text-gray-700 font-medium">
@@ -365,12 +377,11 @@ function navDrawerCoursesAccordion(): string {
           <span class="site-nav-dd-ico site-nav-dd-ico--next" aria-hidden="true"><i class="fas fa-rocket"></i></span>
           <span class="site-nav-dd-link-body"><span class="block">Next</span><span class="site-nav-dd-desc">심화 마스터 과정</span></span>
         </a>
-        <a href="/courses/consortium" class="site-nav-dd-link site-nav-dd-link--row text-indigo-700 font-semibold">
-          <span class="site-nav-dd-ico site-nav-dd-ico--consortium" aria-hidden="true"><i class="fas fa-handshake"></i></span>
+        <a href="/courses/consortium" class="site-nav-dd-link site-nav-dd-link--row text-indigo-700 font-semibold" aria-label="공동훈련 안내 페이지로 이동">
+          <span class="site-nav-dd-ico site-nav-dd-ico--consortium" aria-hidden="true"><i class="fas fa-users"></i></span>
           <span class="site-nav-dd-link-body">
-            <span class="block">Consortium</span>
-            <span class="site-nav-dd-desc">기업 및 기관 공동훈련 과정</span>
-            <span class="site-nav-dd-desc mt-0.5 text-[0.65rem] leading-snug">협약 기업 임직원 및 기관 단체 수강생을 위한 전용 맞춤형 교육 서비스</span>
+            <span class="block">공동훈련 안내</span>
+            <span class="site-nav-dd-desc">기업 및 기관 맞춤형 협력 과정</span>
           </span>
         </a>
         <a href="/#signature-lineup" class="site-nav-dd-link text-sm text-gray-700 font-medium">전체 과정 보기<span class="site-nav-dd-desc">시그니처 라인업으로 이동</span></a>

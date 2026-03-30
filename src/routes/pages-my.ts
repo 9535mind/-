@@ -77,15 +77,15 @@ pagesMy.get('/my-courses-legacy', (c) => {
             <!-- 탭 메뉴 -->
             <div class="border-b border-gray-200 mb-6">
                 <nav class="flex space-x-8">
-                    <button onclick="loadCourses('active')" id="tab-active" 
+                    <button onclick="loadMyCoursesLegacyTabs('active')" id="tab-active" 
                         class="tab-btn py-4 px-1 border-b-2 border-indigo-600 font-medium text-sm text-indigo-600">
                         수강 중
                     </button>
-                    <button onclick="loadCourses('completed')" id="tab-completed"
+                    <button onclick="loadMyCoursesLegacyTabs('completed')" id="tab-completed"
                         class="tab-btn py-4 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">
                         수료 완료
                     </button>
-                    <button onclick="loadCourses('all')" id="tab-all"
+                    <button onclick="loadMyCoursesLegacyTabs('all')" id="tab-all"
                         class="tab-btn py-4 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">
                         전체
                     </button>
@@ -147,7 +147,7 @@ pagesMy.get('/my-courses-legacy', (c) => {
             
             let currentStatus = 'active'
             
-            async function loadCourses(status) {
+            async function loadMyCoursesLegacyTabs(status) {
                 currentStatus = status
                 
                 // 탭 활성화
@@ -240,7 +240,7 @@ pagesMy.get('/my-courses-legacy', (c) => {
             }
             
             // 페이지 로드 시 수강 중 과정 로드
-            loadCourses('active')
+            loadMyCoursesLegacyTabs('active')
         </script>
         <script src="/static/js/security.js${STATIC_JS_CACHE_QUERY}"></script>
     </body>
