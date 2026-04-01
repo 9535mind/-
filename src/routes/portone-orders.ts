@@ -10,7 +10,7 @@ import { Bindings } from '../types/database'
 import { requireAuth } from '../middleware/auth'
 import { successResponse, errorResponse, generateOrderId } from '../utils/helpers'
 import { getIamportAccessToken, getIamportPayment } from '../utils/portone'
-import { PORTONE_PUBLIC_ERROR_COMPLETE, PORTONE_PUBLIC_ERROR_PREPARE } from '../utils/payment-safe-message'
+import { PORTONE_PUBLIC_ERROR_COMPLETE } from '../utils/payment-safe-message'
 
 const portone = new Hono<{ Bindings: Bindings }>()
 
@@ -58,18 +58,35 @@ portone.post('/prepare', requireAuth, async (c) => {
 
     const { DB } = c.env
 
-    const course = await DB.prepare(
-      `SELECT id, title, status, price, discount_price, is_free FROM courses WHERE id = ?`
-    )
-      .bind(course_id)
-      .first<{
-        id: number
-        title: string
-        status: string
-        price: number | null
-        discount_price: number | null
-        is_free: number | null
-      }>()
+    type CourseRow = {
+      id: number
+      title: string
+      status: string
+      price: number | null
+      discount_price?: number | null
+      is_free?: number | null
+    }
+
+    let course: CourseRow | null = null
+    try {
+      course = await DB.prepare(
+        `SELECT id, title, status, price, discount_price, is_free FROM courses WHERE id = ?`
+      )
+        .bind(course_id)
+        .first<CourseRow>()
+    } catch {
+      try {
+        course = await DB.prepare(
+          `SELECT id, title, status, price, discount_price FROM courses WHERE id = ?`
+        )
+          .bind(course_id)
+          .first<CourseRow>()
+      } catch {
+        course = await DB.prepare(`SELECT id, title, status, price FROM courses WHERE id = ?`)
+          .bind(course_id)
+          .first<CourseRow>()
+      }
+    }
 
     if (!course || course.status !== 'published') {
       return c.json(errorResponse('강좌를 찾을 수 없거나 공개되지 않았습니다.'), 404)
@@ -103,7 +120,19 @@ portone.post('/prepare', requireAuth, async (c) => {
       .run()
 
     if (!ins.success) {
-      return c.json(errorResponse('주문 생성에 실패했습니다.'), 500)
+      const d1Err =
+        typeof (ins as { error?: string }).error === 'string'
+          ? (ins as { error: string }).error
+          : '주문 INSERT가 success=false 로 끝났습니다.'
+      console.error('[PORTONE_PREPARE_ERROR]', d1Err, ins)
+      return c.json(
+        {
+          success: false,
+          message: d1Err,
+          detail: `${d1Err} | meta: ${JSON.stringify((ins as { meta?: unknown }).meta ?? {})}`,
+        },
+        500
+      )
     }
 
     console.info('[PORTONE_PREPARE]', {
@@ -123,9 +152,17 @@ portone.post('/prepare', requireAuth, async (c) => {
         pg: getPortonePg(c),
       })
     )
-  } catch (e) {
-    console.error('PortOne prepare error:', e)
-    return c.json(errorResponse(PORTONE_PUBLIC_ERROR_PREPARE), 500)
+  } catch (error) {
+    console.error('[PORTONE_PREPARE_ERROR]', error)
+    const message = error instanceof Error ? error.message : String(error)
+    return c.json(
+      {
+        success: false,
+        message,
+        detail: String(error),
+      },
+      500
+    )
   }
 })
 
