@@ -3,7 +3,7 @@
  */
 
 /** 배포 반영 확인: 홈 페이지 소스 검색 또는 GET /api/health 의 footerRevision 참고 */
-export const FOOTER_HTML_REVISION = '20260328-floating-nav-rollout-v1'
+export const FOOTER_HTML_REVISION = '20260401-pg-audit-footer-legal'
 
 export const SITE_BUSINESS = {
   companyName: '(주)마인드스토리',

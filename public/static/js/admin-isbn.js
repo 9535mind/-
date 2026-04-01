@@ -111,7 +111,7 @@
         '&gt;</p><p class="text-xs text-slate-500">제출 #' +
         d.id +
         ' · ' +
-        escapeHtml(d.status) +
+        escapeHtml(typeof adminStatusLabelKo === 'function' ? adminStatusLabelKo(d.status) : d.status || '—') +
         '</p>'
     }
     if (sumEl) sumEl.textContent = d.summary || '—'

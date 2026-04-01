@@ -56,6 +56,9 @@ export interface User {
   birth_date?: string;
   role: 'student' | 'admin';
   status: 'active' | 'inactive' | 'withdrawn';
+  approved?: number;
+  org_id?: number | null;
+  company_name?: string;
   terms_agreed: number;
   privacy_agreed: number;
   marketing_agreed: number;
@@ -84,7 +87,8 @@ export interface CreateUserInput {
 }
 
 // Course Types
-export type CategoryGroup = 'CLASSIC' | 'NEXT'
+/** 카탈로그 라인 — DB에는 CSV(예: CLASSIC,NCS,NEXT)로 저장 가능 */
+export type CategoryGroup = 'CLASSIC' | 'NEXT' | 'NCS' | string
 export type CourseSubtype = 'COUNSELING' | 'CAREER' | 'FAIRY_TALE' | 'TECH'
 
 export interface Course {
@@ -100,9 +104,12 @@ export interface Course {
   completion_test_required: number;
   completion_test_pass_score?: number;
   price: number;
+  sale_price?: number | null;
   discount_price?: number;
   is_free: number;
-  status: 'active' | 'inactive' | 'draft';
+  status: 'active' | 'inactive' | 'draft' | 'published';
+  certificate_id?: number | null;
+  validity_unlimited?: number;
   published_at?: string;
   display_order: number;
   is_featured: number;
@@ -131,8 +138,11 @@ export interface CreateCourseInput {
   duration_days?: number;
   completion_progress_rate?: number;
   price: number;
+  sale_price?: number | null;
   discount_price?: number;
   is_free?: number;
+  certificate_id?: number | null;
+  validity_unlimited?: number;
   status?: 'active' | 'inactive' | 'draft';
   is_featured?: number;
 }

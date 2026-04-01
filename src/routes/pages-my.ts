@@ -5,6 +5,7 @@
 import { Hono } from 'hono'
 import { Bindings } from '../types/database'
 import { STATIC_JS_CACHE_QUERY } from '../utils/static-js-cache-bust'
+import { SITE_POPUP_SCRIPT_TAG } from '../utils/site-popup-script'
 import {
   siteAiChatWidgetMarkup,
   siteAiChatWidgetScript,
@@ -243,6 +244,7 @@ pagesMy.get('/my-courses-legacy', (c) => {
             loadMyCoursesLegacyTabs('active')
         </script>
         <script src="/static/js/security.js${STATIC_JS_CACHE_QUERY}"></script>
+        ${SITE_POPUP_SCRIPT_TAG}
     </body>
     </html>
   `)
@@ -590,6 +592,7 @@ pagesMy.get('/my-profile', (c) => {
             loadUserProfile();
         </script>
         <script src="/static/js/security.js${STATIC_JS_CACHE_QUERY}"></script>
+        ${SITE_POPUP_SCRIPT_TAG}
     </body>
     </html>
   `)

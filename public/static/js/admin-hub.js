@@ -6,6 +6,7 @@
 /** URL 해시와 <section id="panel-*"> 가 일치해야 함 */
 const HUB_VALID_PANELS = new Set([
   'dashboard',
+  'edu-dashboard',
   'members',
   'b2b',
   'enrollments',
@@ -15,15 +16,18 @@ const HUB_VALID_PANELS = new Set([
   'certificates',
   'instructors',
   'publishing',
+  'pub-dashboard',
   'isbn',
   'ai-cost',
   'support',
+  'sys-dashboard',
   'popups',
   'settings',
 ])
 
 const PANEL_TO_GROUP = {
   dashboard: 'ops',
+  'edu-dashboard': 'edu',
   members: 'ops',
   b2b: 'ops',
   enrollments: 'ops',
@@ -33,9 +37,11 @@ const PANEL_TO_GROUP = {
   certificates: 'edu',
   instructors: 'edu',
   publishing: 'pub',
+  'pub-dashboard': 'pub',
   isbn: 'pub',
   'ai-cost': 'pub',
   support: 'sys',
+  'sys-dashboard': 'sys',
   popups: 'sys',
   settings: 'sys',
 }
@@ -44,6 +50,252 @@ let hubUserPage = 1
 let currentUserId = null
 let currentCourseId = null
 let courseModalLessons = []
+let hubDescAiGen = 0
+let hubCourseFormOptions = null
+
+function toIntOr(value, fallback = 0) {
+  const n = parseInt(String(value ?? ''), 10)
+  return Number.isFinite(n) ? n : fallback
+}
+
+async function loadCourseFormOptions() {
+  if (hubCourseFormOptions) return hubCourseFormOptions
+  const res = await apiRequest('GET', '/api/admin/course-form-options')
+  if (res.success && res.data) {
+    hubCourseFormOptions = {
+      instructors: Array.isArray(res.data.instructors) ? res.data.instructors : [],
+      certificate_types: Array.isArray(res.data.certificate_types) ? res.data.certificate_types : [],
+    }
+  } else {
+    hubCourseFormOptions = { instructors: [], certificate_types: [] }
+  }
+  return hubCourseFormOptions
+}
+
+function hubSelectOptionsHtml(items, selectedValue, placeholder) {
+  const sel = String(selectedValue ?? '')
+  const opts = (items || [])
+    .map((it) => {
+      const id = String(it.id)
+      return `<option value="${escapeAttr(id)}"${sel === id ? ' selected' : ''}>${escapeHtml(it.name || id)}</option>`
+    })
+    .join('')
+  return `<option value="">${escapeHtml(placeholder || '선택')}</option>${opts}`
+}
+
+function hubDifficultySelectOptions(selected) {
+  const sel = String(selected || 'beginner')
+  const rows = [
+    ['intro', '입문'],
+    ['beginner', '초급'],
+    ['intermediate', '중급'],
+    ['advanced', '고급'],
+  ]
+  return rows
+    .map(([v, label]) => `<option value="${escapeAttr(v)}"${sel === v ? ' selected' : ''}>${escapeHtml(label)}</option>`)
+    .join('')
+}
+
+window.hubUploadCourseThumb = async function (input) {
+  const file = input && input.files && input.files[0]
+  if (!file) return
+  const form = new FormData()
+  form.append('file', file)
+  try {
+    const response = await fetch('/api/upload/image', { method: 'POST', body: form, credentials: 'include' })
+    const text = await response.text()
+    const parsed = text ? JSON.parse(text) : null
+    if (response.ok && parsed && parsed.success && parsed.data && parsed.data.url) {
+      window.hubCourseDraft = window.hubCourseDraft || {}
+      window.hubCourseDraft.thumbnail_url = parsed.data.url
+      const preview = document.getElementById('hubCourseThumbPreview')
+      if (preview) preview.src = parsed.data.url
+      showToast('썸네일이 업로드되었습니다.', 'success')
+    } else {
+      showToast((parsed && (parsed.error || parsed.message)) || '썸네일 업로드 실패', 'error')
+    }
+  } catch (e) {
+    showToast('썸네일 업로드 중 오류가 발생했습니다.', 'error')
+  } finally {
+    input.value = ''
+  }
+}
+
+function wireCoursePricingInputs() {
+  const free = document.getElementById('hubCourseIsFree')
+  const price = document.getElementById('hubCourseOriginalPrice')
+  const sale = document.getElementById('hubCourseSalePrice')
+  if (!free || !price || !sale) return
+  const sync = () => {
+    const on = free.checked
+    price.disabled = on
+    sale.disabled = on
+    if (on) {
+      price.value = '0'
+      sale.value = ''
+    }
+  }
+  free.addEventListener('change', sync)
+  sync()
+}
+
+function hubCourseDescriptionSectionHtml(textareaBodyEscaped) {
+  return (
+    '<label class="block text-sm font-medium">설명</label>' +
+    '<div id="hubCourseDescWrap" class="relative">' +
+    '<textarea id="hubCourseDesc" rows="4" class="w-full border rounded px-3 py-2 relative z-10 bg-white">' +
+    textareaBodyEscaped +
+    '</textarea>' +
+    '<div id="hubCourseDescAiOverlay" class="hidden absolute inset-0 z-20 flex items-center justify-center rounded border border-indigo-100/80 bg-white/80 pointer-events-none">' +
+    '<div class="flex items-center gap-2 text-sm text-indigo-700">' +
+    '<span class="inline-block h-4 w-4 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin shrink-0" aria-hidden="true"></span>' +
+    '<span class="animate-pulse">AI가 내용을 구상 중입니다...</span>' +
+    '</div></div></div>' +
+    '<p class="text-[11px] text-slate-500 mt-0.5">설명 칸이 비어 있을 때만, 제목 입력 후 포커스를 벗어나면 AI가 초안을 채웁니다. 언제든 직접 수정·삭제할 수 있습니다.</p>'
+  )
+}
+
+function wireHubCourseTitleAiBlur() {
+  const titleEl = document.getElementById('hubCourseTitle')
+  const descEl = document.getElementById('hubCourseDesc')
+  const overlay = document.getElementById('hubCourseDescAiOverlay')
+  if (!titleEl || !descEl) return
+
+  titleEl.onblur = async function () {
+    const title = String(titleEl.value || '').trim()
+    if (title.length < 2) return
+    const descNow = String(descEl.value || '').trim()
+    if (descNow.length > 0) return
+
+    hubDescAiGen += 1
+    const gen = hubDescAiGen
+    if (overlay) overlay.classList.remove('hidden')
+    descEl.setAttribute('aria-busy', 'true')
+
+    try {
+      const res = await apiRequest('POST', '/api/ai/generate-description', { title })
+      if (gen !== hubDescAiGen) return
+      if (res.success && res.data && typeof res.data.description === 'string') {
+        let text = res.data.description.trim()
+        try {
+          if (text.startsWith('{')) {
+            const p = JSON.parse(text)
+            if (p && typeof p.description === 'string') text = p.description.trim()
+          }
+        } catch {
+          /* 그대로 사용 */
+        }
+        text = text.replace(/\\n/g, '\n')
+        if (String(descEl.value || '').trim() === '') descEl.value = text
+      } else if (!res.success) {
+        showToast(res.error || 'AI 설명 생성 실패', 'error')
+      }
+    } catch (e) {
+      if (gen === hubDescAiGen) showToast('AI 설명 생성 중 오류가 발생했습니다.', 'error')
+    } finally {
+      if (gen === hubDescAiGen) {
+        descEl.removeAttribute('aria-busy')
+        if (overlay) overlay.classList.add('hidden')
+      }
+    }
+  }
+}
+
+function hubLessonDurationDisplay(l) {
+  const d = l.duration_minutes ?? l.video_duration_minutes
+  return d != null && d !== '' ? Number(d) : 0
+}
+
+async function reloadCourseModalLessons(courseId) {
+  const res = await apiRequest('GET', '/api/courses/' + courseId)
+  if (res.success && res.data) {
+    courseModalLessons = res.data.lessons || []
+    renderLessonEditors(courseId)
+  }
+}
+
+async function hubSaveAllLessonDrafts(courseId) {
+  if (!courseId) return true
+  const panel = document.getElementById('courseTabPanelLessons')
+  if (!panel) return true
+  const ids = Array.from(panel.querySelectorAll('[data-lesson-id]'))
+    .map((el) => el.getAttribute('data-lesson-id'))
+    .filter(Boolean)
+  for (const lessonId of ids) {
+    const urlEl = document.getElementById('lesson-url-' + lessonId)
+    const durEl = document.getElementById('lesson-dur-' + lessonId)
+    const titleEl = document.getElementById('lesson-title-' + lessonId)
+    const video_url = urlEl?.value?.trim() ?? ''
+    const duration_minutes = Math.max(0, parseInt(String(durEl?.value ?? '0'), 10) || 0)
+    const title = titleEl?.value?.trim()
+    const payload = { video_url, duration_minutes }
+    if (title !== undefined && title !== '') payload.title = title
+    const res = await apiRequest('PUT', `/api/courses/${courseId}/lessons/${lessonId}`, payload)
+    if (!res.success) {
+      showToast(res.error || '차시 저장 실패 (#' + lessonId + ')', 'error')
+      return false
+    }
+  }
+  return true
+}
+
+function hasUnsavedLessonDrafts() {
+  const panel = document.getElementById('courseTabPanelLessons')
+  if (!panel) return false
+  const ids = Array.from(panel.querySelectorAll('[data-lesson-id]'))
+    .map((el) => Number(el.getAttribute('data-lesson-id')))
+    .filter((n) => Number.isFinite(n))
+  for (const lessonId of ids) {
+    const original = courseModalLessons.find((l) => Number(l.id) === lessonId)
+    if (!original) continue
+    const titleEl = document.getElementById('lesson-title-' + lessonId)
+    const urlEl = document.getElementById('lesson-url-' + lessonId)
+    const durEl = document.getElementById('lesson-dur-' + lessonId)
+    const nowTitle = String(titleEl?.value || '').trim()
+    const nowUrl = String(urlEl?.value || '').trim()
+    const nowDur = Math.max(0, parseInt(String(durEl?.value ?? '0'), 10) || 0)
+    const oldTitle = String(original.title || '').trim()
+    const oldUrl = String(original.video_url || '').trim()
+    const oldDur = Math.max(0, parseInt(String(hubLessonDurationDisplay(original)), 10) || 0)
+    if (nowTitle !== oldTitle || nowUrl !== oldUrl || nowDur !== oldDur) return true
+  }
+  return false
+}
+
+function refreshAdvancedLessonsFrame(courseId) {
+  const frame = document.getElementById('courseLessonsFrame')
+  if (!frame || !courseId) return
+  frame.src = `/admin/courses/${courseId}/lessons?ts=${Date.now()}`
+}
+
+/** DB 영문 status → 관리자 화면 한글 (값은 그대로 전송) */
+function hubAdminStatusKo(code) {
+  if (typeof adminStatusLabelKo === 'function') return adminStatusLabelKo(code)
+  if (code == null || code === '') return '—'
+  return String(code)
+}
+
+function hubCourseStatusSelectOptions(selected) {
+  const sel = String(selected || 'draft')
+  const pairs = [
+    ['draft', '준비 중'],
+    ['inactive', '정지'],
+    ['active', '활성'],
+    ['published', '공개 완료'],
+  ]
+  return pairs
+    .map(
+      ([val, label]) =>
+        '<option value="' +
+        escapeAttr(val) +
+        '"' +
+        (sel === val ? ' selected' : '') +
+        '>' +
+        escapeHtml(label) +
+        '</option>',
+    )
+    .join('')
+}
 
 document.addEventListener('DOMContentLoaded', async () => {
   const user = await requireAdmin()
@@ -59,7 +311,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   bindHubDashboardCardClicks()
   bindHubDashboardDetailDemo()
+  bindHubEduDashboardCards()
+  bindHubPubDashboardCards()
+  bindHubSysDashboardCards()
+  bindHubUnifiedSearch()
+  bindHubBookDetailPanel()
   initHubOpsDesktopAccordion()
+  initHubDesktopGnbMegaBehavior()
+  await loadPendingApprovalBadges()
+  initHubPopupsPanel()
+  initHubNoticesPanel()
+  initHubPostsPanel()
 
   document.getElementById('userSearchBtn')?.addEventListener('click', () => {
     hubUserPage = 1
@@ -129,6 +391,22 @@ function updateGnbActiveState(tab) {
   })
 }
 
+async function loadPendingApprovalBadges() {
+  try {
+    const res = await apiRequest('GET', '/api/admin/users?type=b2b&filter=b2b_pending&page=1&limit=1')
+    const cnt = res.success && res.pagination ? Number(res.pagination.total || 0) : 0
+    ;['hubDesktopPendingCountBadge', 'hubMobilePendingCountBadge'].forEach((id) => {
+      const el = document.getElementById(id)
+      if (el) el.textContent = String(cnt)
+    })
+  } catch {
+    ;['hubDesktopPendingCountBadge', 'hubMobilePendingCountBadge'].forEach((id) => {
+      const el = document.getElementById(id)
+      if (el) el.textContent = '0'
+    })
+  }
+}
+
 function applyHashRoute() {
   const raw = (location.hash || '#dashboard').replace(/^#/, '') || 'dashboard'
   if (raw === 'members') {
@@ -142,10 +420,18 @@ function applyHashRoute() {
   if (panel) panel.classList.remove('hidden')
 
   if (tab === 'members') loadUsers()
+  if (tab === 'edu-dashboard') loadEduDashboard()
+  if (tab === 'pub-dashboard') loadPubDashboard()
+  if (tab === 'sys-dashboard') loadSysDashboard()
   if (tab === 'courses') loadCourses()
   if (tab === 'enrollments') loadEnrollmentsTable()
   if (tab === 'payments') loadPaymentsTable()
   if (tab === 'videos') loadVideosTable()
+  if (tab === 'popups') loadHubPopups()
+  if (tab === 'support') {
+    void loadHubNotices()
+    void loadHubPosts()
+  }
   if (tab === 'isbn') loadIsbnAdmin()
   if (tab === 'certificates') loadCertificatesTable()
   if (tab === 'publishing' && typeof window.loadPublishingQueue === 'function') window.loadPublishingQueue()
@@ -179,6 +465,413 @@ async function loadDashboardPulse() {
     el('pulseInquiries', res.data.unanswered_inquiries ?? 0)
   }
 }
+
+let hubEduDashboardLoading = false
+
+async function loadEduDashboard() {
+  if (!document.getElementById('hubEduKpiCourses')) return
+  if (hubEduDashboardLoading) return
+  hubEduDashboardLoading = true
+  try {
+    const [sum, act, cert] = await Promise.all([
+      apiRequest('GET', '/api/admin/edu-dashboard/summary'),
+      apiRequest('GET', '/api/admin/edu-dashboard/recent-activity'),
+      apiRequest('GET', '/api/admin/edu-dashboard/cert-pending'),
+    ])
+    if (sum.success && sum.data) {
+      const d = sum.data
+      const k1 = document.getElementById('hubEduKpiCourses')
+      if (k1) k1.textContent = (d.total_courses ?? 0).toLocaleString('ko-KR') + '개'
+      const k2 = document.getElementById('hubEduKpiProgress')
+      if (k2) k2.textContent = String(d.avg_lesson_progress ?? 0) + '%'
+      const k3 = document.getElementById('hubEduKpiCertPending')
+      if (k3) k3.textContent = (d.cert_pending ?? 0).toLocaleString('ko-KR') + '건'
+      const k4 = document.getElementById('hubEduKpiExamToday')
+      if (k4) k4.textContent = (d.exam_attempts_today ?? 0).toLocaleString('ko-KR') + '명'
+    }
+    const actBody = document.getElementById('hubEduDashActivityBody')
+    if (actBody) {
+      const rows = act.success && Array.isArray(act.data) ? act.data : []
+      if (!rows.length) {
+        actBody.innerHTML =
+          '<tr><td colspan="5" class="p-6 text-center text-slate-500">등록된 학습 활동이 없습니다.</td></tr>'
+      } else {
+        actBody.innerHTML = rows
+          .map((r) => {
+            const uid = r.user_id
+            const name = escapeHtml(String(r.user_name || '—'))
+            const nameCell =
+              uid != null && /^\d+$/.test(String(uid))
+                ? '<a href="#" class="member-detail-trigger text-indigo-600 hover:text-indigo-800 hover:underline font-semibold" data-user-id="' +
+                  escapeAttr(String(uid)) +
+                  '" data-table-kind="edu-activity">' +
+                  name +
+                  '</a>'
+                : name
+            const ts =
+              typeof formatDateTime === 'function' ? formatDateTime(r.activity_at) : String(r.activity_at || '—')
+            return (
+              '<tr class="hover:bg-emerald-50/50">' +
+              '<td class="p-3 align-middle">' +
+              nameCell +
+              '</td>' +
+              '<td class="p-3 align-middle text-slate-800">' +
+              escapeHtml(String(r.course_title || '—')) +
+              '</td>' +
+              '<td class="p-3 align-middle text-slate-700 text-xs">' +
+              escapeHtml(String(r.lesson_title || '—')) +
+              '</td>' +
+              '<td class="p-3 align-middle text-right tabular-nums">' +
+              escapeHtml(String(r.watch_percentage ?? 0)) +
+              '%</td>' +
+              '<td class="p-3 align-middle text-xs text-slate-500">' +
+              escapeHtml(ts) +
+              '</td>' +
+              '</tr>'
+            )
+          })
+          .join('')
+      }
+    }
+    const certBody = document.getElementById('hubEduDashCertBody')
+    if (certBody) {
+      const rows = cert.success && Array.isArray(cert.data) ? cert.data : []
+      if (!rows.length) {
+        certBody.innerHTML =
+          '<tr><td colspan="4" class="p-6 text-center text-slate-500">등록된 대기 신청이 없습니다.</td></tr>'
+      } else {
+        certBody.innerHTML = rows
+          .map((r) => {
+            const uid = r.user_id
+            const disp = String(r.applicant_name || r.user_name || '—').trim()
+            const nameCell =
+              uid != null && /^\d+$/.test(String(uid))
+                ? '<a href="#" class="member-detail-trigger text-indigo-600 hover:text-indigo-800 hover:underline font-semibold" data-user-id="' +
+                  escapeAttr(String(uid)) +
+                  '" data-table-kind="edu-cert-pending">' +
+                  escapeHtml(disp) +
+                  '</a>'
+                : escapeHtml(disp)
+            const ts =
+              typeof formatDateTime === 'function' ? formatDateTime(r.created_at) : String(r.created_at || '—')
+            return (
+              '<tr class="hover:bg-emerald-50/50">' +
+              '<td class="p-3 align-middle">' +
+              nameCell +
+              '</td>' +
+              '<td class="p-3 align-middle text-slate-800">' +
+              escapeHtml(String(r.certification_name || '—')) +
+              '</td>' +
+              '<td class="p-3 align-middle text-xs font-mono text-slate-600">' +
+              escapeHtml(String(r.application_number || '—')) +
+              '</td>' +
+              '<td class="p-3 align-middle text-xs text-slate-500">' +
+              escapeHtml(ts) +
+              '</td>' +
+              '</tr>'
+            )
+          })
+          .join('')
+      }
+    }
+  } finally {
+    hubEduDashboardLoading = false
+  }
+}
+
+function bindHubEduDashboardCards() {
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-hub-edu-card]')
+    if (!btn) return
+    if (!btn.closest('#panel-edu-dashboard')) return
+    e.preventDefault()
+    const act = btn.getAttribute('data-hub-edu-card')
+    if (act === 'courses-list' && typeof window.openHubDashboardModalFromApiKey === 'function') {
+      window.openHubDashboardModalFromApiKey('courses')
+      return
+    }
+    if (act === 'enrollments-tab') {
+      location.hash = '#enrollments'
+      return
+    }
+    if (act === 'scroll-cert') {
+      document.getElementById('hubEduDashCertBlock')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      return
+    }
+    if (act === 'exams-list' && typeof window.openHubDashboardModalFromApiKey === 'function') {
+      window.openHubDashboardModalFromApiKey('exams')
+    }
+  })
+}
+
+async function loadPubDashboard() {
+  if (!document.getElementById('hubPubKpiBooks')) return
+  const [sum, list] = await Promise.all([
+    apiRequest('GET', '/api/admin/pub-dashboard/summary'),
+    apiRequest('GET', '/api/admin/pub-dashboard/publishing-list'),
+  ])
+  if (sum.success && sum.data) {
+    const d = sum.data
+    const el = (id, v) => {
+      const n = document.getElementById(id)
+      if (n) n.textContent = v
+    }
+    el('hubPubKpiBooks', (d.total_digital_books ?? 0).toLocaleString('ko-KR') + '권')
+    el('hubPubKpiPending', (d.isbn_approval_pending ?? 0).toLocaleString('ko-KR') + '건')
+    el('hubPubKpiMonth', (d.published_this_month ?? 0).toLocaleString('ko-KR') + '종')
+    el('hubPubKpiOrders', (d.cumulative_paid_orders ?? 0).toLocaleString('ko-KR') + '건')
+  }
+  const tbody = document.getElementById('hubPubDashListBody')
+  if (tbody) {
+    const rows = list.success && Array.isArray(list.data) ? list.data : []
+    if (!rows.length) {
+      tbody.innerHTML =
+        '<tr><td colspan="5" class="p-6 text-center text-slate-500">등록된 도서가 없습니다.</td></tr>'
+    } else {
+      tbody.innerHTML = rows
+        .map((r) => {
+          const bid = r.id
+          const titleCell =
+            bid != null && /^\d+$/.test(String(bid))
+              ? '<a href="#" class="book-detail-trigger text-violet-700 hover:text-violet-900 hover:underline font-semibold" data-book-id="' +
+                escapeAttr(String(bid)) +
+                '">' +
+                escapeHtml(String(r.title || '—')) +
+                '</a>'
+              : escapeHtml(String(r.title || '—'))
+          const uid = r.user_id
+          const author = String(r.author_name || '—')
+          const authorCell =
+            uid != null && /^\d+$/.test(String(uid))
+              ? '<a href="#" class="member-detail-trigger text-indigo-600 hover:text-indigo-800 hover:underline font-semibold" data-user-id="' +
+                escapeAttr(String(uid)) +
+                '" data-table-kind="pub-list">' +
+                escapeHtml(author) +
+                '</a>'
+              : escapeHtml(author)
+          const invRaw = r.isbn_inventory_status
+          const invDisp = invRaw ? hubAdminStatusKo(invRaw) : ''
+          const isbnState = [r.isbn_number, invDisp].filter(Boolean).join(' · ') || '—'
+          const ts = typeof formatDateTime === 'function' ? formatDateTime(r.publish_at) : String(r.publish_at || '—')
+          return (
+            '<tr class="hover:bg-emerald-50/50">' +
+            '<td class="p-3 align-middle">' +
+            titleCell +
+            '</td>' +
+            '<td class="p-3 align-middle">' +
+            authorCell +
+            '</td>' +
+            '<td class="p-3 align-middle text-xs">' +
+            escapeHtml(isbnState) +
+            '</td>' +
+            '<td class="p-3 align-middle">' +
+            escapeHtml(hubAdminStatusKo(r.book_status || '—')) +
+            '</td>' +
+            '<td class="p-3 align-middle text-xs text-slate-500">' +
+            escapeHtml(ts) +
+            '</td>' +
+            '</tr>'
+          )
+        })
+        .join('')
+    }
+  }
+}
+
+async function loadSysDashboard() {
+  if (!document.getElementById('hubSysKpiDbPct')) return
+  const [sum, logs] = await Promise.all([
+    apiRequest('GET', '/api/admin/sys-dashboard/summary'),
+    apiRequest('GET', '/api/admin/sys-dashboard/logs'),
+  ])
+  if (sum.success && sum.data) {
+    const d = sum.data
+    const pct = d.db_usage_percent
+    const pctEl = document.getElementById('hubSysKpiDbPct')
+    if (pctEl) {
+      pctEl.textContent = pct != null && !Number.isNaN(Number(pct)) ? String(pct) + '%' : '—'
+    }
+    const sub = document.getElementById('hubSysKpiDbSub')
+    if (sub && d.db_size_bytes != null) {
+      const mb = (Number(d.db_size_bytes) / (1024 * 1024)).toFixed(2)
+      sub.textContent = '약 ' + mb + ' MB · Free 500MB 대비'
+    }
+    const bar = document.getElementById('hubSysDbBar')
+    if (bar && pct != null && !Number.isNaN(Number(pct))) {
+      bar.style.width = Math.min(100, Math.max(0, Number(pct))) + '%'
+    }
+    const ai = document.getElementById('hubSysKpiAi')
+    if (ai) {
+      const ar = d.ai_success_rate_24h
+      ai.textContent = ar != null && !Number.isNaN(Number(ar)) ? String(ar) + '%' : '데이터 없음'
+    }
+    const se = document.getElementById('hubSysKpiSec')
+    if (se) se.textContent = (d.security_events_24h ?? 0).toLocaleString('ko-KR') + '건'
+    const ss = document.getElementById('hubSysKpiSessions')
+    if (ss) ss.textContent = (d.active_sessions ?? 0).toLocaleString('ko-KR') + '명'
+  }
+  const tbody = document.getElementById('hubSysDashLogsBody')
+  if (tbody) {
+    const rows = logs.success && Array.isArray(logs.data) ? logs.data : []
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="4" class="p-6 text-center text-slate-500">로그가 없습니다.</td></tr>'
+    } else {
+      tbody.innerHTML = rows
+        .map((r) => {
+          const ts = typeof formatDateTime === 'function' ? formatDateTime(r.at) : String(r.at || '—')
+          return (
+            '<tr class="hover:bg-slate-50/80">' +
+            '<td class="p-3 align-middle text-xs font-medium text-slate-600">' +
+            escapeHtml(String(r.log_source || '—')) +
+            '</td>' +
+            '<td class="p-3 align-middle">' +
+            escapeHtml(String(r.message || '—')) +
+            '</td>' +
+            '<td class="p-3 align-middle text-xs text-slate-500 whitespace-nowrap">' +
+            escapeHtml(ts) +
+            '</td>' +
+            '<td class="p-3 align-middle text-xs text-slate-500">' +
+            escapeHtml(String(r.detail || '')) +
+            '</td>' +
+            '</tr>'
+          )
+        })
+        .join('')
+    }
+  }
+}
+
+function bindHubPubDashboardCards() {
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-hub-pub-card]')
+    if (!btn || !btn.closest('#panel-pub-dashboard')) return
+    e.preventDefault()
+    const act = btn.getAttribute('data-hub-pub-card')
+    if (act === 'digital-list' && typeof window.openHubDashboardModalFromApiKey === 'function') {
+      window.openHubDashboardModalFromApiKey('digital-books')
+      return
+    }
+    if (act === 'submissions' && typeof window.openHubDashboardModalFromApiKey === 'function') {
+      window.openHubDashboardModalFromApiKey('book-submissions')
+      return
+    }
+    if (act === 'publishing-tab') {
+      location.hash = '#publishing'
+      return
+    }
+    if (act === 'payments-tab') {
+      location.hash = '#payments'
+    }
+  })
+}
+
+function bindHubSysDashboardCards() {
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-hub-sys-card]')
+    if (!btn || !btn.closest('#panel-sys-dashboard')) return
+    e.preventDefault()
+    if (btn.getAttribute('data-hub-sys-card') === 'members-tab') {
+      location.href = '/admin/members'
+    }
+  })
+}
+
+function bindHubUnifiedSearch() {
+  const input = document.getElementById('hubUnifiedSearch')
+  if (!input) return
+  input.addEventListener('input', () => {
+    const q = String(input.value || '')
+      .trim()
+      .toLowerCase()
+    const panel = document.querySelector('.hub-panel:not(.hidden)')
+    if (!panel) return
+    panel.querySelectorAll('table tbody tr').forEach((tr) => {
+      const hide = q && !String(tr.textContent || '').toLowerCase().includes(q)
+      tr.classList.toggle('hidden', hide)
+    })
+  })
+}
+
+function bindHubBookDetailPanel() {
+  document.addEventListener('click', async (e) => {
+    const a = e.target.closest('.book-detail-trigger')
+    if (!a || !document.getElementById('panel-pub-dashboard')?.contains(a)) return
+    e.preventDefault()
+    const id = a.getAttribute('data-book-id')
+    if (!id || !/^\d+$/.test(id)) return
+    if (typeof window.openHubEntityDetailPanel !== 'function') return
+    try {
+      const res = await apiRequest('GET', '/api/admin/digital-books/' + id)
+      if (!res.success || !res.data) {
+        hubToastBottom(res.error || res.message || '도서 정보를 불러오지 못했습니다.')
+        return
+      }
+      const b = res.data
+      const html =
+        '<dl class="space-y-2 text-sm">' +
+        '<div><dt class="text-xs text-slate-500">도서명</dt><dd class="font-semibold">' +
+        escapeHtml(String(b.title || '—')) +
+        '</dd></div>' +
+        '<div><dt class="text-xs text-slate-500">회원(소유)</dt><dd>' +
+        escapeHtml(String(b.user_name || '—')) +
+        ' · ' +
+        escapeHtml(String(b.user_email || '')) +
+        '</dd></div>' +
+        '<div><dt class="text-xs text-slate-500">연결 강좌</dt><dd>' +
+        escapeHtml(String(b.course_title || '—')) +
+        '</dd></div>' +
+        '<div><dt class="text-xs text-slate-500">ISBN</dt><dd class="font-mono">' +
+        escapeHtml(String(b.isbn_number || b.inv_isbn || '—')) +
+        '</dd></div>' +
+        '<div><dt class="text-xs text-slate-500">재고 상태</dt><dd>' +
+        escapeHtml(String(b.isbn_inventory_status || '—')) +
+        '</dd></div>' +
+        '<div><dt class="text-xs text-slate-500">도서 상태</dt><dd>' +
+        escapeHtml(String(b.status || '—')) +
+        '</dd></div>' +
+        '<div><dt class="text-xs text-slate-500">갱신</dt><dd class="text-xs">' +
+        escapeHtml(typeof formatDateTime === 'function' ? formatDateTime(b.updated_at) : String(b.updated_at || '—')) +
+        '</dd></div>' +
+        '</dl>'
+      window.openHubEntityDetailPanel({
+        title: String(b.title || '도서 상세'),
+        subtitle: 'digital_books #' + id,
+        html,
+      })
+    } catch (err) {
+      hubToastBottom('도서 상세를 열 수 없습니다.')
+    }
+  })
+}
+
+function hubPrintHubSection(rootId, title) {
+  const root = document.getElementById(rootId)
+  if (!root) return
+  const w = window.open('', '_blank')
+  if (!w) {
+    hubToastBottom('팝업이 차단되었습니다.')
+    return
+  }
+  const style =
+    '<style>body{font-family:system-ui,sans-serif;padding:16px;color:#111} h1{font-size:16px;margin:0 0 12px} table{border-collapse:collapse;width:100%;font-size:11px} th,td{border:1px solid #ccc;padding:5px 6px} thead{background:#f1f5f9} tr.hidden{display:table-row !important}</style>'
+  w.document.open()
+  w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + escapeHtml(title) + '</title>' + style + '</head><body>')
+  w.document.write('<h1>' + escapeHtml(title) + '</h1>')
+  const clone = root.cloneNode(true)
+  clone.querySelectorAll('tr.hidden').forEach((tr) => tr.classList.remove('hidden'))
+  clone.querySelectorAll('button').forEach((b) => b.remove())
+  w.document.write(clone.innerHTML)
+  w.document.write('</body></html>')
+  w.document.close()
+  w.onload = function () {
+    try {
+      w.focus()
+      w.print()
+    } catch (e2) {}
+  }
+}
+
+window.hubPrintHubSection = hubPrintHubSection
 
 /** KPI / 오늘의 지표 카드 — 클릭 시 모달 + 탭 이동 */
 const HUB_KPI_HELP = {
@@ -380,8 +1073,10 @@ const HUB_DASHBOARD_DEMO_FALLBACK = {
         subtitle: '4건',
         columns: ['유형', '대상자', '내용', '시간', '처리'],
         rows: [
-          ['1:1', '김*성', '로그인이 안 돼요 (카카오 연동)', '08:22'],
-          ['Q&A', '이*희', '수료증 발급 기준 문의', '09:05'],
+          ['1:1', '김기성', '로그인이 안 돼요 (카카오 연동)', '08:22'],
+          ['Q&A', '이광희', '수료증 발급 기준 문의 (진도·시험)', '09:05'],
+          ['1:1', '박민준', '환급 일정 및 서류 제출처', '09:48'],
+          ['Q&A', '최나원', 'mOTP 출석이 반영되지 않아요', '10:31'],
         ],
         actionLabel: '답변',
       },
@@ -420,12 +1115,12 @@ const HUB_DASHBOARD_DEMO_FALLBACK = {
     columns: ['채널', '제목', '회원', '접수', '상태', '처리'],
     actionLabel: '답변 완료',
     rows: [
-      ['1:1', '수강 연장 가능한가요?', '김*성', '08:30', '미답변'],
-      ['Q&A', 'NCS 서류 양식', '이*희', '09:12', '미답변'],
-      ['1:1', '환급 일정 문의', '박*준', '09:45', '미답변'],
-      ['1:1', 'mOTP 미인증', '최*원', '10:20', '미답변'],
-      ['Q&A', 'Classic vs Next 차이', '정*아', '10:55', '미답변'],
-      ['1:1', '결제 영수증 재발급', '강*우', '11:18', '미답변'],
+      ['1:1', '수강 연장 가능한가요?', '김기성', '08:30', '미답변'],
+      ['Q&A', 'NCS 서류 양식', '이광희', '09:12', '미답변'],
+      ['1:1', '환급 일정 문의', '박민준', '09:45', '미답변'],
+      ['1:1', 'mOTP 미인증', '최나원', '10:20', '미답변'],
+      ['Q&A', 'Classic vs Next 차이', '정수아', '10:55', '미답변'],
+      ['1:1', '결제 영수증 재발급', '강태우', '11:18', '미답변'],
     ],
   },
 }
@@ -451,6 +1146,11 @@ const HUB_DASH_CSV_FILE_PREFIX = {
   'dash-action-bank': '무통장입금확인',
   'dash-action-b2b': 'B2B강사승인',
   'dash-action-inquiry': '미답변문의QA',
+  'api:courses': '강좌목록',
+  'api:exams': '시험목록',
+  'api:certificates': '수료증발급',
+  'api:digital-books': '디지털도서',
+  'api:book-submissions': '출판검수',
 }
 
 function hubDashboardCsvEscapeCell(val) {
@@ -499,7 +1199,7 @@ function hubDashboardCsvDateStamp() {
 function hubDashboardDownloadDetailCsv() {
   const kind = openHubDashboardDetailModal._currentKind
   if (!kind) return
-  const cfg = getHubDashboardDemoTables()[kind]
+  const cfg = openHubDashboardDetailModal._currentCfg || getHubDashboardDemoTables()[kind]
   if (!cfg) return
   const csvBody = hubDashboardBuildCsvFromCfg(cfg)
   const prefix = HUB_DASH_CSV_FILE_PREFIX[kind] || '대시보드'
@@ -545,8 +1245,105 @@ function hubDashboardPrintDetailModal() {
 }
 window.hubDashboardPrintDetailModal = hubDashboardPrintDetailModal
 
+const hubMegaLeaveTimers = new Map()
+
+function hubCancelMegaLeaveTimer(mega) {
+  const id = hubMegaLeaveTimers.get(mega)
+  if (id) clearTimeout(id)
+  hubMegaLeaveTimers.delete(mega)
+}
+
+function hubScheduleMegaClose(mega) {
+  hubCancelMegaLeaveTimer(mega)
+  hubMegaLeaveTimers.set(
+    mega,
+    setTimeout(() => {
+      mega.classList.remove('hub-gnb-mega--open')
+      hubMegaLeaveTimers.delete(mega)
+    }, 200),
+  )
+}
+
+function hubOpenMegaMenu(mega) {
+  if (!mega) return
+  hubCancelMegaLeaveTimer(mega)
+  document.querySelectorAll('#hubDesktopGnb .hub-gnb-mega').forEach((o) => {
+    if (o !== mega) {
+      hubCancelMegaLeaveTimer(o)
+      o.classList.remove('hub-gnb-mega--open')
+    }
+  })
+  mega.classList.add('hub-gnb-mega--open')
+}
+
+function hubCloseAllDesktopGnbMegas() {
+  document.querySelectorAll('#hubDesktopGnb .hub-gnb-mega').forEach((mega) => {
+    hubCancelMegaLeaveTimer(mega)
+    mega.classList.remove('hub-gnb-mega--open')
+  })
+}
+
+function hubResetDesktopGnbAccordions() {
+  document.querySelectorAll('#hubDesktopGnb .hub-ops-acc-panel').forEach((panel) => {
+    panel.classList.add('hidden')
+  })
+  document.querySelectorAll('#hubDesktopGnb .hub-ops-acc-trigger .hub-ops-chevron').forEach((ch) => ch.classList.remove('rotate-180'))
+  document.querySelectorAll('#hubDesktopGnb .hub-ops-acc-trigger').forEach((btn) => btn.setAttribute('aria-expanded', 'false'))
+}
+
+function hubCloseDesktopGnbOverlays() {
+  const bar = document.getElementById('hubDesktopGnb')
+  const ae = document.activeElement
+  if (bar && ae instanceof HTMLElement && bar.contains(ae) && ae.closest('.hub-gnb-dropdown')) {
+    ae.blur()
+  }
+  hubCloseAllDesktopGnbMegas()
+  hubResetDesktopGnbAccordions()
+}
+
+function initHubDesktopGnbMegaBehavior() {
+  const bar = document.getElementById('hubDesktopGnb')
+  if (!bar) return
+
+  bar.querySelectorAll('.hub-gnb-mega').forEach((mega) => {
+    mega.addEventListener('mouseenter', () => hubOpenMegaMenu(mega))
+    mega.addEventListener('mouseleave', () => hubScheduleMegaClose(mega))
+    mega.addEventListener('focusin', () => hubOpenMegaMenu(mega))
+    mega.addEventListener('focusout', () => {
+      setTimeout(() => {
+        if (!mega.contains(document.activeElement)) hubScheduleMegaClose(mega)
+      }, 0)
+    })
+  })
+
+  document.addEventListener(
+    'click',
+    (e) => {
+      const t = e.target
+      if (!(t instanceof Node)) return
+      const gnb = document.getElementById('hubDesktopGnb')
+      if (!gnb || !gnb.contains(t)) {
+        hubCloseDesktopGnbOverlays()
+        return
+      }
+      if (t.closest('.hub-ops-acc-trigger')) return
+      const leaf = t.closest('a[href], button[data-hub-dash-detail], button[data-hub-dash-api]')
+      if (leaf && gnb.contains(leaf)) hubCloseDesktopGnbOverlays()
+    },
+    true,
+  )
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return
+    hubCloseDesktopGnbOverlays()
+  })
+}
+
+window.hubCloseDesktopGnbOverlays = hubCloseDesktopGnbOverlays
+
 function initHubOpsDesktopAccordion() {
-  document.querySelectorAll('#hubDesktopGnb [data-hub-group="ops"] .hub-ops-acc-trigger').forEach((btn) => {
+  document.querySelectorAll('#hubDesktopGnb .hub-ops-acc-trigger').forEach((btn) => {
+    btn.setAttribute('aria-expanded', 'false')
     btn.addEventListener('click', (e) => {
       e.preventDefault()
       e.stopPropagation()
@@ -557,6 +1354,7 @@ function initHubOpsDesktopAccordion() {
       panel.classList.toggle('hidden')
       const isOpen = !panel.classList.contains('hidden')
       if (chevron) chevron.classList.toggle('rotate-180', isOpen)
+      btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false')
     })
   })
 }
@@ -571,9 +1369,11 @@ function hubDashBadgeHtml(raw) {
   const t = String(raw)
   let cls =
     'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset max-w-[14rem] truncate '
-  if (/결제완료|가입 완료|완료|정상|승인완료|승인 완료/.test(t)) cls += 'bg-emerald-50 text-emerald-800 ring-emerald-600/20'
-  else if (/입금대기|승인 대기|대기|미확인|미답변|본인인증|서류|확인필요|부분취소|취소요청/.test(t)) cls += 'bg-amber-50 text-amber-900 ring-amber-600/25'
-  else if (/취소|거절|실패/.test(t)) cls += 'bg-rose-50 text-rose-800 ring-rose-600/20'
+  if (/결제완료|가입 완료|완료|정상|활성|공개 완료|승인완료|승인 완료|사용 가능/.test(t))
+    cls += 'bg-emerald-50 text-emerald-800 ring-emerald-600/20'
+  else if (/입금대기|승인 대기|대기|미확인|미답변|본인인증|서류|확인필요|부분취소|취소요청|준비 중|검수 대기/.test(t))
+    cls += 'bg-amber-50 text-amber-900 ring-amber-600/25'
+  else if (/취소|거절|실패|정지|반려|비활성|사용됨/.test(t)) cls += 'bg-rose-50 text-rose-800 ring-rose-600/20'
   else if (/긴급|높음/.test(t)) cls += 'bg-violet-50 text-violet-800 ring-violet-600/20'
   else if (/무통장/.test(t)) cls += 'bg-rose-50 text-rose-900 ring-rose-600/20'
   else if (/^B2B$|^B2B /.test(t)) cls += 'bg-violet-50 text-violet-900 ring-violet-600/20'
@@ -588,6 +1388,11 @@ function hubMemberColumnIsLink(colName) {
   return /^(이름|신청자|결제자|입금자|회원|대상자)$/.test(String(colName || '').trim())
 }
 
+/** 비회원 항목 — 엔티티 슬라이드 패널로 연결 */
+function hubEntityColumnIsLink(colName) {
+  return /^(과정명|강좌|제목|시험명|ISBN|도서명|도서|응시자|항목|수강생|기관|과정)$/.test(String(colName || '').trim())
+}
+
 function hubMemberDemoUserId(tableKind, sectionIndex, rowIndex) {
   let s = 'demo-user-' + tableKind + '-r' + rowIndex
   if (sectionIndex !== undefined && sectionIndex !== null) s += '-s' + sectionIndex
@@ -595,9 +1400,33 @@ function hubMemberDemoUserId(tableKind, sectionIndex, rowIndex) {
 }
 
 function hubDashRenderCell(colName, cell, ctx) {
-  if (hubDashColumnIsBadge(colName)) return hubDashBadgeHtml(cell)
+  const col = String(colName || '').trim()
+  let disp = cell
+  if (col === '상태') {
+    const raw = String(cell ?? '').trim()
+    if (raw && raw !== '—') disp = hubAdminStatusKo(raw)
+  }
+  if (hubDashColumnIsBadge(colName)) return hubDashBadgeHtml(disp)
+  if (ctx && ctx.kind && hubEntityColumnIsLink(colName)) {
+    const inner = escapeHtml(String(disp))
+    const meta = ctx.apiSource ? escapeAttr(String(ctx.apiSource)) : ''
+    return (
+      '<a href="#" class="entity-detail-trigger text-violet-700 hover:text-violet-900 hover:underline font-semibold" data-entity-label="' +
+      escapeAttr(String(cell)) +
+      '" data-entity-meta="' +
+      meta +
+      '">' +
+      inner +
+      '</a>'
+    )
+  }
   if (ctx && ctx.kind && hubMemberColumnIsLink(colName)) {
-    const userId = hubMemberDemoUserId(ctx.kind, ctx.sectionIndex, ctx.rowIndex)
+    let userId
+    if (ctx.rawRow && ctx.rawRow.user_id != null && String(ctx.rawRow.user_id).trim() !== '') {
+      userId = String(ctx.rawRow.user_id)
+    } else {
+      userId = hubMemberDemoUserId(ctx.kind, ctx.sectionIndex, ctx.rowIndex)
+    }
     const inner = escapeHtml(String(cell))
     let attrs =
       'href="#" class="member-detail-trigger text-indigo-600 hover:text-indigo-800 hover:underline font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 rounded" '
@@ -812,10 +1641,12 @@ function hubDashboardDetailRenderActionTd(kind, sectionIndex, rowIndex, cells, d
 function hubDashboardDetailRenderTableRows(cols, rows, defaultActionLabel, ctx) {
   const kind = (ctx && ctx.kind) || ''
   const sectionIndex = ctx && ctx.sectionIndex !== undefined ? ctx.sectionIndex : null
+  const apiSource = ctx && ctx.apiSource
+  const rawRows = ctx && ctx.rawRows
   const dataCols = cols.filter((c) => c !== '처리')
   return (rows || [])
     .map((cells, idx) => {
-      const cellCtx = { kind, sectionIndex, rowIndex: idx }
+      const cellCtx = { kind, sectionIndex, rowIndex: idx, apiSource, rawRow: rawRows && rawRows[idx] }
       const tds = dataCols
         .map((colName, i) => {
           const cell = cells[i] != null ? cells[i] : ''
@@ -871,6 +1702,11 @@ function hubDashboardDetailRenderQaSectionRows(cols, rows, sectionIndex, default
 }
 
 function hubRefreshOpenDashboardModal() {
+  const apiKey = openHubDashboardDetailModal._currentApiKey
+  if (apiKey) {
+    openHubDashboardModalFromApiKey(apiKey)
+    return
+  }
   const k = openHubDashboardDetailModal._currentKind
   if (k) openHubDashboardDetailModal(k)
 }
@@ -888,10 +1724,183 @@ function hubFadeThenRefreshModal(tr) {
   }, 460)
 }
 
-function openHubDashboardDetailModal(kind) {
-  const cfg = getHubDashboardDemoTables()[kind]
+function hubFmtTs(v) {
+  if (typeof formatDateTime === 'function') return formatDateTime(v)
+  if (v == null || v === '') return '—'
+  return String(v)
+}
+
+function hubDashboardRegisterHashForApi(apiKey) {
+  const map = {
+    courses: 'courses',
+    exams: 'courses',
+    certificates: 'certificates',
+    'digital-books': 'publishing',
+    'book-submissions': 'publishing',
+  }
+  return map[apiKey] || 'courses'
+}
+
+function hubDashboardEmptyStateHtml(apiKey, colCount) {
+  const hash = hubDashboardRegisterHashForApi(apiKey)
+  const span = Math.max(1, colCount || 6)
+  return (
+    '<tr><td colspan="' +
+    span +
+    '" class="p-10 text-center">' +
+    '<p class="text-slate-600 mb-4">등록된 데이터가 없습니다.</p>' +
+    '<button type="button" class="hub-dash-empty-register inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700" data-hub-empty-go="' +
+    escapeAttr(hash) +
+    '">등록하기</button>' +
+    '</td></tr>'
+  )
+}
+
+function buildHubDashboardCfgFromApi(apiKey, data) {
+  const rows = Array.isArray(data) ? data : []
+  const apiSource = apiKey
+  if (apiKey === 'courses') {
+    return {
+      title: '전체 강좌 목록',
+      subtitle: 'D1 · courses 실시간 조회',
+      columns: ['과정명', '상태', '구분', '수강생', '등록일', '처리'],
+      actionLabel: '열기',
+      rows: rows.map((r) => [
+        r.title || '—',
+        hubAdminStatusKo(r.status || '—'),
+        hubCatalogLinesDisplayForTable(r.category_group),
+        String(r.enrolled_count ?? 0),
+        hubFmtTs(r.created_at),
+      ]),
+      apiSource,
+      _apiKey: 'courses',
+      _rawRows: rows,
+    }
+  }
+  if (apiKey === 'exams') {
+    return {
+      title: '시험 목록',
+      subtitle: 'D1 · exams 실시간 조회',
+      columns: ['시험명', '과정명', '상태', '문항수', '수정일', '처리'],
+      actionLabel: '열기',
+      rows: rows.map((r) => [
+        r.title || '—',
+        r.course_title || '—',
+        hubAdminStatusKo(r.status || '—'),
+        String(r.question_count ?? 0),
+        hubFmtTs(r.updated_at),
+      ]),
+      apiSource,
+      _apiKey: 'exams',
+      _rawRows: rows,
+    }
+  }
+  if (apiKey === 'certificates') {
+    return {
+      title: '수료증 발급 내역',
+      subtitle: 'D1 · certificates 실시간 조회',
+      columns: ['이름', '과정명', '증명서 번호', '발급일', '진도(%)', '처리'],
+      actionLabel: '열기',
+      rows: rows.map((r) => [
+        r.user_name || '—',
+        r.course_title || '—',
+        r.certificate_number || '—',
+        r.issue_date || hubFmtTs(r.created_at),
+        String(r.progress_rate ?? '—'),
+      ]),
+      apiSource,
+      _apiKey: 'certificates',
+      _rawRows: rows,
+    }
+  }
+  if (apiKey === 'digital-books') {
+    return {
+      title: '디지털 도서 · 인벤토리',
+      subtitle: 'D1 · digital_books 실시간 조회',
+      columns: ['도서명', '이름', '연결 과정', 'ISBN', '상태', '처리'],
+      actionLabel: '열기',
+      rows: rows.map((r) => [
+        r.title || '—',
+        r.user_name || '—',
+        r.course_title || '—',
+        r.isbn_number || '—',
+        hubAdminStatusKo(r.status || '—'),
+      ]),
+      apiSource,
+      _apiKey: 'digital-books',
+      _rawRows: rows,
+    }
+  }
+  if (apiKey === 'book-submissions') {
+    return {
+      title: '출판 검수 대기',
+      subtitle: 'D1 · book_submissions 실시간 조회',
+      columns: ['제목', '신청자', '상태', '제출일', '처리'],
+      actionLabel: '열기',
+      rows: rows.map((r) => [
+        r.title || r.book_title || '—',
+        r.user_name || '—',
+        hubAdminStatusKo(r.status || '—'),
+        hubFmtTs(r.created_at),
+      ]),
+      apiSource,
+      _apiKey: 'book-submissions',
+      _rawRows: rows,
+    }
+  }
+  return {
+    title: '목록',
+    subtitle: 'API',
+    columns: ['항목', '처리'],
+    rows: [],
+    apiSource,
+    _apiKey: apiKey,
+    _rawRows: [],
+  }
+}
+
+async function openHubDashboardModalFromApiKey(apiKey) {
+  const paths = {
+    courses: '/api/admin/courses',
+    exams: '/api/admin/exams',
+    certificates: '/api/admin/certificates',
+    'digital-books': '/api/admin/digital-books',
+    'book-submissions': '/api/admin/book-submissions',
+  }
+  const path = paths[apiKey]
+  if (!path) return
+  const res = await apiRequest('GET', path)
+  const list = res.success && res.data != null ? res.data : []
+  if (!res.success) hubToastBottom('목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.')
+  const cfg = buildHubDashboardCfgFromApi(apiKey, Array.isArray(list) ? list : [])
+  openHubDashboardDetailModal('api:' + apiKey, cfg)
+}
+
+async function hubNavigateDashboardThenOpenApiModal(apiKey) {
+  if (!apiKey) return
+  const onDash = (location.hash || '#dashboard').replace(/^#/, '') === 'dashboard'
+  if (!onDash) {
+    location.hash = '#dashboard'
+    setTimeout(() => {
+      openHubDashboardModalFromApiKey(apiKey)
+    }, 0)
+  } else {
+    await openHubDashboardModalFromApiKey(apiKey)
+  }
+}
+
+window.openHubDashboardModalFromApiKey = openHubDashboardModalFromApiKey
+
+function openHubDashboardDetailModal(kind, cfgOverride) {
+  const cfg = cfgOverride || getHubDashboardDemoTables()[kind]
   if (!cfg) return
   openHubDashboardDetailModal._currentKind = kind
+  openHubDashboardDetailModal._currentCfg = cfg
+  if (cfg._apiKey) {
+    openHubDashboardDetailModal._currentApiKey = cfg._apiKey
+  } else {
+    openHubDashboardDetailModal._currentApiKey = null
+  }
   const modal = document.getElementById('hubDashboardDetailModal')
   const titleEl = document.getElementById('hubDashboardDetailTitle')
   const subEl = document.getElementById('hubDashboardDetailSubtitle')
@@ -960,6 +1969,7 @@ function openHubDashboardDetailModal(kind) {
     sectionsWrap.classList.add('hidden')
     sectionsWrap.innerHTML = ''
     const cols = cfg.columns || []
+    const colSpan = cols.length || 1
     thead.innerHTML =
       '<tr>' +
       cols
@@ -972,7 +1982,12 @@ function openHubDashboardDetailModal(kind) {
         .join('') +
       '</tr>'
     const actionLabel = cfg.actionLabel || '처리'
-    tbody.innerHTML = hubDashboardDetailRenderTableRows(cols, cfg.rows, actionLabel, { kind })
+    const rowCtx = { kind, apiSource: cfg.apiSource, rawRows: cfg._rawRows }
+    if (!cfg.rows || cfg.rows.length === 0) {
+      tbody.innerHTML = hubDashboardEmptyStateHtml(cfg._apiKey || 'courses', colSpan)
+    } else {
+      tbody.innerHTML = hubDashboardDetailRenderTableRows(cols, cfg.rows, actionLabel, rowCtx)
+    }
   }
 
   modal.classList.remove('hidden')
@@ -993,10 +2008,13 @@ window.updateDashboardKpi = updateDashboardKpi
 
 function closeHubDashboardDetailModal() {
   closeHubMemberDetailPanel()
+  if (typeof window.closeHubEntityDetailPanel === 'function') window.closeHubEntityDetailPanel()
   const modal = document.getElementById('hubDashboardDetailModal')
   const sectionsWrap = document.getElementById('hubDashboardDetailSectionsWrap')
   if (sectionsWrap) sectionsWrap.innerHTML = ''
   openHubDashboardDetailModal._currentKind = null
+  openHubDashboardDetailModal._currentCfg = null
+  openHubDashboardDetailModal._currentApiKey = null
   if (modal) {
     modal.classList.add('hidden')
     modal.classList.remove('flex')
@@ -1245,16 +2263,38 @@ function hubRecalcRevenueKpi() {
 
 function bindHubDashboardDetailDemo() {
   document.addEventListener('click', (e) => {
+    const apiT = e.target.closest('[data-hub-dash-api]')
+    if (apiT) {
+      const key = apiT.getAttribute('data-hub-dash-api')
+      if (!key) return
+      e.preventDefault()
+      const fromKpiOrPanel = apiT.closest('#panel-dashboard')
+      if (fromKpiOrPanel) openHubDashboardModalFromApiKey(key)
+      else {
+        hubNavigateDashboardThenOpenApiModal(key)
+        if (typeof window.hubCloseMobileNav === 'function') window.hubCloseMobileNav()
+      }
+      return
+    }
     const t = e.target.closest('[data-hub-dash-detail]')
     if (!t) return
     const kind = t.getAttribute('data-hub-dash-detail')
     if (!kind) return
+    e.preventDefault()
     const fromKpiOrPanel = t.closest('#panel-dashboard')
     if (fromKpiOrPanel) openHubDashboardDetailModal(kind)
     else {
       hubNavigateDashboardThenOpenModal(kind)
       if (typeof window.hubCloseMobileNav === 'function') window.hubCloseMobileNav()
     }
+  })
+
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-hub-empty-go]')
+    if (!b) return
+    const h = b.getAttribute('data-hub-empty-go')
+    closeHubDashboardDetailModal()
+    if (h) location.hash = '#' + h
   })
 
   const modal = document.getElementById('hubDashboardDetailModal')
@@ -1413,7 +2453,7 @@ window.cancelUserEnrollment = async function (enrollmentId) {
 }
 
 function courseIsPublic(status) {
-  return status === 'active' || status === 'published'
+  return status === 'published'
 }
 
 async function loadCourses() {
@@ -1427,14 +2467,11 @@ async function loadCourses() {
   tbody.innerHTML = res.data
     .map((c) => {
       const pub = courseIsPublic(c.status)
-      const cg = ((c.category_group || 'CLASSIC') + '').toUpperCase()
-      const cgLabel = cg === 'NEXT' ? 'Next' : 'Classic'
-      const cgClass = cg === 'NEXT' ? 'bg-violet-100 text-violet-800' : 'bg-slate-100 text-slate-600'
       return `
     <tr class="border-t border-slate-100">
       <td class="p-3">${escapeHtml(c.title)} <span class="text-xs text-slate-400">#${c.id}</span>
-        <span class="ml-1 inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded ${cgClass}">${cgLabel}</span></td>
-      <td class="p-3 text-xs">${escapeHtml(c.status)}</td>
+        <span class="inline-flex flex-wrap items-center gap-0.5 align-middle">${hubCourseLineBadgesHtml(c.category_group)}</span></td>
+      <td class="p-3 text-xs">${escapeHtml(hubAdminStatusKo(c.status))}</td>
       <td class="p-3 text-center">
         <label class="inline-flex items-center gap-2 cursor-pointer select-none">
           <input type="checkbox" ${pub ? 'checked' : ''} onchange="toggleCoursePublic(${c.id}, this.checked)"
@@ -1451,7 +2488,7 @@ async function loadCourses() {
 }
 
 window.toggleCoursePublic = async function (courseId, checked) {
-  const next = checked ? 'active' : 'inactive'
+  const next = checked ? 'published' : 'draft'
   const res = await apiRequest('PATCH', '/api/admin/courses/' + courseId, { status: next })
   if (res.success) {
     showToast(checked ? '학생 사이트에 공개되었습니다.' : '학생 사이트에서 숨겼습니다.', 'success')
@@ -1462,22 +2499,94 @@ window.toggleCoursePublic = async function (courseId, checked) {
   }
 }
 
-function hubCourseCategoryOptions(selected) {
-  const cg = (selected || 'CLASSIC').toUpperCase()
-  const cl = cg === 'NEXT' ? '' : 'selected'
-  const nx = cg === 'NEXT' ? 'selected' : ''
-  return `<label class="block text-sm font-medium">라인 (학생 카탈로그)</label>
-      <select id="hubCourseCategoryGroup" class="w-full border rounded px-3 py-2" title="Classic → /courses/classic · Next → /courses/next">
-        <option value="CLASSIC" ${cl}>Classic — 일반·본질</option>
-        <option value="NEXT" ${nx}>Next — 특화·미래</option>
-      </select>
-      <p class="text-xs text-slate-500">수료증형 일반 과정 등은 별도 필드(<code class="text-[11px]">course_type</code>)이며, 여기 선택은 카탈로그 분류용입니다.</p>`
+function hubCatalogLineTokensFromCsv(csv) {
+  const parts = String(csv || 'CLASSIC')
+    .toUpperCase()
+    .replace(/\s/g, '')
+    .split(/[,，]/)
+    .filter(Boolean)
+  const allowed = new Set(['CLASSIC', 'NEXT', 'NCS'])
+  const uniq = []
+  for (const p of parts) {
+    if (allowed.has(p) && !uniq.includes(p)) uniq.push(p)
+  }
+  const order = { CLASSIC: 0, NCS: 1, NEXT: 2 }
+  uniq.sort((a, b) => (order[a] ?? 9) - (order[b] ?? 9))
+  return uniq.length ? uniq : ['CLASSIC']
 }
 
-window.openHubNewCourseModal = function () {
+function hubCourseCatalogLinesHtml(selectedCsv) {
+  const actual = hubCatalogLineTokensFromCsv(selectedCsv)
+  const rows = [
+    { key: 'CLASSIC', label: 'Classic — 일반·본질' },
+    { key: 'NEXT', label: 'Next — 특화·미래' },
+    { key: 'NCS', label: 'NCS — 국가직무능력표준' },
+  ]
+  const checks = rows
+    .map(
+      (r) =>
+        '<label class="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 cursor-pointer hover:bg-slate-50">' +
+        '<input type="checkbox" name="hubCatalogLine" value="' +
+        escapeAttr(r.key) +
+        '" class="rounded border-slate-300 text-indigo-600"' +
+        (actual.includes(r.key) ? ' checked' : '') +
+        '/>' +
+        '<span class="text-sm text-slate-800">' +
+        escapeHtml(r.label) +
+        '</span></label>',
+    )
+    .join('')
+  return (
+    '<div class="space-y-1">' +
+    '<span class="block text-sm font-medium">라인 (학생 카탈로그) — 복수 선택</span>' +
+    '<div id="hubCatalogLinesWrap" class="flex flex-col gap-2">' +
+    checks +
+    '</div>' +
+    '<p class="text-xs text-slate-500">Classic·Next·NCS를 동시에 지정할 수 있습니다. DB <code class="text-[11px]">category_group</code>에 CSV(예: CLASSIC,NCS)로 저장됩니다.</p>' +
+    '</div>'
+  )
+}
+
+function readHubCatalogLinesCsv() {
+  const wrap = document.getElementById('hubCatalogLinesWrap')
+  if (!wrap) return 'CLASSIC'
+  const checked = Array.from(wrap.querySelectorAll('input[name="hubCatalogLine"]:checked')).map((el) => el.value)
+  return hubCatalogLineTokensFromCsv(checked.join(',')).join(',')
+}
+
+function hubCourseLineBadgesHtml(csv) {
+  const tokens = hubCatalogLineTokensFromCsv(csv)
+  const styles = {
+    CLASSIC: 'bg-slate-100 text-slate-600',
+    NEXT: 'bg-violet-100 text-violet-800',
+    NCS: 'bg-amber-100 text-amber-900',
+  }
+  const labels = { CLASSIC: 'Classic', NEXT: 'Next', NCS: 'NCS' }
+  return tokens
+    .map(
+      (t) =>
+        '<span class="ml-0.5 inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded ' +
+        (styles[t] || 'bg-slate-100 text-slate-600') +
+        '">' +
+        escapeHtml(labels[t] || t) +
+        '</span>',
+    )
+    .join('')
+}
+
+function hubCatalogLinesDisplayForTable(csv) {
+  const labels = { CLASSIC: 'Classic', NEXT: 'Next', NCS: 'NCS' }
+  return hubCatalogLineTokensFromCsv(csv)
+    .map((t) => labels[t] || t)
+    .join(' · ')
+}
+
+window.openHubNewCourseModal = async function () {
+  hubDescAiGen += 1
   currentCourseId = null
-  window.hubCourseDraft = { thumbnail_url: null }
+  window.hubCourseDraft = { thumbnail_url: null, price: 0, sale_price: null, is_free: 1, duration_days: 30, validity_unlimited: 0 }
   courseModalLessons = []
+  const options = await loadCourseFormOptions()
   const modal = document.getElementById('courseModal')
   const title = document.getElementById('courseModalTitle')
   const info = document.getElementById('courseTabPanelInfo')
@@ -1491,22 +2600,64 @@ window.openHubNewCourseModal = function () {
     <div class="space-y-2">
       <label class="block text-sm font-medium">제목</label>
       <input id="hubCourseTitle" class="w-full border rounded px-3 py-2" value="">
-      <label class="block text-sm font-medium">설명</label>
-      <textarea id="hubCourseDesc" rows="4" class="w-full border rounded px-3 py-2"></textarea>
+      ${hubCourseDescriptionSectionHtml('')}
       <label class="block text-sm font-medium">상태</label>
       <select id="hubCourseStatus" class="w-full border rounded px-3 py-2">
-        <option value="draft" selected>draft</option>
-        <option value="inactive">inactive</option>
-        <option value="active">active</option>
-        <option value="published">published</option>
+        ${hubCourseStatusSelectOptions('draft')}
       </select>
-      ${hubCourseCategoryOptions('CLASSIC')}
+      <label class="block text-sm font-medium">담당 강사</label>
+      <select id="hubCourseInstructorId" class="w-full border rounded px-3 py-2">
+        ${hubSelectOptionsHtml(options.instructors, '', '강사 선택')}
+      </select>
+      <label class="block text-sm font-medium">연관 자격증</label>
+      <select id="hubCourseCertificateId" class="w-full border rounded px-3 py-2">
+        ${hubSelectOptionsHtml(options.certificate_types, '', '자격증 선택')}
+      </select>
+      <label class="block text-sm font-medium">난이도</label>
+      <select id="hubCourseDifficulty" class="w-full border rounded px-3 py-2">
+        ${hubDifficultySelectOptions('beginner')}
+      </select>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <label class="block text-sm font-medium">정가(원)
+          <input type="number" min="0" step="100" id="hubCourseOriginalPrice" class="mt-1 w-full border rounded px-3 py-2" value="0">
+        </label>
+        <label class="block text-sm font-medium">판매가(원)
+          <input type="number" min="0" step="100" id="hubCourseSalePrice" class="mt-1 w-full border rounded px-3 py-2" value="">
+        </label>
+        <label class="flex items-end gap-2 text-sm font-medium pb-2">
+          <input type="checkbox" id="hubCourseIsFree" checked class="rounded border-slate-300 text-indigo-600">
+          무료 강좌
+        </label>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 items-end">
+        <label class="block text-sm font-medium">수강 유효 기간(일)
+          <input type="number" min="1" step="1" id="hubCourseDurationDays" class="mt-1 w-full border rounded px-3 py-2" value="30">
+        </label>
+        <label class="flex items-center gap-2 text-sm font-medium pb-2">
+          <input type="checkbox" id="hubCourseDurationUnlimited" class="rounded border-slate-300 text-indigo-600">
+          무제한
+        </label>
+      </div>
+      <label class="block text-sm font-medium">대표 썸네일</label>
+      <img id="hubCourseThumbPreview" src="" alt="" class="w-full max-w-xs h-32 object-cover rounded border border-slate-200 bg-slate-50">
+      <input type="file" accept="image/jpeg,image/jpg,image/png,image/gif,image/webp" onchange="hubUploadCourseThumb(this)" class="w-full text-sm">
+      ${hubCourseCatalogLinesHtml('CLASSIC')}
       <label class="block text-sm font-medium">다음 개강일 (YYYY-MM-DD, 선택)</label>
       <input type="date" id="hubCourseNextCohort" class="w-full border rounded px-3 py-2" value="">
       <label class="block text-sm font-medium">일정 안내 (선택, 자유 입력)</label>
       <textarea id="hubCourseScheduleInfo" rows="2" class="w-full border rounded px-3 py-2" placeholder="예: 매월 1·15일 개강"></textarea>
       <button type="button" onclick="saveCourseBasics()" class="mt-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">등록</button>
     </div>`
+  wireHubCourseTitleAiBlur()
+  wireCoursePricingInputs()
+  const durationUnlimited = document.getElementById('hubCourseDurationUnlimited')
+  const durationDays = document.getElementById('hubCourseDurationDays')
+  if (durationUnlimited && durationDays) {
+    durationUnlimited.addEventListener('change', () => {
+      durationDays.disabled = durationUnlimited.checked
+      if (durationUnlimited.checked) durationDays.value = ''
+    })
+  }
   const lessons = document.getElementById('courseTabPanelLessons')
   if (lessons) {
     lessons.innerHTML =
@@ -1516,7 +2667,9 @@ window.openHubNewCourseModal = function () {
 }
 
 window.openCourseModal = async function (courseId) {
+  hubDescAiGen += 1
   currentCourseId = courseId
+  const options = await loadCourseFormOptions()
   const modal = document.getElementById('courseModal')
   const title = document.getElementById('courseModalTitle')
   const info = document.getElementById('courseTabPanelInfo')
@@ -1537,27 +2690,71 @@ window.openCourseModal = async function (courseId) {
   window.hubCourseDraft = course
   courseModalLessons = ls || []
   const cr = course
-  const cgVal = ((cr.category_group || 'CLASSIC') + '').toUpperCase()
   info.innerHTML = `
     <div class="space-y-2">
       <label class="block text-sm font-medium">제목</label>
       <input id="hubCourseTitle" class="w-full border rounded px-3 py-2" value="${escapeAttr(cr.title)}">
-      <label class="block text-sm font-medium">설명</label>
-      <textarea id="hubCourseDesc" rows="4" class="w-full border rounded px-3 py-2">${escapeHtml(cr.description || '')}</textarea>
+      ${hubCourseDescriptionSectionHtml(escapeHtml(cr.description || ''))}
       <label class="block text-sm font-medium">상태</label>
       <select id="hubCourseStatus" class="w-full border rounded px-3 py-2">
-        <option value="draft" ${cr.status === 'draft' ? 'selected' : ''}>draft</option>
-        <option value="inactive" ${cr.status === 'inactive' ? 'selected' : ''}>inactive</option>
-        <option value="active" ${cr.status === 'active' ? 'selected' : ''}>active</option>
-        <option value="published" ${cr.status === 'published' ? 'selected' : ''}>published</option>
+        ${hubCourseStatusSelectOptions(cr.status || 'draft')}
       </select>
-      ${hubCourseCategoryOptions(cgVal)}
+      <label class="block text-sm font-medium">담당 강사</label>
+      <select id="hubCourseInstructorId" class="w-full border rounded px-3 py-2">
+        ${hubSelectOptionsHtml(options.instructors, cr.instructor_id ?? '', '강사 선택')}
+      </select>
+      <label class="block text-sm font-medium">연관 자격증</label>
+      <select id="hubCourseCertificateId" class="w-full border rounded px-3 py-2">
+        ${hubSelectOptionsHtml(options.certificate_types, cr.certificate_id ?? '', '자격증 선택')}
+      </select>
+      <label class="block text-sm font-medium">난이도</label>
+      <select id="hubCourseDifficulty" class="w-full border rounded px-3 py-2">
+        ${hubDifficultySelectOptions(cr.difficulty || 'beginner')}
+      </select>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <label class="block text-sm font-medium">정가(원)
+          <input type="number" min="0" step="100" id="hubCourseOriginalPrice" class="mt-1 w-full border rounded px-3 py-2" value="${escapeAttr(String(cr.original_price ?? cr.price ?? 0))}">
+        </label>
+        <label class="block text-sm font-medium">판매가(원)
+          <input type="number" min="0" step="100" id="hubCourseSalePrice" class="mt-1 w-full border rounded px-3 py-2" value="${escapeAttr(cr.sale_price != null ? String(cr.sale_price) : cr.discount_price != null ? String(cr.discount_price) : '')}">
+        </label>
+        <label class="flex items-end gap-2 text-sm font-medium pb-2">
+          <input type="checkbox" id="hubCourseIsFree" ${Number(cr.is_free || 0) ? 'checked' : ''} class="rounded border-slate-300 text-indigo-600">
+          무료 강좌
+        </label>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 items-end">
+        <label class="block text-sm font-medium">수강 유효 기간(일)
+          <input type="number" min="1" step="1" id="hubCourseDurationDays" class="mt-1 w-full border rounded px-3 py-2" value="${escapeAttr(String(cr.duration_days ?? 30))}">
+        </label>
+        <label class="flex items-center gap-2 text-sm font-medium pb-2">
+          <input type="checkbox" id="hubCourseDurationUnlimited" ${Number(cr.validity_unlimited || 0) ? 'checked' : ''} class="rounded border-slate-300 text-indigo-600">
+          무제한
+        </label>
+      </div>
+      <label class="block text-sm font-medium">대표 썸네일</label>
+      <img id="hubCourseThumbPreview" src="${escapeAttr(cr.thumbnail_url || '')}" alt="" class="w-full max-w-xs h-32 object-cover rounded border border-slate-200 bg-slate-50">
+      <input type="file" accept="image/jpeg,image/jpg,image/png,image/gif,image/webp" onchange="hubUploadCourseThumb(this)" class="w-full text-sm">
+      ${hubCourseCatalogLinesHtml(cr.category_group || 'CLASSIC')}
       <label class="block text-sm font-medium">다음 개강일 (YYYY-MM-DD, 선택)</label>
       <input type="date" id="hubCourseNextCohort" class="w-full border rounded px-3 py-2" value="${escapeAttr((cr.next_cohort_start_date || '').slice(0, 10))}">
       <label class="block text-sm font-medium">일정 안내 (선택, 자유 입력)</label>
       <textarea id="hubCourseScheduleInfo" rows="2" class="w-full border rounded px-3 py-2" placeholder="예: 매월 1·15일 개강">${escapeHtml(cr.schedule_info || '')}</textarea>
       <button type="button" onclick="saveCourseBasics()" class="mt-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">저장</button>
     </div>`
+  wireHubCourseTitleAiBlur()
+  wireCoursePricingInputs()
+  const durationUnlimited = document.getElementById('hubCourseDurationUnlimited')
+  const durationDays = document.getElementById('hubCourseDurationDays')
+  if (durationUnlimited && durationDays) {
+    durationDays.disabled = durationUnlimited.checked
+    if (durationUnlimited.checked) durationDays.value = ''
+    durationUnlimited.addEventListener('change', () => {
+      durationDays.disabled = durationUnlimited.checked
+      if (durationUnlimited.checked) durationDays.value = ''
+      else if (!durationDays.value) durationDays.value = String(cr.duration_days || 30)
+    })
+  }
   renderLessonEditors(courseId)
   setupCourseTabs()
 }
@@ -1572,7 +2769,31 @@ function setupCourseTabs() {
   const isNew = currentCourseId == null
   if (t2) t2.classList.toggle('hidden', isNew)
   if (t3) t3.classList.toggle('hidden', isNew)
-  const activate = (n) => {
+  const activate = async (n) => {
+    if (n !== 1 && hasUnsavedLessonDrafts()) {
+      const ok = confirm('차시·영상 탭의 저장되지 않은 변경사항이 있습니다. 탭을 이동할까요?')
+      if (!ok) return
+    }
+    // 서버 재조회 없음. DOM에 차시 행 수가 메모리와 같으면 다시 그리지 않아 탭 왕복 시 미저장 입력 유지
+    if (n === 1 && currentCourseId) {
+      const panel = document.getElementById('courseTabPanelLessons')
+      const rowCount = panel ? panel.querySelectorAll('[data-lesson-id]').length : 0
+      const expected = Array.isArray(courseModalLessons) ? courseModalLessons.length : 0
+      if (rowCount !== expected || (expected > 0 && rowCount === 0)) {
+        renderLessonEditors(currentCourseId)
+      }
+    }
+    if (n === 2 && currentCourseId) {
+      if (hasUnsavedLessonDrafts()) {
+        const doSave = confirm('차시 전체 편집으로 이동하기 전에 현재 차시 변경을 먼저 저장할까요?')
+        if (doSave) {
+          const saved = await hubSaveAllLessonDrafts(currentCourseId)
+          if (!saved) return
+          await reloadCourseModalLessons(currentCourseId)
+        }
+      }
+      refreshAdvancedLessonsFrame(currentCourseId)
+    }
     ;[t1, t2, t3].forEach((t, i) => {
       if (!t) return
       const on = i === n
@@ -1586,37 +2807,159 @@ function setupCourseTabs() {
     if (p2) p2.classList.toggle('hidden', n !== 1)
     if (p3) p3.classList.toggle('hidden', n !== 2)
   }
-  if (t1) t1.onclick = () => activate(0)
-  if (t2) t2.onclick = () => activate(1)
-  if (t3) t3.onclick = () => activate(2)
-  activate(0)
+  if (t1) t1.onclick = () => void activate(0)
+  if (t2) t2.onclick = () => void activate(1)
+  if (t3) t3.onclick = () => void activate(2)
+  void activate(0)
 }
 
 function renderLessonEditors(courseId) {
   const lessons = document.getElementById('courseTabPanelLessons')
   if (!lessons) return
+  const toolbar =
+    '<div class="flex flex-wrap items-center justify-between gap-2 mb-3">' +
+    '<p class="text-sm text-slate-600 max-w-xl">차시별 제목·영상 URL·학습 시간(분)을 입력하고, 필요 시 영상 파일을 올릴 수 있습니다. 강좌 <strong>저장</strong> 시 기본 정보와 차시가 함께 반영됩니다.</p>' +
+    '<button type="button" onclick="hubAddLesson()" class="shrink-0 text-sm bg-slate-700 text-white px-3 py-1.5 rounded-lg hover:bg-slate-800">+ 차시 추가</button></div>' +
+    '<p class="text-xs text-slate-500 mb-2"><button type="button" class="text-indigo-600 hover:underline" onclick="hubSaveLessonsOnly()">차시 변경만 저장</button></p>'
+
   if (!courseModalLessons.length) {
-    lessons.innerHTML = '<p class="text-slate-500 text-sm">등록된 차시가 없습니다.</p>'
+    lessons.innerHTML =
+      toolbar + '<p class="text-slate-500 text-sm">등록된 차시가 없습니다. 차시 추가로 시작하세요.</p>'
     return
   }
   lessons.innerHTML =
-    '<p class="text-sm text-slate-600 mb-2">영상 URL을 수정한 뒤 저장하세요.</p>' +
+    toolbar +
     courseModalLessons
-      .map(
-        (l) => `
-    <div class="border border-slate-200 rounded-lg p-3 mb-2">
-      <div class="font-medium text-sm">${l.lesson_number}. ${escapeHtml(l.title)}</div>
-      <input type="text" id="lesson-url-${l.id}" class="w-full mt-1 border rounded px-2 py-1 text-sm" value="${escapeAttr(l.video_url || '')}" placeholder="영상 URL">
-      <button type="button" class="mt-1 text-xs text-indigo-600 hover:underline" onclick="saveLessonVideo(${courseId}, ${l.id})">이 차시 저장</button>
-    </div>`,
-      )
+      .map((l) => {
+        const dur = hubLessonDurationDisplay(l)
+        return (
+          '<div class="border border-slate-200 rounded-lg p-3 mb-2" data-lesson-id="' +
+          l.id +
+          '">' +
+          '<div class="flex flex-wrap items-start justify-between gap-2 mb-2">' +
+          '<span class="font-medium text-sm text-slate-800">' +
+          l.lesson_number +
+          '차시</span>' +
+          '<button type="button" class="text-xs text-red-600 hover:underline" onclick="hubDeleteLesson(' +
+          courseId +
+          ', ' +
+          l.id +
+          ')">삭제</button></div>' +
+          '<label class="block text-xs text-slate-500 mb-0.5">차시 제목</label>' +
+          '<input type="text" id="lesson-title-' +
+          l.id +
+          '" class="w-full border rounded px-2 py-1 text-sm mb-2" value="' +
+          escapeAttr(l.title || '') +
+          '">' +
+          '<label class="block text-xs text-slate-500 mb-0.5">영상 URL</label>' +
+          '<input type="text" id="lesson-url-' +
+          l.id +
+          '" class="w-full border rounded px-2 py-1 text-sm mb-2" value="' +
+          escapeAttr(l.video_url || '') +
+          '" placeholder="YouTube 또는 외부 영상 URL">' +
+          '<label class="block text-xs text-slate-500 mb-0.5">학습 시간 (분)</label>' +
+          '<input type="number" min="0" step="1" id="lesson-dur-' +
+          l.id +
+          '" class="w-full max-w-[10rem] border rounded px-2 py-1 text-sm mb-2" value="' +
+          dur +
+          '">' +
+          '<div class="flex flex-wrap items-center gap-2 mt-1">' +
+          '<label class="text-xs text-slate-600 flex-1 min-w-[12rem]">영상 파일 업로드' +
+          '<input type="file" accept="video/mp4,video/webm,video/quicktime,video/x-msvideo,.mp4,.webm,.mov,.avi" class="block text-xs mt-1 w-full" onchange="hubUploadLessonVideo(' +
+          courseId +
+          ', ' +
+          l.id +
+          ', this)"></label>' +
+          '<button type="button" class="text-xs text-indigo-600 hover:underline shrink-0" onclick="saveLessonVideo(' +
+          courseId +
+          ', ' +
+          l.id +
+          ')">이 차시만 저장</button></div></div>'
+        )
+      })
       .join('')
 }
 
+window.hubAddLesson = async function () {
+  if (!currentCourseId) return
+  const nums = courseModalLessons.map((l) => l.lesson_number)
+  const next = nums.length ? Math.max(...nums) + 1 : 1
+  const res = await apiRequest('POST', '/api/courses/' + currentCourseId + '/lessons', {
+    lesson_number: next,
+    title: '차시 ' + next,
+    description: '',
+    video_url: null,
+    video_duration_minutes: 0,
+    is_free_preview: 0,
+  })
+  if (res.success) {
+    showToast('차시가 추가되었습니다.', 'success')
+    await reloadCourseModalLessons(currentCourseId)
+  } else showToast(res.error || '차시 추가 실패', 'error')
+}
+
+window.hubDeleteLesson = async function (courseId, lessonId) {
+  if (!confirm('이 차시를 삭제할까요?')) return
+  const res = await apiRequest('DELETE', '/api/courses/' + courseId + '/lessons/' + lessonId)
+  if (res.success) {
+    showToast('차시가 삭제되었습니다.', 'success')
+    await reloadCourseModalLessons(courseId)
+    loadCourses()
+  } else showToast(res.error || '삭제 실패', 'error')
+}
+
+window.hubSaveLessonsOnly = async function () {
+  if (!currentCourseId) return
+  const ok = await hubSaveAllLessonDrafts(currentCourseId)
+  if (ok) {
+    showToast('차시 정보가 저장되었습니다.', 'success')
+    await reloadCourseModalLessons(currentCourseId)
+    loadCourses()
+  }
+}
+
+window.hubUploadLessonVideo = async function (courseId, lessonId, input) {
+  const file = input && input.files && input.files[0]
+  if (!file) return
+  const form = new FormData()
+  form.append('file', file)
+  form.append('lesson_id', String(lessonId))
+  try {
+    const response = await fetch('/api/upload/video', { method: 'POST', body: form, credentials: 'include' })
+    const text = await response.text()
+    let parsed = null
+    if (text) {
+      try {
+        parsed = JSON.parse(text)
+      } catch {
+        /* ignore */
+      }
+    }
+    if (response.ok && parsed && parsed.success) {
+      showToast(parsed.message || '영상 메타데이터가 반영되었습니다.', 'success')
+      const durEl = document.getElementById('lesson-dur-' + lessonId)
+      if (durEl && parsed.data && parsed.data.duration != null) durEl.value = String(parsed.data.duration)
+      await reloadCourseModalLessons(courseId)
+    } else {
+      const err = (parsed && (parsed.error || parsed.message)) || text || '업로드 실패'
+      showToast(err, 'error')
+    }
+  } catch (e) {
+    showToast('업로드 중 오류가 발생했습니다.', 'error')
+  }
+  input.value = ''
+}
+
 window.saveLessonVideo = async function (courseId, lessonId) {
-  const input = document.getElementById('lesson-url-' + lessonId)
-  const video_url = input?.value?.trim() || ''
-  const res = await apiRequest('PUT', `/api/courses/${courseId}/lessons/${lessonId}`, { video_url })
+  const urlEl = document.getElementById('lesson-url-' + lessonId)
+  const durEl = document.getElementById('lesson-dur-' + lessonId)
+  const titleEl = document.getElementById('lesson-title-' + lessonId)
+  const video_url = urlEl?.value?.trim() || ''
+  const duration_minutes = Math.max(0, parseInt(String(durEl?.value ?? '0'), 10) || 0)
+  const title = titleEl?.value?.trim()
+  const payload = { video_url, duration_minutes }
+  if (title) payload.title = title
+  const res = await apiRequest('PUT', `/api/courses/${courseId}/lessons/${lessonId}`, payload)
   if (res.success) showToast('차시가 저장되었습니다.', 'success')
   else showToast(res.error || '저장 실패', 'error')
 }
@@ -1625,16 +2968,40 @@ window.saveCourseBasics = async function () {
   const title = document.getElementById('hubCourseTitle')?.value
   const description = document.getElementById('hubCourseDesc')?.value
   const status = document.getElementById('hubCourseStatus')?.value
-  const category_group = document.getElementById('hubCourseCategoryGroup')?.value || 'CLASSIC'
+  const category_group = readHubCatalogLinesCsv()
   const thumb = window.hubCourseDraft?.thumbnail_url ?? null
+  const instructor_id = document.getElementById('hubCourseInstructorId')?.value || null
+  const certificate_id = document.getElementById('hubCourseCertificateId')?.value || null
+  const linked_certificate_id = certificate_id
+  const original_price = Math.max(0, toIntOr(document.getElementById('hubCourseOriginalPrice')?.value, 0))
+  const difficulty = document.getElementById('hubCourseDifficulty')?.value || 'beginner'
+  const saleRaw = document.getElementById('hubCourseSalePrice')?.value
+  const sale_price = String(saleRaw ?? '').trim() === '' ? null : Math.max(0, toIntOr(saleRaw, 0))
+  const is_free = document.getElementById('hubCourseIsFree')?.checked ? 1 : original_price <= 0 ? 1 : 0
+  const validity_unlimited = document.getElementById('hubCourseDurationUnlimited')?.checked ? 1 : 0
+  const duration_days = validity_unlimited ? null : Math.max(1, toIntOr(document.getElementById('hubCourseDurationDays')?.value, 30))
+  const next_cohort_start_date = document.getElementById('hubCourseNextCohort')?.value?.trim() || null
+  const schedule_info = (document.getElementById('hubCourseScheduleInfo')?.value ?? '').trim()
 
   if (currentCourseId == null) {
     const res = await apiRequest('POST', '/api/admin/courses', {
       title,
       description,
       status,
-      thumbnail_url: null,
+      thumbnail_url: thumb,
+      original_price,
+      price: original_price,
+      sale_price,
+      is_free,
+      instructor_id,
+      linked_certificate_id,
+      certificate_id,
+      difficulty,
+      duration_days,
+      validity_unlimited,
       category_group,
+      next_cohort_start_date,
+      schedule_info: schedule_info || null,
     })
     if (res.success && res.data && res.data.id) {
       showToast('강좌가 등록되었습니다. 차시·영상을 이어서 편집할 수 있습니다.', 'success')
@@ -1649,13 +3016,30 @@ window.saveCourseBasics = async function () {
     description,
     status,
     thumbnail_url: thumb,
+    original_price,
+    price: original_price,
+    sale_price,
+    is_free,
+    instructor_id,
+    linked_certificate_id,
+    certificate_id,
+    difficulty,
+    duration_days,
+    validity_unlimited,
     category_group,
     next_cohort_start_date,
-    schedule_info: schedule_info.trim() || null,
+    schedule_info: schedule_info || null,
   })
   if (res.success) {
-    showToast('저장되었습니다.', 'success')
+    const okLessons = await hubSaveAllLessonDrafts(currentCourseId)
     loadCourses()
+    if (okLessons) {
+      showToast('기본 정보와 차시가 저장되었습니다.', 'success')
+      await reloadCourseModalLessons(currentCourseId)
+      refreshAdvancedLessonsFrame(currentCourseId)
+    } else {
+      showToast('강좌 기본 정보는 저장되었습니다. 차시 저장을 확인해 주세요.', 'warning')
+    }
   } else showToast(res.error || '실패', 'error')
 }
 
@@ -1727,6 +3111,769 @@ async function loadVideosTable() {
     : '<tr><td colspan="3" class="p-4">영상이 없습니다.</td></tr>'
 }
 
+function hubSqlDatetimeToLocalInput(s) {
+  if (s == null || s === '') return ''
+  return String(s).replace(' ', 'T').slice(0, 16)
+}
+
+function hubPopupDefaultDatetimeRange() {
+  const pad = (n) => String(n).padStart(2, '0')
+  const d = new Date()
+  const end = new Date(d.getTime() + 7 * 86400000)
+  const fmt = (x) =>
+    `${x.getFullYear()}-${pad(x.getMonth() + 1)}-${pad(x.getDate())}T${pad(x.getHours())}:${pad(x.getMinutes())}`
+  return { start: fmt(d), end: fmt(end) }
+}
+
+async function loadHubPopupOrganizations() {
+  const sel = document.getElementById('hubPopupOrgId')
+  if (!sel) return
+  const res = await apiRequest('GET', '/api/admin/organizations')
+  const rows = res.success && Array.isArray(res.data) ? res.data : []
+  const cur = sel.value
+  sel.innerHTML =
+    '<option value="">기관 선택 (전체 B2B)</option>' +
+    rows
+      .map(
+        (o) =>
+          '<option value="' +
+          escapeAttr(String(o.id)) +
+          '">' +
+          escapeHtml(String(o.name || o.id)) +
+          '</option>',
+      )
+      .join('')
+  if (cur) sel.value = cur
+}
+
+function hubPopupSyncOrgSelect() {
+  const aud = document.getElementById('hubPopupTargetAudience')
+  const org = document.getElementById('hubPopupOrgId')
+  if (!aud || !org) return
+  const b2b = aud.value === 'b2b'
+  org.disabled = !b2b
+  org.classList.toggle('text-slate-400', !b2b)
+  org.classList.toggle('text-slate-900', b2b)
+}
+
+function hubPopupRefreshImagePreview() {
+  const url = (document.getElementById('hubPopupImageUrl')?.value || '').trim()
+  const img = document.getElementById('hubPopupImagePreview')
+  const ph = document.getElementById('hubPopupImagePreviewPlaceholder')
+  if (!img || !ph) return
+  if (url) {
+    img.src = url
+    img.classList.remove('hidden')
+    ph.classList.add('hidden')
+  } else {
+    img.removeAttribute('src')
+    img.classList.add('hidden')
+    ph.classList.remove('hidden')
+  }
+}
+
+function closeHubPopupModal() {
+  const modal = document.getElementById('hubPopupModal')
+  if (!modal) return
+  modal.classList.add('hidden')
+  modal.classList.remove('flex')
+}
+
+window.hubOpenPopupEditor = async function (id) {
+  const modal = document.getElementById('hubPopupModal')
+  if (!modal) return
+  await loadHubPopupOrganizations()
+  hubPopupSyncOrgSelect()
+
+  const hid = document.getElementById('hubPopupId')
+  const title = document.getElementById('hubPopupTitle')
+  const imgUrl = document.getElementById('hubPopupImageUrl')
+  const linkUrl = document.getElementById('hubPopupLinkUrl')
+  const aud = document.getElementById('hubPopupTargetAudience')
+  const org = document.getElementById('hubPopupOrgId')
+  const start = document.getElementById('hubPopupStart')
+  const end = document.getElementById('hubPopupEnd')
+  const active = document.getElementById('hubPopupActive')
+  const file = document.getElementById('hubPopupImageFile')
+  if (file) file.value = ''
+
+  if (id) {
+    const res = await apiRequest('GET', '/api/popups/' + id)
+    if (!res.success || !res.data) {
+      showToast(res.error || '팝업을 불러오지 못했습니다.', 'error')
+      return
+    }
+    const p = res.data
+    if (hid) hid.value = String(p.id)
+    if (title) title.value = p.title || ''
+    if (imgUrl) imgUrl.value = p.image_url || ''
+    if (linkUrl) linkUrl.value = p.link_url || ''
+    if (aud) aud.value = p.target_audience === 'b2b' ? 'b2b' : 'all'
+    hubPopupSyncOrgSelect()
+    if (org && p.org_id != null) org.value = String(p.org_id)
+    if (start) start.value = hubSqlDatetimeToLocalInput(p.start_date)
+    if (end) end.value = hubSqlDatetimeToLocalInput(p.end_date)
+    if (active) active.checked = Number(p.is_active) === 1
+    document.getElementById('hubPopupModalTitle').textContent = '팝업 수정'
+  } else {
+    if (hid) hid.value = ''
+    if (title) title.value = ''
+    if (imgUrl) imgUrl.value = ''
+    if (linkUrl) linkUrl.value = ''
+    if (aud) aud.value = 'all'
+    hubPopupSyncOrgSelect()
+    if (org) org.value = ''
+    const dr = hubPopupDefaultDatetimeRange()
+    if (start) start.value = dr.start
+    if (end) end.value = dr.end
+    if (active) active.checked = true
+    document.getElementById('hubPopupModalTitle').textContent = '팝업 등록'
+  }
+  hubPopupRefreshImagePreview()
+  modal.classList.remove('hidden')
+  modal.classList.add('flex')
+}
+
+async function loadHubPopups() {
+  const tbody = document.getElementById('hubPopupsTableBody')
+  if (!tbody) return
+  tbody.innerHTML = '<tr><td colspan="8" class="p-8 text-center text-slate-500">불러오는 중…</td></tr>'
+  const res = await apiRequest('GET', '/api/popups')
+  if (!res.success) {
+    tbody.innerHTML =
+      '<tr><td colspan="8" class="p-4 text-red-600">' +
+      escapeHtml(res.error || '목록을 불러오지 못했습니다.') +
+      '</td></tr>'
+    return
+  }
+  const rows = Array.isArray(res.data) ? res.data : []
+  const now = Date.now()
+  tbody.innerHTML = rows.length
+    ? rows
+        .map((p) => {
+          const aud =
+            p.target_audience === 'b2b'
+              ? p.organization_name
+                ? 'B2B · ' + String(p.organization_name)
+                : p.org_id
+                  ? 'B2B · 기관 #' + p.org_id
+                  : 'B2B · 전체'
+              : '전체'
+          const start = p.start_date ? formatDateTime(p.start_date) : '—'
+          const end = p.end_date ? formatDateTime(p.end_date) : '—'
+          const active = Number(p.is_active) === 1
+          let live = '—'
+          if (active && p.start_date && p.end_date) {
+            const s = new Date(p.start_date).getTime()
+            const e = new Date(p.end_date).getTime()
+            if (!Number.isNaN(s) && !Number.isNaN(e) && now >= s && now <= e) live = '<span class="text-emerald-600 font-medium">노출 중</span>'
+            else if (now < s) live = '<span class="text-amber-600">대기</span>'
+            else live = '<span class="text-slate-400">기간 만료</span>'
+          }
+          const st = active ? '<span class="text-emerald-700">활성</span>' : '<span class="text-slate-500">비활성</span>'
+          const id = String(p.id)
+          const views = Number(p.view_count) || 0
+          const clicks = Number(p.click_count) || 0
+          return (
+            '<tr class="border-t border-slate-100 hover:bg-slate-50">' +
+            '<td class="p-3 tabular-nums">' +
+            escapeHtml(id) +
+            '</td>' +
+            '<td class="p-3 font-medium text-slate-800">' +
+            escapeHtml(p.title || '') +
+            '</td>' +
+            '<td class="p-3 text-slate-700">' +
+            escapeHtml(aud) +
+            '</td>' +
+            '<td class="p-3 text-xs text-slate-600 whitespace-nowrap">' +
+            escapeHtml(start) +
+            ' ~<br>' +
+            escapeHtml(end) +
+            '</td>' +
+            '<td class="p-3 text-xs">' +
+            st +
+            '<div class="text-[11px] text-slate-500 mt-0.5">' +
+            live +
+            '</div></td>' +
+            '<td class="p-3 text-right tabular-nums text-slate-700">' +
+            escapeHtml(String(views)) +
+            '</td>' +
+            '<td class="p-3 text-right tabular-nums text-slate-700">' +
+            escapeHtml(String(clicks)) +
+            '</td>' +
+            '<td class="p-3 text-right whitespace-nowrap space-x-2">' +
+            '<button type="button" class="text-indigo-600 hover:underline text-sm hub-popup-edit" data-popup-id="' +
+            escapeAttr(id) +
+            '">편집</button>' +
+            '<button type="button" class="text-rose-600 hover:underline text-sm hub-popup-del" data-popup-id="' +
+            escapeAttr(id) +
+            '">삭제</button>' +
+            '</td></tr>'
+          )
+        })
+        .join('')
+    : '<tr><td colspan="8" class="p-8 text-center text-slate-500">등록된 팝업이 없습니다.</td></tr>'
+}
+
+async function hubPopupFormSubmit(e) {
+  e.preventDefault()
+  const hid = document.getElementById('hubPopupId')
+  const id = (hid && hid.value ? hid.value : '').trim()
+  const audEl = document.getElementById('hubPopupTargetAudience')
+  const orgEl = document.getElementById('hubPopupOrgId')
+  const aud = audEl ? audEl.value : 'all'
+  const orgRaw = orgEl && !orgEl.disabled ? orgEl.value : ''
+  const orgId = aud === 'b2b' && orgRaw ? parseInt(orgRaw, 10) : null
+
+  const payload = {
+    title: (document.getElementById('hubPopupTitle')?.value || '').trim(),
+    image_url: (document.getElementById('hubPopupImageUrl')?.value || '').trim() || null,
+    link_url: (document.getElementById('hubPopupLinkUrl')?.value || '').trim() || null,
+    link_text: null,
+    content: null,
+    target_audience: aud,
+    org_id: orgId,
+    start_date: document.getElementById('hubPopupStart')?.value || '',
+    end_date: document.getElementById('hubPopupEnd')?.value || '',
+    is_active: document.getElementById('hubPopupActive')?.checked ? 1 : 0,
+    display_type: 'modal',
+    priority: 0,
+  }
+
+  const res = id
+    ? await apiRequest('PUT', '/api/popups/' + id, payload)
+    : await apiRequest('POST', '/api/popups', payload)
+  if (res.success) {
+    showToast(res.message || '저장되었습니다.', 'success')
+    closeHubPopupModal()
+    await loadHubPopups()
+  } else {
+    showToast(res.error || '저장 실패', 'error')
+  }
+}
+
+function initHubPopupsPanel() {
+  document.getElementById('hubPopupBtnNew')?.addEventListener('click', () => {
+    void hubOpenPopupEditor(null)
+  })
+  document.getElementById('hubPopupModalClose')?.addEventListener('click', closeHubPopupModal)
+  document.getElementById('hubPopupCancel')?.addEventListener('click', closeHubPopupModal)
+  document.getElementById('hubPopupModal')?.addEventListener('click', (ev) => {
+    if (ev.target && ev.target.id === 'hubPopupModal') closeHubPopupModal()
+  })
+  document.getElementById('hubPopupForm')?.addEventListener('submit', hubPopupFormSubmit)
+  document.getElementById('hubPopupTargetAudience')?.addEventListener('change', hubPopupSyncOrgSelect)
+  document.getElementById('hubPopupImageUrl')?.addEventListener('input', hubPopupRefreshImagePreview)
+
+  document.getElementById('hubPopupImageFile')?.addEventListener('change', async (ev) => {
+    const input = ev.target
+    const file = input && input.files && input.files[0]
+    if (!file) return
+    const fd = new FormData()
+    fd.append('file', file)
+    try {
+      const response = await fetch('/api/upload/image', { method: 'POST', body: fd, credentials: 'include' })
+      const text = await response.text()
+      let parsed = null
+      try {
+        parsed = text ? JSON.parse(text) : null
+      } catch {
+        /* ignore */
+      }
+      if (response.ok && parsed && parsed.success && parsed.data && parsed.data.url) {
+        const urlEl = document.getElementById('hubPopupImageUrl')
+        if (urlEl) urlEl.value = parsed.data.url
+        hubPopupRefreshImagePreview()
+        showToast('이미지가 업로드되었습니다.', 'success')
+      } else {
+        showToast((parsed && (parsed.error || parsed.message)) || '업로드 실패', 'error')
+      }
+    } catch {
+      showToast('업로드 중 오류가 발생했습니다.', 'error')
+    }
+    input.value = ''
+  })
+
+  document.getElementById('hubPopupsTableBody')?.addEventListener('click', (ev) => {
+    const edit = ev.target.closest('.hub-popup-edit')
+    const del = ev.target.closest('.hub-popup-del')
+    if (edit) {
+      const pid = edit.getAttribute('data-popup-id')
+      if (pid) void hubOpenPopupEditor(pid)
+      return
+    }
+    if (del) {
+      const pid = del.getAttribute('data-popup-id')
+      if (pid) void hubDeletePopup(pid)
+    }
+  })
+}
+
+async function hubDeletePopup(id) {
+  if (!confirm('이 팝업을 삭제할까요?')) return
+  const res = await apiRequest('DELETE', '/api/popups/' + id)
+  if (res.success) {
+    showToast(res.message || '삭제되었습니다.', 'success')
+    await loadHubPopups()
+  } else {
+    showToast(res.error || '삭제 실패', 'error')
+  }
+}
+
+async function loadHubNoticeOrganizations() {
+  const sel = document.getElementById('hubNoticeTargetOrg')
+  if (!sel) return
+  const res = await apiRequest('GET', '/api/admin/organizations')
+  const rows = res.success && Array.isArray(res.data) ? res.data : []
+  const cur = sel.value
+  sel.innerHTML =
+    '<option value="">전체 회원</option>' +
+    rows
+      .map(
+        (o) =>
+          '<option value="' +
+          escapeAttr(String(o.id)) +
+          '">B2B · ' +
+          escapeHtml(String(o.name || o.id)) +
+          '</option>',
+      )
+      .join('')
+  if (cur) sel.value = cur
+}
+
+function hubNoticeInsertAtCursor(text) {
+  const ta = document.getElementById('hubNoticeContent')
+  if (!ta) return
+  const s = ta.selectionStart
+  const e = ta.selectionEnd
+  const v = ta.value
+  ta.value = v.slice(0, s) + text + v.slice(e)
+  const pos = s + text.length
+  ta.selectionStart = ta.selectionEnd = pos
+  ta.focus()
+}
+
+function hubNoticeApplyTool(cmd) {
+  const ta = document.getElementById('hubNoticeContent')
+  if (!ta) return
+  const s = ta.selectionStart
+  const e = ta.selectionEnd
+  const v = ta.value
+  const sel = v.slice(s, e)
+  const apply = (open, close, placeholder) => {
+    const inner = sel || placeholder
+    const rep = open + inner + close
+    ta.value = v.slice(0, s) + rep + v.slice(e)
+    const endPos = s + rep.length
+    ta.selectionStart = s
+    ta.selectionEnd = endPos
+    ta.focus()
+  }
+  if (cmd === 'bold') {
+    apply('<strong>', '</strong>', '굵은 글씨')
+    return
+  }
+  if (cmd === 'italic') {
+    apply('<em>', '</em>', '기울임')
+    return
+  }
+  if (cmd === 'br') {
+    hubNoticeInsertAtCursor('<br>\n')
+    return
+  }
+  if (cmd === 'link') {
+    const url = window.prompt('링크 URL (https://…)', 'https://')
+    if (!url) return
+    const text = window.prompt('표시 텍스트', sel || '링크') || '링크'
+    hubNoticeInsertAtCursor(
+      '<a href="' + escapeAttr(url) + '" class="text-indigo-600 underline">' + escapeHtml(text) + '</a>',
+    )
+  }
+}
+
+function closeHubNoticeModal() {
+  const modal = document.getElementById('hubNoticeModal')
+  if (!modal) return
+  modal.classList.add('hidden')
+  modal.classList.remove('flex')
+}
+
+window.hubOpenNoticeEditor = async function (id) {
+  const modal = document.getElementById('hubNoticeModal')
+  if (!modal) return
+  await loadHubNoticeOrganizations()
+  const hid = document.getElementById('hubNoticeId')
+  const title = document.getElementById('hubNoticeTitle')
+  const content = document.getElementById('hubNoticeContent')
+  const pinned = document.getElementById('hubNoticePinned')
+  const published = document.getElementById('hubNoticePublished')
+  const org = document.getElementById('hubNoticeTargetOrg')
+  const imgFile = document.getElementById('hubNoticeImageFile')
+  if (imgFile) imgFile.value = ''
+
+  if (id) {
+    const res = await apiRequest('GET', '/api/admin/notices/' + id)
+    if (!res.success || !res.data) {
+      showToast(res.error || '공지를 불러오지 못했습니다.', 'error')
+      return
+    }
+    const n = res.data
+    if (hid) hid.value = String(n.id)
+    if (title) title.value = n.title || ''
+    if (content) content.value = n.content || ''
+    if (pinned) pinned.checked = Number(n.is_pinned) === 1
+    if (published) published.checked = Number(n.is_published) === 1
+    if (org) org.value = n.target_org_id != null ? String(n.target_org_id) : ''
+    document.getElementById('hubNoticeModalTitle').textContent = '공지 수정'
+  } else {
+    if (hid) hid.value = ''
+    if (title) title.value = ''
+    if (content) content.value = ''
+    if (pinned) pinned.checked = false
+    if (published) published.checked = true
+    if (org) org.value = ''
+    document.getElementById('hubNoticeModalTitle').textContent = '공지 작성'
+  }
+  modal.classList.remove('hidden')
+  modal.classList.add('flex')
+}
+
+async function loadHubNotices() {
+  const tbody = document.getElementById('hubNoticesTableBody')
+  if (!tbody) return
+  tbody.innerHTML = '<tr><td colspan="7" class="p-8 text-center text-slate-500">불러오는 중…</td></tr>'
+  const res = await apiRequest('GET', '/api/admin/notices')
+  if (!res.success) {
+    tbody.innerHTML =
+      '<tr><td colspan="7" class="p-4 text-red-600">' +
+      escapeHtml(res.error || '목록을 불러오지 못했습니다.') +
+      '</td></tr>'
+    return
+  }
+  const rows = Array.isArray(res.data) ? res.data : []
+  tbody.innerHTML = rows.length
+    ? rows
+        .map((n) => {
+          const id = String(n.id)
+          const pinned = Number(n.is_pinned) === 1
+          const pub = Number(n.is_published) === 1
+          const trCls = pinned ? ' bg-amber-50/95 ring-1 ring-inset ring-amber-200/90' : ' hover:bg-slate-50'
+          const titleHtml = pinned
+            ? '<span class="inline-flex items-center gap-2 flex-wrap"><span class="shrink-0 rounded-md bg-amber-200/90 text-amber-950 text-[11px] font-bold px-2 py-0.5">📌 필독</span><span class="font-medium text-slate-900">' +
+              escapeHtml(n.title || '') +
+              '</span></span>'
+            : '<span class="font-medium text-slate-800">' + escapeHtml(n.title || '') + '</span>'
+          const target =
+            n.target_org_id != null
+              ? escapeHtml(String(n.organization_name || '기관 #' + n.target_org_id))
+              : '전체'
+          const st = pub
+            ? '<span class="text-emerald-700 font-medium">게시</span>'
+            : '<span class="text-slate-500">숨김</span>'
+          const pinCol = pinned ? '<span class="text-amber-800 font-semibold">Y</span>' : '—'
+          return (
+            '<tr class="border-t border-slate-100' +
+            trCls +
+            '">' +
+            '<td class="p-3 tabular-nums text-slate-600">' +
+            escapeHtml(id) +
+            '</td>' +
+            '<td class="p-3 text-sm">' +
+            titleHtml +
+            '<div class="text-[11px] text-slate-500 mt-0.5">' +
+            escapeHtml(target) +
+            '</div></td>' +
+            '<td class="p-3 text-xs text-slate-600 whitespace-nowrap">' +
+            escapeHtml(formatDateTime(n.created_at)) +
+            '</td>' +
+            '<td class="p-3 tabular-nums text-slate-700">' +
+            escapeHtml(String(n.view_count ?? 0)) +
+            '</td>' +
+            '<td class="p-3 text-xs">' +
+            st +
+            '</td>' +
+            '<td class="p-3 text-xs text-center">' +
+            pinCol +
+            '</td>' +
+            '<td class="p-3 text-right whitespace-nowrap space-x-2">' +
+            '<button type="button" class="text-indigo-600 hover:underline text-sm hub-notice-edit" data-notice-id="' +
+            escapeAttr(id) +
+            '">편집</button>' +
+            '<button type="button" class="text-rose-600 hover:underline text-sm hub-notice-del" data-notice-id="' +
+            escapeAttr(id) +
+            '">삭제</button>' +
+            '</td></tr>'
+          )
+        })
+        .join('')
+    : '<tr><td colspan="7" class="p-8 text-center text-slate-500">등록된 공지가 없습니다.</td></tr>'
+}
+
+function hubPostCategoryLabel(cat) {
+  const c = String(cat || '').toLowerCase()
+  if (c === 'review') return '후기'
+  if (c === 'qna') return 'Q&amp;A'
+  return escapeHtml(cat || '—')
+}
+
+async function loadHubPosts() {
+  const tbody = document.getElementById('hubPostsTableBody')
+  if (!tbody) return
+  tbody.innerHTML = '<tr><td colspan="8" class="p-8 text-center text-slate-500">불러오는 중…</td></tr>'
+  const res = await apiRequest('GET', '/api/admin/posts')
+  if (!res.success) {
+    tbody.innerHTML =
+      '<tr><td colspan="8" class="p-4 text-red-600">' +
+      escapeHtml(res.error || '게시글 목록을 불러오지 못했습니다.') +
+      '</td></tr>'
+    return
+  }
+  const rows = Array.isArray(res.data) ? res.data : []
+  tbody.innerHTML = rows.length
+    ? rows
+        .map((p) => {
+          const pub = Number(p.is_published) === 1
+          const st = pub
+            ? '<span class="text-emerald-700 font-medium">게시</span>'
+            : '<span class="text-slate-500">숨김</span>'
+          const id = String(p.id)
+          const vc = Number(p.view_count) || 0
+          return (
+            '<tr class="border-t border-slate-100 hover:bg-slate-50">' +
+            '<td class="p-3 tabular-nums text-slate-600">' +
+            escapeHtml(id) +
+            '</td>' +
+            '<td class="p-3 text-sm font-medium text-slate-900">' +
+            escapeHtml(p.title || '') +
+            '</td>' +
+            '<td class="p-3 text-sm text-slate-700">' +
+            escapeHtml(p.author || '—') +
+            '</td>' +
+            '<td class="p-3 text-xs">' +
+            hubPostCategoryLabel(p.category) +
+            '</td>' +
+            '<td class="p-3 text-xs text-slate-600 whitespace-nowrap">' +
+            escapeHtml(formatDateTime(p.created_at)) +
+            '</td>' +
+            '<td class="p-3 text-xs text-right tabular-nums text-slate-700">' +
+            escapeHtml(String(vc)) +
+            '</td>' +
+            '<td class="p-3 text-xs">' +
+            st +
+            '</td>' +
+            '<td class="p-3 text-right whitespace-nowrap space-x-2">' +
+            '<button type="button" class="text-indigo-600 hover:underline text-sm hub-post-edit" data-post-id="' +
+            escapeAttr(id) +
+            '">수정</button>' +
+            '<button type="button" class="text-rose-600 hover:underline text-sm hub-post-del" data-post-id="' +
+            escapeAttr(id) +
+            '">삭제</button>' +
+            '</td></tr>'
+          )
+        })
+        .join('')
+    : '<tr><td colspan="8" class="p-8 text-center text-slate-500">등록된 게시글이 없습니다. (<code class="text-xs bg-slate-100 px-1 rounded">posts</code> 마이그레이션 적용 여부를 확인하세요.)</td></tr>'
+}
+
+function closeHubPostModal() {
+  const modal = document.getElementById('hubPostModal')
+  if (!modal) return
+  modal.classList.add('hidden')
+  modal.classList.remove('flex')
+}
+
+async function hubOpenPostEditor(postId) {
+  const modal = document.getElementById('hubPostModal')
+  if (!modal) return
+  document.getElementById('hubPostModalTitle').textContent = '게시글 편집'
+  document.getElementById('hubPostId').value = postId ? String(postId) : ''
+  document.getElementById('hubPostTitle').value = ''
+  document.getElementById('hubPostAuthor').value = ''
+  document.getElementById('hubPostContent').value = ''
+  document.getElementById('hubPostCategory').value = 'qna'
+  const pub = document.getElementById('hubPostPublished')
+  if (pub) pub.checked = true
+
+  if (postId) {
+    const res = await apiRequest('GET', '/api/admin/posts/' + postId)
+    if (!res.success || !res.data) {
+      showToast(res.error || '불러오기 실패', 'error')
+      return
+    }
+    const d = res.data
+    document.getElementById('hubPostTitle').value = d.title || ''
+    document.getElementById('hubPostAuthor').value = d.author || ''
+    document.getElementById('hubPostContent').value = d.content || ''
+    const cat = String(d.category || 'general').toLowerCase()
+    document.getElementById('hubPostCategory').value =
+      cat === 'qna' || cat === 'review' || cat === 'general' ? cat : 'general'
+    if (pub) pub.checked = Number(d.is_published) === 1
+  }
+
+  modal.classList.remove('hidden')
+  modal.classList.add('flex')
+}
+
+async function hubPostFormSubmit(e) {
+  e.preventDefault()
+  const id = (document.getElementById('hubPostId')?.value || '').trim()
+  const payload = {
+    title: (document.getElementById('hubPostTitle')?.value || '').trim(),
+    content: document.getElementById('hubPostContent')?.value || '',
+    author: (document.getElementById('hubPostAuthor')?.value || '').trim() || null,
+    category: document.getElementById('hubPostCategory')?.value || 'general',
+    is_published: document.getElementById('hubPostPublished')?.checked ? 1 : 0,
+  }
+  if (!payload.title) {
+    showToast('제목을 입력해 주세요.', 'error')
+    return
+  }
+  const res = await apiRequest('PUT', '/api/admin/posts/' + id, payload)
+  if (res.success) {
+    showToast(res.message || '저장되었습니다.', 'success')
+    closeHubPostModal()
+    await loadHubPosts()
+  } else {
+    showToast(res.error || '저장 실패', 'error')
+  }
+}
+
+async function hubDeletePost(id) {
+  if (!confirm('이 게시글을 영구 삭제할까요?')) return
+  const res = await apiRequest('DELETE', '/api/admin/posts/' + id)
+  if (res.success) {
+    showToast(res.message || '삭제되었습니다.', 'success')
+    await loadHubPosts()
+  } else {
+    showToast(res.error || '삭제 실패', 'error')
+  }
+}
+
+function initHubPostsPanel() {
+  document.getElementById('hubPostModalClose')?.addEventListener('click', closeHubPostModal)
+  document.getElementById('hubPostCancel')?.addEventListener('click', closeHubPostModal)
+  document.getElementById('hubPostModal')?.addEventListener('click', (ev) => {
+    if (ev.target && ev.target.id === 'hubPostModal') closeHubPostModal()
+  })
+  document.getElementById('hubPostForm')?.addEventListener('submit', hubPostFormSubmit)
+
+  document.getElementById('hubPostsTableBody')?.addEventListener('click', (ev) => {
+    const ed = ev.target.closest('.hub-post-edit')
+    const del = ev.target.closest('.hub-post-del')
+    if (ed) {
+      const pid = ed.getAttribute('data-post-id')
+      if (pid) void hubOpenPostEditor(pid)
+      return
+    }
+    if (del) {
+      const pid = del.getAttribute('data-post-id')
+      if (pid) void hubDeletePost(pid)
+    }
+  })
+}
+
+async function hubNoticeFormSubmit(e) {
+  e.preventDefault()
+  const hid = document.getElementById('hubNoticeId')
+  const id = (hid && hid.value ? hid.value : '').trim()
+  const orgEl = document.getElementById('hubNoticeTargetOrg')
+  const orgRaw = orgEl && orgEl.value ? orgEl.value.trim() : ''
+  const payload = {
+    title: (document.getElementById('hubNoticeTitle')?.value || '').trim(),
+    content: document.getElementById('hubNoticeContent')?.value || '',
+    is_pinned: document.getElementById('hubNoticePinned')?.checked ? 1 : 0,
+    is_published: document.getElementById('hubNoticePublished')?.checked ? 1 : 0,
+    target_org_id: orgRaw ? parseInt(orgRaw, 10) : null,
+  }
+  const res = id
+    ? await apiRequest('PUT', '/api/admin/notices/' + id, payload)
+    : await apiRequest('POST', '/api/admin/notices', payload)
+  if (res.success) {
+    showToast(res.message || '저장되었습니다.', 'success')
+    closeHubNoticeModal()
+    await loadHubNotices()
+  } else {
+    showToast(res.error || '저장 실패', 'error')
+  }
+}
+
+function initHubNoticesPanel() {
+  document.getElementById('hubNoticeBtnNew')?.addEventListener('click', () => {
+    void hubOpenNoticeEditor(null)
+  })
+  document.getElementById('hubNoticeModalClose')?.addEventListener('click', closeHubNoticeModal)
+  document.getElementById('hubNoticeCancel')?.addEventListener('click', closeHubNoticeModal)
+  document.getElementById('hubNoticeModal')?.addEventListener('click', (ev) => {
+    if (ev.target && ev.target.id === 'hubNoticeModal') closeHubNoticeModal()
+  })
+  document.getElementById('hubNoticeForm')?.addEventListener('submit', hubNoticeFormSubmit)
+
+  document.querySelectorAll('.hub-notice-tool').forEach((btn) => {
+    btn.addEventListener('click', (ev) => {
+      ev.preventDefault()
+      const cmd = btn.getAttribute('data-hub-notice-tool')
+      if (cmd) hubNoticeApplyTool(cmd)
+    })
+  })
+
+  document.getElementById('hubNoticeImageFile')?.addEventListener('change', async (ev) => {
+    const input = ev.target
+    const file = input && input.files && input.files[0]
+    if (!file) return
+    const fd = new FormData()
+    fd.append('file', file)
+    try {
+      const response = await fetch('/api/upload/image', { method: 'POST', body: fd, credentials: 'include' })
+      const text = await response.text()
+      let parsed = null
+      try {
+        parsed = text ? JSON.parse(text) : null
+      } catch {
+        /* ignore */
+      }
+      if (response.ok && parsed && parsed.success && parsed.data && parsed.data.url) {
+        const url = parsed.data.url
+        hubNoticeInsertAtCursor(
+          '\n<img src="' +
+            escapeAttr(url) +
+            '" alt="" class="max-w-full rounded-lg my-2 border border-slate-200" loading="lazy">\n',
+        )
+        showToast('이미지가 본문에 삽입되었습니다.', 'success')
+      } else {
+        showToast((parsed && (parsed.error || parsed.message)) || '업로드 실패', 'error')
+      }
+    } catch {
+      showToast('업로드 중 오류가 발생했습니다.', 'error')
+    }
+    input.value = ''
+  })
+
+  document.getElementById('hubNoticesTableBody')?.addEventListener('click', (ev) => {
+    const ed = ev.target.closest('.hub-notice-edit')
+    const del = ev.target.closest('.hub-notice-del')
+    if (ed) {
+      const nid = ed.getAttribute('data-notice-id')
+      if (nid) void hubOpenNoticeEditor(nid)
+      return
+    }
+    if (del) {
+      const nid = del.getAttribute('data-notice-id')
+      if (nid) void hubDeleteNotice(nid)
+    }
+  })
+}
+
+async function hubDeleteNotice(id) {
+  if (!confirm('이 공지를 삭제할까요?')) return
+  const res = await apiRequest('DELETE', '/api/admin/notices/' + id)
+  if (res.success) {
+    showToast(res.message || '삭제되었습니다.', 'success')
+    await loadHubNotices()
+  } else {
+    showToast(res.error || '삭제 실패', 'error')
+  }
+}
+
 async function loadCertificatesTable() {
   const res = await apiRequest('GET', '/api/admin/certificates')
   const tbody = document.getElementById('certificatesTableBody')
@@ -1775,7 +3922,7 @@ async function loadIsbnAdmin() {
       <td class="p-2">${escapeHtml(b.user_name || '')}<br/><span class="text-xs text-slate-500">${escapeHtml(b.email || '')}</span></td>
       <td class="p-2">${escapeHtml(b.title || '')}</td>
       <td class="p-2 font-mono text-xs">${escapeHtml(b.isbn_number || '—')}</td>
-      <td class="p-2">${escapeHtml(b.status || '')}</td>
+      <td class="p-2">${escapeHtml(hubAdminStatusKo(b.status || ''))}</td>
       <td class="p-2">${b.barcode_url ? `<a class="text-indigo-600 underline" href="${escapeAttr(b.barcode_url)}" target="_blank" rel="noopener">SVG</a>` : '—'}</td>
     </tr>`,
         )

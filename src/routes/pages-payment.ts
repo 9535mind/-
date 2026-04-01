@@ -38,7 +38,7 @@ app.get('/payment/checkout/:courseId', (c) => {
         <link rel="stylesheet" href="/static/css/app.css" />
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
-        <script src="https://js.tosspayments.com/v1/payment-widget"></script>
+        <script src="https://cdn.iamport.kr/js/iamport.payment-1.2.0.js"></script>
         <script src="/static/js/auth.js?v=20260329-admin-name"></script>
         <script src="/static/js/utils.js"></script>
         ${siteFloatingQuickMenuStyles()}
@@ -75,10 +75,8 @@ app.get('/payment/checkout/:courseId', (c) => {
                 </div>
             </div>
 
-            <!-- 결제 위젯 -->
-            <div class="bg-white rounded-lg shadow p-6 mb-6">
-                <h2 class="text-xl font-bold mb-4">결제 수단 선택</h2>
-                <div id="payment-widget"></div>
+            <div class="bg-indigo-50 border border-indigo-100 rounded-lg p-4 mb-6 text-sm text-indigo-900">
+                포트원(PortOne) 결제창으로 결제가 진행됩니다. 결제하기 버튼을 누르면 PG 결제 팝업이 열립니다.
             </div>
 
             <!-- 약관 동의 -->
@@ -112,8 +110,21 @@ app.get('/payment/checkout/:courseId', (c) => {
 
         <script>
             const courseId = ${courseId}
-            let paymentWidget = null
             let paymentData = null
+            let portoneConfig = null
+
+            function friendlyClientMessage(err) {
+                var d = err && err.response && err.response.data
+                var raw = (d && (d.error || d.message)) || (err && err.message) || ''
+                var s = String(raw)
+                if (!s || /PORTONE_|IMP_|SECRET|D1|SQLite|undefined|stack|TypeError/i.test(s)) {
+                    return '결제 모듈을 불러오는 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.'
+                }
+                if (s.length > 160) {
+                    return '결제 모듈을 불러오는 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.'
+                }
+                return s
+            }
 
             // 약관 동의 체크
             document.getElementById('agreeTerms').addEventListener('change', (e) => {
@@ -131,17 +142,28 @@ app.get('/payment/checkout/:courseId', (c) => {
                         return
                     }
 
-                    // 결제 준비 API 호출
-                    const response = await axios.post('/api/payments-v2/prepare', {
-                        course_id: courseId
+                    const cfgRes = await axios.get('/api/portone/public-config', {
+                        withCredentials: true
                     })
+                    if (!cfgRes.data?.success || !cfgRes.data?.data?.impCode) {
+                        throw new Error(cfgRes.data?.error || '결제 설정이 완료되지 않았습니다.')
+                    }
+                    portoneConfig = cfgRes.data.data
 
-                    paymentData = response.data.data
+                    const prepRes = await axios.post('/api/portone/prepare', {
+                        course_id: Number(courseId)
+                    }, {
+                        withCredentials: true
+                    })
+                    if (!prepRes.data?.success || !prepRes.data?.data) {
+                        throw new Error(prepRes.data?.error || '주문 준비에 실패했습니다.')
+                    }
+                    paymentData = prepRes.data.data
 
-                    // 과정 정보 표시
+                    // 과정 정보 표시 (PortOne prepare 응답: merchant_uid)
                     document.getElementById('courseInfo').innerHTML = \`
-                        <h3 class="text-xl font-bold mb-2">\${paymentData.orderName}</h3>
-                        <p class="text-gray-600">주문번호: \${paymentData.orderId}</p>
+                        <h3 class="text-xl font-bold mb-2">\${paymentData.orderName || ''}</h3>
+                        <p class="text-gray-600">주문번호: \${paymentData.merchant_uid || '—'}</p>
                     \`
 
                     // 금액 정보 표시
@@ -150,17 +172,9 @@ app.get('/payment/checkout/:courseId', (c) => {
                     document.getElementById('finalPrice').textContent = 
                         paymentData.amount.toLocaleString() + '원'
 
-                    // 토스페이먼츠 위젯 초기화
-                    const clientKey = 'test_ck_D5GePWvyJnrK0W0k6q8gLzN97Eoq'
-                    const customerKey = 'USER_' + user.id
-                    
-                    paymentWidget = PaymentWidget(clientKey, customerKey)
-                    
-                    // 결제 UI 렌더링
-                    await paymentWidget.renderPaymentMethods(
-                        '#payment-widget',
-                        { value: paymentData.amount }
-                    )
+                    if (typeof IMP === 'undefined') {
+                        throw new Error('결제 모듈을 불러오지 못했습니다.')
+                    }
 
                 } catch (error) {
                     console.error('초기화 실패:', error)
@@ -181,18 +195,47 @@ app.get('/payment/checkout/:courseId', (c) => {
                 try {
                     showLoading()
 
-                    await paymentWidget.requestPayment({
-                        orderId: paymentData.orderId,
-                        orderName: paymentData.orderName,
-                        customerEmail: paymentData.customerEmail,
-                        customerName: paymentData.customerName,
-                        successUrl: paymentData.successUrl,
-                        failUrl: paymentData.failUrl,
+                    if (!portoneConfig?.impCode) {
+                        throw new Error('결제 설정이 없습니다.')
+                    }
+
+                    IMP.init(portoneConfig.impCode)
+                    IMP.request_pay({
+                        pg: portoneConfig.pg || 'html5_inicis',
+                        pay_method: 'card',
+                        merchant_uid: paymentData.merchant_uid,
+                        name: paymentData.orderName,
+                        amount: paymentData.amount,
+                        buyer_email: paymentData.buyerEmail,
+                        buyer_name: paymentData.buyerName,
+                    }, async function (rsp) {
+                        hideLoading()
+                        if (!rsp || !rsp.success) {
+                            alert((rsp && rsp.error_msg) || '결제가 취소되었습니다.')
+                            return
+                        }
+                        try {
+                            const doneRes = await axios.post('/api/portone/complete', {
+                                imp_uid: rsp.imp_uid,
+                                merchant_uid: rsp.merchant_uid
+                            }, {
+                                withCredentials: true
+                            })
+                            if (doneRes.data?.success) {
+                                alert('결제가 완료되었습니다.')
+                                window.location.href = '/my-courses'
+                            } else {
+                                alert(friendlyClientMessage({ message: doneRes.data?.error }))
+                            }
+                        } catch (err) {
+                            console.error('결제 검증 실패:', err)
+                            alert(friendlyClientMessage(err))
+                        }
                     })
                 } catch (error) {
                     hideLoading()
                     console.error('결제 요청 실패:', error)
-                    showToast('결제 요청에 실패했습니다.', 'error')
+                    showToast(friendlyClientMessage(error), 'error')
                 }
             }
 

@@ -20,6 +20,7 @@ import {
   siteOrganizationJsonLdScriptHtml,
 } from '../utils/site-footer-legal'
 import { STATIC_JS_CACHE_QUERY } from '../utils/static-js-cache-bust'
+import { SITE_POPUP_SCRIPT_TAG } from '../utils/site-popup-script'
 import {
   siteAiChatWidgetMarkup,
   siteAiChatWidgetScript,
@@ -957,6 +958,7 @@ landing.get('/', async (c) => {
                 }
             })()
         </script>
+        ${SITE_POPUP_SCRIPT_TAG}
         <script src="/static/js/security.js${STATIC_JS_CACHE_QUERY}"></script>
     </body>
     </html>

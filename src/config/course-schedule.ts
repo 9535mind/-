@@ -4,6 +4,7 @@
  */
 
 import { SITE_INTERNET_DOMAIN } from '../utils/site-footer-legal'
+import { parseCatalogLines } from '../utils/catalog-lines'
 
 export const SITE_PUBLIC_ORIGIN = SITE_INTERNET_DOMAIN.replace(/\/$/, '')
 
@@ -38,6 +39,14 @@ export const BRAND_SCHEDULE_ROWS: BrandScheduleRow[] = [
     kind: 'brand',
     scheduleText: '강좌별 개강일은 아래 [등록된 강좌] 목록에 기록된 DB 값을 따른다.',
     detailHint: '관리자가 강좌 편집에서 입력한 날짜·일정 안내만 인용한다.',
+  },
+  {
+    key: 'NCS',
+    name: 'NCS 국가직무능력표준',
+    listPath: '/courses/ncs',
+    kind: 'brand',
+    scheduleText: '강좌별 개강일은 아래 [등록된 강좌] 목록에 기록된 DB 값을 따른다.',
+    detailHint: 'NCS·직업훈련 세부는 과정 공지 및 산업인력공단 안내를 기준으로 한다.',
   },
   {
     key: 'CONSORTIUM',
@@ -110,7 +119,7 @@ export function buildCourseScheduleContextBlock(courses: CourseScheduleRow[]): s
 
   const courseLines = courses
     .map((c) => {
-      const cg = (c.category_group || 'CLASSIC').toString().toUpperCase()
+      const cg = parseCatalogLines(c.category_group).join(',')
       const r = resolveScheduleForCourse(c)
       const detail = courseDetailUrl(c.id)
       const raw =

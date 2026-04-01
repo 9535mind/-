@@ -22,6 +22,7 @@ import {
   siteHeaderFullMarkup,
   siteHeaderNavCoursesGlassStyles,
 } from '../utils/site-header-courses-nav'
+import { SITE_POPUP_SCRIPT_TAG } from '../utils/site-popup-script'
 
 const pages = new Hono<{ Bindings: Bindings; Variables: { user?: User } }>()
 pages.use('*', optionalAuth)
@@ -157,6 +158,7 @@ const getCommonFoot = () => `
     ${siteAiChatWidgetScript()}
   })
 </script>
+${SITE_POPUP_SCRIPT_TAG}
 </body>
 </html>
 `
@@ -1168,9 +1170,35 @@ pages.get('/courses/:id', async (c) => {
                 console.log('[DEBUG] isAdmin:', isAdmin, 'hasAccess:', hasAccess)
                 console.log('[DEBUG] Starting HTML render...')
                 
-                const cg = ((course.category_group || 'CLASSIC') + '').toUpperCase()
+                function msCatalogLineKeys(cg, groups) {
+                    if (Array.isArray(groups) && groups.length) {
+                        var allowed = ['CLASSIC', 'NEXT', 'NCS']
+                        return groups.map(function (g) { return String(g).toUpperCase() }).filter(function (x) { return allowed.indexOf(x) >= 0 }).filter(function (x, i, a) { return a.indexOf(x) === i })
+                    }
+                    var raw = String(cg || 'CLASSIC').toUpperCase().replace(/\\s/g, '').split(/[,，]/).filter(Boolean)
+                    var al = ['CLASSIC', 'NEXT', 'NCS']
+                    var out = []
+                    raw.forEach(function (p) { if (al.indexOf(p) >= 0 && out.indexOf(p) < 0) out.push(p) })
+                    return out.length ? out : ['CLASSIC']
+                }
+                var lineKeys = msCatalogLineKeys(course.category_group, course.category_groups)
+                var hasNext = lineKeys.indexOf('NEXT') >= 0
+                var hasNcs = lineKeys.indexOf('NCS') >= 0
                 document.body.classList.remove('theme-classic', 'theme-next')
-                document.body.classList.add(cg === 'NEXT' ? 'theme-next' : 'theme-classic')
+                document.body.classList.add(hasNext ? 'theme-next' : 'theme-classic')
+                var cg = hasNext ? 'NEXT' : 'CLASSIC'
+                var lineBadgesRow = lineKeys.map(function (k) {
+                    var cls = k === 'NEXT' ? 'bg-violet-500/90 text-white' : k === 'NCS' ? 'bg-amber-300/95 text-amber-950' : 'bg-white/25 text-white'
+                    var lab = k === 'CLASSIC' ? 'Classic' : k === 'NEXT' ? 'Next' : 'NCS'
+                    return '<span class="' + cls + ' backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-bold tracking-wide">' + lab + '</span>'
+                }).join('')
+                var ncsBanner = hasNcs
+                    ? '<div class="rounded-2xl border border-amber-300/60 bg-amber-50 p-6 md:p-8 mb-8 shadow-sm">' +
+                      '<p class="text-sm font-semibold text-amber-800 uppercase tracking-wide">NCS</p>' +
+                      '<h3 class="text-xl font-bold text-amber-950 mt-1">국가직무능력표준 연계</h3>' +
+                      '<p class="text-amber-900/85 mt-2 text-sm leading-relaxed">본 과정은 NCS 기반 직업훈련에 해당할 수 있습니다. 훈련·평가·출석 규정은 과정 공지 및 산업인력공단 안내를 따릅니다.</p>' +
+                      '</div>'
+                    : ''
                 
                 const detailHtml = \`
                     <!-- 과정 헤더 섹션 -->
@@ -1178,11 +1206,12 @@ pages.get('/courses/:id', async (c) => {
                         <div class="p-8 md:p-12">
                             <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
                                 <div class="flex-1">
-                                    <div class="flex items-center gap-3 mb-4">
+                                    <div class="flex items-center gap-3 mb-4 flex-wrap">
                                         <span class="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full text-sm font-semibold">
                                             <i class="fas fa-graduation-cap mr-2"></i>온라인 과정
                                         </span>
                                         \${course.is_featured ? '<span class="bg-yellow-400 text-yellow-900 px-4 py-2 rounded-full text-sm font-bold"><i class="fas fa-star mr-1"></i>인기</span>' : ''}
+                                        \${lineBadgesRow}
                                     </div>
                                     <h1 class="text-4xl md:text-5xl font-bold mb-4 leading-tight">\${course.title}</h1>
                                     <p class="text-xl text-white/90 leading-relaxed mb-6">\${course.description || ''}</p>
@@ -1269,6 +1298,7 @@ pages.get('/courses/:id', async (c) => {
                         </div>
                     </div>
                     
+                    \${ncsBanner}
                     \${cg === 'CLASSIC' ? \`
                     <div class="rounded-2xl border border-classic-sage/30 bg-classic-cream p-6 md:p-8 mb-8 shadow-sm">
                         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">

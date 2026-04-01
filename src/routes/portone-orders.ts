@@ -10,6 +10,7 @@ import { Bindings } from '../types/database'
 import { requireAuth } from '../middleware/auth'
 import { successResponse, errorResponse, generateOrderId } from '../utils/helpers'
 import { getIamportAccessToken, getIamportPayment } from '../utils/portone'
+import { PORTONE_PUBLIC_ERROR_COMPLETE, PORTONE_PUBLIC_ERROR_PREPARE } from '../utils/payment-safe-message'
 
 const portone = new Hono<{ Bindings: Bindings }>()
 
@@ -33,7 +34,7 @@ function assertPortoneKeys(c: Context): { impKey: string; impSecret: string } {
 portone.get('/public-config', (c) => {
   const impCode = c.env.PORTONE_IMP_CODE
   if (!impCode) {
-    return c.json(errorResponse('PORTONE_IMP_CODE 가 설정되지 않았습니다.'), 503)
+    return c.json(errorResponse('결제 연동 설정이 완료되지 않았습니다. 관리자에게 문의해 주세요.'), 503)
   }
   return c.json(
     successResponse({
@@ -124,8 +125,7 @@ portone.post('/prepare', requireAuth, async (c) => {
     )
   } catch (e) {
     console.error('PortOne prepare error:', e)
-    const msg = e instanceof Error ? e.message : '서버 오류가 발생했습니다.'
-    return c.json(errorResponse(msg), 500)
+    return c.json(errorResponse(PORTONE_PUBLIC_ERROR_PREPARE), 500)
   }
 })
 
@@ -259,8 +259,7 @@ portone.post('/complete', requireAuth, async (c) => {
     )
   } catch (e) {
     console.error('PortOne complete error:', e)
-    const msg = e instanceof Error ? e.message : '서버 오류가 발생했습니다.'
-    return c.json(errorResponse(msg), 500)
+    return c.json(errorResponse(PORTONE_PUBLIC_ERROR_COMPLETE), 500)
   }
 })
 

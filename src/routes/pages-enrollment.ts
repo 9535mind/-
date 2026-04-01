@@ -17,6 +17,7 @@ import {
   siteFloatingQuickMenuStyles,
 } from '../utils/site-floating-quick-menu'
 import { siteFooterLegalBlockHtml } from '../utils/site-footer-legal'
+import { SITE_POPUP_SCRIPT_TAG } from '../utils/site-popup-script'
 
 const pagesEnrollment = new Hono<{ Bindings: Bindings }>()
 
@@ -433,6 +434,7 @@ pagesEnrollment.get('/enrollment', optionalAuth, async (c) => {
                 }
             }
         </script>
+        ${SITE_POPUP_SCRIPT_TAG}
     </body>
     </html>
   `)

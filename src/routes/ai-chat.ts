@@ -52,7 +52,24 @@ function isCertificateQuestion(message: string): boolean {
   return /자격증|수료증|민간자격|공인\s*민간|국가\s*공인|자격기본법/.test(q)
 }
 
+async function logAiChatOutcome(
+  db: { prepare: (s: string) => { bind: (...a: unknown[]) => { run: () => Promise<unknown> } } } | undefined,
+  success: boolean,
+  source = 'chat',
+) {
+  if (!db) return
+  try {
+    await db
+      .prepare(`INSERT INTO ai_chat_request_logs (success, source) VALUES (?, ?)`)
+      .bind(success ? 1 : 0, source.slice(0, 64))
+      .run()
+  } catch (e) {
+    console.warn('[ai-chat] log skip', e)
+  }
+}
+
 aiChat.post('/chat', async (c) => {
+  const { DB } = c.env
   const apiKey = (c.env.OPENAI_API_KEY || '').trim()
   if (!apiKey) {
     return c.json(
@@ -95,15 +112,15 @@ aiChat.post('/chat', async (c) => {
       `- 다만, **자격기본법**에 의한 **등록 민간자격증**과 연계된 과정을 운영하고 있습니다.\n` +
       `- 과정별 발급 주체, 등록번호, 취득 조건(출석·평가·실습)은 상이할 수 있어, 최종 기준은 각 과정 상세 페이지에 안내된 내용을 기준으로 합니다.\n\n` +
       `제가 ${displayName}을 위해 과정별 자격 연계 여부와 준비 절차를 상세히 찾아보겠습니다.`
+    await logAiChatOutcome(DB, true, 'cert_guide')
     return c.json({ success: true, reply: fixedReply })
   }
 
   let siteDataBlock = ''
   let courseRowCount = -1
   try {
-    const { DB } = c.env
     const listed = await DB.prepare(
-      `SELECT id, title, category_group FROM courses WHERE status IN ('published', 'active') ORDER BY IFNULL(display_order, 0) ASC, id ASC`
+      `SELECT id, title, category_group FROM courses WHERE status = 'published' ORDER BY IFNULL(display_order, 0) ASC, id ASC`
     ).all<{ id: number; title: string; category_group: string | null }>()
     const rows = listed.results || []
     courseRowCount = rows.length
@@ -181,6 +198,7 @@ aiChat.post('/chat', async (c) => {
     if (!res.ok) {
       await res.text().catch(() => '')
       console.error('[ai-chat] OpenAI HTTP', res.status)
+      await logAiChatOutcome(DB, false, 'openai_http')
       return c.json(
         { success: false, error: '일시적으로 답변을 가져오지 못했습니다. 잠시 후 다시 시도해 주세요.' },
         502
@@ -192,12 +210,15 @@ aiChat.post('/chat', async (c) => {
     }
     const reply = trimContent(String(data.choices?.[0]?.message?.content || '').trim(), 8000)
     if (!reply) {
+      await logAiChatOutcome(DB, false, 'empty_reply')
       return c.json({ success: false, error: '빈 응답이 반환되었습니다.' }, 502)
     }
 
+    await logAiChatOutcome(DB, true, 'openai')
     return c.json({ success: true, reply })
   } catch (e) {
     console.error('[ai-chat]', e)
+    await logAiChatOutcome(DB, false, 'exception')
     return c.json({ success: false, error: '네트워크 오류가 발생했습니다.' }, 502)
   }
 })

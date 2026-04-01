@@ -27,7 +27,9 @@ import pagesMy from './routes/pages-my'
 import pagesAbout from './routes/pages-about'
 import pagesAdmin from './routes/pages-admin'
 import pagesPayment from './routes/pages-payment'  // 결제 페이지
-// Removed: popups (Phase 2 cleanup)
+import popups from './routes/popups'
+import notices from './routes/notices'
+import posts from './routes/posts'
 import videos from './routes/videos'
 import progress from './routes/progress'
 // Removed: certifications (Phase 2 cleanup)
@@ -146,7 +148,7 @@ function corsResolveOrigin(origin: string, c: Context): string | false {
 }
 app.use('/api/*', cors({
   origin: corsResolveOrigin,
-  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization'],
   exposeHeaders: ['Content-Length', 'X-Request-Id', 'X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
   maxAge: 600,
@@ -165,6 +167,9 @@ app.use('/api/enrollments', generalRateLimiter)
 app.use('/api/payments-v2', generalRateLimiter)
 app.use('/api/portone', generalRateLimiter)
 app.use('/api/admin', generalRateLimiter)
+app.use('/api/popups', generalRateLimiter)
+app.use('/api/notices', generalRateLimiter)
+app.use('/api/posts', generalRateLimiter)
 app.use('/api/upload', generalRateLimiter)
 
 // 관대한 제한: 읽기 전용 API (1분에 200회)
@@ -186,11 +191,6 @@ app.use(
 app.use('/static/*', serveStatic())
 app.use('/uploads/*', serveStatic()) // 업로드된 파일 서빙
 
-// 레거시 팝업·배너 API 무력화 — DB/관리자에 저장된 HTML·iframe 광고 자동 배포 차단 (다른 라우트보다 우선)
-app.get('/api/popups/active', (c) => c.json({ success: true, data: [] }))
-app.post('/api/popups/:id/view', (c) => c.json({ success: true }))
-app.post('/api/popups/:id/click', (c) => c.json({ success: true }))
-
 // API 라우트
 app.route('/api/auth', auth)
 app.route('/api/auth/kakao', authKakao)  // 카카오 소셜 로그인
@@ -202,7 +202,9 @@ app.route('/api/payments-v2', payments)  // 결제 API
 app.route('/api/portone', portoneOrders)
 app.route('/api', certificates)  // 수료증 API (courses/:id/certificate, my/certificates, certificates/:number)
 app.route('/api/admin', admin)
-// Removed popups route
+app.route('/api/popups', popups)
+app.route('/api/notices', notices)
+app.route('/api/posts', posts)
 app.route('/api/videos', videos)  // 영상 관리
 app.route('/api/progress', progress)  // 진도율 추적
 // Removed certification routes

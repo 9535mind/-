@@ -9,6 +9,7 @@ import { requireAuth } from '../middleware/auth'
 import { successResponse, errorResponse } from '../utils/helpers'
 import { finalizeBookPublication } from '../services/publishService'
 import { ean13Svg } from '../utils/ean13-svg'
+import { parseCatalogLines } from '../utils/catalog-lines'
 
 const app = new Hono<{ Bindings: Bindings }>()
 
@@ -99,7 +100,7 @@ app.post('/:id/publish', requireAuth, async (c) => {
 
   if (!book) return c.json(errorResponse('도서를 찾을 수 없습니다'), 404)
 
-  const isNext = (book.category_group || '').toUpperCase() === 'NEXT'
+  const isNext = parseCatalogLines(book.category_group).includes('NEXT')
   const isbnOn = isNext && Number(book.isbn_enabled) === 1
 
   const result = await finalizeBookPublication(c.env.DB, bookId, user.id, isbnOn)

@@ -1,6 +1,6 @@
 /**
  * MINDSTORY Classic / Next / Consortium (브랜드별 테마)
- * /courses/classic, /courses/next, /courses/consortium — pages의 /courses/:id 보다 먼저 등록할 것
+ * /courses/classic, /courses/next, /courses/ncs, /courses/consortium — pages의 /courses/:id 보다 먼저 등록할 것
  */
 
 import { Context, Hono } from 'hono'
@@ -23,6 +23,7 @@ import {
   siteHeaderFullMarkup,
   siteHeaderNavCoursesGlassStyles,
 } from '../utils/site-header-courses-nav'
+import { SITE_POPUP_SCRIPT_TAG } from '../utils/site-popup-script'
 
 const app = new Hono<{ Bindings: Bindings; Variables: { user?: User } }>()
 app.use('*', optionalAuth)
@@ -62,6 +63,7 @@ async function shell(c: Context, title: string, bodyClass: string, inner: string
       ${siteAiChatWidgetScript()}
     })
   </script>
+  ${SITE_POPUP_SCRIPT_TAG}
 </body>
 </html>`
 }
@@ -85,6 +87,20 @@ app.get('/courses/classic', async (c) => {
     <div id="gridClassic" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
     <script>
       (async function() {
+        function msLineTokens(cg) {
+          var parts = String(cg || 'CLASSIC').toUpperCase().replace(/\\s/g, '').split(/[,，]/).filter(Boolean)
+          var al = ['CLASSIC', 'NEXT', 'NCS']
+          var o = []
+          parts.forEach(function (p) { if (al.indexOf(p) >= 0 && o.indexOf(p) < 0) o.push(p) })
+          return o.length ? o : ['CLASSIC']
+        }
+        function msLineBadgesClassic(cg) {
+          return msLineTokens(cg).map(function (k) {
+            var cls = k === 'NEXT' ? 'bg-violet-100 text-violet-800' : k === 'NCS' ? 'bg-amber-100 text-amber-900' : 'bg-classic-sage/20 text-classic-forest'
+            var lab = k === 'CLASSIC' ? 'Classic' : k === 'NEXT' ? 'Next' : 'NCS'
+            return '<span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ' + cls + '">' + lab + '</span>'
+          }).join(' ')
+        }
         try {
           var msAdmin = document.body.getAttribute('data-ms-admin-chrome') === '1'
           try { if (localStorage.getItem('mindstory_view_mode') === 'student') msAdmin = false } catch (e) {}
@@ -100,6 +116,7 @@ app.get('/courses/classic', async (c) => {
               '<img src="' + (course.thumbnail_url || '/static/images/course-placeholder.svg') + '" class="w-full h-44 object-cover" alt="" />' +
               '<div class="p-5">' +
               '<h2 class="font-bold text-classic-forest text-lg">' + (course.title || '') + '</h2>' +
+              '<div class="flex flex-wrap gap-1 mt-2">' + msLineBadgesClassic(course.category_group) + '</div>' +
               '<p class="text-sm text-classic-forest/70 mt-2 flex items-start gap-1">' +
               '<span class="line-clamp-2 flex-1 min-w-0">' + (course.description || '') + '</span>' + pencil + '</p>' +
               '<a href="/courses/' + course.id + '" class="mt-4 inline-block rounded-lg bg-classic-sage text-white px-4 py-2 text-sm font-semibold hover:opacity-90">자세히</a>' +
@@ -134,6 +151,20 @@ app.get('/courses/next', async (c) => {
     <div id="gridNext" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
     <script>
       (async function() {
+        function msLineTokens(cg) {
+          var parts = String(cg || 'CLASSIC').toUpperCase().replace(/\\s/g, '').split(/[,，]/).filter(Boolean)
+          var al = ['CLASSIC', 'NEXT', 'NCS']
+          var o = []
+          parts.forEach(function (p) { if (al.indexOf(p) >= 0 && o.indexOf(p) < 0) o.push(p) })
+          return o.length ? o : ['CLASSIC']
+        }
+        function msLineBadgesNext(cg) {
+          return msLineTokens(cg).map(function (k) {
+            var cls = k === 'NEXT' ? 'bg-violet-100 text-violet-800' : k === 'NCS' ? 'bg-amber-100 text-amber-900' : 'bg-slate-100 text-slate-700'
+            var lab = k === 'CLASSIC' ? 'Classic' : k === 'NEXT' ? 'Next' : 'NCS'
+            return '<span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ' + cls + '">' + lab + '</span>'
+          }).join(' ')
+        }
         try {
           var msAdmin = document.body.getAttribute('data-ms-admin-chrome') === '1'
           try { if (localStorage.getItem('mindstory_view_mode') === 'student') msAdmin = false } catch (e) {}
@@ -150,6 +181,7 @@ app.get('/courses/next', async (c) => {
               '<img src="' + (course.thumbnail_url || '/static/images/course-placeholder.svg') + '" class="w-full h-44 object-cover bg-slate-100" alt="" />' +
               '<div class="p-5">' +
               '<h2 class="font-bold text-next-ink text-lg">' + (course.title || '') + '</h2>' +
+              '<div class="flex flex-wrap gap-1 mt-2">' + msLineBadgesNext(course.category_group) + '</div>' +
               '<p class="text-sm text-slate-600 mt-2 flex items-start gap-1">' +
               '<span class="line-clamp-2 flex-1 min-w-0">' + (course.description || '') + '</span>' + pencil + '</p>' +
               '<a href="/courses/' + course.id + '" class="mt-4 inline-block rounded-lg bg-next-accent text-white px-4 py-2 text-sm font-semibold hover:bg-blue-700">자세히</a>' +
@@ -157,6 +189,71 @@ app.get('/courses/next', async (c) => {
           }).join('')
         } catch (e) {
           document.getElementById('gridNext').innerHTML = '<p class="text-red-600">목록을 불러오지 못했습니다.</p>'
+        }
+      })()
+    </script>
+  </main>`,
+    ),
+  )
+})
+
+app.get('/courses/ncs', async (c) => {
+  return c.html(
+    await shell(
+      c,
+      'NCS 직업훈련',
+      'bg-gradient-to-b from-amber-50/80 via-white to-slate-50',
+      `
+  <main class="max-w-7xl mx-auto px-4 py-12">
+    <div class="mb-10 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+      <div>
+        <span class="text-amber-800 font-semibold text-sm tracking-widest uppercase">NCS</span>
+        <h1 class="text-3xl md:text-4xl font-bold text-amber-950 mt-2 tracking-tight">국가직무능력표준 연계 강좌</h1>
+        <p class="text-slate-700 mt-2 max-w-2xl leading-relaxed">산업인력공단 및 직업훈련과 연계될 수 있는 과정입니다. 세부 훈련·평가·출석 규정은 각 강좌 공지를 따릅니다.</p>
+      </div>
+      <div class="rounded-xl bg-white border border-amber-200/80 px-4 py-2 text-xs text-amber-900/80 shadow-sm shrink-0">NCS · 직업훈련</div>
+    </div>
+    <div id="gridNcs" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+    <script>
+      (async function() {
+        function msLineTokens(cg) {
+          var parts = String(cg || 'CLASSIC').toUpperCase().replace(/\\s/g, '').split(/[,，]/).filter(Boolean)
+          var al = ['CLASSIC', 'NEXT', 'NCS']
+          var o = []
+          parts.forEach(function (p) { if (al.indexOf(p) >= 0 && o.indexOf(p) < 0) o.push(p) })
+          return o.length ? o : ['CLASSIC']
+        }
+        function msLineBadgesNcs(cg) {
+          return msLineTokens(cg).map(function (k) {
+            var cls = k === 'NEXT' ? 'bg-violet-100 text-violet-800' : k === 'NCS' ? 'bg-amber-200 text-amber-950' : 'bg-slate-100 text-slate-700'
+            var lab = k === 'CLASSIC' ? 'Classic' : k === 'NEXT' ? 'Next' : 'NCS'
+            return '<span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ' + cls + '">' + lab + '</span>'
+          }).join(' ')
+        }
+        try {
+          var msAdmin = document.body.getAttribute('data-ms-admin-chrome') === '1'
+          try { if (localStorage.getItem('mindstory_view_mode') === 'student') msAdmin = false } catch (e) {}
+          var res = await axios.get('/api/courses?category_group=NCS')
+          var list = res.data.data || []
+          var el = document.getElementById('gridNcs')
+          if (!list.length) { el.innerHTML = '<p class="text-slate-600">등록된 NCS 강좌가 없습니다.</p>'; return }
+          el.innerHTML = list.map(function(course) {
+            var pencil = msAdmin
+              ? '<a href="/admin/course/edit/' + course.id + '" class="admin-magic-pencil shrink-0 mt-0.5" title="관리자 수정" aria-label="강좌 수정"><i class="fas fa-pencil-alt" aria-hidden="true"></i></a>'
+              : ''
+            return '<article class="rounded-2xl border border-amber-200/70 bg-white shadow-md hover:shadow-lg transition overflow-hidden">' +
+              '<div class="h-2 bg-gradient-to-r from-amber-500 to-amber-700"></div>' +
+              '<img src="' + (course.thumbnail_url || '/static/images/course-placeholder.svg') + '" class="w-full h-44 object-cover bg-amber-50/30" alt="" />' +
+              '<div class="p-5">' +
+              '<h2 class="font-bold text-amber-950 text-lg">' + (course.title || '') + '</h2>' +
+              '<div class="flex flex-wrap gap-1 mt-2">' + msLineBadgesNcs(course.category_group) + '</div>' +
+              '<p class="text-sm text-slate-600 mt-2 flex items-start gap-1">' +
+              '<span class="line-clamp-2 flex-1 min-w-0">' + (course.description || '') + '</span>' + pencil + '</p>' +
+              '<a href="/courses/' + course.id + '" class="mt-4 inline-block rounded-lg bg-amber-700 text-white px-4 py-2 text-sm font-semibold hover:bg-amber-800">자세히</a>' +
+              '</div></article>'
+          }).join('')
+        } catch (e) {
+          document.getElementById('gridNcs').innerHTML = '<p class="text-red-600">목록을 불러오지 못했습니다.</p>'
         }
       })()
     </script>
@@ -204,12 +301,13 @@ app.get('/courses/consortium', async (c) => {
       </div>
     </div>
     <div class="rounded-2xl border border-indigo-300/40 bg-white/90 p-8 text-center shadow-md ring-1 ring-indigo-100/80">
-      <p class="text-slate-700 mb-6">Classic·Next 강좌 목록은 각 카탈로그에서 확인하실 수 있습니다. 공동훈련 관련 공지는 커뮤니티에서 업데이트됩니다.</p>
+      <p class="text-slate-700 mb-6">Classic·Next·NCS 강좌 목록은 각 카탈로그에서 확인하실 수 있습니다. 공동훈련 관련 공지는 커뮤니티에서 업데이트됩니다.</p>
       <div class="flex flex-col sm:flex-row gap-3 justify-center flex-wrap">
         <a href="/community" class="inline-flex items-center justify-center rounded-xl bg-indigo-600 text-white px-6 py-3 font-semibold hover:bg-indigo-700 transition shadow-sm">공지 · FAQ 보기</a>
         <a href="/#signature-lineup" class="inline-flex items-center justify-center rounded-xl border border-indigo-300 bg-indigo-50/90 text-indigo-900 px-6 py-3 font-semibold hover:bg-indigo-100 transition">시그니처 라인업으로</a>
         <a href="/courses/classic" class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-800 px-6 py-3 font-semibold hover:bg-slate-50 transition">Classic 강좌</a>
         <a href="/courses/next" class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-800 px-6 py-3 font-semibold hover:bg-slate-50 transition">Next 강좌</a>
+        <a href="/courses/ncs" class="inline-flex items-center justify-center rounded-xl border border-amber-200 bg-amber-50 text-amber-950 px-6 py-3 font-semibold hover:bg-amber-100 transition">NCS 강좌</a>
       </div>
     </div>
   </main>`,

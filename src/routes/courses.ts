@@ -8,6 +8,11 @@ import { Bindings, Course, Lesson, CreateCourseInput, CreateLessonInput } from '
 import { successResponse, errorResponse } from '../utils/helpers'
 import { requireAuth, requireAdmin, optionalAuth } from '../middleware/auth'
 import { validateLessonContent, validateVideoUrl, extractYouTubeId, extractApiVideoId } from '../utils/content-filter'
+import {
+  parseCatalogLines,
+  sqlCategoryGroupMatchesLine,
+  type CatalogLineKey,
+} from '../utils/catalog-lines'
 
 const courses = new Hono<{ Bindings: Bindings }>()
 
@@ -80,32 +85,41 @@ function generateCourseThumbnailSvg(title: string): string {
  * 과정 목록 조회 (공개된 과정만)
  */
 courses.get('/', optionalAuth, async (c) => {
+  const { DB } = c.env
+  const user = c.get('user')
+  const rawCg = (c.req.query('category_group') || '').trim().toUpperCase()
+  const cg: CatalogLineKey | null =
+    rawCg === 'CLASSIC' || rawCg === 'NEXT' || rawCg === 'NCS' ? (rawCg as CatalogLineKey) : null
+
+  const cgSql = cg ? `AND ${sqlCategoryGroupMatchesLine()}` : ''
+  const orderBy =
+    cg === 'CLASSIC'
+      ? 'highlight_classic DESC, IFNULL(display_order, 0) ASC, created_at DESC'
+      : 'IFNULL(display_order, 0) ASC, created_at DESC'
+
+  const query =
+    user?.role === 'admin'
+      ? `SELECT * FROM courses WHERE 1=1 ${cgSql} ORDER BY ${orderBy}`
+      : `SELECT * FROM courses WHERE status = 'published' ${cgSql} ORDER BY ${orderBy}`
+
   try {
-    const { DB } = c.env
-    const user = c.get('user')
-    const rawCg = (c.req.query('category_group') || '').trim().toUpperCase()
-    const cg = rawCg === 'CLASSIC' || rawCg === 'NEXT' ? rawCg : null
-
-    const cgSql = cg ? `AND UPPER(IFNULL(category_group, 'CLASSIC')) = ?` : ''
-    const orderBy =
-      cg === 'CLASSIC'
-        ? 'highlight_classic DESC, IFNULL(display_order, 0) ASC, created_at DESC'
-        : 'created_at DESC'
-
-    const query =
-      user?.role === 'admin'
-        ? `SELECT * FROM courses WHERE 1=1 ${cgSql} ORDER BY ${orderBy}`
-        : `SELECT * FROM courses WHERE status IN ('published', 'active') ${cgSql} ORDER BY ${orderBy}`
-
     const result = cg
       ? await DB.prepare(query).bind(cg).all<Course>()
       : await DB.prepare(query).all<Course>()
-
     return c.json(successResponse(result.results))
-
   } catch (error) {
-    console.error('Get courses error:', error)
-    return c.json(errorResponse('서버 오류가 발생했습니다.'), 500)
+    // Legacy/local DB may miss newer columns (e.g., display_order/category_group).
+    console.warn('Get courses primary query failed, fallback to legacy query:', error)
+    try {
+      const legacyQuery = user?.role === 'admin'
+        ? `SELECT * FROM courses ORDER BY created_at DESC`
+        : `SELECT * FROM courses WHERE status = 'published' ORDER BY created_at DESC`
+      const legacy = await DB.prepare(legacyQuery).all<Course>()
+      return c.json(successResponse(legacy.results))
+    } catch (legacyError) {
+      console.error('Get courses error:', legacyError)
+      return c.json(errorResponse('서버 오류가 발생했습니다.'), 500)
+    }
   }
 })
 
@@ -119,7 +133,7 @@ courses.get('/featured', async (c) => {
 
     const result = await DB.prepare(`
       SELECT * FROM courses 
-      WHERE status IN ('published', 'active')
+      WHERE status = 'published'
       ORDER BY created_at DESC
       LIMIT 10
     `).all<Course>()
@@ -152,7 +166,7 @@ courses.get('/:id', optionalAuth, async (c) => {
     }
 
     // 비공개 과정은 관리자만 조회 가능 (published, active는 공개)
-    if (!['published', 'active'].includes(course.status) && user?.role !== 'admin') {
+    if (course.status !== 'published' && user?.role !== 'admin') {
       return c.json(errorResponse('접근 권한이 없습니다.'), 403)
     }
 
@@ -218,10 +232,13 @@ courses.get('/:id', optionalAuth, async (c) => {
       }
     }
 
+    const lineKeys = parseCatalogLines(course.category_group)
+
     return c.json(successResponse({
       course: {
         ...course,
-        student_count: studentCount
+        student_count: studentCount,
+        category_groups: lineKeys,
       },
       lessons: lessons.results,
       enrollment,
@@ -451,7 +468,7 @@ courses.get('/:courseId/materials', requireAuth, async (c) => {
     if (!course) return c.json(errorResponse('강좌를 찾을 수 없습니다.'), 404)
 
     // 비공개 과정은 관리자만
-    if (!['published', 'active'].includes(course.status) && user.role !== 'admin') {
+    if (course.status !== 'published' && user.role !== 'admin') {
       return c.json(errorResponse('접근 권한이 없습니다.'), 403)
     }
 
@@ -690,15 +707,38 @@ courses.put('/:courseId/lessons/:lessonId', requireAdmin, async (c) => {
       console.warn('⚠️ 콘텐츠 경고 (수정):', contentValidation.warnings)
     }
 
-    // 업데이트할 필드 구성
+    const ALLOWED_LESSON_COLUMNS = new Set([
+      'title',
+      'description',
+      'lesson_number',
+      'video_url',
+      'video_type',
+      'duration_minutes',
+      'is_free',
+      'video_provider',
+      'video_id',
+      'content_type',
+    ])
+
+    const normalized: Record<string, unknown> = { ...body }
+    if (normalized.video_duration_minutes !== undefined && normalized.duration_minutes === undefined) {
+      normalized.duration_minutes = normalized.video_duration_minutes
+    }
+    delete normalized.video_duration_minutes
+    if (normalized.is_free_preview !== undefined && normalized.is_free === undefined) {
+      normalized.is_free = (normalized.is_free_preview as number | boolean) ? 1 : 0
+    }
+    delete normalized.is_free_preview
+
+    // 업데이트할 필드 구성 (스키마에 없는 컬럼명은 무시)
     const updates: string[] = []
     const values: any[] = []
 
-    Object.entries(body).forEach(([key, value]) => {
-      if (value !== undefined && key !== 'course_id') {
-        updates.push(`${key} = ?`)
-        values.push(value)
-      }
+    Object.entries(normalized).forEach(([key, value]) => {
+      if (value === undefined || key === 'course_id') return
+      if (!ALLOWED_LESSON_COLUMNS.has(key)) return
+      updates.push(`${key} = ?`)
+      values.push(value)
     })
 
     if (updates.length === 0) {
@@ -741,7 +781,7 @@ courses.delete('/:courseId/lessons/:lessonId', requireAdmin, async (c) => {
     await DB.prepare(`
       UPDATE courses 
       SET total_lessons = (SELECT COUNT(*) FROM lessons WHERE course_id = ?),
-          total_duration_minutes = (SELECT COALESCE(SUM(video_duration_minutes), 0) FROM lessons WHERE course_id = ?),
+          total_duration_minutes = (SELECT COALESCE(SUM(duration_minutes), 0) FROM lessons WHERE course_id = ?),
           updated_at = datetime('now')
       WHERE id = ?
     `).bind(courseId, courseId, courseId).run()

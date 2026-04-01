@@ -5,6 +5,7 @@
 
 import { Hono } from 'hono'
 import { STATIC_JS_CACHE_QUERY } from '../utils/static-js-cache-bust'
+import { SITE_POPUP_SCRIPT_TAG } from '../utils/site-popup-script'
 import type { Bindings, User } from '../types/database'
 import { optionalAuth } from '../middleware/auth'
 import {
@@ -566,7 +567,7 @@ app.get('/courses/:id', async (c) => {
                 }
             }
         </script>
-        
+        ${SITE_POPUP_SCRIPT_TAG}
         <!-- 보안 시스템 -->
         <script src="/static/js/security.js${STATIC_JS_CACHE_QUERY}"></script>
     </body>

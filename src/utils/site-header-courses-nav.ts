@@ -343,6 +343,13 @@ function navCoursesDropdownDesktop(): string {
             <span class="site-nav-dd-desc">심화 마스터 과정</span>
           </span>
         </a>
+        <a href="/courses/ncs" role="menuitem" class="site-nav-dd-link site-nav-dd-link--row text-amber-800 font-semibold">
+          <span class="site-nav-dd-ico bg-amber-100 text-amber-800 rounded-lg w-9 h-9 flex items-center justify-center" aria-hidden="true"><i class="fas fa-certificate"></i></span>
+          <span class="site-nav-dd-link-body">
+            <span class="block">NCS</span>
+            <span class="site-nav-dd-desc">국가직무능력표준 연계</span>
+          </span>
+        </a>
         <a href="/courses/consortium" role="menuitem" class="site-nav-dd-link site-nav-dd-link--row text-indigo-700 font-semibold" aria-label="공동훈련 안내 페이지로 이동">
           <span class="site-nav-dd-ico site-nav-dd-ico--consortium" aria-hidden="true"><i class="fas fa-users"></i></span>
           <span class="site-nav-dd-link-body">
@@ -376,6 +383,10 @@ function navDrawerCoursesAccordion(): string {
         <a href="/courses/next" class="site-nav-dd-link site-nav-dd-link--row text-next-accent font-semibold">
           <span class="site-nav-dd-ico site-nav-dd-ico--next" aria-hidden="true"><i class="fas fa-rocket"></i></span>
           <span class="site-nav-dd-link-body"><span class="block">Next</span><span class="site-nav-dd-desc">심화 마스터 과정</span></span>
+        </a>
+        <a href="/courses/ncs" class="site-nav-dd-link site-nav-dd-link--row text-amber-800 font-semibold">
+          <span class="site-nav-dd-ico bg-amber-100 text-amber-800 rounded-lg w-9 h-9 flex items-center justify-center shrink-0" aria-hidden="true"><i class="fas fa-certificate"></i></span>
+          <span class="site-nav-dd-link-body"><span class="block">NCS</span><span class="site-nav-dd-desc">국가직무능력표준 연계</span></span>
         </a>
         <a href="/courses/consortium" class="site-nav-dd-link site-nav-dd-link--row text-indigo-700 font-semibold" aria-label="공동훈련 안내 페이지로 이동">
           <span class="site-nav-dd-ico site-nav-dd-ico--consortium" aria-hidden="true"><i class="fas fa-users"></i></span>
