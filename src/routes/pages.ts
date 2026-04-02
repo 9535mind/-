@@ -1200,6 +1200,15 @@ pages.get('/courses/:id', async (c) => {
                       '</div>'
                     : ''
                 
+                var coursePayAmountDetail = (function () {
+                    var p = parseFloat(course.price)
+                    if (isNaN(p)) p = 0
+                    var d = course.discount_price != null ? parseFloat(course.discount_price) : NaN
+                    if (!isNaN(d) && d > 0) return d
+                    return p
+                })()
+                var showCourseAsFree = coursePayAmountDetail <= 0
+                
                 const detailHtml = \`
                     <!-- 과정 헤더 섹션 -->
                     <div class="bg-gradient-to-br from-purple-600 via-indigo-600 to-blue-600 text-white rounded-2xl shadow-2xl overflow-hidden mb-8">
@@ -1225,7 +1234,7 @@ pages.get('/courses/:id', async (c) => {
                                 <!-- 가격 & 신청 카드 -->
                                 <div class="bg-white rounded-2xl shadow-xl p-6 min-w-[280px] md:min-w-[320px]">
                                     <div class="text-center mb-6">
-                                        \${course.is_free ? 
+                                        \${showCourseAsFree ? 
                                             '<div><p class="text-sm text-gray-500 mb-2">수강료</p><p class="text-4xl font-bold text-green-600">무료</p></div>' :
                                             \`<div>
                                                 <p class="text-sm text-gray-500 mb-2">수강료</p>
@@ -1488,8 +1497,14 @@ pages.get('/courses/:id', async (c) => {
                 const courseResponse = await axios.get(\`/api/courses/\${courseId}\`, { withCredentials: true })
                 const course = courseResponse.data?.data?.course
                 
-                // price로 무료/유료 판단 (price === 0이면 무료)
-                const isFree = course && course.price === 0
+                const payAmt = (function () {
+                    if (!course) return 0
+                    const p = Number(course.price)
+                    const base = Number.isFinite(p) ? p : 0
+                    const d = course.discount_price != null ? Number(course.discount_price) : NaN
+                    return Number.isFinite(d) && d > 0 ? d : base
+                })()
+                const isFree = payAmt <= 0
                 
                 if (isFree) {
                     // 무료 과정: 수강신청 후 내 강의실로 이동
@@ -1919,7 +1934,7 @@ pages.get('/courses', async (c) => {
                 <h3 class="text-xl font-semibold text-gray-900 mb-2">\${course.title}</h3>
                 <p class="text-gray-600 text-sm mb-4 line-clamp-2">\${course.description || ''}</p>
                 <div class="flex justify-between items-center">
-                  <span class="text-indigo-600 font-semibold">\${course.price ? course.price.toLocaleString() + '원' : '무료'}</span>
+                  <span class="text-indigo-600 font-semibold">\${(() => { const p = Number(course.price)||0; const d = course.discount_price != null ? Number(course.discount_price) : NaN; const a = Number.isFinite(d)&&d>0?d:p; return a > 0 ? a.toLocaleString() + '원' : '무료'; })()}</span>
                   <a href="/courses/\${course.id}" 
                      class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors">
                     자세히 보기

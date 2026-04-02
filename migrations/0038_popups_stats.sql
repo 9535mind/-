@@ -1,0 +1,3 @@
+-- 팝업 노출·클릭 통계
+ALTER TABLE popups ADD COLUMN view_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE popups ADD COLUMN click_count INTEGER NOT NULL DEFAULT 0;

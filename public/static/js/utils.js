@@ -69,6 +69,19 @@ function showLoading(containerId = 'loadingSpinner') {
   `
 }
 
+// showLoading 과 짝 — 콜백·finally 에서 호출 (미정의 시 ReferenceError 방지)
+function hideLoading(containerId = 'loadingSpinner') {
+  const container = document.getElementById(containerId)
+  if (!container) return
+  container.innerHTML = ''
+}
+
+// 명시적 window 할당 (아임포트 콜백 등에서 전역으로 참조되는 경우 대비)
+if (typeof window !== 'undefined') {
+  window.hideLoading = hideLoading
+  window.showLoading = showLoading
+}
+
 // 에러 메시지 표시
 function showError(containerId, message) {
   const container = document.getElementById(containerId)

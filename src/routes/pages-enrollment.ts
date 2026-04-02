@@ -297,10 +297,16 @@ pagesEnrollment.get('/enrollment', optionalAuth, async (c) => {
                 
                 // 필터링
                 let filteredCourses = allCourses
+                function coursePayAmount(c) {
+                    const p = Number(c.price)
+                    const base = Number.isFinite(p) ? p : 0
+                    const d = c.discount_price != null && c.discount_price !== '' ? Number(c.discount_price) : NaN
+                    return Number.isFinite(d) && d > 0 ? d : base
+                }
                 if (currentFilter === 'free') {
-                    filteredCourses = allCourses.filter(c => c.price === 0)
+                    filteredCourses = allCourses.filter(c => coursePayAmount(c) <= 0)
                 } else if (currentFilter === 'paid') {
-                    filteredCourses = allCourses.filter(c => c.price > 0)
+                    filteredCourses = allCourses.filter(c => coursePayAmount(c) > 0)
                 }
                 
                 // 로딩 숨기기
@@ -316,7 +322,8 @@ pagesEnrollment.get('/enrollment', optionalAuth, async (c) => {
                 // 강좌 카드 생성
                 grid.innerHTML = filteredCourses.map(course => {
                     const isEnrolled = enrolledCourseIds.includes(course.id)
-                    const isFree = course.price === 0
+                    const payAmount = coursePayAmount(course)
+                    const isFree = payAmount <= 0
                     
                     return \`
                         <div class="course-card" data-course-id="\${course.id}">
@@ -362,7 +369,7 @@ pagesEnrollment.get('/enrollment', optionalAuth, async (c) => {
                                 <!-- 가격 -->
                                 <div class="mb-4">
                                     <span class="text-2xl font-bold text-indigo-600">
-                                        \${isFree ? '무료' : course.price.toLocaleString() + '원'}
+                                        \${isFree ? '무료' : payAmount.toLocaleString() + '원'}
                                     </span>
                                 </div>
                                 
@@ -384,7 +391,7 @@ pagesEnrollment.get('/enrollment', optionalAuth, async (c) => {
                                             수강 기록만 남기기 (선택)
                                         </button>
                                     \`
-                                            : \`<button class="btn-enroll" onclick="enrollCourse(\${course.id}, \${course.price})"><i class="fas fa-shopping-cart mr-2"></i>결제하기</button>\`))
+                                            : \`<button class="btn-enroll" onclick="enrollCourse(\${course.id}, \${payAmount})"><i class="fas fa-shopping-cart mr-2"></i>결제하기</button>\`))
                                 }
                             </div>
                         </div>

@@ -20,6 +20,8 @@ const ROUTES = {
     '/uploads/*',
     '/static/*',
     '/pg-business-info.html',
+    '/mindstory-4gunja-temperament.html',
+    '/forest.html',
     '/build.txt',
     '/google7186e759c88da5d4.html',
   ],

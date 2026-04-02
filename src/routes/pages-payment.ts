@@ -40,7 +40,7 @@ app.get('/payment/checkout/:courseId', (c) => {
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script src="https://cdn.iamport.kr/js/iamport.payment-1.2.0.js"></script>
         <script src="/static/js/auth.js?v=20260329-admin-name"></script>
-        <script src="/static/js/utils.js"></script>
+        <script src="/static/js/utils.js${STATIC_JS_CACHE_QUERY}"></script>
         ${siteFloatingQuickMenuStyles()}
         ${siteAiChatWidgetStyles()}
     </head>
@@ -103,15 +103,41 @@ app.get('/payment/checkout/:courseId', (c) => {
             </button>
         </div>
 
+        <div id="payCheckoutOverlay" class="hidden fixed inset-0 z-[200] flex items-center justify-center bg-black/40" aria-hidden="true">
+            <div class="bg-white rounded-xl p-8 shadow-xl flex flex-col items-center max-w-sm mx-4">
+                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+                <p class="mt-4 text-gray-700 text-center font-medium">결제창을 여는 중...</p>
+            </div>
+        </div>
+
         ${sitePaymentFooterHtml()}
         ${siteFloatingQuickMenuMarkup()}
         ${siteAiChatWidgetMarkup()}
         <script>${siteFloatingQuickMenuScript()}${siteAiChatWidgetScript()}</script>
 
         <script>
-            const courseId = ${courseId}
+            ;(function (w) {
+                if (typeof w.hideLoading !== 'function') {
+                    w.hideLoading = function (containerId) {
+                        var id = containerId || 'loadingSpinner'
+                        var el = document.getElementById(id)
+                        if (el) el.innerHTML = ''
+                    }
+                }
+                if (typeof w.showLoading !== 'function') {
+                    w.showLoading = function (containerId) {
+                        var id = containerId || 'loadingSpinner'
+                        var el = document.getElementById(id)
+                        if (!el) return
+                        el.innerHTML = '<div class="flex flex-col items-center justify-center py-12"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div><p class="mt-4 text-gray-600">불러오는 중...</p></div>'
+                    }
+                }
+            })(typeof window !== 'undefined' ? window : globalThis)
+
+            const courseId = ${JSON.stringify(courseId)}
             let paymentData = null
             let portoneConfig = null
+            let courseSnapshot = null
 
             function friendlyClientMessage(err) {
                 var d = err && err.response && err.response.data
@@ -126,59 +152,147 @@ app.get('/payment/checkout/:courseId', (c) => {
                 return s
             }
 
+            function setPayCheckoutOverlay(on) {
+                var el = document.getElementById('payCheckoutOverlay')
+                if (!el) return
+                if (on) {
+                    el.classList.remove('hidden')
+                    el.setAttribute('aria-hidden', 'false')
+                } else {
+                    el.classList.add('hidden')
+                    el.setAttribute('aria-hidden', 'true')
+                }
+            }
+
+            function axiosErrorDetail(error) {
+                var ax = error && typeof error === 'object' && error.response ? error.response : null
+                var d = ax && ax.data
+                var msg = (d && (d.message || d.error)) || (error instanceof Error ? error.message : '요청에 실패했습니다.')
+                var detail = d && d.detail ? String(d.detail) : ''
+                return { msg: String(msg), detail: detail }
+            }
+
+            function escHtml(s) {
+                return String(s == null ? '' : s)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/"/g, '&quot;')
+            }
+
+            function payAmountFromCourse(course) {
+                var p = Number(course && course.price)
+                var base = Number.isFinite(p) ? p : 0
+                var dr = course && course.discount_price
+                var d = dr != null && dr !== '' ? Number(dr) : NaN
+                return Number.isFinite(d) && d > 0 ? d : base
+            }
+
+            function renderCoursePricing(course) {
+                var listPrice = Number(course && course.price)
+                if (!Number.isFinite(listPrice)) listPrice = 0
+                var pay = payAmountFromCourse(course)
+                document.getElementById('originalPrice').textContent = listPrice.toLocaleString() + '원'
+                var discRow = document.getElementById('discountRow')
+                var discAmt = document.getElementById('discountAmount')
+                if (pay > 0 && listPrice > pay) {
+                    discRow.style.display = 'flex'
+                    discAmt.textContent = '-' + (listPrice - pay).toLocaleString() + '원'
+                } else {
+                    discRow.style.display = 'none'
+                }
+                document.getElementById('finalPrice').textContent = pay.toLocaleString() + '원'
+            }
+
+            async function loadCourseForCheckout() {
+                var id = String(courseId).trim()
+                var res = await axios.get('/api/courses/' + encodeURIComponent(id), { withCredentials: true })
+                if (!res.data || !res.data.success || !res.data.data || !res.data.data.course) {
+                    var er = (res.data && res.data.error) || '강좌 정보를 불러올 수 없습니다.'
+                    throw new Error(er)
+                }
+                var course = res.data.data.course
+                courseSnapshot = course
+                var rawDesc = course.description || ''
+                var desc = escHtml(rawDesc).slice(0, 200)
+                document.getElementById('courseInfo').innerHTML =
+                    '<h3 class="text-xl font-bold mb-2">' + escHtml(course.title || '강좌') + '</h3>' +
+                    (desc ? '<p class="text-gray-600 text-sm">' + desc + (rawDesc.length > 200 ? '…' : '') + '</p>' : '')
+                renderCoursePricing(course)
+                var pay = payAmountFromCourse(course)
+                if (pay <= 0) {
+                    document.getElementById('courseInfo').innerHTML +=
+                        '<p class="mt-4 text-amber-800 text-sm font-medium">이 강좌는 무료로 제공됩니다. 결제 없이 수강신청·학습 화면으로 이동해 주세요.</p>'
+                    document.getElementById('paymentButton').disabled = true
+                    throw new Error('FREE_COURSE')
+                }
+                return course
+            }
+
             // 약관 동의 체크
             document.getElementById('agreeTerms').addEventListener('change', (e) => {
-                document.getElementById('paymentButton').disabled = !e.target.checked
+                document.getElementById('paymentButton').disabled = !e.target.checked || !paymentData
             })
 
             // 페이지 로드 시 실행
             async function init() {
                 try {
-                    // 로그인 확인 (auth.js의 getCurrentUser)
-                    const user = await getCurrentUser()
+                    var user = await getCurrentUser()
                     if (!user) {
                         alert('로그인이 필요합니다.')
                         window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname)
                         return
                     }
 
-                    const cfgRes = await axios.get('/api/portone/public-config', {
-                        withCredentials: true
-                    })
+                    try {
+                        await loadCourseForCheckout()
+                    } catch (e) {
+                        if (e && e.message === 'FREE_COURSE') {
+                            return
+                        }
+                        console.error('강좌 로드 실패:', e)
+                        var ed = axiosErrorDetail(e)
+                        document.getElementById('courseInfo').innerHTML =
+                            '<div class="text-red-600"><p class="font-semibold">강좌 정보를 불러오지 못했습니다.</p>' +
+                            '<p class="text-sm mt-2">' + (ed.detail ? (ed.msg + ' — ' + ed.detail.slice(0, 400)) : ed.msg) + '</p>' +
+                            '<a href="/enrollment" class="inline-block mt-4 text-indigo-600 underline">수강신청 목록으로</a></div>'
+                        showToast(ed.msg, 'error')
+                        return
+                    }
+
+                    var cfgRes = await axios.get('/api/portone/public-config', { withCredentials: true })
                     if (!cfgRes.data?.success || !cfgRes.data?.data?.impCode) {
                         throw new Error(cfgRes.data?.error || '결제 설정이 완료되지 않았습니다.')
                     }
                     portoneConfig = cfgRes.data.data
 
-                    const prepRes = await axios.post('/api/portone/prepare', {
+                    var prepRes = await axios.post('/api/portone/prepare', {
                         course_id: Number(courseId)
-                    }, {
-                        withCredentials: true
-                    })
+                    }, { withCredentials: true })
                     if (!prepRes.data?.success || !prepRes.data?.data) {
                         throw new Error(prepRes.data?.error || '주문 준비에 실패했습니다.')
                     }
                     paymentData = prepRes.data.data
 
-                    // 과정 정보 표시 (PortOne prepare 응답: merchant_uid)
-                    document.getElementById('courseInfo').innerHTML = \`
-                        <h3 class="text-xl font-bold mb-2">\${paymentData.orderName || ''}</h3>
-                        <p class="text-gray-600">주문번호: \${paymentData.merchant_uid || '—'}</p>
-                    \`
+                    var orderLine = '<p class="text-gray-600 mt-2">주문번호: <span class="font-mono">' + (paymentData.merchant_uid || '—') + '</span></p>'
+                    var box = document.getElementById('courseInfo')
+                    box.insertAdjacentHTML('beforeend', orderLine)
 
-                    // 금액 정보 표시
-                    document.getElementById('originalPrice').textContent = 
-                        paymentData.amount.toLocaleString() + '원'
-                    document.getElementById('finalPrice').textContent = 
-                        paymentData.amount.toLocaleString() + '원'
+                    var amt = Number(paymentData.amount)
+                    if (Number.isFinite(amt)) {
+                        document.getElementById('originalPrice').textContent = amt.toLocaleString() + '원'
+                        document.getElementById('discountRow').style.display = 'none'
+                        document.getElementById('finalPrice').textContent = amt.toLocaleString() + '원'
+                    }
+
+                    document.getElementById('paymentButton').disabled = !document.getElementById('agreeTerms').checked
 
                     if (typeof IMP === 'undefined') {
                         throw new Error('결제 모듈을 불러오지 못했습니다.')
                     }
-
                 } catch (error) {
                     console.error('초기화 실패:', error)
-                    showToast(error.response?.data?.message || '결제 준비에 실패했습니다.', 'error')
+                    var ex = axiosErrorDetail(error)
+                    showToast(ex.detail ? (ex.msg + ' — ' + ex.detail.slice(0, 280)) : ex.msg, 'error')
                 }
             }
 
@@ -193,7 +307,7 @@ app.get('/payment/checkout/:courseId', (c) => {
                 }
 
                 try {
-                    showLoading()
+                    setPayCheckoutOverlay(true)
 
                     if (!portoneConfig?.impCode) {
                         throw new Error('결제 설정이 없습니다.')
@@ -209,9 +323,13 @@ app.get('/payment/checkout/:courseId', (c) => {
                         buyer_email: paymentData.buyerEmail,
                         buyer_name: paymentData.buyerName,
                     }, async function (rsp) {
-                        hideLoading()
+                        setPayCheckoutOverlay(false)
                         if (!rsp || !rsp.success) {
-                            alert((rsp && rsp.error_msg) || '결제가 취소되었습니다.')
+                            var failMsg = (rsp && rsp.error_msg) || '결제가 취소되었습니다.'
+                            if (/PG|pg|설정 정보|등록된/i.test(failMsg)) {
+                                failMsg += '\\n\\n포트원 관리자 콘솔(https://admin.portone.io)에서 해당 가맹점에 PG사(이니시스 등) 연동·채널이 등록되어 있는지 확인해 주세요. Workers 환경 변수 PORTONE_PG 값도 PG사 안내에 맞는지 점검해 주세요.'
+                            }
+                            alert(failMsg)
                             return
                         }
                         try {
@@ -233,7 +351,7 @@ app.get('/payment/checkout/:courseId', (c) => {
                         }
                     })
                 } catch (error) {
-                    hideLoading()
+                    setPayCheckoutOverlay(false)
                     console.error('결제 요청 실패:', error)
                     showToast(friendlyClientMessage(error), 'error')
                 }
@@ -263,7 +381,7 @@ app.get('/success', (c) => {
         <link rel="stylesheet" href="/static/css/app.css" />
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
-        <script src="/static/js/utils.js"></script>
+        <script src="/static/js/utils.js${STATIC_JS_CACHE_QUERY}"></script>
         ${siteFloatingQuickMenuStyles()}
         ${siteAiChatWidgetStyles()}
     </head>

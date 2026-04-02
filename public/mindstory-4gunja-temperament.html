@@ -1,0 +1,2980 @@
+<!DOCTYPE html>
+<!-- 공식 접속 URL: https://mindstory.kr/forest.html (마인드스토리 유아숲 행동관찰 단일 페이지 도구) -->
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>마인드스토리 유아숲 행동관찰</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;900&display=swap');
+
+        :root {
+            --ms-green: #2D4A3E;
+            --ms-bg: #FDFBF7;
+            --ms-earth: #D4A373;
+        }
+
+        /**
+         * 모바일·카카오톡 등 인앱 WebView: Tailwind CDN이 늦거나 막히면 .hidden 이 없어져
+         * type=file 이 화면 중앙에 그대로 보이는 경우가 있음 → Tailwind 없이도 반드시 숨김.
+         */
+        #ms-import-input {
+            position: fixed !important;
+            left: -10000px !important;
+            top: 0 !important;
+            width: 1px !important;
+            height: 1px !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: 0 !important;
+            opacity: 0 !important;
+            overflow: hidden !important;
+            clip: rect(0, 0, 0, 0) !important;
+            clip-path: inset(50%) !important;
+            white-space: nowrap !important;
+        }
+
+        #ms-modal-root.hidden {
+            display: none !important;
+        }
+
+        /* 본문이 비어 보이지 않도록 (로딩·JS 지연 시) */
+        #view-content {
+            min-height: 12rem;
+        }
+
+        /* 한지 포근함 + 심산녹·흙색만 포인트 (보조는 동일 색의 투명도) */
+        .ms-hanji {
+            background-color: var(--ms-bg);
+            background-image:
+                linear-gradient(180deg, rgba(253, 251, 247, 0.95) 0%, rgba(248, 244, 236, 0.99) 100%),
+                repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(45, 74, 62, 0.035) 3px, rgba(45, 74, 62, 0.035) 4px),
+                repeating-linear-gradient(90deg, transparent, transparent 3px, rgba(45, 74, 62, 0.022) 3px, rgba(45, 74, 62, 0.022) 4px);
+        }
+
+        html {
+            font-family: 'Noto Sans KR', system-ui, -apple-system, 'Segoe UI', sans-serif;
+        }
+
+        body {
+            font-family: 'Noto Sans KR', system-ui, -apple-system, 'Segoe UI', sans-serif;
+            color: rgba(45, 74, 62, 0.92);
+        }
+
+        .text-ms-muted { color: rgba(45, 74, 62, 0.5); }
+        .text-ms-body { color: rgba(45, 74, 62, 0.78); }
+        .bg-ms-soft { background: rgba(45, 74, 62, 0.06); }
+        .bg-ms-card { background: rgba(255, 255, 255, 0.95); }
+        .border-ms { border-color: rgba(45, 74, 62, 0.12); }
+
+        .ms-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 3rem;
+            box-shadow: 0 12px 40px rgba(45, 74, 62, 0.06);
+            border: 1px solid rgba(45, 74, 62, 0.08);
+        }
+
+        .ms-btn {
+            border-radius: 9999px;
+            min-height: 48px;
+            transition: transform 0.15s ease, box-shadow 0.2s ease, background-color 0.2s ease, opacity 0.2s ease;
+        }
+
+        .ms-btn:active { transform: scale(0.98); }
+
+        /* 하단 데이터 도구: 기본 흐림 → 호버 시 선명 */
+        .ms-footer-tools {
+            opacity: 0.38;
+            transition: opacity 0.28s ease;
+        }
+
+        .ms-footer-tools:hover {
+            opacity: 1;
+        }
+
+        .ms-vault-panel {
+            background: linear-gradient(145deg, rgba(45, 74, 62, 0.06) 0%, rgba(255, 255, 255, 0.92) 45%, rgba(212, 163, 115, 0.08) 100%);
+            border: 1px solid rgba(45, 74, 62, 0.14);
+            border-radius: 1.75rem;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+        }
+
+        .ms-input {
+            border: 2px solid rgba(45, 74, 62, 0.12);
+            border-radius: 3rem;
+            background: rgba(253, 251, 247, 0.85);
+            transition: border-color 0.25s ease, background 0.25s ease;
+        }
+
+        .ms-input:focus {
+            border-color: var(--ms-green);
+            outline: none;
+            background: rgba(240, 253, 244, 0.6);
+        }
+
+        /* 현장 입력: 터치 타깃·숫자 키패드용 */
+        .ms-field-count {
+            min-height: 48px;
+        }
+
+        @media (min-width: 768px) {
+            .ms-field-count {
+                min-height: 44px;
+            }
+        }
+
+        .ms-preview-box {
+            border: 2px dashed var(--ms-earth);
+            border-radius: 3rem;
+            background: rgba(212, 163, 115, 0.08);
+        }
+
+        .fade-in { animation: fadeIn 0.5s ease-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: var(--ms-green);
+            border-radius: 3rem;
+        }
+
+        /* 기관 종합 보고서 · 은은한 수묵·4군자 무늬 느낌 */
+        .ms-consulting-hero {
+            background-color: #FAF9F5;
+            background-image:
+                radial-gradient(ellipse 140% 90% at 12% 8%, rgba(45, 74, 62, 0.07) 0%, transparent 55%),
+                radial-gradient(ellipse 100% 70% at 88% 18%, rgba(212, 163, 115, 0.08) 0%, transparent 50%),
+                radial-gradient(ellipse 80% 50% at 50% 100%, rgba(45, 74, 62, 0.05) 0%, transparent 45%),
+                repeating-linear-gradient(
+                    135deg,
+                    transparent,
+                    transparent 24px,
+                    rgba(45, 74, 62, 0.018) 24px,
+                    rgba(45, 74, 62, 0.018) 25px
+                );
+        }
+
+        .ms-consulting-symbol-layer {
+            position: relative;
+        }
+
+        .ms-consulting-inner {
+            position: relative;
+            z-index: 1;
+        }
+
+        .ms-watermark-4gun {
+            pointer-events: none;
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: clamp(3rem, 14vw, 7rem);
+            font-weight: 900;
+            letter-spacing: 0.25em;
+            color: rgba(45, 74, 62, 0.045);
+            flex-wrap: wrap;
+            gap: 0.15em;
+            overflow: hidden;
+            z-index: 0;
+        }
+
+        .ms-mindstory-seal {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            z-index: 5;
+            width: 3.75rem;
+            height: 3.75rem;
+            border-radius: 50%;
+            border: 2.5px solid rgba(176, 140, 70, 0.55);
+            background: radial-gradient(circle at 35% 30%, rgba(255, 248, 220, 0.5) 0%, rgba(212, 163, 115, 0.15) 45%, transparent 70%);
+            color: rgba(130, 100, 45, 0.88);
+            font-size: 0.55rem;
+            font-weight: 900;
+            letter-spacing: 0.06em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            line-height: 1.15;
+            box-shadow: 0 0 0 1px rgba(45, 74, 62, 0.06), 0 4px 14px rgba(45, 74, 62, 0.08);
+        }
+
+        .ms-prepost-chart-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+        }
+
+        @media (min-width: 768px) {
+            .ms-prepost-chart-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        @media print {
+            @page {
+                size: A4 portrait;
+                margin: 10mm 12mm 12mm 12mm;
+            }
+
+            .ms-prepost-chart-grid {
+                grid-template-columns: 1fr 1fr;
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+            .ms-prepost-page-1 {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+
+            .print-hidden { display: none !important; }
+            .ms-hanji { background: #fff !important; }
+            #ms-modal-root { display: none !important; }
+            #ms-toast-host { display: none !important; }
+            #app,
+            #app.print-wide {
+                max-width: 190mm !important;
+                width: 100% !important;
+                margin: 0 auto !important;
+                padding-left: 0 !important;
+                padding-right: 0 !important;
+            }
+            #view-content {
+                max-width: 100% !important;
+            }
+            .ms-print-avoid-break {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+            .ms-print-break-before {
+                break-before: page;
+                page-break-before: always;
+            }
+            .ms-consulting-hero {
+                background: #fff !important;
+                box-shadow: none !important;
+                border-radius: 0.75rem !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            .ms-card {
+                box-shadow: none !important;
+                border-radius: 1rem !important;
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+            .ms-watermark-4gun {
+                color: rgba(45, 74, 62, 0.07);
+            }
+            .ms-mindstory-seal {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
+    </style>
+</head>
+<body class="ms-hanji min-h-screen p-4 md:p-10 flex flex-col">
+
+<div id="app" class="max-w-2xl mx-auto fade-in w-full flex flex-col flex-1 min-h-0 transition-[max-width] duration-300">
+    <header class="text-center mb-8 print-hidden shrink-0">
+        <div class="inline-block px-4 py-1 border-2 border-[#2D4A3E] text-[#2D4A3E] text-[9px] font-bold rounded-full mb-3 tracking-[0.18em]">MINDSTORY</div>
+        <h1 class="text-2xl md:text-3xl font-black text-[#2D4A3E] tracking-tight leading-tight px-1">어린이 4군자 기질검사</h1>
+        <p class="mt-2 text-sm text-ms-body font-semibold">마인드스토리 유아숲 행동관찰</p>
+        <p class="mt-1 text-sm text-ms-body font-medium">축령산 편백숲 유아학교 · 따뜻한 관찰 기록</p>
+        <p class="mt-1 text-[10px] text-ms-muted">통합 엔진 v1.5 · v8.7 스키마 · 보고서 v2.0 · 기기 안에서만 저장 · 오프라인</p>
+        <p class="mt-2 text-[10px] text-ms-muted leading-snug px-2 max-w-sm mx-auto">기관 검색·최근 기록·목록은 아래 본문에서 시작합니다. (이 줄은 헤더 안내입니다.)</p>
+    </header>
+
+    <div id="view-content" class="flex-1 min-h-0"></div>
+    <footer id="ms-data-footer" class="print-hidden shrink-0 pt-8 pb-2 mt-auto" aria-label="데이터 백업"></footer>
+</div>
+
+<input type="file" id="ms-import-input" accept=".json,application/json" class="hidden" aria-hidden="true" />
+<div id="ms-modal-root" class="hidden print-hidden" role="dialog" aria-modal="true" aria-labelledby="ms-modal-title"></div>
+
+<script>
+(function () {
+    'use strict';
+
+    /**
+     * 유아숲 관찰 전용 · 폐쇄형 로컬 금고 (서버 전송 없음)
+     * 공식 URL: https://mindstory.kr/forest.html — 저장 키는 파일명과 무관(동일 origin이면 동일 금고).
+     */
+    const STORAGE_KEY = 'ms_forest_v1';
+    const LEGACY_MINDSTORY_VAULT_V1 = 'MINDSTORY_VAULT_V1';
+    const LEGACY_FOREST_OBS_V1 = 'ms_forest_observation_v1';
+    const LEGACY_OBSERVATION_V0 = 'ms_forest_observation';
+    const LEGACY_FOREST_DATA = 'ms_forest_data';
+    const LEGACY_V86 = 'ms_mindstory_4gunja_v86';
+    const LEGACY_V2 = 'ms_4gunja_v2';
+
+    function newVaultRecordId() {
+        try {
+            if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+                return crypto.randomUUID();
+            }
+        } catch (_) {}
+        return 'vault_' + Date.now() + '_' + Math.random().toString(36).slice(2, 12);
+    }
+
+    /**
+     * SCHEMA — v8.7 보고서 v2.0 (심층 4섹션 + 구간별 내러티브)
+     * 톤: MINDSTORY V1 · 관찰과 공감 · 따뜻한 어휘
+     */
+    const SCHEMA = {
+        version: '8.7',
+        categories: ['난초', '대나무', '국화', '매화'],
+        questions: [
+            { id: 'q1', cat: '난초', text: '작은 벌레나 새싹을 아끼며 구경하나요?' },
+            { id: 'q2', cat: '난초', text: '친구가 조금 아파 보이면 곁에 가서 챙겨 주나요?' },
+            { id: 'q3', cat: '대나무', text: '새로운 놀이가 보이면 먼저 가 보고 싶어 하나요?' },
+            { id: 'q4', cat: '대나무', text: '숲속 언덕이나 나무 사이를 씩씩하게 걸어 다니나요?' },
+            { id: 'q5', cat: '국화', text: '처음 가는 곳에서는 선생님 곁을 지키나요?' },
+            { id: 'q6', cat: '국화', text: '옷에 흙이 묻으면 깨끗이 하고 싶어 하나요?' },
+            { id: 'q7', cat: '매화', text: '놀이가 어려워도 한번 더 해 보나요?' },
+            { id: 'q8', cat: '매화', text: '놀이가 끝나면 장난감을 제자리에 두나요?' }
+        ],
+        interpretations: {
+            난초: {
+                title: '따뜻한 공감의 난초',
+                harmonySpark:
+                    '공감의 씨앗이 주변을 포근히 감싸 안는 힘이 숲에서 잘 드러나고 있어요.',
+                harmonySupport:
+                    '감정의 파장을 고운 에너지로 받아들이는 아이라, 내 마음을 꺼내는 연습에는 은은한 옆자리와 숨 고르기가 특별히 도움이 될 수 있어요.',
+                psychDeep:
+                    '이 기질의 아이는 관계 안에서 타인의 표정·목소리·작은 침묵까지 빠르게 읽어 내는 마음결을 타고났어요. 이것은 나약함이 아니라 연결을 소중히 여기는 따뜻한 감수성의 숲길입니다. 그래서 친구의 작은 흔들림도 얼굴 색으로 느껴지곤 하며, 마음이 먼저 반응하는 속도가 몸보다 앞설 수 있어요.',
+                forestPortrait:
+                    '유아숲에서는 벌레 한 마리, 갓 돋은 새싹 앞에서 발걸음을 살짝 멈추고 숨소리까지 낮춰 보는 순간이 자주 보입니다. 친구가 넘어졌을 때 시선이 먼저 그쪽으로 향하거나, 누군가의 이름을 조심스레 부르는 장면도 같은 마음결의 연장선이에요. 놀이가 한창일 때도 잠깐 고개를 돌려 누군가의 표정을 살피는 섬세한 호흡이 숲바람처럼 스쳐 지나갑니다.',
+                parentHeart:
+                    '집에서는 아이가 말로 다 꺼내지 못할 수 있다는 믿음을 먼저 품어 주세요. 설명보다 이름을 불러 주며 「지금 몸이 어디까지를 말해 주고 있니」처럼 천천히 곁을 지키는 태도가 큰 위로가 됩니다. 아이의 마음은 지시가 아니라 함께 숨 쉬는 시간 속에서 더 크게 피어올라요.',
+                actionGuide:
+                    '작은 순간일수록 구체적으로 짚어 주세요. 「방금 친구 이름을 부르며 다가간 네 마음이 참 고와」처럼 말해 보세요. 숲에서 돌아온 뒤에는 「오늘 숲에서 가장 따뜻했던 순간 하나만 골라 볼까?」처럼 선택지를 주면 말하기가 편해져요. 밤에는 「오늘 선생님이 고마웠던 말 한 마디」를 함께 적어 보는 우리들의 약속 노트도 좋아요.',
+                tier: {
+                    high: {
+                        badge: '빛나는 강점',
+                        quote: '따뜻한 공감의 숲길이 온몸으로 피어오르고 있어요.',
+                        narrative:
+                            '「따뜻한 공감의 난초」에너지가 이번 관찰에서 아주 빛나는 곳에 서 있어요. 아이는 주변의 작은 감정 변화를 귀 기울여 듣는 힘이 있고, 그 힘이 곧 관계를 풍성하게 만드는 고운 재능입니다.\n\n이 에너지를 더 키우려면 성공만이 아니라 과정을 스토리로 남겨 주세요. 「네가 친구 마음을 살핀 순간」을 날짜와 함께 적어 두면 아이는 자신의 강점을 몸으로 기억하게 됩니다. 숲에서 만난 작은 생명에게 건넨 배려도 「네 마음이 숲에 닿았구나」라고 번역해 주면 재능이 더 넓은 숲으로 뻗어 갑니다.'
+                    },
+                    mid: {
+                        badge: '고른 균형',
+                        quote: '지금의 속도를 믿으며, 공감의 리듬이 차곡차곡 쌓이고 있어요.',
+                        narrative:
+                            '이 영역은 언덕을 천천히 오르듯 안정을 쌓는 시기로 읽히어요. 잘 드러나는 날과 잠시 숨 고르는 날이 함께 있는 것은 자연스러운 호흡입니다.\n\n격려는 한 줄로도 충분해요. 「지금처럼 네 마음이 가는 대로 천천히 가도 괜찮아」라고 오늘의 관찰을 이어 주세요. 어른이 먼저 하루를 짧게 돌아보며 「나도 오늘 친구에게 고마웠던 순간」을 말해 주면 아이도 균형 잡힌 격려를 배워 갑니다.'
+                    },
+                    low: {
+                        badge: '섬세한 보호',
+                        quote: '이 아이에게는 숲이 조금 더 잔잔하게 숨 쉬는 시간이 특별한 선물이에요.',
+                        narrative:
+                            '이 숫자는 아이를 평가하는 낙인이 아니에요. 감정의 파장을 섬세하게 느끼는 마음결이 커서, 한꺼번에 많은 자극이 들어올 때는 마음이 쉬어 가야 할 시간이 더 길어질 수 있습니다. 숲은 바쁘게 달리라고 재촉하지 않으니, 어른의 시선도 같은 높이로 잔잔히 내려놓아 주세요.\n\n집에서는 등을 어루만지며 「아까 숲에서 잠깐 멈춘 건 네 몸이 쉬라고 알려 준 소리였구나」처럼 아이의 속도를 다시 시작하는 예쁜 마음으로 번역해 주면 좋아요. 말이 어려울 때는 「말 대신 손을 잡아도 괜찮아」라고 우리들의 약속을 짧게 정해 두면 고운 에너지가 지치지 않고 이어집니다.\n\n선생님과는 활동 전에 조용히 이어지는 루틴—이름 불러 주기, 물 한 모금, 좋아하는 나무 한 번 바라보기—를 나누면 마음 숲이 다시 푸르게 이어져요. 치유와 공감은 서두름보다 먼저 옵니다.'
+                    }
+                }
+            },
+            대나무: {
+                title: '활기찬 탐구의 대나무',
+                harmonySpark:
+                    '새로움을 향한 씩씩한 발걸음과 몸으로 배우는 호기심이 숲에서 크게 드러나고 있어요.',
+                harmonySupport:
+                    '에너지가 크게 솟을 때는 안전한 경계와 함께 숨 고르기 루틴이 있으면 탐구가 더 오래 이어질 수 있어요.',
+                psychDeep:
+                    '이 기질의 아이는 미지의 자극을 만나면 뇌가 빠르게 보상 회로를 설계하며 몸을 앞세우는 경향이 있어요. 위험을 즐기려는 것이 아니라 세계를 손끝으로 확인하며 배우는 탐구 본능이 큽니다. 그래서 새로운 놀이가 보이면 눈이 먼저 반짝이고, 발이 따라가는 속도가 빨라질 수 있어요.',
+                forestPortrait:
+                    '유아숲에서는 낯선 도구나 오르막길이 보이면 먼저 다가가 만져 보고, 나무 사이를 통과하며 웃음이 튀어 오르는 모습이 자주 보입니다. 친구들을 이끌며 「여기 와 봐」라고 손짓하는 장면도 활기찬 탐구의 대나무다운 순간이에요. 잠시 멈추라는 신호가 오기 전까지는 온몸이 질문을 던지는 듯 움직입니다.',
+                parentHeart:
+                    '집에서는 「멈춤」을 벌이 아니라 다음 탐험을 위한 연료 충전으로 말해 주세요. 에너지가 클수록 경계는 사랑의 울타리로 함께 그리면 좋아요. 아이의 속도를 인정해 줄 때 탐구는 더 깊은 숲으로 이어집니다.',
+                actionGuide:
+                    '활동 전 「오늘 우리들의 약속 세 가지」를 손가락으로 세며 말해 보세요. 「멈추라는 손짓이 보이면 한 발 물러서기」「도구는 함께 나누기」처럼 짧게요. 돌아온 뒤에는 「오늘 가장 신나게 탐험한 곳은 어디였어?」라고 물으며 이야기를 붙잡아 주세요. 「다음엔 천천히 호흡 세 번 하고 출발하기」를 스스로 말하게 해 보면 좋아요.',
+                tier: {
+                    high: {
+                        badge: '빛나는 강점',
+                        quote: '탐구의 싹이 햇살 쪽으로 씩씩하게 솟고 있어요.',
+                        narrative:
+                            '「활기찬 탐구의 대나무」에너지가 이번 관찰에서 크게 피어올랐어요. 새로움을 향한 용기와 몸으로 배우는 힘이 곧 학습의 씨앗입니다.\n\n재능을 더 키우려면 안전한 틀 안에서 선택권을 넓혀 주세요. 「오늘 탐험대장이 정하는 출발 순서」처럼 역할을 주면 책임감과 호기심이 함께 자랍니다. 숲에서 발견한 것을 그림으로 남기며 「네 눈이 먼저 본 세상」을 존중해 주면 탐구가 더 깊어져요.'
+                    },
+                    mid: {
+                        badge: '고른 균형',
+                        quote: '탐구와 쉼이 번갈아 숨 쉬는, 지금의 리듬이 아름다워요.',
+                        narrative:
+                            '이 영역은 쉼표와 활자가 번갈아 오는 문장처럼 고르게 흘러가고 있어요. 한동안 씩씩하고, 잠시 차분해지는 패턴 모두 자연스러운 성장의 길입니다.\n\n「오늘은 천천히 가는 날이었구나」라고 하루를 이름 붙여 주면 아이는 자신의 속도를 신뢰하게 됩니다. 어른이 함께 걸으며 「나도 가끔 새로운 길이 무서울 때가 있어」라고 나누면 균형 잡힌 격려가 이어져요.'
+                    },
+                    low: {
+                        badge: '섬세한 보호',
+                        quote: '큰 에너지 옆에는 잔잔한 숨, 그 여백이 아이를 지켜 줘요.',
+                        narrative:
+                            '이 숫자는 아이의 가치를 재는 저울이 아니에요. 탐구 에너지가 크게 솟았을 때 몸과 마음이 잠시 다른 속도를 요청할 수 있습니다. 그것은 후퇴가 아니라 다시 뛸 힘을 모으는 고운 에너지의 쉼표예요.\n\n어른은 「지금은 몸이 쉬라고 속삭이는 시간이구나」라고 번역해 주고, 짧은 루틴—물, 그늘, 좋아하는 자세—을 우리들의 약속으로 정해 주세요. 활동 전 「멈춤 신호가 오면 선생님 곁으로 한 발」처럼 구체적인 그림을 함께 그리면 안전이 마음에 새겨져요.\n\n아이의 속도를 기다려 주는 치유와 공감이 있을 때, 탐구는 다시 숲길을 밝게 밝혀 줍니다. 재촉 대신 「다음엔 천천히 시작해 보자」는 예쁜 마음의 약속이 큰 힘이 됩니다.'
+                    }
+                }
+            },
+            국화: {
+                title: '신중한 안정의 국화',
+                harmonySpark:
+                    '주변을 살피고 안전을 가늠하는 차분한 지혜가 숲에서 잘 드러나고 있어요.',
+                harmonySupport:
+                    '낯선 자리에서는 잠시 멈춰 서며 지도를 그리는 시간이 필요할 수 있어요. 옆에서 걸음을 맞춰 주면 마음이 더 편안해져요.',
+                psychDeep:
+                    '이 기질의 아이는 새로운 정보를 받아들일 때 먼저 예측 회로를 돌려 안전과 예측 가능성을 확인하려는 경향이 있어요. 조심성은 겁이 많아서가 아니라 세상을 섬세하게 맞이하려는 고운 에너지입니다. 그래서 처음 보는 공간에서는 잠시 발을 떼기 전에 눈으로 먼저 길을 그려 보곤 해요.',
+                forestPortrait:
+                    '유아숲에서는 낯선 구역에 들어서기 전 발걸음이 잠시 머무르거나, 선생님의 눈을 먼저 찾는 장면이 자연스럽게 보입니다. 흙이 묻는 놀이 앞에서는 옷소매를 살짝 여미거나, 물티슈 위치를 확인하는 섬세한 준비 동작도 신중한 안정의 국화다운 모습이에요. 한 번 마음이 놓이면 같은 길을 스스로 건너는 속도가 빨라지기도 합니다.',
+                parentHeart:
+                    '집에서는 「천천히 알아가도 괜찮아」라는 문장을 자주 건네 주세요. 서두름보다 함께 서 있는 시간이 아이에게는 가장 큰 안전판이 됩니다. 아이의 신중함을 칭찬의 재료로 삼아 주세요.',
+                actionGuide:
+                    '「먼저 선생님이 천천히 한 바퀴 돌아볼까?」처럼 시범을 언어로 예고해 주세요. 집에서는 「오늘 숲에서 처음 본 것 하나」만 이야기하게 해 보면 부담이 줄어요. 「무서웠던 순간이 있었다면 손가락 하나로 알려 줘」처럼 작은 신호를 우리들의 약속으로 정해 두면 좋아요.',
+                tier: {
+                    high: {
+                        badge: '빛나는 강점',
+                        quote: '안전을 그리는 섬세한 지혜가 숲길을 밝혀 주고 있어요.',
+                        narrative:
+                            '「신중한 안정의 국화」에너지가 이번 관찰에서 단단하게 드러났어요. 주변을 살피고 위험을 가늠하는 힘은 공동체를 지키는 고운 재능입니다.\n\n재능을 키우려면 아이가 직접 안전 지도를 맡게 해 보세요. 「오늘 숲에서 우리가 지켜야 할 약속 카드」를 함께 그리면 책임감이 자랍니다. 「네가 먼저 본 안전한 길」을 칭찬하며 말로 붙잡아 주면 자신감이 커져요.'
+                    },
+                    mid: {
+                        badge: '고른 균형',
+                        quote: '익숙함과 새로움 사이에서 지금의 균형이 이어지고 있어요.',
+                        narrative:
+                            '이 영역은 익숙한 놀이와 새로운 도전이 번갈아 찾아오는 리듬으로 읽혀요. 어느 날은 빠르게 적응하고, 어느 날은 잠시 머무는 모습 모두 자연스러운 성장의 길입니다.\n\n「오늘은 천천히 알아가는 날이었구나」라고 하루에 이름을 붙여 주세요. 어른이 먼저 「나도 새로운 곳에 가면 한참 서 있을 때가 있어」라고 나누면 균형 잡힌 격려가 이어져요.'
+                    },
+                    low: {
+                        badge: '섬세한 보호',
+                        quote: '낯선 숲길 옆에서 잠시 멈추는 시간, 그것도 소중한 관찰이에요.',
+                        narrative:
+                            '이 숫자는 아이를 재는 척도가 아니에요. 낯선 자극 앞에서 마음이 잠시 머무는 것은 지도를 그리는 시간일 수 있습니다. 숲은 그런 멈춤을 허락하는 곳이에요.\n\n어른은 「지금은 길을 그리는 중이구나」라고 번역해 주고, 짧은 루틴—같은 순서로 입장하기, 좋아하는 장난감 하나를 손에 쥐고 시작하기—을 우리들의 약속으로 정해 주세요. 선생님과 눈을 맞추는 시간을 활동 전에 미리 약속하면 안전감이 커져요.\n\n치유와 공감은 「괜찮아, 우리 천천히」라는 예쁜 마음의 반복 속에서 자랍니다. 아이의 속도를 기다려 주면 신중함은 다시 고운 에너지로 피어올라요.'
+                    }
+                }
+            },
+            매화: {
+                title: '단단한 마무리의 매화',
+                harmonySpark:
+                    '한 가지를 끝까지 보려는 끈기와 다시 시작하는 예쁜 마음이 숲에서 드러나고 있어요.',
+                harmonySupport:
+                    '순간적으로 막힐 때는 숨 고르기와 짧은 성공 경험이 이어지면 마음이 다시 이어지기 쉬워요.',
+                psychDeep:
+                    '이 기질의 아이는 목표를 향한 실행 기능을 쓰며 끝맺음을 중요하게 여기는 경향이 있어요. 완벽을 강요하는 것이 아니라 스스로에게 약속한 작은 마침표를 찍고 싶은 마음이 큽니다. 그래서 놀이가 막힐 때는 잠시 멈추더라도, 다시 손을 뻗는 순간이 의미 있게 느껴지길 바라요.',
+                forestPortrait:
+                    '유아숲에서는 놀이가 끝난 뒤 장난감을 제자리에 두려 하거나, 어려운 활동 앞에서 한 번 더 시도해 보는 장면이 보입니다. 친구와 역할을 나눌 때도 「내 차례까지 해볼게」라고 말하며 마무리를 생각하는 모습이 단단한 마무리의 매화다운 순간이에요. 잠시 주저하다가도 다시 손을 뻗는 호흡이 숲바람과 겹칩니다.',
+                parentHeart:
+                    '집에서는 과정 전체보다 「지금 한 걸음」을 먼저 보아 주세요. 끝까지 가지 못해도 다시 시작하는 예쁜 마음을 이름 붙여 칭찬하면 아이는 자신을 믿게 됩니다. 기다림은 신뢰의 다른 이름이에요.',
+                actionGuide:
+                    '「오늘은 여기까지 해도 멋져」라고 마침표를 함께 찍어 주세요. 「다시 한 번만, 호흡 세 번 하고」처럼 짧은 루틴을 우리들의 약속으로 정하면 좋아요. 성공한 뒤에는 「어떤 마음이 도와줬어?」라고 물어 스스로의 전략을 말하게 해 보세요.',
+                tier: {
+                    high: {
+                        badge: '빛나는 강점',
+                        quote: '끝까지 내려는 고운 에너지가 숲에 길을 남기고 있어요.',
+                        narrative:
+                            '「단단한 마무리의 매화」에너지가 이번 관찰에서 빛을 발했어요. 한 가지를 끝까지 보려는 힘은 앞으로의 학습과 생활을 지탱하는 고운 재능입니다.\n\n재능을 키우려면 아이가 직접 작은 목표를 정하게 해 보세요. 「오늘 숲에서 끝맺을 한 가지」를 스스로 고르면 주도성이 자랍니다. 「네가 스스로 마침표를 찍은 순간」을 구체적으로 칭찬해 주면 자신감이 쌓여요.'
+                    },
+                    mid: {
+                        badge: '고른 균형',
+                        quote: '시도와 쉼이 함께 숨 쉬는, 지금의 리듬이 단단해져요.',
+                        narrative:
+                            '이 영역은 시도와 멈춤이 번갈아 오는 리듬으로 읽혀요. 어느 날은 끝까지 가고, 어느 날은 중간에 숨 고르는 모습 모두 자연스러운 성장의 길입니다.\n\n「오늘은 여기까지가 네가 정한 마침표구나」라고 존중해 주세요. 어른이 「나도 어려울 땐 잠깐 멈췄다가 다시 해」라고 나누면 균형 잡힌 격려가 이어져요.'
+                    },
+                    low: {
+                        badge: '섬세한 보호',
+                        quote: '막힐 때의 멈춤도, 다시 시작하는 예쁜 마음을 기다리는 숲의 숨이에요.',
+                        narrative:
+                            '이 숫자는 아이를 평가하는 낙인이 아니에요. 실행이 잠시 막힐 때는 마음이 쉬어 가며 전략을 바꾸는 시간일 수 있습니다. 그것은 후퇴가 아니라 다시 손을 뻗기 위한 고운 에너지의 쉼표예요.\n\n어른은 「지금은 전략을 바꾸는 중이구나」라고 번역해 주고, 아주 작은 성공을 우리들의 약속으로 설계해 주세요. 「한 블록만 쌓아도 오늘은 성공」처럼 단계를 잘게 나누면 마음이 가벼워져요. 숨 고르기, 물 한 모금, 좋아하는 노래 한 소절 같은 루틴을 활동 전에 정해 두면 치유와 공감이 이어집니다.\n\n재촉 대신 「다시 시작하는 예쁜 마음이 언제든 괜찮아」라고 말해 주면 아이는 자신의 속도를 믿게 됩니다. 마인드스토리는 그 속도를 함께 응원합니다.'
+                    }
+                }
+            }
+        },
+
+        barStyle(cat) {
+            if (cat === '난초') return 'background-color:#D4A373';
+            if (cat === '대나무') return 'background-color:#2D4A3E';
+            if (cat === '국화') return 'background:linear-gradient(90deg,#2D4A3E 0%,#D4A373 100%)';
+            return 'background-color:#2D4A3E;opacity:0.72';
+        },
+
+        emptyCounts() {
+            const o = {};
+            this.questions.forEach((q) => { o[q.id] = { yes: '', no: '' }; });
+            return o;
+        },
+
+        scoresFromCounts(counts) {
+            const acc = {
+                난초: { yes: 0, n: 0 },
+                대나무: { yes: 0, n: 0 },
+                국화: { yes: 0, n: 0 },
+                매화: { yes: 0, n: 0 }
+            };
+            this.questions.forEach((q) => {
+                const row = counts[q.id] || { yes: '', no: '' };
+                const y = parseInt(row.yes, 10) || 0;
+                const n = parseInt(row.no, 10) || 0;
+                const t = y + n;
+                if (t === 0) return;
+                acc[q.cat].yes += y;
+                acc[q.cat].n += t;
+            });
+            const pct = {};
+            Object.keys(acc).forEach((k) => {
+                pct[k] = acc[k].n > 0 ? Math.round((acc[k].yes / acc[k].n) * 100) : 0;
+            });
+            return pct;
+        },
+
+        /** ≥70% 재능·축하 · 40~70% 균형 격려 · &lt;40% 섬세한 보호·치유 (v2.0 내러티브) */
+        segmentForScore(pct, cat) {
+            const I = this.interpretations[cat];
+            const empty = {
+                tier: 'mid',
+                badge: '',
+                headline: cat,
+                quote: '',
+                narrative: '',
+                psychDeep: '',
+                forestPortrait: '',
+                parentHeart: '',
+                actionGuide: ''
+            };
+            if (!I || !I.tier) return empty;
+            let tierKey = 'mid';
+            if (pct >= 70) tierKey = 'high';
+            else if (pct < 40) tierKey = 'low';
+            const T = I.tier[tierKey];
+            return {
+                tier: tierKey,
+                badge: T.badge,
+                headline: I.title,
+                quote: T.quote,
+                narrative: T.narrative,
+                psychDeep: I.psychDeep,
+                forestPortrait: I.forestPortrait,
+                parentHeart: I.parentHeart,
+                actionGuide: I.actionGuide
+            };
+        },
+
+        /** 동일 기관명(trim)으로 묶인 레코드 (집단 프로필용) */
+        membersByInstitutionName(institutions, name) {
+            const k = String(name).trim();
+            return institutions.filter((i) => String(i.name).trim() === k);
+        },
+
+        /**
+         * 집단 기질 평균: sum(개별 4축 %) / 관찰 데이터가 있는 아동 수
+         * @param {function(object): boolean} hasDataFn - counts에 입력이 있는지
+         */
+        aggregateMeanScores(members, hasDataFn) {
+            const withData = members.filter((m) => hasDataFn(m.counts));
+            if (!withData.length) return null;
+            const cats = this.categories;
+            const sum = {};
+            cats.forEach((c) => {
+                sum[c] = 0;
+            });
+            withData.forEach((inst) => {
+                const sc = this.scoresFromCounts(inst.counts);
+                cats.forEach((c) => {
+                    sum[c] += sc[c] || 0;
+                });
+            });
+            const n = withData.length;
+            const mean = {};
+            cats.forEach((c) => {
+                mean[c] = Math.round(sum[c] / n);
+            });
+            return { mean, nWithData: n, nTotal: members.length };
+        },
+
+        /** 각 아동의 '우세 기질'(최고점 복수 시 SCHEMA 순서 앞선 축) 빈도 → 파이 분포 */
+        dominantTypeTally(members, hasDataFn) {
+            const withData = members.filter((m) => hasDataFn(m.counts));
+            const cats = this.categories;
+            const tally = {};
+            cats.forEach((c) => {
+                tally[c] = 0;
+            });
+            withData.forEach((inst) => {
+                const sc = this.scoresFromCounts(inst.counts);
+                let best = cats[0];
+                let bestV = -1;
+                cats.forEach((c) => {
+                    const v = sc[c] || 0;
+                    if (v > bestV) {
+                        bestV = v;
+                        best = c;
+                    }
+                });
+                tally[best] += 1;
+            });
+            return { tally, n: withData.length };
+        },
+
+        /**
+         * 사전·사후: obsPhase === 'pre' | 'post' 레코드 각각 평균 → 성장 지수(Δ) = 사후 − 사전
+         */
+        aggregatePrePostComparison(members, hasDataFn) {
+            const pre = members.filter((m) => m.obsPhase === 'pre' && hasDataFn(m.counts));
+            const post = members.filter((m) => m.obsPhase === 'post' && hasDataFn(m.counts));
+            if (!pre.length || !post.length) return null;
+            const preAgg = this.aggregateMeanScores(pre, hasDataFn);
+            const postAgg = this.aggregateMeanScores(post, hasDataFn);
+            if (!preAgg || !postAgg) return null;
+            const meanPre = preAgg.mean;
+            const meanPost = postAgg.mean;
+            const growthIndex = {};
+            this.categories.forEach((c) => {
+                growthIndex[c] = meanPost[c] - meanPre[c];
+            });
+            return {
+                meanPre,
+                meanPost,
+                growthIndex,
+                nPre: preAgg.nWithData,
+                nPost: postAgg.nWithData,
+                nPreRecords: pre.length,
+                nPostRecords: post.length
+            };
+        },
+
+        /** 기관 유형 필드(type) 기준 정규화 — 병설 등은 유치원으로 */
+        institutionTypeNorm(inst) {
+            const t = String(inst.type || '').trim();
+            if (t === '유치원' || t.includes('병설')) return '유치원';
+            return '어린이집';
+        },
+
+        /**
+         * localStorage 전체 기록 중 어린이집 vs 유치원 각각 평균 프로필
+         * 유형별 평균 = 해당 유형 관찰(입력 완료) 점수 합 / 해당 유형 관찰 수
+         */
+        aggregateGlobalByInstitutionType(institutions, hasDataFn) {
+            const day = institutions.filter((i) => this.institutionTypeNorm(i) === '어린이집');
+            const kg = institutions.filter((i) => this.institutionTypeNorm(i) === '유치원');
+            const dayAgg = this.aggregateMeanScores(day, hasDataFn);
+            const kgAgg = this.aggregateMeanScores(kg, hasDataFn);
+            if (!dayAgg || !kgAgg) return null;
+            const absDiff = {};
+            const signedDiff = {};
+            this.categories.forEach((c) => {
+                const d = (dayAgg.mean[c] || 0) - (kgAgg.mean[c] || 0);
+                signedDiff[c] = (kgAgg.mean[c] || 0) - (dayAgg.mean[c] || 0);
+                absDiff[c] = Math.abs(d);
+            });
+            let rsiCat = this.categories[0];
+            let rsiVal = -1;
+            this.categories.forEach((c) => {
+                if (absDiff[c] > rsiVal) {
+                    rsiVal = absDiff[c];
+                    rsiCat = c;
+                }
+            });
+            return {
+                meanDay: dayAgg.mean,
+                meanKg: kgAgg.mean,
+                nDay: dayAgg.nWithData,
+                nKg: kgAgg.nWithData,
+                rsiCat,
+                rsiVal,
+                signedDiff,
+                absDiff
+            };
+        }
+    };
+
+    const STATE = {
+        step: 'dashboard',
+        institutions: [],
+        selectedId: null,
+        /** 기관 허브·종합 보고서: 기관명 키(trim) */
+        selectedGroupName: '',
+        searchTerm: '',
+        isPreviewSample: false,
+        setupTypeOverride: null,
+        /** setup 화면: 사전/사후 선택값 */
+        setupObsPhase: '',
+        /** 예전 localStorage 키에서 이행한 경우 1회 안내 */
+        migrationBanner: null,
+        /** 홈 이동 직후 토스트 문구 */
+        toastMessage: null,
+        _toastTimer: null,
+
+        guessType(name) {
+            const s = String(name);
+            return s.includes('유치원') || s.includes('병설') ? '유치원' : '어린이집';
+        },
+
+        ensureCounts(inst) {
+            if (!inst.counts || typeof inst.counts !== 'object') inst.counts = SCHEMA.emptyCounts();
+            SCHEMA.questions.forEach((q) => {
+                if (!inst.counts[q.id]) inst.counts[q.id] = { yes: '', no: '' };
+            });
+            if (inst.obsPhase !== 'pre' && inst.obsPhase !== 'post') inst.obsPhase = '';
+        },
+
+        selected() {
+            return this.institutions.find((i) => i.id === this.selectedId) || null;
+        },
+
+        persist() {
+            try {
+                localStorage.setItem(
+                    STORAGE_KEY,
+                    JSON.stringify({
+                        app: 'forest-observation',
+                        engine: '1.5',
+                        vault: 'ms_forest_v1',
+                        v: SCHEMA.version,
+                        institutions: this.institutions,
+                        selectedId: this.selectedId
+                    })
+                );
+            } catch (_) {}
+        },
+
+        hydrate() {
+            this.migrationBanner = null;
+            try {
+                let raw = localStorage.getItem(STORAGE_KEY);
+                let fromKey = STORAGE_KEY;
+                if (!raw) {
+                    raw = localStorage.getItem(LEGACY_MINDSTORY_VAULT_V1);
+                    if (raw) {
+                        fromKey = LEGACY_MINDSTORY_VAULT_V1;
+                        this.migrationBanner =
+                            '이전 키(MINDSTORY_VAULT_V1) 데이터를 ms_forest_v1로 옮겼어요.';
+                    }
+                }
+                if (!raw) {
+                    raw = localStorage.getItem(LEGACY_FOREST_OBS_V1);
+                    if (raw) {
+                        fromKey = LEGACY_FOREST_OBS_V1;
+                        if (!this.migrationBanner) {
+                            this.migrationBanner =
+                                '이전 키(ms_forest_observation_v1) 데이터를 ms_forest_v1로 옮겼어요.';
+                        }
+                    }
+                }
+                if (!raw) {
+                    raw = localStorage.getItem(LEGACY_OBSERVATION_V0);
+                    if (raw) {
+                        fromKey = LEGACY_OBSERVATION_V0;
+                        if (!this.migrationBanner) {
+                            this.migrationBanner =
+                                '이전 키(ms_forest_observation) 데이터를 ms_forest_v1로 옮겼어요.';
+                        }
+                    }
+                }
+                if (!raw) {
+                    raw = localStorage.getItem(LEGACY_FOREST_DATA);
+                    if (raw) {
+                        fromKey = LEGACY_FOREST_DATA;
+                        if (!this.migrationBanner) {
+                            this.migrationBanner =
+                                '예전 키(ms_forest_data) 기록을 가져왔어요. 이제 ms_forest_v1에만 저장됩니다.';
+                        }
+                    }
+                }
+                if (!raw) {
+                    raw = localStorage.getItem(LEGACY_V86);
+                    if (raw) {
+                        fromKey = LEGACY_V86;
+                        if (!this.migrationBanner) {
+                            this.migrationBanner =
+                                '예전 앱 저장소에서 기록을 가져왔어요. 지금 키(ms_forest_v1)로 옮겼습니다.';
+                        }
+                    }
+                }
+                if (!raw) {
+                    raw = localStorage.getItem(LEGACY_V2);
+                    if (raw) {
+                        this._migrateLegacyV2(raw);
+                        if (!this.migrationBanner) {
+                            this.migrationBanner =
+                                '오래된 단일 기관 형식을 ms_forest_v1로 옮겼습니다.';
+                        }
+                        return;
+                    }
+                }
+                if (!raw) {
+                    this.institutions = [];
+                    this.selectedId = null;
+                    return;
+                }
+                const o = JSON.parse(raw);
+                if (o.institutions && Array.isArray(o.institutions)) {
+                    this.institutions = o.institutions;
+                    this.selectedId = o.selectedId || (this.institutions[0] && this.institutions[0].id) || null;
+                    this.institutions.forEach((i) => this.ensureCounts(i));
+                    if (fromKey !== STORAGE_KEY) {
+                        try { localStorage.removeItem(fromKey); } catch (_) {}
+                        this.persist();
+                    }
+                    return;
+                }
+            } catch (_) {}
+            this.institutions = [];
+            this.selectedId = null;
+        },
+
+        _migrateLegacyV2(raw) {
+            try {
+                const o = JSON.parse(raw);
+                if (!o.institution || !o.counts) return;
+                const id = newVaultRecordId();
+                const inst = {
+                    id,
+                    name: o.institution,
+                    type: this.guessType(o.institution),
+                    obsPhase: '',
+                    counts: o.counts,
+                    updatedAt: new Date().toISOString()
+                };
+                this.ensureCounts(inst);
+                this.institutions = [inst];
+                this.selectedId = id;
+                try { localStorage.removeItem(LEGACY_V2); } catch (_) {}
+                this.persist();
+            } catch (_) {}
+        },
+
+        addInstitution(name) {
+            const id = newVaultRecordId();
+            const inst = {
+                id,
+                name: name.trim(),
+                type: this.guessType(name),
+                obsPhase: '',
+                counts: SCHEMA.emptyCounts(),
+                updatedAt: new Date().toISOString()
+            };
+            this.institutions.push(inst);
+            this.selectedId = id;
+            this.persist();
+            return inst;
+        },
+
+        touchSelected() {
+            const i = this.selected();
+            if (i) i.updatedAt = new Date().toISOString();
+        }
+    };
+
+    const UI = {
+        esc(s) {
+            return String(s)
+                .replace(/&/g, '&amp;')
+                .replace(/"/g, '&quot;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+        },
+
+        /** 줄바꿈 문단 → 가독성용 &lt;p&gt; (이스케이프) */
+        formatMultilineEsc(text) {
+            const t = String(text || '').trim();
+            if (!t) return '';
+            return t
+                .split(/\n\n+/)
+                .map((p) => p.trim())
+                .filter(Boolean)
+                .map(
+                    (p) =>
+                        `<p class="text-sm text-ms-body leading-relaxed">${this.esc(p)}</p>`
+                )
+                .join('');
+        },
+
+        /** 검색어와 겹치는 구간만 굵게 (HTML 조각, 이미 이스케이프됨) */
+        highlightInstMatch(name, query) {
+            const n = String(name);
+            const q = String(query).trim();
+            if (!q) return this.esc(n);
+            const lower = n.toLocaleLowerCase('ko-KR');
+            const ql = q.toLocaleLowerCase('ko-KR');
+            const idx = lower.indexOf(ql);
+            if (idx < 0) return this.esc(n);
+            return (
+                this.esc(n.slice(0, idx)) +
+                '<strong class="font-black text-[#2D4A3E]">' +
+                this.esc(n.slice(idx, idx + q.length)) +
+                '</strong>' +
+                this.esc(n.slice(idx + q.length))
+            );
+        },
+
+        hasAnyCount(counts) {
+            return SCHEMA.questions.some((q) => {
+                const row = counts[q.id] || {};
+                const y = parseInt(row.yes, 10) || 0;
+                const n = parseInt(row.no, 10) || 0;
+                return y + n > 0;
+            });
+        },
+
+        render() {
+            if (typeof MS !== 'undefined' && MS.clearAdvanceTimers) MS.clearAdvanceTimers();
+            const app = document.getElementById('app');
+            if (app) {
+                if (
+                    STATE.step === 'institution-report' ||
+                    STATE.step === 'institution-hub' ||
+                    STATE.step === 'institution-prepost-report' ||
+                    STATE.step === 'institution-type-macro-report'
+                ) {
+                    app.classList.remove('max-w-2xl');
+                    app.classList.add('max-w-4xl', 'print-wide');
+                } else {
+                    app.classList.add('max-w-2xl');
+                    app.classList.remove('max-w-4xl', 'print-wide');
+                }
+            }
+            const el = document.getElementById('view-content');
+            if (!el) return;
+            if (STATE.step === 'dashboard') this.renderDashboard(el);
+            else if (STATE.step === 'institution-hub') this.renderInstitutionHub(el);
+            else if (STATE.step === 'institution-report') this.renderInstitutionReport(el);
+            else if (STATE.step === 'institution-prepost-report') this.renderInstitutionPrePostReport(el);
+            else if (STATE.step === 'institution-type-macro-report') this.renderInstitutionTypeMacroReport(el);
+            else if (STATE.step === 'setup') this.renderSetup(el);
+            else if (STATE.step === 'input') this.renderInput(el);
+            else if (STATE.step === 'result') this.renderResult(el);
+            this.renderDataFooter();
+            this.renderToast();
+        },
+
+        /** 저장 안내 토스트 (고정 하단) */
+        renderToast() {
+            let host = document.getElementById('ms-toast-host');
+            if (!host) {
+                host = document.createElement('div');
+                host.id = 'ms-toast-host';
+                host.className =
+                    'fixed bottom-20 left-0 right-0 z-[160] flex justify-center px-4 print-hidden pointer-events-none';
+                document.body.appendChild(host);
+            }
+            if (!STATE.toastMessage) {
+                host.innerHTML = '';
+                host.classList.add('hidden');
+                return;
+            }
+            host.classList.remove('hidden');
+            host.innerHTML = `<div class="pointer-events-auto max-w-sm text-center rounded-full border-2 border-[#2D4A3E] bg-[#FDFBF7]/95 text-[#2D4A3E] text-sm font-semibold px-5 py-3 shadow-lg" role="status">${this.esc(STATE.toastMessage)}</div>`;
+        },
+
+        /** v8.7 스키마 기반 네 기질 조화 요약 */
+        buildHarmonySummary(scores) {
+            const cats = SCHEMA.categories;
+            const ranked = cats.map((c) => ({ c, v: scores[c] || 0 })).sort((a, b) => b.v - a.v);
+            const hi = ranked[0];
+            const lo = ranked[3];
+            const I = SCHEMA.interpretations;
+            const spread = ranked[0].v - ranked[3].v;
+            if (spread <= 12) {
+                return (
+                    '네 가지 기질이 비슷한 높이로 나란히 서 있어요. ' +
+                    '따뜻한 공감·씩씩한 탐색·차분한 안전·끝까지 해내는 고운 에너지가 서로 보태며 숲처럼 자라나고 있습니다. ' +
+                    '한쪽만 특별히 튀지 않을 때는 오늘의 작은 관찰 포인트를 일기처럼 남겨 두면 좋아요.'
+                );
+            }
+            const hiT = I[hi.c].title;
+            const loT = I[lo.c].title;
+            let s = `「${hiT}」 쪽 고운 에너지가 지금 숲에서 가장 크게 피어올라요. ${I[hi.c].harmonySpark} `;
+            if (hi.c !== lo.c) {
+                s += `「${loT}」 영역은 아이만의 속도로 숨 고르기를 더하면 네 기질이 서로 덜어 주며 아름답게 이어져요. ${I[lo.c].harmonySupport}`;
+            }
+            s += ' 각 카드의 안내를 살펴보시면 집과 숲에서 이어 주실 수 있어요.';
+            return s;
+        },
+
+        /** 4축 레이더(마름모꼴) SVG */
+        buildRadarSvg(scores) {
+            const cx = 110;
+            const cy = 105;
+            const maxR = 70;
+            const cats = SCHEMA.categories;
+            const polyPts = cats
+                .map((cat, i) => {
+                    const ang = -Math.PI / 2 + (i * Math.PI) / 2;
+                    const p = Math.min(100, Math.max(0, scores[cat] || 0)) / 100;
+                    const r = p * maxR;
+                    const x = cx + r * Math.cos(ang);
+                    const y = cy + r * Math.sin(ang);
+                    return `${x.toFixed(1)},${y.toFixed(1)}`;
+                })
+                .join(' ');
+            let grid = '';
+            for (let g = 1; g <= 3; g++) {
+                const rr = (g / 3) * maxR;
+                const gp = cats
+                    .map((_, i) => {
+                        const ang = -Math.PI / 2 + (i * Math.PI) / 2;
+                        return `${cx + rr * Math.cos(ang)},${cy + rr * Math.sin(ang)}`;
+                    })
+                    .join(' ');
+                grid += `<polygon fill="none" stroke="rgba(45,74,62,0.14)" stroke-width="1" points="${gp}" />`;
+            }
+            let axes = '';
+            cats.forEach((_, i) => {
+                const ang = -Math.PI / 2 + (i * Math.PI) / 2;
+                const x2 = cx + maxR * Math.cos(ang);
+                const y2 = cy + maxR * Math.sin(ang);
+                axes += `<line x1="${cx}" y1="${cy}" x2="${x2}" y2="${y2}" stroke="rgba(45,74,62,0.18)" stroke-width="1" />`;
+            });
+            const labelR = maxR + 26;
+            let labels = '';
+            cats.forEach((cat, i) => {
+                const ang = -Math.PI / 2 + (i * Math.PI) / 2;
+                const lx = cx + labelR * Math.cos(ang);
+                const ly = cy + labelR * Math.sin(ang);
+                const pct = scores[cat] || 0;
+                labels += `<text x="${lx}" y="${ly - 5}" text-anchor="middle" fill="#2D4A3E" font-size="12" font-weight="800" font-family="Noto Sans KR,sans-serif">${cat}</text>`;
+                labels += `<text x="${lx}" y="${ly + 9}" text-anchor="middle" fill="#9ca3af" font-size="10" font-weight="600" font-family="Noto Sans KR,sans-serif">${pct}%</text>`;
+            });
+            return `<svg width="240" height="230" viewBox="0 0 240 230" xmlns="http://www.w3.org/2000/svg" class="mx-auto">${grid}${axes}<polygon fill="rgba(45,74,62,0.2)" stroke="#2D4A3E" stroke-width="2" points="${polyPts}" />${labels}</svg>`;
+        },
+
+        /** 기관 종합용 · 조금 더 큰 레이더 */
+        buildConsultingRadarSvg(scores) {
+            const cx = 140;
+            const cy = 125;
+            const maxR = 92;
+            const cats = SCHEMA.categories;
+            const polyPts = cats
+                .map((cat, i) => {
+                    const ang = -Math.PI / 2 + (i * Math.PI) / 2;
+                    const p = Math.min(100, Math.max(0, scores[cat] || 0)) / 100;
+                    const r = p * maxR;
+                    const x = cx + r * Math.cos(ang);
+                    const y = cy + r * Math.sin(ang);
+                    return `${x.toFixed(1)},${y.toFixed(1)}`;
+                })
+                .join(' ');
+            let grid = '';
+            for (let g = 1; g <= 3; g++) {
+                const rr = (g / 3) * maxR;
+                const gp = cats
+                    .map((_, i) => {
+                        const ang = -Math.PI / 2 + (i * Math.PI) / 2;
+                        return `${cx + rr * Math.cos(ang)},${cy + rr * Math.sin(ang)}`;
+                    })
+                    .join(' ');
+                grid += `<polygon fill="none" stroke="rgba(45,74,62,0.14)" stroke-width="1" points="${gp}" />`;
+            }
+            let axes = '';
+            cats.forEach((_, i) => {
+                const ang = -Math.PI / 2 + (i * Math.PI) / 2;
+                const x2 = cx + maxR * Math.cos(ang);
+                const y2 = cy + maxR * Math.sin(ang);
+                axes += `<line x1="${cx}" y1="${cy}" x2="${x2}" y2="${y2}" stroke="rgba(45,74,62,0.18)" stroke-width="1" />`;
+            });
+            const labelR = maxR + 30;
+            let labels = '';
+            cats.forEach((cat, i) => {
+                const ang = -Math.PI / 2 + (i * Math.PI) / 2;
+                const lx = cx + labelR * Math.cos(ang);
+                const ly = cy + labelR * Math.sin(ang);
+                const pct = scores[cat] || 0;
+                labels += `<text x="${lx}" y="${ly - 6}" text-anchor="middle" fill="#2D4A3E" font-size="13" font-weight="800" font-family="Noto Sans KR,sans-serif">${cat}</text>`;
+                labels += `<text x="${lx}" y="${ly + 10}" text-anchor="middle" fill="#9ca3af" font-size="11" font-weight="600" font-family="Noto Sans KR,sans-serif">${pct}%</text>`;
+            });
+            return `<svg width="300" height="280" viewBox="0 0 300 280" xmlns="http://www.w3.org/2000/svg" class="mx-auto max-w-full h-auto">${grid}${axes}<polygon fill="rgba(45,74,62,0.18)" stroke="#2D4A3E" stroke-width="2.5" points="${polyPts}" />${labels}</svg>`;
+        },
+
+        /** 사전(연한 녹)·사후(심산녹) 그룹 막대 */
+        buildPrePostGroupedBarSvg(meanPre, meanPost) {
+            const cats = SCHEMA.categories;
+            const W = 420;
+            const H = 240;
+            const padL = 44;
+            const padR = 16;
+            const padT = 28;
+            const padB = 52;
+            const innerW = W - padL - padR;
+            const innerH = H - padT - padB;
+            const n = cats.length;
+            const groupW = innerW / n;
+            const barW = Math.min(26, (groupW - 10) / 2);
+            const maxPct = 100;
+            const y0 = padT + innerH;
+            let rects = '';
+            cats.forEach((cat, i) => {
+                const gx = padL + i * groupW + groupW / 2;
+                const preH = ((meanPre[cat] || 0) / maxPct) * innerH;
+                const postH = ((meanPost[cat] || 0) / maxPct) * innerH;
+                const xPre = gx - barW - 3;
+                const xPost = gx + 3;
+                rects += `<rect x="${xPre}" y="${y0 - preH}" width="${barW}" height="${preH}" rx="4" fill="rgba(168,201,184,0.92)" stroke="rgba(45,74,62,0.15)" stroke-width="1" />`;
+                rects += `<rect x="${xPost}" y="${y0 - postH}" width="${barW}" height="${postH}" rx="4" fill="#2D4A3E" stroke="rgba(45,74,62,0.2)" stroke-width="1" />`;
+                rects += `<text x="${gx}" y="${H - 28}" text-anchor="middle" fill="#2D4A3E" font-size="11" font-weight="800" font-family="Noto Sans KR,sans-serif">${cat}</text>`;
+            });
+            const axis = `<line x1="${padL}" y1="${y0}" x2="${W - padR}" y2="${y0}" stroke="rgba(45,74,62,0.25)" stroke-width="1.5" />`;
+            const y50 = y0 - innerH * 0.5;
+            const y100 = padT;
+            const grid = `<line x1="${padL}" y1="${y50}" x2="${W - padR}" y2="${y50}" stroke="rgba(45,74,62,0.08)" stroke-dasharray="4 4" /><line x1="${padL}" y1="${y100}" x2="${W - padR}" y2="${y100}" stroke="rgba(45,74,62,0.06)" stroke-dasharray="4 4" />`;
+            const leg = `<g transform="translate(${padL},10)"><rect x="0" y="0" width="12" height="12" rx="2" fill="rgba(168,201,184,0.92)"/><text x="18" y="11" fill="#2D4A3E" font-size="10" font-weight="700" font-family="Noto Sans KR,sans-serif">사전 평균</text><rect x="100" y="0" width="12" height="12" rx="2" fill="#2D4A3E"/><text x="118" y="11" fill="#2D4A3E" font-size="10" font-weight="700" font-family="Noto Sans KR,sans-serif">사후 평균</text></g>`;
+            return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" class="mx-auto max-w-full h-auto" aria-label="사전 사후 막대 비교">${leg}${grid}${axis}${rects}</svg>`;
+        },
+
+        /** 사전·사후 레이더 겹침 (범위 시각화) */
+        buildDualPrePostRadarSvg(meanPre, meanPost) {
+            const cx = 140;
+            const cy = 125;
+            const maxR = 90;
+            const cats = SCHEMA.categories;
+            const pts = (mean) =>
+                cats
+                    .map((cat, i) => {
+                        const ang = -Math.PI / 2 + (i * Math.PI) / 2;
+                        const p = Math.min(100, Math.max(0, mean[cat] || 0)) / 100;
+                        const r = p * maxR;
+                        return `${(cx + r * Math.cos(ang)).toFixed(1)},${(cy + r * Math.sin(ang)).toFixed(1)}`;
+                    })
+                    .join(' ');
+            const polyPre = pts(meanPre);
+            const polyPost = pts(meanPost);
+            let grid = '';
+            for (let g = 1; g <= 3; g++) {
+                const rr = (g / 3) * maxR;
+                const gp = cats
+                    .map((_, i) => {
+                        const ang = -Math.PI / 2 + (i * Math.PI) / 2;
+                        return `${cx + rr * Math.cos(ang)},${cy + rr * Math.sin(ang)}`;
+                    })
+                    .join(' ');
+                grid += `<polygon fill="none" stroke="rgba(45,74,62,0.12)" stroke-width="1" points="${gp}" />`;
+            }
+            let axes = '';
+            cats.forEach((_, i) => {
+                const ang = -Math.PI / 2 + (i * Math.PI) / 2;
+                const x2 = cx + maxR * Math.cos(ang);
+                const y2 = cy + maxR * Math.sin(ang);
+                axes += `<line x1="${cx}" y1="${cy}" x2="${x2}" y2="${y2}" stroke="rgba(45,74,62,0.16)" stroke-width="1" />`;
+            });
+            const labelR = maxR + 22;
+            let labels = '';
+            cats.forEach((cat, i) => {
+                const ang = -Math.PI / 2 + (i * Math.PI) / 2;
+                const lx = cx + labelR * Math.cos(ang);
+                const ly = cy + labelR * Math.sin(ang);
+                labels += `<text x="${lx}" y="${ly + 4}" text-anchor="middle" fill="#2D4A3E" font-size="12" font-weight="800" font-family="Noto Sans KR,sans-serif">${cat}</text>`;
+            });
+            const dual = `<polygon fill="rgba(168,201,184,0.38)" stroke="#6d9a82" stroke-width="2" stroke-dasharray="6 4" points="${polyPre}" /><polygon fill="rgba(45,74,62,0.15)" stroke="#2D4A3E" stroke-width="2.5" points="${polyPost}" />`;
+            const leg = `<g transform="translate(20,248)"><line x1="0" y1="6" x2="22" y2="6" stroke="#6d9a82" stroke-width="2" stroke-dasharray="6 4"/><text x="28" y="10" fill="#2D4A3E" font-size="10" font-weight="700" font-family="Noto Sans KR,sans-serif">사전 평균</text><line x1="108" y1="6" x2="130" y2="6" stroke="#2D4A3E" stroke-width="2.5"/><text x="136" y="10" fill="#2D4A3E" font-size="10" font-weight="800" font-family="Noto Sans KR,sans-serif">사후 평균</text></g>`;
+            return `<svg width="300" height="268" viewBox="0 0 300 268" xmlns="http://www.w3.org/2000/svg" class="mx-auto max-w-full h-auto">${grid}${axes}${dual}${labels}${leg}</svg>`;
+        },
+
+        /** 어린이집(연한 브라운) vs 유치원(심산녹) 평균 레이더 오버레이 */
+        buildInstitutionTypeCompareRadarSvg(meanDay, meanKg) {
+            const cx = 140;
+            const cy = 125;
+            const maxR = 90;
+            const cats = SCHEMA.categories;
+            const pts = (mean) =>
+                cats
+                    .map((cat, i) => {
+                        const ang = -Math.PI / 2 + (i * Math.PI) / 2;
+                        const p = Math.min(100, Math.max(0, mean[cat] || 0)) / 100;
+                        const r = p * maxR;
+                        return `${(cx + r * Math.cos(ang)).toFixed(1)},${(cy + r * Math.sin(ang)).toFixed(1)}`;
+                    })
+                    .join(' ');
+            const polyDay = pts(meanDay);
+            const polyKg = pts(meanKg);
+            let grid = '';
+            for (let g = 1; g <= 3; g++) {
+                const rr = (g / 3) * maxR;
+                const gp = cats
+                    .map((_, i) => {
+                        const ang = -Math.PI / 2 + (i * Math.PI) / 2;
+                        return `${cx + rr * Math.cos(ang)},${cy + rr * Math.sin(ang)}`;
+                    })
+                    .join(' ');
+                grid += `<polygon fill="none" stroke="rgba(45,74,62,0.1)" stroke-width="1" points="${gp}" />`;
+            }
+            let axes = '';
+            cats.forEach((_, i) => {
+                const ang = -Math.PI / 2 + (i * Math.PI) / 2;
+                const x2 = cx + maxR * Math.cos(ang);
+                const y2 = cy + maxR * Math.sin(ang);
+                axes += `<line x1="${cx}" y1="${cy}" x2="${x2}" y2="${y2}" stroke="rgba(45,74,62,0.14)" stroke-width="1" />`;
+            });
+            const labelR = maxR + 22;
+            let labels = '';
+            cats.forEach((cat, i) => {
+                const ang = -Math.PI / 2 + (i * Math.PI) / 2;
+                const lx = cx + labelR * Math.cos(ang);
+                const ly = cy + labelR * Math.sin(ang);
+                labels += `<text x="${lx}" y="${ly + 4}" text-anchor="middle" fill="#2D4A3E" font-size="12" font-weight="800" font-family="Noto Sans KR,sans-serif">${cat}</text>`;
+            });
+            const dual =
+                `<polygon fill="rgba(184,150,120,0.42)" stroke="#8d6e54" stroke-width="2.2" stroke-dasharray="5 4" points="${polyDay}" />` +
+                `<polygon fill="rgba(45,74,62,0.2)" stroke="#2D4A3E" stroke-width="2.8" points="${polyKg}" />`;
+            const leg =
+                `<g transform="translate(16,248)"><line x1="0" y1="6" x2="24" y2="6" stroke="#8d6e54" stroke-width="2.2" stroke-dasharray="5 4"/>` +
+                `<text x="30" y="10" fill="#5c4a3a" font-size="10" font-weight="800" font-family="Noto Sans KR,sans-serif">어린이집 평균</text>` +
+                `<line x1="118" y1="6" x2="142" y2="6" stroke="#2D4A3E" stroke-width="2.8"/>` +
+                `<text x="148" y="10" fill="#2D4A3E" font-size="10" font-weight="800" font-family="Noto Sans KR,sans-serif">유치원 평균</text></g>`;
+            return `<svg width="300" height="268" viewBox="0 0 300 268" xmlns="http://www.w3.org/2000/svg" class="mx-auto max-w-full h-auto" aria-label="기관 유형별 레이더 비교">${grid}${axes}${dual}${labels}${leg}</svg>`;
+        },
+
+        /** 우세 기질 빈도 파이 (순수 SVG) */
+        buildGroupPieSvg(tally, n) {
+            if (!n) {
+                return `<p class="text-center text-sm text-ms-muted py-12">집계할 관찰 데이터가 아직 없어요. 개별 입력 후 다시 열어 주세요.</p>`;
+            }
+            const cats = SCHEMA.categories;
+            const colors = {
+                난초: '#D4A373',
+                대나무: '#2D4A3E',
+                국화: '#5f7f6f',
+                매화: '#7d6b5a'
+            };
+            const cx = 120;
+            const cy = 120;
+            const r = 88;
+            let a = -Math.PI / 2;
+            let paths = '';
+            cats.forEach((cat) => {
+                const cnt = tally[cat] || 0;
+                if (!cnt) return;
+                const frac = cnt / n;
+                const slice = frac * 2 * Math.PI;
+                const x1 = cx + r * Math.cos(a);
+                const y1 = cy + r * Math.sin(a);
+                const x2 = cx + r * Math.cos(a + slice);
+                const y2 = cy + r * Math.sin(a + slice);
+                const large = slice > Math.PI ? 1 : 0;
+                paths += `<path d="M ${cx} ${cy} L ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} Z" fill="${colors[cat]}" stroke="#FDFBF7" stroke-width="2" />`;
+                a += slice;
+            });
+            const svg = `<svg width="240" height="240" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" aria-label="기질 분포">${paths}</svg>`;
+            const legend = cats
+                .map((cat) => {
+                    const cnt = tally[cat] || 0;
+                    const pct = Math.round((cnt / n) * 100);
+                    return `<div class="flex items-center justify-between gap-3 text-sm py-1.5 border-b border-[rgba(45,74,62,0.06)] last:border-0">
+                        <span class="flex items-center gap-2 font-semibold text-[#2D4A3E]"><span class="inline-block w-3.5 h-3.5 rounded-sm shrink-0" style="background:${colors[cat]}"></span>${this.esc(cat)}</span>
+                        <span class="text-ms-muted font-bold">${pct}% <span class="text-xs font-semibold">(${cnt}명)</span></span>
+                    </div>`;
+                })
+                .join('');
+            return `<div class="flex flex-col items-center">${svg}<div class="w-full max-w-xs mt-4">${legend}</div></div>`;
+        },
+
+        /** 기관 컨설팅 본문 (풍성한 서술) */
+        buildInstitutionConsultingNarrative(ctx) {
+            const { groupName, mean, tally, nPie, nWithData, nTotal, typeLabel } = ctx;
+            const cats = SCHEMA.categories;
+            const meanRank = cats.map((c) => ({ c, v: mean[c] || 0 })).sort((a, b) => b.v - a.v);
+            const topM = meanRank[0].c;
+            const lowM = meanRank[3].c;
+            const pieRank = cats.map((c) => ({ c, n: tally[c] || 0 })).sort((a, b) => b.n - a.n);
+            const topP = pieRank[0].c;
+            const spread = meanRank[0].v - meanRank[3].v;
+
+            const pctLine = cats
+                .map((c) => `${c} 평균 ${mean[c]}%`)
+                .join(', ');
+
+            const atmosphere =
+                `「${groupName}」(${typeLabel}) 집단의 네 기질 평균은 ${pctLine}로 읽힙니다. ` +
+                `숫자는 한 아이의 성격표가 아니라, 지금 이 시기에 모여 있는 **집단 에너지의 결**을 보여 주는 나침반이에요.\n\n` +
+                (spread <= 15
+                    ? `네 축이 고르게 펼쳐져 있어 숲 활동에서 다양한 역할이 자연스럽게 돌아갈 수 있는 토양입니다. 한 아이에게만 시선이 머물지 않도록, 오늘의 숲에서 누가 어떤 기질의 씨앗을 드러냈는지 짧은 메모로 남기면 운영이 더 부드러워져요.`
+                    : `평균 에너지는 「${topM}」 쪽으로 조금 더 기울어 있어, 이 원 전체가 품는 숲의 분위기는 ${topM === '대나무' ? '탐험과 움직임' : topM === '난초' ? '정서적 교감과 돌봄' : topM === '국화' ? '안전 확인과 예측 가능한 리듬' : '끝맺음과 다시 시도하는 힘'}에 익숙해지기 쉬운 결을 이룹니다. ` +
+                      `동시에 「${lowM}」 축은 집단이 함께 숨 쉴 여백을 만들어 줄 때 더 단단해질 수 있어요.`) +
+                `\n\n이 기관은 전반적으로 ${topP} 기질이 우세한 아이가 많아, 놀이와 이동을 설계할 때 이 결을 존중하면 현장의 안정감이 커집니다.`;
+
+            const traits =
+                `**우리 기관의 기질적 특징**은 두 층으로 읽을 수 있어요. 첫째, **평균 프로필**(레이더)은 장기적인 교육 방향과 환경 설계에 쓰입니다. 둘째, **우세형 분포**(파이)는 “지금 이 반·이 연령에서 누가 앞장서기 쉬운가”를 보여 줍니다.\n\n` +
+                `현재 집단 평균에서 ${topM}의 비율이 상대적으로 높습니다. 이는 숲에서의 선택과 반응 속도가 그 방향으로 모일 가능성이 있다는 뜻이에요. ` +
+                `파이 차트에서는 ${topP}형 아이가 ${nPie ? Math.round(((tally[topP] || 0) / nPie) * 100) : 0}%를 차지하여, 소그룹 활동을 짤 때 **페이스 메이커** 역할을 맡기기 좋은 기질이 드러납니다.\n\n` +
+                (nTotal > nWithData
+                    ? `참고로 같은 기관명으로 저장된 기록 ${nTotal}건 중, 아직 숫자가 비어 있는 관찰 ${nTotal - nWithData}건은 평균에서 제외되었습니다. 데이터가 쌓일수록 이 지도는 더 선명해져요.`
+                    : `모든 관찰 기록에 입력값이 있어 집단 지도가 완전히 반영된 상태입니다.`);
+
+            const strategy =
+                `**교사를 위한 집단 관리 전략**으로는, 먼저 “집단의 공통 리듬”을 하루 일과에 새겨 넣는 것을 권합니다. ` +
+                (topM === '국화'
+                    ? `국화 성향이 평균에서 두드러질 때는 새로운 숲 코스로 이동하기 전에 **사진·지도·짧은 동선 시범**으로 예측 가능성을 높여 주세요. “어디로 갈지, 어디서 쉴지”를 말로 먼저 나누면 아이들의 몸이 한꺼번에 움직여도 마음은 편안합니다.`
+                    : topM === '대나무'
+                      ? `대나무 성향이 강하면 모험적인 숲 놀이에 최적화되어 있으나, **안전 신호와 우리들의 약속**을 활동 전에 짧게 고정하는 것이 중요합니다. 에너지가 크게 솟을수록 멈춤 신호를 친숙한 놀이로 연결해 두세요.`
+                      : topM === '난초'
+                        ? `난초 성향이 두드러지면 정서적 교감이 활동의 중심축이 됩니다. 갈등이 생겼을 때 해결보다 **이름을 부르며 감정 이름 붙이기**를 먼저 시도해 보세요. 집단 전체가 듣는 칭찬도 효과적입니다.`
+                        : `매화 성향이 높으면 마무리와 규칙을 지키는 흐름이 자연스럽습니다. 활동을 나눌 때 **작은 완성 단위**를 미리 알려 주면 스트레스 없이 몰입이 이어져요.`) +
+                `\n\n소그룹을 나눌 때는 우세형과 다른 축의 아이를 한 조에 섞어, 서로의 고운 에너지가 번지도록 하면 좋아요.`;
+
+            const curriculum =
+                `**교육 커리큘럼 제안**: 이 분포를 바탕으로 유아숲 프로그램을 한 겹 더 풍성하게 쌓아 볼 수 있어요.\n\n` +
+                (topP === '난초'
+                    ? `• 돌봄·협력 서사가 있는 역할 놀이(작은 숲 생명 돌보기, 친구 초대하기)\n• 감정 카드와 함께하는 원 모임\n• 조용한 관찰 시간(듣기·그리기)`
+                    : topP === '대나무'
+                      ? `• 지형이 조금씩 바뀌는 탐험 코스(단계적 난이도)\n• 도구를 바꿔 가며 같은 숲을 새로 보기\n• 짧은 목표 깃발 놀이(도착점 시각화)`
+                      : topP === '국화'
+                        ? `• 동선을 미리 밟아 보는 “리허설 산책”\n• 안전한 기지 캠프를 두고 확장하는 놀이\n• 예고가 있는 자유 탐색`
+                        : `• 한 과제를 작은 덩어리로 나눈 완성 놀이\n• 정리·마무리를 노래·의식으로 연결\n• 다시 시도하기 루틴(호흡-물-한 블록)`) +
+                `\n\n평균 편차가 ${spread <= 15 ? '크지 않아' : '어느 정도 있어'} 같은 주차 안에 **빠른 코스**와 **느린 코스**를 번갈아 배치하면 집단 전체가 숲의 속도를 체험하게 됩니다.`;
+
+            const admin =
+                `**원장님용 · 마인드스토리 교육 제언**\n\n` +
+                (topP === '난초' || topM === '난초'
+                    ? `본 기관은 난초 기질의 비중이 높아 **정서적 교감**이 운영의 중심축이 됩니다. 교사 연수 시 ‘공감 대화법’·‘감정 이름 붙이기’ 비중을 높이고, 평가보다 **관찰 언어를 통일**하는 시간을 마련해 보시길 권합니다.`
+                    : topP === '대나무' || topM === '대나무'
+                      ? `본 기관은 대나무 기질의 에너지가 활기를 이끌기 쉬워 **안전 리더십**과 **활동 설계** 역량을 연수에서 함께 다루면 좋습니다. 모험을 허용하는 만큼 멈춤 신호와 회복 루틴을 매뉴얼로 남겨 두세요.`
+                      : topP === '국화' || topM === '국화'
+                        ? `본 기관은 국화 기질이 집단 리듬을 잡는 데 기여합니다. 새 프로그램 도입 시 **사전 안내 자료**와 **반복 가능한 동선**을 강조하는 연수 구성을 권장합니다.`
+                        : `본 기관은 매화 기질을 통해 **끝맺음과 책임** 문화를 쌓기 좋습니다. 연수에서는 목표 세분화·긍정적 마무리 의식을 팀 단위로 연습해 보세요.`) +
+                `\n\n인력 배치 시 한 반에 **서로 다른 우세형**을 가진 교사가 짝을 이루면, 집단의 결을 균형 있게 받쳐 줄 수 있습니다. 숲은 아이의 속도를 기다리듯, 기관의 결도 천천히 읽어 가시길 바랍니다.`;
+
+            return { atmosphere, traits, strategy, curriculum, admin };
+        },
+
+        /** 사전·사후 비교 서술 (종합·축별·숲의 선물) */
+        buildPrePostNarrative(ctx) {
+            const { groupName, typeLabel, meanPre, meanPost, growthIndex, nPre, nPost } = ctx;
+            const cats = SCHEMA.categories;
+            const catLabel = (c) =>
+                ({
+                    난초: '난초(따뜻한 공감)',
+                    대나무: '대나무(활기찬 탐구)',
+                    국화: '국화(신중한 안정)',
+                    매화: '매화(단단한 마무리·원칙)'
+                })[c] || c;
+
+            const rises = cats.filter((c) => (growthIndex[c] || 0) >= 3);
+            const dips = cats.filter((c) => (growthIndex[c] || 0) <= -3);
+            const stable = cats.filter((c) => (growthIndex[c] || 0) > -3 && (growthIndex[c] || 0) < 3);
+            const sumDelta = cats.reduce((s, c) => s + (growthIndex[c] || 0), 0);
+            const leadRise = rises.length ? rises.sort((a, b) => (growthIndex[b] || 0) - (growthIndex[a] || 0))[0] : null;
+
+            const synthesis =
+                `본 **마인드스토리 종합 분석**은 「${groupName}」(${typeLabel})에 저장된 관찰 중, **사전 검사**로 표시된 기록 ${nPre}건과 **사후 검사**로 표시된 기록 ${nPost}건의 평균 프로필을 나란히 놓고 읽은 것입니다. ` +
+                `숫자는 아이 한 명을 단정짓는 낙인이 아니라, 같은 기관 안에서 시간의 흐름 속에 모인 **집단 에너지의 결**이 어디로 기울어졌는지를 보여 주는 나침반입니다.\n\n` +
+                `사전 시점의 평균은 숲 프로그램을 설계할 때의 출발선이었고, 사후 시점의 평균은 그 여정을 지난 뒤의 숨결에 가깝습니다. ` +
+                `네 축을 합친 **성장 지수의 합**은 약 ${sumDelta > 0 ? '+' : ''}${sumDelta}포인트 방향으로 움직였으며, 이는 “모두가 같은 속도로 달려야 한다”는 뜻이 아니라 **집단 전체가 어떤 풍경을 지나왔는지**를 요약한 것입니다.\n\n` +
+                (leadRise
+                    ? `특히 **${catLabel(leadRise)}** 축에서 사전 대비 가장 큰 상승 폭이 관찰되었습니다. 이는 숲에서의 경험이 아이들의 ${leadRise} 에너지를 깨우고, 그 결을 드러내는 데 도움이 되었음을 긍정적으로 읽을 수 있어요. ` +
+                      `놀이·이동·돌봄의 순간들이 쌓이며, 집단이 그 기질 언어로 세상을 말하기 시작했다는 신호로 볼 수 있습니다.\n\n`
+                    : `네 축 모두에서 급격한 단일 방향보다는 **섬세한 조정**이 주를 이루었습니다. 이는 기질적 균형과 안정을 찾아가는 과정으로, 숲이 요구하는 속도에 맞추어 몸과 마음이 서로 협상하는 아름다운 리듬으로 읽힙니다.\n\n`) +
+                `교사와 원장님께서는 표의 **성장 지수(Δ)**를 “좋고 나쁨”이 아니라 **어디에 관심을 두고 칭찬·예고·휴식을 배치할지**를 정하는 참고선으로 활용해 주세요. ` +
+                `마인드스토리는 이 변화를 평가가 아닌 **함께 읽기**로 제안드립니다.\n\n` +
+                `아래에서는 축별로 사전·사후의 차이를 따뜻한 언어로 풀어 드리며, 마지막에 다음 학기와 가정으로 이어질 **지속 성장 가이드**를 드립니다.`;
+
+            const axisParts = cats.map((c) => {
+                const d = growthIndex[c] || 0;
+                const pre = meanPre[c] || 0;
+                const post = meanPost[c] || 0;
+                if (d >= 3) {
+                    return (
+                        `**${catLabel(c)}** · 사전 ${pre}%에서 사후 ${post}%로, 성장 지수 **+${d}**입니다. ` +
+                        `사전 대비 ${c === '매화' ? '매화(원칙·마무리)' : catLabel(c)} 점수가 오른 것은 숲 활동을 통해 아이들의 **자기 주도성·책임감·관계 감각** 중 이 축에 해당하는 고운 에너지가 단단해졌음을 의미합니다. ` +
+                        `숲에서의 반복 경험(예고, 선택, 마침표, 돌봄의 말)이 집단의 몸기억으로 남았을 가능성이 큽니다. 앞으로도 이 축을 구체적으로 칭찬 언어로 붙잡아 주면 재능이 더 넓게 퍼집니다.`
+                    );
+                }
+                if (d <= -3) {
+                    return (
+                        `**${catLabel(c)}** · 사전 ${pre}%에서 사후 ${post}%로, 성장 지수 **${d}**입니다. ` +
+                        `이 숫자는 “후퇴”라기보다 **다른 축이 크게 자라는 동안 잠시 숨 고르기**를 한 패턴으로 읽을 수 있어요. 기질적 균형과 안정을 찾아가는 과정에서, 한동안 이 축의 에너지가 옆으로 양보했을 수 있습니다. ` +
+                        `숲은 아이의 속도를 기다리듯, 이 축에는 **짧은 예고·작은 성공·함께 걷기**를 더해 주시면 다시 고르게 돌아오기 쉽습니다.`
+                    );
+                }
+                return (
+                    `**${catLabel(c)}** · 사전 ${pre}%에서 사후 ${post}%로, 성장 지수 **${d >= 0 ? '+' : ''}${d}**입니다. ` +
+                    `큰 요동 없이 **기질적 균형과 안정을 찾아가는 과정**에 가깝습니다. 이미 갖춘 리듬을 존중하면서, 숲에서의 새 자극을 천천히 흡수한 흔적으로 볼 수 있어요. ` +
+                    `일상에서도 “지금은 유지와 응원”이 가장 큰 선물입니다.`
+                );
+            });
+            const axisInsights = axisParts.join('\n\n');
+
+            const topPost = cats.slice().sort((a, b) => (meanPost[b] || 0) - (meanPost[a] || 0))[0];
+            const forestGift =
+                `**[지속 성장 가이드] — 숲의 선물을 집과 다음 학기로**\n\n` +
+                `사후 평균에서 **${catLabel(topPost)}** 축이 상대적으로 높게 자리하고 있어, 다음 학기 유아숲 프로그램에서는 이 결을 **시작 루틴**에 녹여 보시길 권합니다. ` +
+                `출발 전 짧은 원 모임에서 “오늘 숲이 우리에게 부탁하는 한 가지”를 아이들이 스스로 말하게 하면, 사후에 깨어난 에너지가 현장에서 다시 이어집니다.\n\n` +
+                `가정에서는 숲에서 쓰던 **같은 어휘**(예고, 마침표, 우리들의 약속)를 저녁 이야기에 한 번씩만 불러도 연속성이 생깁니다. ` +
+                `주말 산책을 미니 숲으로 삼아 “오늘은 어떤 기질 씨앗이 보였나요?”라고 묻는 것만으로도 아이는 자신의 변화를 이야기로 소유하게 됩니다.\n\n` +
+                (rises.length
+                    ? `상승이 두드러진 축(${rises.map((c) => catLabel(c)).join(', ')})은 학기 말 **성과 사진·짧은 영상**으로 남겨 두시면 교사 연수와 학부모 안내 자료로 활용하기 좋습니다. 숲이 준 변화는 숫자 너머의 이야기로 전할 때 더 오래 기억됩니다.`
+                    : `네 축이 고르게 유지·조정되었다면, 다음 단계는 **깊이**입니다. 같은 코스라도 관찰 질문을 한 가지씩만 바꿔 보세요. “오늘 누가 먼저 숲을 살폈나요?”처럼 작은 초점이 집단의 풍경을 새로 그립니다.`);
+
+            return { synthesis, axisInsights, forestGift, rises, dips, stable };
+        },
+
+        /** 거시: 어린이집 vs 유치원 (v8.6 스키마·발달 심리 톤) */
+        buildMacroTypeComparisonNarrative(ctx) {
+            const { meanDay, meanKg, nDay, nKg, rsiCat, rsiVal, absDiff, signedDiff } = ctx;
+            const cats = SCHEMA.categories;
+            const cn = (c) =>
+                ({ 난초: '난초(공감·정서)', 대나무: '대나무(에너지·탐구)', 국화: '국화(안전·신중)', 매화: '매화(원칙·과업·마무리)' })[c] ||
+                c;
+
+            const rsiLine =
+                `**상대적 강점 지표(RSI)**로 본 이번 표본에서 두 집단의 거리가 가장 넓게 벌어진 축은 **${cn(rsiCat)}**이며, 평균 절대 차이는 약 **${rsiVal}퍼센트포인트**입니다. ` +
+                `이 지표는 “어느 쪽이 우수한가”가 아니라, **어떤 기질 언어에서 환경적 맥락의 차이가 가장 선명하게 드러나는가**를 가리킵니다. ` +
+                (signedDiff[rsiCat] > 0
+                    ? `현재 데이터에서는 유치원 집단의 ${cn(rsiCat)} 평균이 어린이집보다 높게 나타났습니다. 누리과정 활동·또래 상호작용·과업 구조가 이 축의 발현을 촉진했을 가능성을 함께 고려해 볼 수 있습니다.\n\n`
+                    : signedDiff[rsiCat] < 0
+                      ? `현재 데이터에서는 어린이집 집단의 ${cn(rsiCat)} 평균이 유치원보다 높게 나타났습니다. 보육 맥락에서의 애착·일상 예측 가능성·감정 조절 지지가 이 축을 부각했을 수 있습니다.\n\n`
+                      : `두 집단이 이 축에서 매우 가깝습니다.\n\n`);
+
+            const maturity =
+                `**집단 성숙도·발달 맥락 비교** 측면에서, 어린이집 표본은 전반적으로 **연령 중심이 낮은 구간**에 가까운 보육 환경의 특성을 띠는 경우가 많고, 유치원 표본은 **또래 집단 규범과 과업 지속**에 더 익숙한 발달 과제를 동시에 안고 있습니다. ` +
+                `발달심리학적으로 보면, **사회정서적 조절**과 **실행기능(주의 유지·순서 지키기)**의 요구 수준이 기관 유형에 따라 달라지며, 이는 관찰 점수의 패턴 차이로 번역될 수 있습니다. ` +
+                `본 보고서는 이러한 차이를 “우열”이 아니라 **각 유형 아이들이 숲에서 어떤 독특한 기질적 분포를 보이는가**에 초점을 맞춥니다.\n\n` +
+                `어린이집 평균은 난초·국화 축에서 따뜻한 정서적 안정감과 신중함이 읽히기 쉬운 구조이고, 유치원 평균은 대나무·매화 축에서 주도성·탐구·과업 마무리가 두드러질 여지가 있습니다—이는 가설이며, 실제 곡선은 아래 레이더와 표가 말해 줍니다.`;
+
+            const cardDay =
+                `(본 카드는 관찰 ${nDay}건의 산술 평균을 바탕으로 합니다.)\n\n` +
+                `보육 중심 환경에서 자라나는 아이들은 **애착 형성**과 **안전 기지**를 바탕으로 세상을 탐색합니다. v8.6 스키마의 **「따뜻한 공감의 난초」**와 **「신중한 안정의 국화」**는 이러한 맥락에서 특히 의미 있게 읽힐 수 있어요. ` +
+                `일대일·소그룹 돌봄이 잦을수록 **정서 표현의 미세신호**에 민감해지고, 낯선 자극 앞에서는 **예측 가능한 루틴**을 먼저 확인하려는 경향이 강화될 수 있습니다.\n\n` +
+                `숲에서는 이 아이들이 **오감을 통한 정서 교감**(바람 소리, 흙의 질감, 친구의 표정)을 풍부하게 경험할 때, 공감·신중 축의 고운 에너지가 자연스럽게 피어오릅니다. ` +
+                `교사의 **공명적 반응(Reflective responding)**과 **명명하기(Name it to tame it)** 전략을 숲 언어로 옮기면, 기질적 강점이 학습으로 이어지기 쉽습니다.\n\n` +
+                `현재 표본의 네 축 평균은 **난초 ${meanDay['난초']}% · 대나무 ${meanDay['대나무']}% · 국화 ${meanDay['국화']}% · 매화 ${meanDay['매화']}%**로 요약됩니다. 이 프로필은 “조용한 숲”이 아니라 **관계와 안전이 숲길을 열어 주는 타입**으로 읽을 수 있습니다.`;
+
+            const cardKg =
+                `(본 카드는 관찰 ${nKg}건의 산술 평균을 바탕으로 합니다.)\n\n` +
+                `누리과정과 또래 활동이 중심인 환경에서는 **사회적 참여**와 **과제 지속**이 발달 과제의 전면에 놓입니다. v8.6의 **「활기찬 탐구의 대나무」**와 **「단단한 마무리의 매화」**는 **주도적 탐색**과 **규칙·순서 내면화**의 흐름과 잘 맞닿아 있어요. ` +
+                `집단 놀이와 프로젝트형 활동이 많을수록 **행동 활성화**와 **목표 지향성**이 동시에 자극될 수 있습니다.\n\n` +
+                `숲에서는 이런 아이들이 **협동·모험·역할 분담** 속에서 탐구 에너지를 분출하고, **작은 완성 경험**을 쌓을 때 매화 축이 단단해지는 경향이 있습니다. ` +
+                `교사는 **협동학습 구조**와 **시각적 일정표**를 숲에도 가져와, 자극이 커질 때 **실행기능을 지지하는 발달적 비계(Scaffolding)**를 제공하면 좋습니다.\n\n` +
+                `현재 표본 평균은 **난초 ${meanKg['난초']}% · 대나무 ${meanKg['대나무']}% · 국화 ${meanKg['국화']}% · 매화 ${meanKg['매화']}%**입니다. 이 프로필은 **움직임과 과업이 숲을 열어 주는 타입**으로 읽을 수 있습니다.`;
+
+            const gapParts = cats
+                .filter((c) => (absDiff[c] || 0) >= 10)
+                .map((c) => {
+                    const sd = signedDiff[c] || 0;
+                    const higher = sd > 0 ? '유치원' : '어린이집';
+                    return (
+                        `**${cn(c)}** 축에서 두 집단의 평균 차이가 **${absDiff[c]}포인트**에 달합니다(유치원 평균 − 어린이집 평균 기준 **${sd >= 0 ? '+' : ''}${sd}**). ` +
+                        `이 간극은 개인의 고정된 성격 차이라기보다 **일상 환경이 요구하는 행동 규범·사회적 기대·놀이 구조**가 기질 발현을 어떻게 **촉진하거나 완충**하는지를 보여 주는 단서로 해석할 수 있습니다. ` +
+                        `발달생태학적 관점에서, **마이크로시스템(교실·반 문화)**의 차이가 거시 프로필에 투영된 결과일 수 있으므로, 숲 프로그램 설계 시 **두 유형 모두에게 공정한 출발선**을 주는 예고·선택권·휴식 루틴이 특히 중요합니다.`
+                    );
+                });
+            const gapAnalysis =
+                gapParts.length > 0
+                    ? gapParts.join('\n\n')
+                    : `네 축 모두에서 두 집단의 평균 차이가 10퍼센트포인트 미만으로, **기질적 분포가 서로 멀지 않게 겹치는** 구간입니다. ` +
+                      `이는 표본 내 기관들이 비슷한 숲 운영 철학을 공유하거나, 관찰 시기·입력 패턴이 유사했을 수도 있습니다. ` +
+                      `그럼에도 미세한 차이는 레이더 형태로 읽히니, **반별·월별**로 데이터를 쌓을수록 거시 곡선이 선명해집니다.`;
+
+            const solDay =
+                `**어린이집 맞춤 · 안정적 애착을 강화하는 숲 산책법**\n\n` +
+                `① 출발 전 **같은 문장으로 약속 고정**하기(“돌아올 곳은 여기”). ② 산책 중 **속도 맞추기 걷기**로 애착 대상(교사) 옆자리를 몸으로 기억하게 하기. ③ **오감 정지 1분**—바람·냄새 이름 붙이기로 정서 레이블링 연습. ` +
+                `④ 돌아오며 **짧은 회상 삼문장**으로 하루를 마감합니다. 이 루틴은 **애착 이론**이 말하는 안전기지 탐색을 숲 버전으로 옮긴 것입니다.`;
+
+            const solKg =
+                `**유치원 맞춤 · 리더십과 규칙 준수를 배우는 숲 프로젝트**\n\n` +
+                `① **숲 역할 배지**(탐험대장·안전요원·정리요원)를 하루씩 돌려 가며 사회적 역할 연습. ② **미니 미션 카드**(찾기·그리기·함께 옮기기)로 협동 과업 설계. ③ 마무리 **링 마무리 서클**에서 “오늘 지킨 약속 한 가지”만 공유. ` +
+                `④ 다음 주 **연속 프로젝트**(나무 기록·곤충 호텔)로 실행기능을 지지합니다. 이는 **사회학습·자기조절** 발달을 숲 맥락에 심는 구조입니다.`;
+
+            const researchFooter =
+                `본 자료는 단일 기관의 내부 보고를 넘어, **지역 내 보육·교육 돌봄 생태계**를 읽는 1차 거시 지도로 활용할 수 있습니다. 숫자는 항상 **맥락과 함께** 읽혀야 하며, 표본 수·입력 시기·숲 프로그램의 질이 곡선을 바꿉니다. ` +
+                `연구소는 “어느 유형이 더 낫다”가 아니라 **각 유형 아이들이 숲에서 어떤 기질적 결을 드러내는가**를 존중하는 해석을 지향합니다. ` +
+                `현장의 목소리—교사 관찰 일지·학부모 이야기—를 이 곡선에 덧붙일 때, 데이터는 비로소 **설득력 있는 컨설팅 언어**가 됩니다.\n\n` +
+                `후속 연구와 현장 맞춤 워크숍 문의는 기관 정책에 맞추어 별도 협의가 가능합니다. **숲은 모든 유형의 아이들의 속도를 기다립니다.**`;
+
+            return {
+                rsiLine,
+                maturity,
+                cardDay,
+                cardKg,
+                gapAnalysis,
+                solDay,
+                solKg,
+                researchFooter
+            };
+        },
+
+        consultingSectionHtml(title, bodyMdLike, size) {
+            const pClass =
+                size === 'lg'
+                    ? 'text-sm md:text-base text-ms-body leading-relaxed mb-5 last:mb-0'
+                    : 'text-sm text-ms-body leading-relaxed mb-4 last:mb-0';
+            const inner = String(bodyMdLike || '')
+                .split(/\n\n+/)
+                .map((p) => p.trim())
+                .filter(Boolean)
+                .map((p) => {
+                    let t = this.esc(p);
+                    t = t.replace(/\*\*(.+?)\*\*/g, '<strong class="text-[#2D4A3E]">$1</strong>');
+                    return `<p class="${pClass}">${t}</p>`;
+                })
+                .join('');
+            const hClass =
+                size === 'lg'
+                    ? 'text-sm md:text-base font-black text-[#2D4A3E] tracking-[0.12em] mb-5 pb-2 border-b-2 border-[#2D4A3E]/25'
+                    : 'text-xs font-black text-[#2D4A3E] tracking-[0.15em] mb-4 pb-2 border-b-2 border-[#2D4A3E]/20';
+            return `
+                <section class="ms-print-avoid-break mb-10 last:mb-0">
+                    <h3 class="${hClass}">${this.esc(title)}</h3>
+                    <div>${inner}</div>
+                </section>
+            `;
+        },
+
+        /** 메인(설정) 화면 · 최근 검사 히스토리 (폐쇄형 금고 기준) */
+        buildRecentHistorySectionHtml() {
+            const byName = {};
+            STATE.institutions.forEach((inst) => {
+                const k = String(inst.name || '').trim();
+                if (!k) return;
+                if (!byName[k]) byName[k] = [];
+                byName[k].push(inst);
+            });
+            const keys = Object.keys(byName).filter((k) => byName[k].some((m) => this.hasAnyCount(m.counts)));
+            keys.sort((a, b) => {
+                const ta = Math.max(...byName[a].map((x) => new Date(x.updatedAt || 0).getTime()));
+                const tb = Math.max(...byName[b].map((x) => new Date(x.updatedAt || 0).getTime()));
+                return tb - ta;
+            });
+            if (!keys.length) {
+                return `
+                    <div class="ms-vault-panel p-5 md:p-6 mb-2 print-hidden">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-lg leading-none" aria-hidden="true">🔐</span>
+                            <h3 class="text-xs font-black text-[#2D4A3E] tracking-[0.18em]">최근 검사 기록</h3>
+                        </div>
+                        <p class="text-[11px] text-ms-muted leading-relaxed">아직 금고에 쌓인 검사가 없어요. 기관을 정하고 숫자를 입력·저장하면 여기에 기관별로 나타나요.</p>
+                    </div>
+                `;
+            }
+            const rows = keys.slice(0, 25).map((k) => {
+                const members = byName[k];
+                const n = members.length;
+                const latest = members
+                    .slice()
+                    .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))[0];
+                const d = latest.updatedAt ? String(latest.updatedAt).slice(0, 10) : '—';
+                const enc = encodeURIComponent(k);
+                const safeEnc = enc.replace(/'/g, '%27');
+                return `
+                    <button type="button"
+                        class="w-full text-left rounded-2xl border border-[rgba(45,74,62,0.1)] bg-white/85 hover:bg-white hover:border-[#2D4A3E]/25 px-4 py-3.5 transition-colors flex flex-wrap items-baseline justify-between gap-2 group"
+                        onclick="MS.openHistoryToReport('${safeEnc}')">
+                        <span class="font-black text-[#2D4A3E] text-sm group-hover:underline decoration-[#D4A373] underline-offset-4">${this.esc(k)}</span>
+                        <span class="text-[10px] font-bold text-ms-muted shrink-0">${this.esc(d)} · 아동(기록) ${n}명</span>
+                    </button>
+                `;
+            }).join('');
+            return `
+                <div class="ms-vault-panel p-5 md:p-6 mb-2 print-hidden">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="text-lg leading-none" aria-hidden="true">🔐</span>
+                        <h3 class="text-xs font-black text-[#2D4A3E] tracking-[0.18em]">최근 검사 기록</h3>
+                    </div>
+                    <p class="text-[10px] text-ms-muted mb-4 leading-relaxed">한 줄을 누르면 가장 최근 기록 기준으로 <strong class="text-[#2D4A3E]">분석 보고서</strong>가 바로 열려요. (기기 금고에만 저장됨)</p>
+                    <div class="space-y-2 max-h-[min(40vh,16rem)] overflow-y-auto custom-scrollbar pr-1">${rows}</div>
+                </div>
+            `;
+        },
+
+        /** 최하단 · 검사 흐름 방해 최소화 (작고 심플) */
+        renderDataFooter() {
+            const foot = document.getElementById('ms-data-footer');
+            if (!foot) return;
+            if (
+                STATE.step === 'institution-hub' ||
+                STATE.step === 'institution-report' ||
+                STATE.step === 'institution-prepost-report' ||
+                STATE.step === 'institution-type-macro-report'
+            ) {
+                foot.innerHTML = '';
+                return;
+            }
+            foot.innerHTML = `
+                <div class="ms-footer-tools border-t border-gray-200/50 pt-3 pb-1">
+                    <p class="text-[9px] text-gray-400 text-center leading-snug px-2 mb-2 max-w-sm mx-auto">
+                        숲에서 입력 후 노트북으로 모으려면 <span class="text-gray-500 font-semibold">데이터보내기</span> → 카카오톡·메일로 보내고, 본부에서 <span class="text-gray-500 font-semibold">불러오기</span>로 합치세요.
+                    </p>
+                    <div class="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+                        <button type="button" class="rounded-full px-2.5 py-1 min-h-[32px] text-[10px] font-semibold text-gray-400 hover:text-[#2D4A3E] transition-colors"
+                            onclick="void MS.exportBackup()" title="JSON 저장·공유">보내기</button>
+                        <span class="text-gray-200 text-[9px]" aria-hidden="true">|</span>
+                        <button type="button" class="rounded-full px-2.5 py-1 min-h-[32px] text-[10px] font-semibold text-gray-400 hover:text-[#2D4A3E] transition-colors"
+                            onclick="MS.triggerImport()" title="백업 합치기">불러오기</button>
+                    </div>
+                    <span class="block text-[8px] text-gray-300 text-center mt-1.5 tracking-wide">로컬 전용 · ms_forest_v1</span>
+                    <p class="text-[9px] text-gray-400 text-center mt-2 px-3 leading-relaxed max-w-md mx-auto">
+                        본 시스템은 <span class="text-gray-500 font-semibold">폐쇄형 저장</span> 방식을 사용합니다. 모든 데이터는 <span class="text-gray-500 font-semibold">현재 기기</span>에만 안전하게 보관됩니다.
+                    </p>
+                </div>
+            `;
+        },
+
+        renderDashboard(el) {
+            const byName = {};
+            STATE.institutions.forEach((inst) => {
+                const k = String(inst.name).trim();
+                if (!byName[k]) byName[k] = [];
+                byName[k].push(inst);
+            });
+            const keys = Object.keys(byName).sort((a, b) => a.localeCompare(b, 'ko'));
+            const rows = keys
+                .map((key) => {
+                    const members = byName[key];
+                    const sorted = members.slice().sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+                    const latest = sorted[0];
+                    const firstType = latest.type || STATE.guessType(key);
+                    const n = members.length;
+                    const anyFilled = members.some((m) => this.hasAnyCount(m.counts));
+                    const dot = anyFilled
+                        ? 'bg-[#2D4A3E] shadow-[0_0_10px_rgba(45,74,62,0.35)]'
+                        : 'bg-ms-soft border border-ms';
+                    const enc = encodeURIComponent(key);
+                    const safeId = String(latest.id).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                    const countBadge =
+                        n > 1
+                            ? `<span class="ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-[rgba(212,163,115,0.2)] text-[#2D4A3E]">기록 ${n}건</span>`
+                            : '';
+                    return `
+                        <tr class="hover:bg-ms-soft/80 transition-colors">
+                            <td class="px-4 py-4 md:px-5">
+                                <span class="inline-block w-2.5 h-2.5 rounded-full ${dot} mr-2 align-middle"></span>
+                                <button type="button" class="font-black text-[#2D4A3E] text-left text-sm md:text-base hover:underline decoration-[#D4A373] underline-offset-4"
+                                    onclick="MS.goInstitutionHub(decodeURIComponent('${enc}'))"
+                                    title="기관 허브 · 명단과 종합 분석">${this.esc(key)}</button>
+                                ${countBadge}
+                                <span class="text-xs text-ms-muted ml-2">[${this.esc(firstType)}]</span>
+                            </td>
+                            <td class="px-4 py-4 md:px-5 text-right whitespace-nowrap">
+                                <button type="button" class="text-xs md:text-sm font-bold text-[#2D4A3E] hover:opacity-80 ms-btn px-2 py-1 border border-ms rounded-full mr-1"
+                                    onclick="MS.goInstitutionHub(decodeURIComponent('${enc}'))">명단</button>
+                                <button type="button" class="text-xs md:text-sm font-bold text-[#D4A373] hover:opacity-80 ms-btn px-2 py-1"
+                                    onclick="MS.openInput('${safeId}')">${n > 1 ? '최근 입력' : '입력 · 편집'}</button>
+                            </td>
+                        </tr>
+                    `;
+                })
+                .join('');
+
+            const listHint =
+                keys.length > 0
+                    ? `<p class="text-[10px] text-ms-muted text-center mb-3 leading-relaxed print-hidden px-2">
+                            이 목록에서 없애려면 <strong class="text-[#2D4A3E]">분석 결과</strong> 화면 맨 아래
+                            <strong class="text-[#2D4A3E]">「홈으로 — 대시보드」</strong>를 눌러 주세요.
+                            (입력 화면에서 「대시보드」만 누르면 글자가 그대로 남습니다.)
+                        </p>`
+                    : '';
+
+            const migrateNote = STATE.migrationBanner
+                ? `<div class="ms-card p-4 mb-4 border border-[#D4A373] bg-[rgba(212,163,115,0.12)] text-sm text-ms-body print-hidden flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <span>${this.esc(STATE.migrationBanner)}</span>
+                        <button type="button" class="ms-btn shrink-0 text-xs font-bold text-[#2D4A3E] px-4 py-2 border border-ms bg-white/80" onclick="MS.dismissMigrationBanner()">확인</button>
+                    </div>`
+                : '';
+
+            el.innerHTML = `
+                <div class="max-w-lg mx-auto">
+                    ${migrateNote}
+                    <div class="ms-card p-8 md:p-10 mb-6">
+                        <h2 class="text-xl font-black text-[#2D4A3E] mb-2 text-center">관리 대시보드</h2>
+                        <p class="text-center text-sm text-ms-body mb-6">기관명을 누르면 <strong class="text-[#2D4A3E]">집단 종합 분석</strong> 허브로 이동합니다. 같은 이름으로 여러 관찰을 두면 자동으로 한 기관으로 묶여 평균이 계산돼요.</p>
+                        <button type="button" class="ms-btn w-full border-2 border-[#2D4A3E] bg-[rgba(45,74,62,0.04)] text-[#2D4A3E] font-black py-4 text-sm shadow-md mb-3 hover:bg-[rgba(45,74,62,0.08)]"
+                            onclick="MS.openInstitutionTypeMacroReport()">어린이집 vs 유치원 · 거시 비교 보고서</button>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-6 print-hidden">
+                            <button type="button" class="ms-btn border-2 border-ms bg-white/90 text-[#2D4A3E] font-black py-3.5 text-xs shadow-sm"
+                                onclick="MS.openDashboardGroupReport()">기관 전체 성향 보고서</button>
+                            <button type="button" class="ms-btn border-2 border-[#D4A373] bg-[rgba(212,163,115,0.1)] text-[#2D4A3E] font-black py-3.5 text-xs shadow-sm"
+                                onclick="MS.openDashboardPrePostReport()">사전·사후 비교 보고서</button>
+                        </div>
+                        <p class="text-[10px] text-ms-muted text-center mb-4 print-hidden leading-relaxed">기관이 <strong class="text-[#2D4A3E]">여러 개</strong>면 목록에서 기관명을 눌러 허브로 들어가 같은 보고서를 여세요.</p>
+                        <button type="button" class="ms-btn w-full bg-[#D4A373] text-white font-bold py-5 text-base shadow-lg mb-6"
+                            onclick="MS.goSetup()">새 기관 검사 시작</button>
+                        ${listHint}
+                        <div class="rounded-[3rem] overflow-hidden border border-ms bg-ms-soft/50">
+                            <table class="w-full text-left text-sm">
+                                <tbody class="divide-y divide-[rgba(45,74,62,0.08)]">${rows || '<tr><td class="p-6 text-center text-ms-muted">등록된 기관이 없어요. 위 버튼으로 추가해 주세요.</td></tr>'}</tbody>
+                            </table>
+                        </div>
+                        <p class="text-center mt-4 print-hidden">
+                            <button type="button" class="text-[10px] font-semibold text-gray-400 hover:text-[#D4A373] underline underline-offset-2"
+                                onclick="MS.clearVaultEntirely()">이 기기 금고 비우기 · 전체 기록 삭제</button>
+                        </p>
+                    </div>
+                    <p class="text-center text-xs text-ms-muted mb-2">개인정보는 이 기기 브라우저와 직접 저장한 파일에만 남아요.</p>
+                </div>
+            `;
+        },
+
+        renderInstitutionHub(el) {
+            const name = String(STATE.selectedGroupName || '').trim();
+            const members = SCHEMA.membersByInstitutionName(STATE.institutions, name);
+            if (!name || !members.length) {
+                STATE.step = 'dashboard';
+                STATE.selectedGroupName = '';
+                UI.render();
+                return;
+            }
+            const sorted = members.slice().sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+            const agg = SCHEMA.aggregateMeanScores(members, (c) => this.hasAnyCount(c));
+            const canReport = agg && agg.nWithData > 0;
+            const prePost = SCHEMA.aggregatePrePostComparison(members, (c) => this.hasAnyCount(c));
+            const canPrePost = !!prePost;
+            const listRows = sorted
+                .map((m, idx) => {
+                    const filled = this.hasAnyCount(m.counts);
+                    const dot = filled
+                        ? 'bg-[#2D4A3E] shadow-[0_0_8px_rgba(45,74,62,0.3)]'
+                        : 'bg-ms-soft border border-ms';
+                    const label =
+                        m.childLabel || m.studentName
+                            ? this.esc(String(m.childLabel || m.studentName))
+                            : `관찰 기록 ${sorted.length - idx}`;
+                    const when = m.updatedAt ? this.esc(String(m.updatedAt).slice(0, 10)) : '—';
+                    const safeId = String(m.id).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                    const ph = m.obsPhase === 'pre' || m.obsPhase === 'post' ? m.obsPhase : '';
+                    return `
+                        <tr class="border-b border-[rgba(45,74,62,0.08)] last:border-0">
+                            <td class="py-3 pr-2">
+                                <span class="inline-block w-2 h-2 rounded-full ${dot} mr-2 align-middle"></span>
+                                <span class="font-bold text-[#2D4A3E]">${label}</span>
+                                <span class="text-[10px] text-ms-muted ml-2">${when}</span>
+                            </td>
+                            <td class="py-3 px-1">
+                                <select class="w-full min-w-[5.5rem] text-[11px] font-bold rounded-xl border-2 border-ms bg-white/90 text-[#2D4A3E] py-2 px-2"
+                                    aria-label="관찰 단계"
+                                    onchange="MS.setInstObsPhase('${safeId}',this.value)">
+                                    <option value="" ${ph === '' ? 'selected' : ''}>미지정</option>
+                                    <option value="pre" ${ph === 'pre' ? 'selected' : ''}>사전 검사</option>
+                                    <option value="post" ${ph === 'post' ? 'selected' : ''}>사후 검사</option>
+                                </select>
+                            </td>
+                            <td class="py-3 text-right whitespace-nowrap">
+                                <button type="button" class="text-xs font-bold text-[#D4A373] ms-btn px-2 py-1"
+                                    onclick="MS.openInput('${safeId}')">입력 · 편집</button>
+                            </td>
+                        </tr>
+                    `;
+                })
+                .join('');
+            const type0 = sorted[0].type || STATE.guessType(name);
+            el.innerHTML = `
+                <div class="max-w-lg mx-auto space-y-6 print-hidden">
+                    <button type="button" class="ms-btn text-xs font-bold text-ms-muted hover:text-[#2D4A3E]"
+                        onclick="MS.leaveInstitutionHub()">← 대시보드</button>
+                    <div class="ms-card p-8 md:p-10 border-2 border-[rgba(45,74,62,0.12)]">
+                        <p class="text-[10px] font-black text-[#D4A373] tracking-widest mb-2">INSTITUTION HUB</p>
+                        <h2 class="text-xl md:text-2xl font-black text-[#2D4A3E] mb-1">${this.esc(name)}</h2>
+                        <p class="text-sm text-ms-muted mb-6">[${this.esc(type0)}] · 등록된 관찰 기록 ${members.length}건</p>
+                        <button type="button" class="ms-btn w-full bg-[#2D4A3E] text-white font-black py-5 text-base shadow-xl mb-3 hover:brightness-95 ${canReport ? '' : 'opacity-50 cursor-not-allowed'}"
+                            ${canReport ? 'onclick="MS.openInstitutionReport()"' : 'disabled'}>
+                            기관 종합 분석 결과 보기
+                        </button>
+                        <button type="button" class="ms-btn w-full border-2 border-[#D4A373] bg-[rgba(212,163,115,0.12)] text-[#2D4A3E] font-black py-4 text-sm shadow-md mb-6 hover:bg-[rgba(212,163,115,0.2)] ${canPrePost ? '' : 'opacity-50 cursor-not-allowed'}"
+                            ${canPrePost ? 'onclick="MS.openInstitutionPrePostReport()"' : 'disabled'}>
+                            사전·사후 성과 비교 보고서
+                        </button>
+                        ${canReport ? '' : '<p class="text-xs text-ms-muted text-center mb-2">숫자가 입력된 관찰이 있어야 종합 보고서를 만들 수 있어요.</p>'}
+                        ${canPrePost ? '' : '<p class="text-[11px] text-ms-muted text-center mb-4 leading-relaxed">비교 보고서는 명단에서 <strong class="text-[#2D4A3E]">사전·사후</strong>가 각각 한 건 이상(숫자 입력 완료)일 때 열립니다.</p>'}
+                        <h3 class="text-xs font-black text-[#2D4A3E] tracking-widest mb-3">개별 관찰 명단</h3>
+                        <div class="rounded-2xl border border-ms overflow-hidden bg-ms-soft/30 overflow-x-auto">
+                            <table class="w-full text-left text-sm min-w-[280px]">
+                                <thead class="text-[10px] font-black text-ms-muted uppercase tracking-wider border-b border-ms bg-white/50">
+                                    <tr><th class="py-2 px-2 pl-3">기록</th><th class="py-2 px-1">단계</th><th class="py-2 pr-3 text-right">입력</th></tr>
+                                </thead>
+                                <tbody>${listRows}</tbody>
+                            </table>
+                        </div>
+                        <p class="text-[10px] text-ms-muted mt-4 leading-relaxed">각 행의 <strong class="text-[#2D4A3E]">단계</strong>에서 사전·사후를 지정해 주세요. 새 관찰을 시작할 때도 설정 화면에서 같은 항목을 고를 수 있어요.</p>
+                    </div>
+                </div>
+            `;
+        },
+
+        renderInstitutionReport(el) {
+            const name = String(STATE.selectedGroupName || '').trim();
+            const members = SCHEMA.membersByInstitutionName(STATE.institutions, name);
+            const agg = SCHEMA.aggregateMeanScores(members, (c) => this.hasAnyCount(c));
+            const pie = SCHEMA.dominantTypeTally(members, (c) => this.hasAnyCount(c));
+            if (!name || !members.length || !agg) {
+                STATE.step = 'institution-hub';
+                STATE.selectedGroupName = name || '';
+                UI.render();
+                return;
+            }
+            const { mean, nWithData, nTotal } = agg;
+            const { tally, n: nPie } = pie;
+            const type0 = members[0].type || STATE.guessType(name);
+            const narrative = this.buildInstitutionConsultingNarrative({
+                groupName: name,
+                mean,
+                tally,
+                nPie,
+                nWithData,
+                nTotal,
+                typeLabel: type0
+            });
+            const pieHtml = this.buildGroupPieSvg(tally, nPie);
+            const radarHtml = this.buildConsultingRadarSvg(mean);
+            const meanLine = SCHEMA.categories.map((c) => `${c} ${mean[c]}%`).join(' · ');
+            el.innerHTML = `
+                <div class="ms-consulting-hero rounded-[2rem] border-2 border-[#2D4A3E]/15 shadow-xl overflow-hidden mb-6">
+                    <div class="ms-consulting-symbol-layer min-h-[200px]">
+                        <div class="ms-watermark-4gun" aria-hidden="true">난 · 대 · 국 · 매</div>
+                        <div class="ms-consulting-inner p-6 md:p-10 lg:p-12">
+                            <button type="button" class="print-hidden ms-btn text-xs font-bold text-ms-muted hover:text-[#2D4A3E] mb-6"
+                                onclick="MS.backFromInstitutionReport()">← 기관 허브</button>
+                            <p class="text-[10px] font-black text-[#D4A373] tracking-[0.2em] mb-2">MINDSTORY · GROUP PROFILE</p>
+                            <h2 class="text-2xl md:text-3xl font-black text-[#2D4A3E] mb-2 leading-tight">기관 종합 분석 보고서</h2>
+                            <p class="text-lg font-bold text-[#2D4A3E] mb-1">${this.esc(name)}</p>
+                            <p class="text-sm text-ms-muted mb-6">[${this.esc(type0)}] · 관찰 데이터 ${nWithData}명 기준 집계 · 등록 건수 ${nTotal}건</p>
+                            <blockquote class="border-l-[6px] border-[#2D4A3E] pl-5 py-2 mb-8 rounded-r-xl bg-white/60 text-[#2D4A3E] font-bold text-sm md:text-base leading-relaxed">
+                                집단 기질 점수(평균): 참여 아동 각각의 네 축 백분율을 더한 뒤, 데이터가 있는 아동 수로 나눈 값입니다.<br />
+                                <span class="text-xs font-semibold text-ms-muted mt-2 block">${this.esc(meanLine)}</span>
+                            </blockquote>
+                            <div class="grid md:grid-cols-2 gap-8 md:gap-10 ms-print-avoid-break mb-10">
+                                <div class="bg-white/70 rounded-2xl border border-ms p-5 md:p-6 ms-print-avoid-break">
+                                    <h3 class="text-center text-sm font-black text-[#2D4A3E] mb-4 tracking-wide">기질 분포도 (우세형)</h3>
+                                    ${pieHtml}
+                                    <p class="text-[11px] text-ms-muted text-center mt-3 leading-relaxed">각 아동의 가장 높은 축을 한 표로 모아 비율을 냈습니다.</p>
+                                </div>
+                                <div class="bg-white/70 rounded-2xl border border-ms p-5 md:p-6 ms-print-avoid-break">
+                                    <h3 class="text-center text-sm font-black text-[#2D4A3E] mb-4 tracking-wide">집단 평균 레이더</h3>
+                                    <div class="flex justify-center">${radarHtml}</div>
+                                    <p class="text-[11px] text-ms-muted text-center mt-3 leading-relaxed">네 축의 산술 평균을 한 눈에 비교합니다.</p>
+                                </div>
+                            </div>
+                            <div class="bg-white/80 rounded-2xl border border-[#2D4A3E]/12 p-6 md:p-8 ms-print-break-before">
+                                ${this.consultingSectionHtml('집단 에너지 색채 (Center Atmosphere)', narrative.atmosphere)}
+                                ${this.consultingSectionHtml('우리 기관의 기질적 특징', narrative.traits)}
+                                ${this.consultingSectionHtml('교사를 위한 집단 관리 전략', narrative.strategy)}
+                                ${this.consultingSectionHtml('교육 커리큘럼 제안', narrative.curriculum)}
+                                ${this.consultingSectionHtml('원장님용 · 마인드스토리 교육 제언', narrative.admin)}
+                                <blockquote class="text-center text-base md:text-lg font-black text-[#2D4A3E] leading-relaxed mt-10 pt-8 border-t border-[rgba(45,74,62,0.12)]">
+                                    숲은 아이의 속도를 기다립니다.<br class="sm:hidden" /> 마인드스토리가 함께하겠습니다.
+                                </blockquote>
+                            </div>
+                            <div class="print-hidden flex flex-col sm:flex-row gap-3 mt-10">
+                                <button type="button" class="ms-btn flex-1 rounded-full bg-[#2D4A3E] text-white font-bold py-4 shadow-lg"
+                                    onclick="window.print()">A4 인쇄 · PDF 저장</button>
+                                <button type="button" class="ms-btn flex-1 rounded-full border-2 border-[#2D4A3E] text-[#2D4A3E] font-bold py-4"
+                                    onclick="MS.backFromInstitutionReport()">닫기 · 허브로</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        },
+
+        renderInstitutionPrePostReport(el) {
+            const name = String(STATE.selectedGroupName || '').trim();
+            const members = SCHEMA.membersByInstitutionName(STATE.institutions, name);
+            const cmp = SCHEMA.aggregatePrePostComparison(members, (c) => this.hasAnyCount(c));
+            if (!name || !members.length || !cmp) {
+                STATE.step = 'institution-hub';
+                STATE.selectedGroupName = name || '';
+                UI.render();
+                return;
+            }
+            const { meanPre, meanPost, growthIndex, nPre, nPost } = cmp;
+            const type0 = members[0].type || STATE.guessType(name);
+            const narrative = this.buildPrePostNarrative({
+                groupName: name,
+                typeLabel: type0,
+                meanPre,
+                meanPost,
+                growthIndex,
+                nPre,
+                nPost
+            });
+            const barHtml = this.buildPrePostGroupedBarSvg(meanPre, meanPost);
+            const dualRadarHtml = this.buildDualPrePostRadarSvg(meanPre, meanPost);
+            const deltaRows = SCHEMA.categories
+                .map((c) => {
+                    const d = growthIndex[c] || 0;
+                    const sign = d > 0 ? '+' : '';
+                    const cls = d >= 3 ? 'text-[#2D4A3E] font-black' : d <= -3 ? 'text-[#8b6914] font-bold' : 'text-ms-body font-semibold';
+                    return `<tr class="border-b border-[rgba(45,74,62,0.08)]">
+                        <td class="py-2.5 font-bold text-[#2D4A3E]">${this.esc(c)}</td>
+                        <td class="py-2.5 text-center">${meanPre[c]}%</td>
+                        <td class="py-2.5 text-center font-bold text-[#2D4A3E]">${meanPost[c]}%</td>
+                        <td class="py-2.5 text-right ${cls}">성장 지수 ${sign}${d}</td>
+                    </tr>`;
+                })
+                .join('');
+            el.innerHTML = `
+                <div class="ms-consulting-hero rounded-[2rem] border-2 border-[rgba(212,163,115,0.35)] shadow-xl overflow-hidden mb-6 relative">
+                    <div class="ms-mindstory-seal" aria-hidden="true">성과<br />인장</div>
+                    <div class="ms-consulting-symbol-layer min-h-[200px]">
+                        <div class="ms-watermark-4gun" aria-hidden="true">난 · 대 · 국 · 매</div>
+                        <div class="ms-consulting-inner p-6 md:p-10 lg:p-12">
+                            <button type="button" class="print-hidden ms-btn text-xs font-bold text-ms-muted hover:text-[#2D4A3E] mb-6"
+                                onclick="MS.backFromInstitutionPrePostReport()">← 기관 허브</button>
+                            <p class="text-[10px] font-black text-[#D4A373] tracking-[0.2em] mb-2">MINDSTORY · PRE–POST OUTCOMES</p>
+                            <h2 class="text-xl md:text-2xl lg:text-3xl font-black text-[#2D4A3E] mb-3 leading-tight pr-16">
+                                마인드스토리 유아숲 행동관찰 성과 보고서<br class="hidden sm:block" /><span class="text-lg md:text-xl font-bold text-ms-muted">(사전/사후 비교)</span>
+                            </h2>
+                            <p class="text-lg font-bold text-[#2D4A3E] mb-1">${this.esc(name)}</p>
+                            <p class="text-sm text-ms-muted mb-6">[${this.esc(type0)}] · 사전 데이터 ${nPre}건 · 사후 데이터 ${nPost}건 평균 비교 · 성장 지수(Δ)=사후−사전</p>
+                            <div class="ms-prepost-page-1 ms-print-avoid-break mb-10">
+                                <div class="ms-prepost-chart-grid gap-6 md:gap-8">
+                                    <div class="bg-white/75 rounded-2xl border border-ms p-4 md:p-5 ms-print-avoid-break">
+                                        <h3 class="text-center text-sm font-black text-[#2D4A3E] mb-3">4군자 기질 · 사전/사후 막대 비교</h3>
+                                        <div class="flex justify-center overflow-x-auto">${barHtml}</div>
+                                    </div>
+                                    <div class="bg-white/75 rounded-2xl border border-ms p-4 md:p-5 ms-print-avoid-break">
+                                        <h3 class="text-center text-sm font-black text-[#2D4A3E] mb-3">레이더 겹침 (범위)</h3>
+                                        <div class="flex justify-center overflow-x-auto">${dualRadarHtml}</div>
+                                    </div>
+                                </div>
+                                <div class="mt-6 rounded-2xl border-2 border-[#2D4A3E]/15 overflow-hidden bg-white/85 ms-print-avoid-break">
+                                    <table class="w-full text-sm">
+                                        <thead class="bg-[rgba(45,74,62,0.06)] text-[11px] font-black text-[#2D4A3E]">
+                                            <tr>
+                                                <th class="text-left py-3 px-4">기질</th>
+                                                <th class="text-center py-3">사전 평균</th>
+                                                <th class="text-center py-3">사후 평균</th>
+                                                <th class="text-right py-3 px-4">성장 지수 Δ</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>${deltaRows}</tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div class="bg-white/85 rounded-2xl border border-[#2D4A3E]/12 p-6 md:p-8">
+                                ${this.consultingSectionHtml('마인드스토리 종합 분석', narrative.synthesis, 'lg')}
+                                ${this.consultingSectionHtml('심층 변화 해석 (축별)', narrative.axisInsights, 'lg')}
+                                ${this.consultingSectionHtml('숲의 선물 · 지속 성장 가이드', narrative.forestGift, 'lg')}
+                                <blockquote class="text-center text-base md:text-lg font-black text-[#2D4A3E] leading-relaxed mt-10 pt-8 border-t border-[rgba(45,74,62,0.12)]">
+                                    숲은 아이의 속도를 기다립니다.<br class="sm:hidden" /> 마인드스토리가 함께하겠습니다.
+                                </blockquote>
+                            </div>
+                            <div class="print-hidden flex flex-col sm:flex-row gap-3 mt-10">
+                                <button type="button" class="ms-btn flex-1 rounded-full bg-[#2D4A3E] text-white font-bold py-4 shadow-lg"
+                                    onclick="window.print()">A4 인쇄 · PDF 저장</button>
+                                <button type="button" class="ms-btn flex-1 rounded-full border-2 border-[#D4A373] text-[#2D4A3E] font-bold py-4"
+                                    onclick="MS.backFromInstitutionPrePostReport()">닫기 · 허브로</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        },
+
+        renderInstitutionTypeMacroReport(el) {
+            const macro = SCHEMA.aggregateGlobalByInstitutionType(STATE.institutions, (c) => this.hasAnyCount(c));
+            if (!macro) {
+                STATE.step = 'dashboard';
+                UI.render();
+                return;
+            }
+            const { meanDay, meanKg, nDay, nKg, signedDiff } = macro;
+            const nar = this.buildMacroTypeComparisonNarrative(macro);
+            const radarHtml = this.buildInstitutionTypeCompareRadarSvg(meanDay, meanKg);
+            const tableRows = SCHEMA.categories
+                .map((c) => {
+                    const sd = signedDiff[c] || 0;
+                    const sg = sd > 0 ? '+' : '';
+                    return `<tr class="border-b border-[rgba(45,74,62,0.08)]">
+                        <td class="py-2.5 px-3 font-bold text-[#2D4A3E]">${this.esc(c)}</td>
+                        <td class="py-2.5 text-center text-[#5c4a3a] font-semibold">${meanDay[c]}%</td>
+                        <td class="py-2.5 text-center font-black text-[#2D4A3E]">${meanKg[c]}%</td>
+                        <td class="py-2.5 text-right px-3 font-bold ${Math.abs(sd) >= 10 ? 'text-[#b8860b]' : 'text-ms-muted'}">Δ ${sg}${sd}</td>
+                    </tr>`;
+                })
+                .join('');
+            el.innerHTML = `
+                <div class="ms-consulting-hero rounded-[2rem] border-2 border-[#2D4A3E]/18 shadow-xl overflow-hidden mb-6 relative">
+                    <div class="ms-mindstory-seal" aria-hidden="true">MACRO<br />리포트</div>
+                    <div class="ms-consulting-symbol-layer min-h-[180px]">
+                        <div class="ms-watermark-4gun" aria-hidden="true">난 · 대 · 국 · 매</div>
+                        <div class="ms-consulting-inner p-6 md:p-10 lg:p-12">
+                            <button type="button" class="print-hidden ms-btn text-xs font-bold text-ms-muted hover:text-[#2D4A3E] mb-6"
+                                onclick="MS.backFromInstitutionTypeMacroReport()">← 대시보드</button>
+                            <p class="text-[10px] font-black text-[#D4A373] tracking-[0.22em] mb-2">MINDSTORY · MACRO INSIGHT</p>
+                            <h2 class="text-xl md:text-2xl lg:text-3xl font-black text-[#2D4A3E] mb-3 leading-tight pr-16">
+                                마인드스토리 기관 유형별 유아 기질 분포 비교 보고서
+                            </h2>
+                            <p class="text-sm text-ms-muted mb-2 leading-relaxed">
+                                로컬 저장소 전체 기준 · 어린이집 관찰 <strong class="text-[#5c4a3a]">${nDay}건</strong> · 유치원 관찰 <strong class="text-[#2D4A3E]">${nKg}건</strong> 평균 비교 · Δ = 유치원 − 어린이집
+                            </p>
+                            <div class="mb-8 ms-print-avoid-break">${this.consultingSectionHtml('상대적 강점 지표 (RSI)', nar.rsiLine, 'lg')}</div>
+                            <div class="grid md:grid-cols-2 gap-6 mb-10 ms-print-avoid-break">
+                                <div class="rounded-2xl border-2 border-[rgba(139,110,84,0.2)] bg-[rgba(255,250,245,0.9)] p-5 md:p-6 ms-print-avoid-break">
+                                    <h3 class="text-sm font-black text-[#5c4a3a] mb-3 tracking-wide">듀얼 레이더 (오버레이)</h3>
+                                    <div class="flex justify-center mb-4 overflow-x-auto">${radarHtml}</div>
+                                    <p class="text-[11px] text-ms-muted text-center leading-relaxed">브라운 점선 = 어린이집 평균 · 심산녹 실선 = 유치원 평균</p>
+                                </div>
+                                <div class="rounded-2xl border-2 border-[rgba(45,74,62,0.15)] bg-white/85 p-5 md:p-6 ms-print-avoid-break">
+                                    <h3 class="text-sm font-black text-[#2D4A3E] mb-3 tracking-wide">축별 평균 &amp; 편차</h3>
+                                    <div class="rounded-xl border border-ms overflow-hidden">
+                                        <table class="w-full text-sm">
+                                            <thead class="bg-[rgba(45,74,62,0.06)] text-[10px] font-black text-[#2D4A3E]">
+                                                <tr>
+                                                    <th class="text-left py-2.5 px-3">기질</th>
+                                                    <th class="text-center py-2.5">어린이집</th>
+                                                    <th class="text-center py-2.5">유치원</th>
+                                                    <th class="text-right py-2.5 px-3">Δ</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>${tableRows}</tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="bg-white/88 rounded-2xl border border-[#2D4A3E]/10 p-6 md:p-8 space-y-2">
+                                ${this.consultingSectionHtml('집단 성숙도·발달 맥락 비교', nar.maturity, 'lg')}
+                                <div class="rounded-2xl border-l-[6px] border-[#8d6e54] bg-[rgba(255,248,240,0.65)] p-4 md:p-5 ms-print-avoid-break">
+                                    ${this.consultingSectionHtml('유형별 특징 요약 — 어린이집', nar.cardDay, 'lg')}
+                                </div>
+                                <div class="rounded-2xl border-l-[6px] border-[#2D4A3E] bg-[rgba(240,253,244,0.35)] p-4 md:p-5 ms-print-avoid-break">
+                                    ${this.consultingSectionHtml('유형별 특징 요약 — 유치원', nar.cardKg, 'lg')}
+                                </div>
+                                ${this.consultingSectionHtml('환경 요인과 기질 발현 — 차이 심층 분석 (|Δ|≥10%p)', nar.gapAnalysis, 'lg')}
+                                ${this.consultingSectionHtml('맞춤형 교육 솔루션 — 어린이집', nar.solDay, 'lg')}
+                                ${this.consultingSectionHtml('맞춤형 교육 솔루션 — 유치원', nar.solKg, 'lg')}
+                                <div class="rounded-2xl border-2 border-[#D4A373]/40 bg-[rgba(253,251,247,0.95)] p-4 md:p-6 mt-6">
+                                    ${this.consultingSectionHtml('마인드스토리 교육 연구소 · 총평', nar.researchFooter, 'lg')}
+                                </div>
+                                <blockquote class="text-center text-sm md:text-base font-black text-[#2D4A3E] leading-relaxed mt-10 pt-8 border-t border-[rgba(45,74,62,0.1)]">
+                                    데이터는 현장의 목소리와 함께 읽을 때 가장 큰 힘이 됩니다.
+                                </blockquote>
+                            </div>
+                            <div class="print-hidden flex flex-col sm:flex-row gap-3 mt-10">
+                                <button type="button" class="ms-btn flex-1 rounded-full bg-[#2D4A3E] text-white font-bold py-4 shadow-lg"
+                                    onclick="window.print()">A4 인쇄 · PDF 저장</button>
+                                <button type="button" class="ms-btn flex-1 rounded-full border-2 border-[#8d6e54] text-[#2D4A3E] font-bold py-4"
+                                    onclick="MS.backFromInstitutionTypeMacroReport()">닫기</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        },
+
+        renderSetup(el) {
+            const sel = STATE.selected();
+            const nameVal = STATE.searchTerm || (sel ? sel.name : '');
+            const type = sel ? sel.type : STATE.setupTypeOverride || STATE.guessType(nameVal);
+            const phaseVal =
+                (sel && (sel.obsPhase === 'pre' || sel.obsPhase === 'post') ? sel.obsPhase : null) ||
+                (STATE.setupObsPhase === 'pre' || STATE.setupObsPhase === 'post' ? STATE.setupObsPhase : '');
+
+            el.innerHTML = `
+                <div class="max-w-lg mx-auto space-y-6">
+                    <button type="button" class="ms-btn text-xs font-bold text-ms-muted hover:text-[#2D4A3E] print-hidden"
+                        onclick="MS.goDashboard()">← 대시보드</button>
+
+                    <div class="ms-card p-8 md:p-10 shadow-xl border-2 border-[rgba(45,74,62,0.12)]">
+                        <label for="ms-obs-phase" class="block text-xs font-bold text-ms-muted mb-2 ml-1 tracking-widest">관찰 단계 (사전·사후)</label>
+                        <select id="ms-obs-phase" class="w-full ms-input px-4 py-3.5 text-sm font-bold text-center rounded-[2rem] mb-2">
+                            <option value="" ${phaseVal === '' ? 'selected' : ''}>미지정</option>
+                            <option value="pre" ${phaseVal === 'pre' ? 'selected' : ''}>사전 검사</option>
+                            <option value="post" ${phaseVal === 'post' ? 'selected' : ''}>사후 검사</option>
+                        </select>
+                        <p class="text-[11px] text-ms-muted mb-5 text-center leading-relaxed">사전·사후로 나누어 저장하면 기관 허브에서 <strong class="text-[#2D4A3E]">성과 비교 보고서</strong>를 열 수 있어요.</p>
+                        <div class="relative z-30 mb-5">
+                            <label for="inst-name" class="block text-xs font-bold text-ms-muted mb-2 ml-1 tracking-widest">기관명 검색</label>
+                            <div class="relative">
+                                <input id="inst-name" type="text" placeholder="예: 삼계중앙어린이집"
+                                    class="w-full ms-input pl-5 pr-14 py-4 text-base font-bold text-center rounded-[3rem] mb-0"
+                                    value="${this.esc(nameVal)}" autocomplete="organization" aria-autocomplete="list" aria-expanded="false" aria-controls="ms-inst-dropdown"
+                                    oninput="MS.onNameInput(this.value)"
+                                    onfocus="MS.onInstNameFocus()"
+                                    onkeydown="MS.onInstNameKeydown(event)">
+                                <button type="button" id="ms-inst-toggle-all"
+                                    class="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center justify-center w-11 h-11 min-h-[44px] min-w-[44px] rounded-2xl text-[#2D4A3E] hover:bg-[rgba(240,253,244,0.75)] active:bg-[rgba(240,253,244,0.9)] transition-colors print-hidden"
+                                    aria-label="전체 기관 목록 (가나다순)" aria-expanded="false" aria-controls="ms-inst-dropdown"
+                                    onmousedown="event.preventDefault()"
+                                    onclick="MS.toggleInstListAll(event)">
+                                    <span class="text-base font-bold leading-none select-none" aria-hidden="true">▼</span>
+                                </button>
+                                <div id="ms-inst-dropdown" class="hidden absolute left-0 right-0 top-full mt-2 z-50 max-h-[min(50vh,22rem)] overflow-y-auto rounded-2xl border-2 border-[#2D4A3E] bg-[#FAF8F3] shadow-[0_12px_40px_rgba(45,74,62,0.12)] custom-scrollbar"
+                                    role="listbox" aria-label="기관 목록"></div>
+                            </div>
+                        </div>
+                        <p class="text-xs text-ms-muted mb-5 text-center">한 글자만 입력해도 목록이 뜹니다. ▼ 를 누르면 전체 기관이 가나다순으로 펼쳐져요.</p>
+                        ${this.buildRecentHistorySectionHtml()}
+                        <div class="flex gap-3 mb-6">
+                            <button type="button" class="ms-btn flex-1 py-4 font-bold border-2 text-sm ${type === '어린이집' ? 'border-[#2D4A3E] bg-[rgba(240,253,244,0.5)] text-[#2D4A3E]' : 'border-ms text-ms-muted'}"
+                                onclick="MS.setType('어린이집')">어린이집</button>
+                            <button type="button" class="ms-btn flex-1 py-4 font-bold border-2 text-sm ${type === '유치원' ? 'border-[#2D4A3E] bg-[rgba(240,253,244,0.5)] text-[#2D4A3E]' : 'border-ms text-ms-muted'}"
+                                onclick="MS.setType('유치원')">유치원</button>
+                        </div>
+                        <button type="button" class="ms-btn w-full bg-[#2D4A3E] text-white font-black py-6 md:py-7 text-lg md:text-xl shadow-xl hover:brightness-95"
+                            onclick="MS.startTest()">검사 입력으로 이동</button>
+                    </div>
+
+                    <div class="ms-preview-box p-6 md:p-8 text-center print-hidden">
+                        <p class="text-[#D4A373] font-bold text-sm mb-2">✨ 미리보기 모드</p>
+                        <p class="text-ms-body text-sm leading-relaxed mb-6">
+                            버튼을 누르면 테스트 숫자가 채워진<br class="hidden sm:inline" />
+                            <strong class="text-[#2D4A3E]">분석 보고서</strong> 화면을 미리 볼 수 있어요.
+                        </p>
+                        <button type="button" class="ms-btn inline-flex bg-[#2D4A3E] text-white font-bold py-4 px-8 text-sm shadow-lg"
+                            onclick="MS.runPreview()">분석 결과 미리보기 ↗</button>
+                    </div>
+                </div>
+            `;
+            requestAnimationFrame(() => {
+                if (typeof MS !== 'undefined' && MS.updateInstDropdown) MS.updateInstDropdown();
+                const ph = document.getElementById('ms-obs-phase');
+                if (ph) {
+                    ph.onchange = () => {
+                        STATE.setupObsPhase = ph.value === 'pre' || ph.value === 'post' ? ph.value : '';
+                        STATE.persist();
+                    };
+                }
+            });
+        },
+
+        renderInput(el) {
+            const inst = STATE.selected();
+            if (!inst) {
+                STATE.step = 'dashboard';
+                STATE.persist();
+                this.render();
+                return;
+            }
+            STATE.ensureCounts(inst);
+            const name = this.esc(inst.name);
+
+            el.innerHTML = `
+                <div class="max-w-lg mx-auto">
+                    <div class="mb-5 flex justify-between items-center print-hidden">
+                        <span class="font-bold text-[#2D4A3E] text-sm">📍 ${name}</span>
+                        <div class="flex gap-2">
+                            <button type="button" class="text-xs text-ms-muted underline ms-btn px-2" onclick="MS.goSetup()">기관 설정</button>
+                            <button type="button" class="text-xs text-ms-muted underline ms-btn px-2" onclick="MS.goDashboard()">대시보드</button>
+                        </div>
+                    </div>
+                    <div class="space-y-5 md:space-y-4 max-h-[56vh] overflow-y-auto pr-1 custom-scrollbar mb-6">
+                        ${SCHEMA.questions.map((q, idx) => `
+                            <div class="ms-card p-6 md:p-6 border-l-[10px] border-[#2D4A3E]">
+                                <p class="font-bold text-ms-body mb-5 md:mb-4 text-sm leading-snug">
+                                    <span class="text-[#D4A373] mr-2">Q${idx + 1}.</span>${this.esc(q.text)}
+                                </p>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div class="flex items-stretch bg-ms-soft rounded-[3rem] px-3 py-2 md:px-4 md:py-3 border border-ms min-h-[52px]">
+                                        <span class="text-[10px] font-bold text-[#2D4A3E] mr-2 shrink-0 self-center">O</span>
+                                        <input id="ms-yes-${q.id}" type="number" inputmode="decimal" min="0" step="1" enterkeyhint="next"
+                                            class="ms-field-count w-full bg-transparent text-center font-bold text-lg md:text-base outline-none text-[#2D4A3E]"
+                                            value="${inst.counts[q.id].yes}"
+                                            onkeydown="MS.onCountKeydown(event,'${q.id}','yes')"
+                                            oninput="MS.onYesInput('${q.id}',this)">
+                                    </div>
+                                    <div class="flex items-stretch rounded-[3rem] px-3 py-2 md:px-4 md:py-3 border border-ms min-h-[52px]" style="background:rgba(212,163,115,0.12)">
+                                        <span class="text-[10px] font-bold text-[#D4A373] mr-2 shrink-0 self-center">X</span>
+                                        <input id="ms-no-${q.id}" type="number" inputmode="decimal" min="0" step="1" enterkeyhint="next"
+                                            class="ms-field-count w-full bg-transparent text-center font-bold text-lg md:text-base outline-none text-[#2D4A3E]"
+                                            value="${inst.counts[q.id].no}"
+                                            onkeydown="MS.onCountKeydown(event,'${q.id}','no')"
+                                            oninput="MS.onNoInput('${q.id}',this)">
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <button type="button" class="ms-btn w-full bg-[#D4A373] text-white font-bold py-5 text-base shadow-lg"
+                        onclick="MS.goResult()">분석 보고서 만들기</button>
+                </div>
+            `;
+        },
+
+        renderResult(el) {
+            const inst = STATE.selected();
+            if (!inst) {
+                STATE.step = 'dashboard';
+                this.render();
+                return;
+            }
+            const scores = SCHEMA.scoresFromCounts(inst.counts);
+            const name = this.esc(inst.name);
+            const preview = STATE.isPreviewSample
+                ? `<div class="mb-5 rounded-[3rem] border-2 border-[#D4A373] text-ms-body text-xs font-bold py-3 px-4 print-hidden text-left bg-[rgba(212,163,115,0.1)]">샘플 숫자로 보는 화면이에요. 실제 관찰 값은 입력 화면에서 넣어 주세요.</div>`
+                : '';
+
+            const gName = String(inst.name).trim();
+            const groupMembers = SCHEMA.membersByInstitutionName(STATE.institutions, gName);
+            const groupAgg = SCHEMA.aggregateMeanScores(groupMembers, (c) => this.hasAnyCount(c));
+            const canOpenGroupReport = !!(groupAgg && groupAgg.nWithData > 0);
+            const groupPrePost = SCHEMA.aggregatePrePostComparison(groupMembers, (c) => this.hasAnyCount(c));
+            const canOpenPrePostFromResult = !!groupPrePost;
+
+            const reportSection = (label, body) => {
+                const inner = this.formatMultilineEsc(body);
+                if (!inner) return '';
+                return `
+                    <div class="mb-7 last:mb-0">
+                        <h4 class="text-[11px] font-black text-[#2D4A3E] tracking-[0.12em] mb-3 pb-2 border-b border-[rgba(45,74,62,0.12)]">${this.esc(label)}</h4>
+                        <div class="space-y-3">${inner}</div>
+                    </div>
+                `;
+            };
+
+            const blocks = SCHEMA.categories.map((cat) => {
+                const pct = scores[cat];
+                const seg = SCHEMA.segmentForScore(pct, cat);
+                let badgeBg = 'bg-ms-soft text-[#2D4A3E]';
+                if (seg.tier === 'high') badgeBg = 'bg-[rgba(45,74,62,0.12)] text-[#2D4A3E]';
+                if (seg.tier === 'low') badgeBg = 'bg-[rgba(212,163,115,0.22)] text-[#2D4A3E]';
+                const quoteHtml = seg.quote
+                    ? `<blockquote class="border-l-[5px] border-[#2D4A3E] pl-4 py-3.5 my-5 rounded-r-2xl bg-[rgba(45,74,62,0.06)] text-[#2D4A3E] font-bold text-sm leading-relaxed">${this.esc(seg.quote)}</blockquote>`
+                    : '';
+                const narrativeHtml = this.formatMultilineEsc(seg.narrative);
+                return `
+                    <div class="ms-card p-6 md:p-8 text-left mb-6 md:mb-7 shadow-md border border-[rgba(45,74,62,0.1)]">
+                        <div class="flex flex-wrap items-center gap-2 mb-3">
+                            <span class="text-sm font-black text-[#2D4A3E]">${this.esc(cat)} · ${pct}%</span>
+                            <span class="text-[10px] font-bold px-3 py-1.5 rounded-full ${badgeBg}">${this.esc(seg.badge)}</span>
+                        </div>
+                        <div class="w-full h-2.5 rounded-full overflow-hidden mb-6 bg-ms-soft">
+                            <div class="h-full transition-all duration-700 rounded-full" style="width:${pct}%;${SCHEMA.barStyle(cat)}"></div>
+                        </div>
+                        <h3 class="text-lg font-black text-[#2D4A3E] mb-1 leading-snug">${this.esc(seg.headline)}</h3>
+                        <p class="text-[11px] text-ms-muted font-semibold mb-5">이번 관찰 구간에 맞춘 마인드스토리 해석입니다.</p>
+                        ${quoteHtml}
+                        ${narrativeHtml ? `<div class="space-y-3 mb-7">${narrativeHtml}</div>` : ''}
+                        ${reportSection('심층 심리 해석', seg.psychDeep)}
+                        ${reportSection('숲에서의 모습', seg.forestPortrait)}
+                        ${reportSection('부모님을 위한 마음 처방', seg.parentHeart)}
+                        ${reportSection('구체적 액션 가이드', seg.actionGuide)}
+                    </div>
+                `;
+            }).join('');
+
+            const reportClosing = `
+                <div class="ms-card p-6 md:p-8 text-center mb-8 border-2 border-[#2D4A3E]/20 bg-[rgba(253,251,247,0.95)]">
+                    <blockquote class="text-base md:text-lg font-black text-[#2D4A3E] leading-relaxed tracking-tight">
+                        숲은 아이의 속도를 기다립니다.<br class="hidden sm:block" />
+                        마인드스토리가 함께하겠습니다.
+                    </blockquote>
+                </div>
+            `;
+
+            el.innerHTML = `
+                <div class="max-w-lg mx-auto">
+                    <div class="ms-card p-8 md:p-10 text-center border-t-[10px] border-[#2D4A3E]">
+                        ${preview}
+                        <p class="text-base md:text-lg font-black text-[#2D4A3E] mb-2 leading-snug">마인드스토리 유아숲 행동관찰</p>
+                        <h2 class="text-2xl font-black text-[#2D4A3E] mb-1">${name}</h2>
+                        <p class="text-ms-muted text-xs mb-5">4기질 관찰 기록 · 스키마 v8.7 · 보고서 v2.0</p>
+                        <button type="button" class="print-hidden w-full mb-5 rounded-full bg-[#2D4A3E] text-white font-black py-4 px-6 text-sm md:text-base shadow-lg hover:brightness-95 active:scale-[0.99] transition-all"
+                            onclick="MS.openForestMapModal()">4군자 종합 지도 보기</button>
+                        <div class="print-hidden rounded-2xl border border-ms bg-ms-soft/50 p-4 mb-8 text-left">
+                            <p class="text-[10px] font-black text-[#2D4A3E] tracking-[0.15em] mb-1">집단·비교 보고서</p>
+                            <p class="text-[10px] text-ms-muted font-semibold mb-3 leading-relaxed">같은 기관명으로 묶인 관찰 전체를 기준으로 합니다.</p>
+                            <div class="flex flex-col gap-2">
+                                <button type="button" class="ms-btn w-full border-2 border-ms bg-white/90 text-[#2D4A3E] font-black py-3 text-xs ${canOpenGroupReport ? '' : 'opacity-45 cursor-not-allowed'}"
+                                    ${canOpenGroupReport ? 'onclick="MS.openInstitutionReportFromResult()"' : 'disabled'}>기관 전체 성향 보고서</button>
+                                <button type="button" class="ms-btn w-full border-2 border-[#D4A373] bg-[rgba(212,163,115,0.12)] text-[#2D4A3E] font-black py-3 text-xs ${canOpenPrePostFromResult ? '' : 'opacity-45 cursor-not-allowed'}"
+                                    ${canOpenPrePostFromResult ? 'onclick="MS.openInstitutionPrePostFromResult()"' : 'disabled'}>사전·사후 비교 보고서</button>
+                                <button type="button" class="ms-btn w-full bg-[#2D4A3E] text-white font-black py-3 text-xs shadow-md"
+                                    onclick="MS.openInstitutionTypeMacroReport()">어린이집 vs 유치원 · 거시 비교</button>
+                            </div>
+                        </div>
+                        <div class="text-left mb-8">${blocks}${reportClosing}</div>
+                        <button type="button" class="ms-btn w-full bg-ms-soft text-[#2D4A3E] font-bold py-5 mb-4 border border-ms print-hidden"
+                            onclick="MS.backToInput()">데이터 고치기</button>
+                        <button type="button" class="ms-btn w-full bg-[#2D4A3E] text-white font-bold py-5 print-hidden"
+                            onclick="window.print()">PDF 저장 · 인쇄</button>
+                        <button type="button" class="print-hidden w-full rounded-full border-2 border-[#2D4A3E] bg-[#FDFBF7]/80 text-[#2D4A3E] font-bold py-4 text-sm mt-3 hover:bg-[#FDFBF7] active:scale-[0.99] transition-all"
+                            onclick="MS.goHomeToDashboard()">🏠 홈으로 — 대시보드</button>
+                        <p class="text-[10px] text-ms-muted text-center mt-3 print-hidden leading-relaxed px-1">
+                            대시보드 목록에서 이 검사 줄을 없애려면 <strong class="text-[#2D4A3E]">위 버튼</strong>을 눌러 주세요.
+                        </p>
+                    </div>
+                </div>
+            `;
+        },
+
+        async exportBackup() {
+            const payload = {
+                mindstoryExport: true,
+                schemaVersion: SCHEMA.version,
+                storageKey: STORAGE_KEY,
+                exportedAt: new Date().toISOString(),
+                institutions: STATE.institutions
+            };
+            const jsonStr = JSON.stringify(payload, null, 2);
+            const blob = new Blob([jsonStr], { type: 'application/json' });
+            const d = new Date().toISOString().slice(0, 10);
+            const filename = `mindstory-forest-temperament-${d}.json`;
+
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(url), 2500);
+
+            const file = new File([blob], filename, { type: 'application/json' });
+            if (typeof navigator !== 'undefined' && navigator.share) {
+                try {
+                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                        await navigator.share({
+                            files: [file],
+                            title: '마인드스토리 유아숲 행동관찰',
+                            text: '관찰 기록 백업(JSON)입니다.'
+                        });
+                    } else {
+                        await navigator.share({
+                            title: '마인드스토리 유아숲 행동관찰',
+                            text: 'JSON 파일이 저장되었습니다. 파일 앱에서 카카오톡으로 보내실 수 있어요.'
+                        });
+                    }
+                } catch (err) {
+                    if (err && err.name !== 'AbortError') {
+                        console.warn('[share]', err);
+                    }
+                }
+            }
+        },
+
+        triggerImport() {
+            const inp = document.getElementById('ms-import-input');
+            if (inp) {
+                inp.value = '';
+                inp.onchange = () => UI.handleImportFile(inp.files[0]);
+                inp.click();
+            }
+        },
+
+        handleImportFile(file) {
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = () => {
+                try {
+                    const data = JSON.parse(reader.result);
+                    const list = data.institutions;
+                    if (!Array.isArray(list)) {
+                        alert('파일 형식이 맞지 않아요. 보낸 JSON 인지 확인해 주세요.');
+                        return;
+                    }
+                    const existingIds = new Set(STATE.institutions.map((x) => x.id));
+                    const normalize = (i) => {
+                        if (!i.id) i.id = newVaultRecordId();
+                        if (!i.name) i.name = '이름 없음';
+                        if (!i.type) i.type = STATE.guessType(i.name);
+                        STATE.ensureCounts(i);
+                    };
+                    let added = 0;
+                    let skipped = 0;
+                    list.forEach((raw, idx) => {
+                        const incoming = JSON.parse(JSON.stringify(raw));
+                        normalize(incoming);
+                        if (existingIds.has(incoming.id)) {
+                            skipped += 1;
+                            return;
+                        }
+                        while (STATE.institutions.some((x) => x.id === incoming.id)) {
+                            incoming.id = newVaultRecordId();
+                        }
+                        existingIds.add(incoming.id);
+                        STATE.institutions.push(incoming);
+                        added += 1;
+                    });
+                    STATE.institutions.sort((a, b) =>
+                        String(b.updatedAt || '').localeCompare(String(a.updatedAt || ''))
+                    );
+                    STATE.persist();
+                    STATE.step = 'dashboard';
+                    STATE.isPreviewSample = false;
+                    UI.render();
+                    const skipMsg = skipped ? ` (이미 금고에 있는 ID ${skipped}건은 건너뜀)` : '';
+                    alert(`백업에서 ${added}건을 합쳤어요.${skipMsg} 전체 목록은 최신순으로 정리했습니다.`);
+                } catch (e) {
+                    alert('JSON 읽기에 실패했어요.');
+                }
+            };
+            reader.readAsText(file, 'UTF-8');
+        }
+    };
+
+    const MS = {
+        _advT: {},
+        _instDropdownAll: false,
+        _instSuggestCloseBound: false,
+
+        bindInstSuggestCloseOutside() {
+            if (MS._instSuggestCloseBound) return;
+            MS._instSuggestCloseBound = true;
+            document.addEventListener(
+                'mousedown',
+                (ev) => {
+                    if (STATE.step !== 'setup') return;
+                    const panel = document.getElementById('ms-inst-dropdown');
+                    if (!panel || panel.classList.contains('hidden')) return;
+                    const t = ev.target;
+                    const inp = document.getElementById('inst-name');
+                    const btn = document.getElementById('ms-inst-toggle-all');
+                    if (
+                        panel.contains(t) ||
+                        inp === t ||
+                        (inp && inp.contains(t)) ||
+                        btn === t ||
+                        (btn && btn.contains(t))
+                    ) {
+                        return;
+                    }
+                    MS._instDropdownAll = false;
+                    panel.innerHTML = '';
+                    panel.classList.add('hidden');
+                    MS.setInstToggleAria(false);
+                    if (inp) inp.setAttribute('aria-expanded', 'false');
+                },
+                true
+            );
+        },
+
+        setInstToggleAria(open) {
+            const btn = document.getElementById('ms-inst-toggle-all');
+            const inp = document.getElementById('inst-name');
+            if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+            if (inp) inp.setAttribute('aria-expanded', open ? 'true' : 'false');
+        },
+
+        sortInstitutionsKo(list) {
+            return [...list].sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+        },
+
+        updateInstDropdown() {
+            const panel = document.getElementById('ms-inst-dropdown');
+            const inp = document.getElementById('inst-name');
+            if (!panel) return;
+            MS.bindInstSuggestCloseOutside();
+            const raw = inp ? inp.value : STATE.searchTerm || '';
+            const q = raw.trim();
+            const allMode = MS._instDropdownAll;
+
+            let list = [];
+            if (allMode) {
+                list = MS.sortInstitutionsKo(STATE.institutions);
+            } else if (q.length >= 1) {
+                const ql = q.toLocaleLowerCase('ko-KR');
+                list = STATE.institutions.filter((i) =>
+                    i.name.toLocaleLowerCase('ko-KR').includes(ql)
+                );
+                list = MS.sortInstitutionsKo(list);
+            }
+
+            if (!allMode && q.length < 1) {
+                panel.innerHTML = '';
+                panel.classList.add('hidden');
+                MS.setInstToggleAria(false);
+                return;
+            }
+
+            if (list.length === 0) {
+                panel.classList.remove('hidden');
+                panel.innerHTML =
+                    '<div class="px-4 py-3 min-h-[44px] flex items-center text-sm text-ms-muted border-b border-[rgba(45,74,62,0.06)] last:border-0">검색 결과가 없어요.</div>';
+                MS.setInstToggleAria(true);
+                return;
+            }
+
+            panel.classList.remove('hidden');
+            panel.innerHTML = list
+                .map((inst) => {
+                    const labelHtml = allMode ? UI.esc(inst.name) : UI.highlightInstMatch(inst.name, q);
+                    const safeId = String(inst.id).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                    return `<button type="button" role="option"
+                        class="w-full text-left px-4 py-3 min-h-[44px] flex flex-col justify-center sm:flex-row sm:items-baseline sm:gap-2 border-b border-[rgba(45,74,62,0.08)] last:border-b-0 hover:bg-[rgba(240,253,244,0.88)] active:bg-[rgba(240,253,244,0.95)] text-[#2D4A3E] transition-colors"
+                        onmousedown="event.preventDefault()"
+                        onclick="MS.pickInstitution('${safeId}')">
+                        <span class="text-sm font-bold">${labelHtml}</span>
+                        <span class="text-[10px] text-ms-muted font-semibold shrink-0">[${UI.esc(inst.type)}]</span>
+                    </button>`;
+                })
+                .join('');
+            MS.setInstToggleAria(true);
+        },
+
+        toggleInstListAll(ev) {
+            if (ev) {
+                ev.preventDefault();
+                ev.stopPropagation();
+            }
+            MS._instDropdownAll = !MS._instDropdownAll;
+            if (!MS._instDropdownAll) {
+                const panel = document.getElementById('ms-inst-dropdown');
+                if (panel) {
+                    panel.innerHTML = '';
+                    panel.classList.add('hidden');
+                }
+                MS.setInstToggleAria(false);
+                const inp = document.getElementById('inst-name');
+                if (inp) inp.setAttribute('aria-expanded', 'false');
+                MS.updateInstDropdown();
+                return;
+            }
+            MS.updateInstDropdown();
+        },
+
+        pickInstitution(id) {
+            const inst = STATE.institutions.find((i) => i.id === id);
+            if (!inst) return;
+            STATE.selectedId = inst.id;
+            STATE.searchTerm = inst.name;
+            STATE.setupObsPhase =
+                inst.obsPhase === 'pre' || inst.obsPhase === 'post' ? inst.obsPhase : '';
+            MS._instDropdownAll = false;
+            STATE.setupTypeOverride = null;
+            STATE.persist();
+            const panel = document.getElementById('ms-inst-dropdown');
+            if (panel) {
+                panel.innerHTML = '';
+                panel.classList.add('hidden');
+            }
+            MS.setInstToggleAria(false);
+            UI.render();
+        },
+
+        onInstNameFocus() {
+            MS._instDropdownAll = false;
+            const inp = document.getElementById('inst-name');
+            const q = (inp && inp.value.trim()) || '';
+            if (q.length >= 1) MS.updateInstDropdown();
+        },
+
+        onInstNameKeydown(ev) {
+            if (ev.key === 'Escape') {
+                MS._instDropdownAll = false;
+                const panel = document.getElementById('ms-inst-dropdown');
+                if (panel) {
+                    panel.innerHTML = '';
+                    panel.classList.add('hidden');
+                }
+                MS.setInstToggleAria(false);
+            }
+        },
+
+        clearAdvanceTimers() {
+            Object.keys(this._advT).forEach((k) => clearTimeout(this._advT[k]));
+            this._advT = {};
+        },
+
+        onYesInput(qid, el) {
+            MS.setCount(qid, 'yes', el.value);
+            clearTimeout(MS._advT['y' + qid]);
+            MS._advT['y' + qid] = setTimeout(() => {
+                const y = document.getElementById('ms-yes-' + qid);
+                const n = document.getElementById('ms-no-' + qid);
+                if (n && y && document.activeElement === y && String(el.value).trim() !== '') {
+                    n.focus();
+                }
+            }, 650);
+        },
+
+        onNoInput(qid, el) {
+            MS.setCount(qid, 'no', el.value);
+            clearTimeout(MS._advT['n' + qid]);
+            MS._advT['n' + qid] = setTimeout(() => {
+                const n = document.getElementById('ms-no-' + qid);
+                const ids = SCHEMA.questions.map((q) => q.id);
+                const ix = ids.indexOf(qid);
+                if (ix < 0 || ix >= ids.length - 1) return;
+                const nextY = document.getElementById('ms-yes-' + ids[ix + 1]);
+                if (nextY && n && document.activeElement === n && String(el.value).trim() !== '') {
+                    nextY.focus();
+                }
+            }, 650);
+        },
+
+        onCountKeydown(e, qid, role) {
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            if (role === 'yes') {
+                document.getElementById('ms-no-' + qid)?.focus();
+                return;
+            }
+            const ids = SCHEMA.questions.map((q) => q.id);
+            const ix = ids.indexOf(qid);
+            if (ix >= 0 && ix < ids.length - 1) {
+                document.getElementById('ms-yes-' + ids[ix + 1])?.focus();
+            }
+        },
+
+        dismissMigrationBanner() {
+            STATE.migrationBanner = null;
+            UI.render();
+        },
+
+        /** 결과(또는 미리보기 제외 완료 검사) 1건을 금고·목록에서 제거 */
+        purgeCurrentCompletedExamFromVault() {
+            const id = STATE.selectedId;
+            if (!id || STATE.isPreviewSample) return;
+            STATE.institutions = STATE.institutions.filter((i) => i.id !== id);
+        },
+
+        /** 대시보드: 기기 금고 전체 비우기 */
+        clearVaultEntirely() {
+            if (
+                !confirm(
+                    '이 기기(ms_forest_v1)에 저장된 모든 검사 기록을 삭제할까요?\n\n되돌릴 수 없습니다. 먼저 「보내기」로 JSON 백업을 권장합니다.'
+                )
+            ) {
+                return;
+            }
+            STATE.institutions = [];
+            STATE.selectedId = null;
+            STATE.selectedGroupName = '';
+            STATE.searchTerm = '';
+            STATE.setupObsPhase = '';
+            STATE.isPreviewSample = false;
+            STATE.persist();
+            UI.render();
+        },
+
+        goDashboard() {
+            if (STATE.step === 'result') {
+                MS.purgeCurrentCompletedExamFromVault();
+                STATE.selectedId = null;
+            }
+            STATE.step = 'dashboard';
+            STATE.isPreviewSample = false;
+            STATE.selectedGroupName = '';
+            STATE.setupObsPhase = '';
+            MS._instDropdownAll = false;
+            STATE.persist();
+            UI.render();
+        },
+
+        goInstitutionHub(name) {
+            STATE.selectedGroupName = String(name || '').trim();
+            if (!STATE.selectedGroupName) return;
+            STATE.step = 'institution-hub';
+            STATE.isPreviewSample = false;
+            STATE.persist();
+            UI.render();
+        },
+
+        leaveInstitutionHub() {
+            STATE.selectedGroupName = '';
+            STATE.step = 'dashboard';
+            UI.render();
+        },
+
+        openInstitutionReport() {
+            const key = String(STATE.selectedGroupName || '').trim();
+            if (!key) return;
+            const members = SCHEMA.membersByInstitutionName(STATE.institutions, key);
+            const agg = SCHEMA.aggregateMeanScores(members, (c) => UI.hasAnyCount(c));
+            if (!agg) {
+                alert('관찰 숫자가 입력된 기록이 없어요. 먼저 입력을 완료해 주세요.');
+                return;
+            }
+            STATE.step = 'institution-report';
+            STATE.persist();
+            UI.render();
+        },
+
+        backFromInstitutionReport() {
+            STATE.step = 'institution-hub';
+            UI.render();
+        },
+
+        setInstObsPhase(id, value) {
+            const inst = STATE.institutions.find((x) => x.id === id);
+            if (!inst) return;
+            inst.obsPhase = value === 'pre' || value === 'post' ? value : '';
+            inst.updatedAt = new Date().toISOString();
+            STATE.persist();
+            UI.render();
+        },
+
+        openInstitutionPrePostReport() {
+            const key = String(STATE.selectedGroupName || '').trim();
+            if (!key) return;
+            const members = SCHEMA.membersByInstitutionName(STATE.institutions, key);
+            const cmp = SCHEMA.aggregatePrePostComparison(members, (c) => UI.hasAnyCount(c));
+            if (!cmp) {
+                alert('사전·사후로 표시된 관찰이 각각 한 건 이상, 그리고 숫자 입력이 완료되어야 비교 보고서를 열 수 있어요.');
+                return;
+            }
+            STATE.step = 'institution-prepost-report';
+            STATE.persist();
+            UI.render();
+        },
+
+        backFromInstitutionPrePostReport() {
+            STATE.step = 'institution-hub';
+            UI.render();
+        },
+
+        openInstitutionTypeMacroReport() {
+            const macro = SCHEMA.aggregateGlobalByInstitutionType(STATE.institutions, (c) => UI.hasAnyCount(c));
+            if (!macro) {
+                alert(
+                    '어린이집·유치원 각각에서 숫자가 입력된 관찰이 한 건 이상씩 있어야 거시 비교 보고서를 열 수 있어요. 설정 화면에서 기관 유형을 맞추고 입력을 완료해 주세요.'
+                );
+                return;
+            }
+            STATE.step = 'institution-type-macro-report';
+            UI.render();
+        },
+
+        openDashboardGroupReport() {
+            const keys = [
+                ...new Set(STATE.institutions.map((i) => String(i.name || '').trim()).filter(Boolean))
+            ].sort((a, b) => a.localeCompare(b, 'ko'));
+            if (!keys.length) {
+                alert('등록된 기관이 없어요.');
+                return;
+            }
+            if (keys.length > 1) {
+                alert(
+                    '기관이 여러 개입니다.\n목록에서 기관명을 눌러 허브로 들어간 뒤 「기관 종합 분석 결과 보기」를 눌러 주세요.'
+                );
+                return;
+            }
+            STATE.selectedGroupName = keys[0];
+            this.openInstitutionReport();
+        },
+
+        openDashboardPrePostReport() {
+            const keys = [
+                ...new Set(STATE.institutions.map((i) => String(i.name || '').trim()).filter(Boolean))
+            ].sort((a, b) => a.localeCompare(b, 'ko'));
+            if (!keys.length) {
+                alert('등록된 기관이 없어요.');
+                return;
+            }
+            if (keys.length > 1) {
+                alert(
+                    '기관이 여러 개입니다.\n목록에서 기관명을 눌러 허브로 들어간 뒤 「사전·사후 성과 비교 보고서」를 눌러 주세요.'
+                );
+                return;
+            }
+            STATE.selectedGroupName = keys[0];
+            this.openInstitutionPrePostReport();
+        },
+
+        openInstitutionReportFromResult() {
+            const inst = STATE.selected();
+            if (!inst) return;
+            STATE.selectedGroupName = String(inst.name || '').trim();
+            STATE.persist();
+            this.openInstitutionReport();
+        },
+
+        openInstitutionPrePostFromResult() {
+            const inst = STATE.selected();
+            if (!inst) return;
+            STATE.selectedGroupName = String(inst.name || '').trim();
+            STATE.persist();
+            this.openInstitutionPrePostReport();
+        },
+
+        backFromInstitutionTypeMacroReport() {
+            STATE.step = 'dashboard';
+            UI.render();
+        },
+        goSetup() {
+            STATE.step = 'setup';
+            STATE.isPreviewSample = false;
+            MS._instDropdownAll = false;
+            const sel = STATE.selected();
+            STATE.searchTerm = sel ? sel.name : '';
+            STATE.setupObsPhase =
+                sel && (sel.obsPhase === 'pre' || sel.obsPhase === 'post') ? sel.obsPhase : '';
+            STATE.persist();
+            UI.render();
+        },
+        onNameInput(val) {
+            STATE.searchTerm = val;
+            MS._instDropdownAll = false;
+            const match = STATE.institutions.find((i) => i.name === val.trim());
+            STATE.selectedId = match ? match.id : null;
+            if (match) STATE.setupTypeOverride = null;
+            MS.updateInstDropdown();
+        },
+        setType(t) {
+            const sel = STATE.selected();
+            if (sel) {
+                sel.type = t;
+                STATE.setupTypeOverride = null;
+            } else {
+                STATE.setupTypeOverride = t;
+            }
+            STATE.persist();
+            UI.render();
+        },
+        startTest() {
+            const el = document.getElementById('inst-name');
+            const name = (el && el.value.trim()) || STATE.searchTerm.trim();
+            if (!name) {
+                alert('기관 이름을 넣어 주세요.');
+                return;
+            }
+            const phaseEl = document.getElementById('ms-obs-phase');
+            const phase =
+                phaseEl && (phaseEl.value === 'pre' || phaseEl.value === 'post') ? phaseEl.value : '';
+            let inst = STATE.institutions.find((i) => String(i.name).trim() === name);
+            if (!inst) {
+                inst = STATE.addInstitution(name);
+                inst.type = STATE.setupTypeOverride || STATE.guessType(name);
+                inst.obsPhase = phase;
+            } else {
+                STATE.selectedId = inst.id;
+                STATE.ensureCounts(inst);
+                if (STATE.setupTypeOverride) inst.type = STATE.setupTypeOverride;
+                if (phase === 'pre' || phase === 'post') inst.obsPhase = phase;
+            }
+            STATE.setupObsPhase = phase;
+            STATE.setupTypeOverride = null;
+            STATE.step = 'input';
+            STATE.isPreviewSample = false;
+            STATE.touchSelected();
+            STATE.persist();
+            UI.render();
+        },
+        openInput(id) {
+            STATE.selectedId = id;
+            STATE.step = 'input';
+            STATE.isPreviewSample = false;
+            STATE.persist();
+            UI.render();
+        },
+
+        /** 히스토리: 기관명 그룹 → 최신·유효 기록으로 결과 또는 입력 */
+        openHistoryToReport(encName) {
+            const name = decodeURIComponent(encName || '').trim();
+            if (!name) return;
+            const members = SCHEMA.membersByInstitutionName(STATE.institutions, name);
+            if (!members.length) return;
+            const withData = members.filter((m) => UI.hasAnyCount(m.counts));
+            const pool = withData.length ? withData : members;
+            pool.sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+            const pick = pool[0];
+            STATE.selectedId = pick.id;
+            STATE.isPreviewSample = false;
+            STATE.searchTerm = name;
+            if (withData.length && UI.hasAnyCount(pick.counts)) {
+                STATE.step = 'result';
+            } else {
+                STATE.step = 'input';
+            }
+            STATE.persist();
+            UI.render();
+        },
+        setCount(qid, field, val) {
+            const inst = STATE.selected();
+            if (!inst) return;
+            STATE.ensureCounts(inst);
+            inst.counts[qid][field] = val === '' ? '' : String(Math.max(0, parseInt(val, 10) || 0));
+            STATE.isPreviewSample = false;
+            STATE.touchSelected();
+            STATE.persist();
+        },
+        goResult() {
+            const inst = STATE.selected();
+            if (!inst || !UI.hasAnyCount(inst.counts)) {
+                alert('최소 한 문항에 O 또는 X 인원 수를 넣어 주세요.');
+                return;
+            }
+            STATE.touchSelected();
+            STATE.step = 'result';
+            STATE.persist();
+            UI.render();
+        },
+        backToInput() {
+            STATE.step = 'input';
+            STATE.isPreviewSample = false;
+            STATE.persist();
+            UI.render();
+        },
+        runPreview() {
+            const el = document.getElementById('inst-name');
+            let name = (el && el.value.trim()) || STATE.searchTerm.trim();
+            if (!name) name = '삼계중앙어린이집';
+            let inst = STATE.institutions.find((i) => i.name === name);
+            if (!inst) {
+                inst = STATE.addInstitution(name);
+            } else {
+                STATE.selectedId = inst.id;
+                STATE.ensureCounts(inst);
+                STATE.persist();
+            }
+            const demo = [
+                { yes: 14, no: 2 }, { yes: 12, no: 4 }, { yes: 9, no: 7 }, { yes: 11, no: 5 },
+                { yes: 10, no: 6 }, { yes: 8, no: 8 }, { yes: 13, no: 3 }, { yes: 15, no: 1 }
+            ];
+            SCHEMA.questions.forEach((q, i) => {
+                inst.counts[q.id] = { yes: String(demo[i].yes), no: String(demo[i].no) };
+            });
+            STATE.isPreviewSample = true;
+            STATE.step = 'result';
+            STATE.persist();
+            UI.render();
+        },
+        exportBackup: () => {
+            void UI.exportBackup();
+        },
+        triggerImport: () => UI.triggerImport(),
+
+        openForestMapModal() {
+            const inst = STATE.selected();
+            if (!inst) return;
+            const scores = SCHEMA.scoresFromCounts(inst.counts);
+            const root = document.getElementById('ms-modal-root');
+            if (!root) return;
+            const summary = UI.buildHarmonySummary(scores);
+            const svg = UI.buildRadarSvg(scores);
+            root.className =
+                'print-hidden fixed inset-0 z-[200] flex items-center justify-center p-4';
+            root.innerHTML = `
+                <div class="absolute inset-0 bg-black/45" onclick="MS.closeForestMapModal()" aria-hidden="true"></div>
+                <div class="relative w-full max-w-md rounded-[2rem] bg-[#FDFBF7] shadow-2xl border border-[#2D4A3E]/12 p-6 md:p-8 max-h-[88vh] overflow-y-auto" onclick="event.stopPropagation()">
+                    <h3 id="ms-modal-title" class="text-lg md:text-xl font-black text-[#2D4A3E] text-center mb-1 leading-tight">우리 아이의 마음 숲 지도</h3>
+                    <p class="text-center text-[10px] text-gray-400 mb-4">4기질 비교 · 레이더</p>
+                    <div class="flex justify-center overflow-x-auto">${svg}</div>
+                    <p class="text-sm text-ms-body leading-relaxed mt-4 mb-6 text-left">${UI.esc(summary)}</p>
+                    <button type="button" class="w-full rounded-full border-2 border-[#2D4A3E] bg-transparent text-[#2D4A3E] font-bold py-3 text-sm mb-2 hover:bg-[rgba(45,74,62,0.06)]" onclick="MS.goHomeToDashboard()">🏠 홈으로 — 대시보드</button>
+                    <button type="button" class="w-full rounded-full bg-[#2D4A3E] text-white font-bold py-3.5 text-sm shadow-md hover:brightness-95" onclick="MS.closeForestMapModal()">닫기</button>
+                </div>
+            `;
+            document.body.style.overflow = 'hidden';
+        },
+
+        closeForestMapModal() {
+            const root = document.getElementById('ms-modal-root');
+            if (root) {
+                root.className = 'hidden print-hidden';
+                root.innerHTML = '';
+            }
+            document.body.style.overflow = '';
+        },
+
+        /**
+         * 결과·종합 화면에서 홈(대시보드)으로.
+         * 방금 본 관찰 1건은 금고·목록에서 제거해 대시보드를 비웁니다(미리보기 제외). 인쇄·보내기 파일은 그대로입니다.
+         */
+        goHomeToDashboard() {
+            MS.closeForestMapModal();
+            const wasPreview = STATE.isPreviewSample;
+            try {
+                MS.purgeCurrentCompletedExamFromVault();
+            } catch (_) {}
+            try {
+                STATE.persist();
+            } catch (_) {}
+            STATE.step = 'dashboard';
+            STATE.isPreviewSample = false;
+            STATE.selectedGroupName = '';
+            STATE.setupObsPhase = '';
+            STATE.searchTerm = '';
+            STATE.selectedId = null;
+            STATE.toastMessage = wasPreview
+                ? '미리보기를 종료했어요.'
+                : '검사 기록을 정리했어요. 목록에서 사라졌으며, 새 검사는 설정에서 다시 시작할 수 있어요.';
+            if (STATE._toastTimer) clearTimeout(STATE._toastTimer);
+            UI.render();
+            STATE._toastTimer = setTimeout(() => {
+                STATE.toastMessage = null;
+                UI.render();
+            }, 2600);
+        }
+    };
+
+    window.MS = MS;
+
+    STATE.hydrate();
+    if (!STATE.institutions.length) {
+        STATE.step = 'dashboard';
+        STATE.searchTerm = '';
+        STATE.selectedId = null;
+    }
+    UI.render();
+})();
+</script>
+</body>
+</html>

@@ -27,6 +27,68 @@ function assertPortoneKeys(c: Context): { impKey: string; impSecret: string } {
   return { impKey, impSecret }
 }
 
+/** 레거시 D1 스키마: orders 에 pg_provider / order_name 컬럼이 없을 수 있음 */
+async function insertPendingOrderRow(
+  db: D1Database,
+  args: {
+    userId: number
+    courseId: number
+    merchant_uid: string
+    amount: number
+    orderName: string
+  }
+): Promise<{ success: boolean; error?: string; meta?: unknown }> {
+  const bindsFull: (number | string)[] = [
+    args.userId,
+    args.courseId,
+    args.merchant_uid,
+    args.amount,
+    args.orderName,
+  ]
+  const attempts: { sql: string; bind: (number | string)[] }[] = [
+    {
+      sql: `INSERT INTO orders (
+        user_id, course_id, merchant_uid, amount, order_name, status, pg_provider
+      ) VALUES (?, ?, ?, ?, ?, 'pending', 'portone')`,
+      bind: bindsFull,
+    },
+    {
+      sql: `INSERT INTO orders (
+        user_id, course_id, merchant_uid, amount, order_name, status
+      ) VALUES (?, ?, ?, ?, ?, 'pending')`,
+      bind: bindsFull,
+    },
+    {
+      sql: `INSERT INTO orders (
+        user_id, course_id, merchant_uid, amount, status
+      ) VALUES (?, ?, ?, ?, 'pending')`,
+      bind: [args.userId, args.courseId, args.merchant_uid, args.amount],
+    },
+  ]
+
+  let last: { success: boolean; error?: string; meta?: unknown } = { success: false, error: 'no attempts' }
+  for (const { sql, bind } of attempts) {
+    const ins = await db.prepare(sql).bind(...bind).run()
+    const err = typeof (ins as { error?: string }).error === 'string' ? (ins as { error: string }).error : ''
+    if (ins.success) {
+      return { success: true, meta: (ins as { meta?: unknown }).meta }
+    }
+    last = {
+      success: false,
+      error: err || 'INSERT failed',
+      meta: (ins as { meta?: unknown }).meta,
+    }
+    const retry =
+      /no such column|has no column|SQLITE_ERROR.*column/i.test(err) ||
+      err.includes('pg_provider') ||
+      err.includes('order_name')
+    if (!retry) {
+      break
+    }
+  }
+  return last
+}
+
 /**
  * GET /api/portone/public-config
  * IMP.init(impCode), request_pay(pg) — 비밀키 미포함
@@ -47,12 +109,31 @@ portone.get('/public-config', (c) => {
 /**
  * POST /api/portone/prepare
  * orders 에 pending 행 생성 후 merchant_uid 등 반환
+ * (PortOne 토큰/사전등록 fetch 없음 — 해당 호출은 /complete 에서만 수행)
  */
 portone.post('/prepare', requireAuth, async (c) => {
   try {
-    const user = c.get('user')
-    const { course_id } = await c.req.json<{ course_id: number }>()
-    if (!course_id || typeof course_id !== 'number') {
+    const user = c.get('user') as { id: number; email?: string | null; name?: string | null } | undefined
+    if (!user?.id) {
+      return c.json({ success: false, message: '로그인 정보가 올바르지 않습니다.', detail: 'user.id missing' }, 401)
+    }
+
+    let body: { course_id?: unknown } = {}
+    try {
+      body = await c.req.json<{ course_id?: unknown }>()
+    } catch {
+      return c.json(
+        { success: false, message: '요청 본문(JSON)을 읽을 수 없습니다.', detail: 'Invalid JSON body' },
+        400
+      )
+    }
+
+    const rawId = body.course_id
+    const course_id =
+      typeof rawId === 'number' && Number.isFinite(rawId)
+        ? Math.trunc(rawId)
+        : parseInt(String(rawId ?? ''), 10)
+    if (!Number.isFinite(course_id) || course_id <= 0) {
       return c.json(errorResponse('course_id가 필요합니다.'), 400)
     }
 
@@ -111,25 +192,22 @@ portone.post('/prepare', requireAuth, async (c) => {
 
     const merchant_uid = `PO-${generateOrderId()}`
 
-    const ins = await DB.prepare(
-      `INSERT INTO orders (
-        user_id, course_id, merchant_uid, amount, order_name, status, pg_provider
-      ) VALUES (?, ?, ?, ?, ?, 'pending', 'portone')`
-    )
-      .bind(user.id, course_id, merchant_uid, amount, course.title)
-      .run()
+    const ins = await insertPendingOrderRow(DB, {
+      userId: user.id,
+      courseId: course_id,
+      merchant_uid,
+      amount,
+      orderName: course.title,
+    })
 
     if (!ins.success) {
-      const d1Err =
-        typeof (ins as { error?: string }).error === 'string'
-          ? (ins as { error: string }).error
-          : '주문 INSERT가 success=false 로 끝났습니다.'
+      const d1Err = ins.error || '주문 INSERT가 실패했습니다.'
       console.error('[PORTONE_PREPARE_ERROR]', d1Err, ins)
       return c.json(
         {
           success: false,
           message: d1Err,
-          detail: `${d1Err} | meta: ${JSON.stringify((ins as { meta?: unknown }).meta ?? {})}`,
+          detail: `${d1Err} | meta: ${JSON.stringify(ins.meta ?? {})}`,
         },
         500
       )
@@ -147,8 +225,8 @@ portone.post('/prepare', requireAuth, async (c) => {
         merchant_uid,
         amount,
         orderName: course.title,
-        buyerName: user.name,
-        buyerEmail: user.email,
+        buyerName: user.name ?? '',
+        buyerEmail: user.email ?? '',
         pg: getPortonePg(c),
       })
     )

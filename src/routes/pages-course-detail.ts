@@ -47,7 +47,7 @@ app.get('/courses/:id', async (c) => {
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script src="https://cdn.iamport.kr/js/iamport.payment-1.2.0.js"></script>
         <script src="/static/js/auth.js?v=20260329-admin-name"></script>
-        <script src="/static/js/utils.js"></script>
+        <script src="/static/js/utils.js${STATIC_JS_CACHE_QUERY}"></script>
         <script src="/static/js/content-protection.js${STATIC_JS_CACHE_QUERY}"></script>
         ${siteHeaderNavCoursesGlassStyles()}
         ${siteFloatingQuickMenuStyles()}
@@ -265,13 +265,14 @@ app.get('/courses/:id', async (c) => {
                     document.getElementById('totalDuration').textContent = (courseData.total_duration_minutes || 0) + '분';
                     document.getElementById('enrolledCount').textContent = courseData.enrolled_count || 0;
                     
-                    // 가격
-                    if (courseData.price === 0) {
+                    // 가격 (할인가 우선; 실제 청구 금액 기준으로 무료/유료 표시)
+                    const finalPrice = (courseData.discount_price != null && courseData.discount_price > 0)
+                        ? courseData.discount_price
+                        : (courseData.price || 0);
+                    if (finalPrice <= 0) {
                         document.getElementById('coursePrice').textContent = '무료';
-                    } else if (courseData.price) {
-                        document.getElementById('coursePrice').textContent = courseData.price.toLocaleString() + '원';
                     } else {
-                        document.getElementById('coursePrice').textContent = '미정';
+                        document.getElementById('coursePrice').textContent = finalPrice.toLocaleString() + '원';
                     }
 
                     // 수강 버튼: 관리자는 프리패스 학습 + (미수강 시) 일반 수강신청·결제 흐름도 시험 가능
@@ -293,10 +294,7 @@ app.get('/courses/:id', async (c) => {
                         enrollBtn.classList.remove('hidden');
                     }
 
-                    const finalPrice = (courseData.discount_price != null && courseData.discount_price > 0)
-                        ? courseData.discount_price
-                        : (courseData.price || 0);
-                    const isPaidCourse = finalPrice > 0 && courseData.is_free !== 1;
+                    const isPaidCourse = finalPrice > 0;
                     const buyBtn = document.getElementById('buyCourseBtn');
                     if (isPaidCourse && !hasPaidAccess) {
                         buyBtn.classList.remove('hidden');
