@@ -224,6 +224,23 @@ app.get('/admin-users.html', (c) => c.redirect('/admin/members', 302))
 app.get('/admin-users', (c) => c.redirect('/admin/members', 302))
 app.get('/pg-business-info.html', (c) => c.redirect('/pg-business-info', 302))
 
+// 유아숲 행동관찰 단일 도구 — 공식 URL: https://mindstory.kr/forest.html
+app.get('/forest', (c) => c.redirect('/forest.html', 302))
+app.get('/유아숲 행동관찰.html', (c) => c.redirect('/forest.html', 302))
+/** exclude에만 의존하지 않고, Worker 경로로 들어온 경우에도 정적 HTML을 ASSETS에서 반환 */
+app.get('/forest.html', async (c) => {
+  const assets = c.env.ASSETS
+  if (!assets) return c.text('Not Found', 404)
+  const url = new URL(c.req.url)
+  const assetReq = new Request(`${url.origin}/forest.html`, {
+    method: 'GET',
+    headers: c.req.raw.headers,
+  })
+  const res = await assets.fetch(assetReq)
+  if (res.status === 404) return c.text('Not Found', 404)
+  return res
+})
+
 // 페이지 라우트 (약관·개인정보·환불은 다른 / 라우터보다 먼저 등록)
 app.route('/', landing)  // 신규 랜딩 페이지 (Phase 3)
 app.route('/', pagesLegal) // /terms, /privacy, /refund

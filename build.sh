@@ -15,7 +15,7 @@ cat > dist/_routes.json << 'ROUTES'
 {
   "version": 1,
   "include": ["/*"],
-  "exclude": ["/uploads/*", "/static/*", "/pg-business-info.html", "/mindstory-4gunja-temperament.html", "/forest.html", "/google7186e759c88da5d4.html"]
+  "exclude": ["/uploads/*", "/static/*", "/pg-business-info.html", "/mindstory-4gunja-temperament.html", "/유아숲 행동관찰.html", "/google7186e759c88da5d4.html"]
 }
 ROUTES
 echo "✅ _routes.json 생성 완료"
