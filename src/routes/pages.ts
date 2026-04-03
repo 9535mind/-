@@ -27,18 +27,6 @@ import { SITE_POPUP_SCRIPT_TAG } from '../utils/site-popup-script'
 const pages = new Hono<{ Bindings: Bindings; Variables: { user?: User } }>()
 pages.use('*', optionalAuth)
 
-pages.get('/forest.html', async (c) => {
-  if (!c.env.ASSETS) return c.notFound()
-  return c.env.ASSETS.fetch(c.req.raw)
-})
-
-pages.get('/forest', async (c) => {
-  if (!c.env.ASSETS) return c.notFound()
-  const url = new URL(c.req.url)
-  url.pathname = '/forest.html'
-  return c.env.ASSETS.fetch(new Request(url, c.req.raw))
-})
-
 // 공통 헤더/푸터 컴포넌트 (SSR: 관리자 미처리 문의 시 커맨드 센터 펄스)
 const getHeader = async (c: Context) => {
   const adminCommandPulse = await resolveAdminCommandPulse(c)
