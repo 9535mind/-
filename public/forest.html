@@ -474,11 +474,11 @@
     }
 
     /**
-     * SCHEMA — v14.0 FINAL (v19.0 UI 규격)
+     * SCHEMA — v21.0 유아부 8문항 최종 (8Q FINAL) · 초등 12문항
      * 톤: MINDSTORY V1 · 관찰과 공감 · 따뜻한 어휘
      */
     const SCHEMA = {
-        version: '14.0',
+        version: '21.0',
         categories: ['난초', '대나무', '국화', '매화'],
         /** 동점 시 정렬: 매(매화) → 란(난초) → 국(국화) → 죽(대나무) */
         temperamentTieOrder: ['매화', '난초', '국화', '대나무'],
@@ -500,6 +500,16 @@
         questionsForGroup(g) {
             return g === 'elementary' ? this.questionsElementary : this.questionsPreschool;
         },
+        /** v21.0 이전 형식(ps_1~ps_12)만 있는 기록도 유아부로 인식 */
+        legacyPreschoolSlotsSum(counts) {
+            const c = counts || {};
+            let s = 0;
+            for (let i = 1; i <= 12; i++) {
+                const row = c['ps_' + i] || {};
+                s += (parseInt(row.yes, 10) || 0) + (parseInt(row.no, 10) || 0);
+            }
+            return s;
+        },
         getTargetGroup(inst) {
             if (!inst) return 'preschool';
             const t = inst.targetGroup;
@@ -512,7 +522,8 @@
                 }, 0);
             const sp = sum(this.questionsPreschool);
             const se = sum(this.questionsElementary);
-            if (se > 0 && sp === 0) return 'elementary';
+            const legPs = this.legacyPreschoolSlotsSum(c);
+            if (se > 0 && sp === 0 && legPs === 0) return 'elementary';
             return 'preschool';
         },
         migrateLegacyCounts(inst) {
@@ -735,7 +746,8 @@
                 const n = parseInt(row.no, 10) || 0;
                 const t = y + n;
                 if (t === 0) return;
-                acc[q.cat].yes += y;
+                const aligned = q.isReverse ? n : y;
+                acc[q.cat].yes += aligned;
                 acc[q.cat].n += t;
             });
             const pct = {};
@@ -758,9 +770,14 @@
                 const row = counts[q.id] || { yes: '', no: '' };
                 const y = parseInt(row.yes, 10) || 0;
                 const x = parseInt(row.no, 10) || 0;
-                totals[q.cat] += y;
                 const alt = xmap[q.cat];
-                if (alt) totals[alt] += x;
+                if (q.isReverse) {
+                    totals[q.cat] += x;
+                    if (alt) totals[alt] += y;
+                } else {
+                    totals[q.cat] += y;
+                    if (alt) totals[alt] += x;
+                }
             });
             return totals;
         },
@@ -836,6 +853,7 @@
                     question_id: idx + 1,
                     question_key: q.id,
                     o_cat: q.cat,
+                    is_reverse: !!q.isReverse,
                     question_text: q.text,
                     question_sub: q.sub || '',
                     question_desc: q.desc || '',
@@ -1345,6 +1363,9 @@
             };
             if (SCHEMA.questionsPreschool.some(rowHas)) return true;
             if (SCHEMA.questionsElementary.some(rowHas)) return true;
+            for (let i = 1; i <= 12; i++) {
+                if (rowHas({ id: 'ps_' + i })) return true;
+            }
             for (let i = 1; i <= 8; i++) {
                 if (rowHas({ id: 'q' + i })) return true;
             }
@@ -2269,11 +2290,20 @@
                 STATE.dashboardBuilderTypeFilter = btf;
             }
 
+            const recentLabel = MS.getLatestExamResultButtonLabel();
+            const recentResultBtnHtml = recentLabel
+                ? `<button type="button"
+                        class="ms-btn w-full rounded-2xl border-2 border-[#5D4037]/35 bg-[#FAF6F0] text-[#5D4037] font-black py-4 text-sm mt-5 leading-snug text-center shadow-sm active:scale-[0.99] hover:bg-[rgba(93,64,55,0.08)]"
+                        onclick="MS.navigateToLatestResult()">${this.esc(recentLabel)}</button>`
+                : '';
+
             const adminOpenInCardHtml = showAdmin
                 ? ''
-                : `<button type="button"
-                        class="ms-btn w-full rounded-2xl border-2 border-[#5D4037] bg-[#FDFBF7] text-[#5D4037] font-black py-4 text-sm mt-5 shadow-sm active:scale-[0.99] hover:bg-[rgba(93,64,55,0.06)]"
-                        onclick="MS.openAdminUnlockModal()">관리자 대시보드 열기</button>`;
+                : `<div class="mt-8 pt-5 border-t border-[#5D4037]/12 text-center">
+                        <button type="button"
+                            class="text-[10px] font-semibold text-[#5D4037]/75 hover:text-[#5D4037] underline underline-offset-2 decoration-[#5D4037]/40"
+                            onclick="MS.openAdminUnlockModal()">관리자 전용: 대시보드 열기</button>
+                    </div>`;
 
             const adminDashboardPanel = `
                         <button type="button" id="ms-dashboard-toggle"
@@ -2334,13 +2364,17 @@
 
             el.innerHTML = `
                 <div class="max-w-lg mx-auto">
-                    <p class="mb-4 text-[10px] text-ms-muted leading-snug px-2 text-center print-hidden">
-                        통합 엔진 v1.5 · <span class="font-black text-[#1B5E20] tracking-wide">[SCHEMA v14.0 - FINAL]</span> · 보고서 v2.0
+                    <p class="mb-1 text-[10px] text-ms-muted leading-snug px-2 text-center print-hidden">
+                        통합 엔진 v1.5 · <span class="font-black text-[#1B5E20] tracking-wide">[SCHEMA v21.0 - 8Q FINAL]</span> · 보고서 v2.0
+                    </p>
+                    <p class="mb-4 text-[9px] text-ms-muted leading-relaxed px-3 text-center print-hidden max-w-md mx-auto opacity-95">
+                        ※ 개인정보 보호를 위해 전체 대시보드는 관리자 인증 후 열립니다.
                     </p>
                     ${migrateNote}
                     <div id="dashboard" class="ms-card p-8 md:p-10 mb-6 shadow-[0_12px_40px_rgba(45,74,62,0.1)] border-2 border-[rgba(45,74,62,0.1)]">
                         <button type="button" class="ms-btn w-full !rounded-2xl md:!rounded-3xl bg-[#5D4037] text-[#FFFFFF] font-black py-6 md:py-7 text-lg md:text-xl shadow-[0_5px_18px_rgba(0,0,0,0.22)] hover:bg-[#4E342E] active:bg-[#4E342E] active:scale-[0.99] transition-colors duration-200 ease-out"
                             onclick="MS.openNewExamPrepModal({ cleanInst: true })">새 검사 시작</button>
+                        ${recentResultBtnHtml}
                         ${adminOpenInCardHtml}
                     </div>
                     ${
@@ -2902,7 +2936,11 @@
                             <div class="ms-card p-6 md:p-6 border-l-[10px] border-[#2D4A3E]">
                                 <div class="flex items-start gap-2 mb-4 md:mb-3">
                                     <p class="font-bold text-ms-body flex-1 text-sm leading-snug m-0">
-                                        <span class="text-[#D4A373] mr-2">Q${idx + 1}.</span>${this.esc(q.text)}
+                                        <span class="text-[#D4A373] mr-2">Q${idx + 1}.</span>${this.esc(q.text)}${
+                                    q.isReverse
+                                        ? ' <span class="text-[10px] font-black text-[#D4A373] align-middle">(역채점)</span>'
+                                        : ''
+                                }
                                     </p>
                                     <button type="button" class="ms-btn shrink-0 flex items-center justify-center w-9 h-9 min-w-[44px] min-h-[44px] rounded-full border-2 border-[#2D4A3E]/25 text-[#2D4A3E] font-black text-sm hover:bg-[rgba(45,74,62,0.06)]"
                                         onclick="MS.openQuestionHelpModal('${q.id}')" aria-label="부연·설명 보기">?</button>
@@ -2948,6 +2986,7 @@
             const totalsO = SCHEMA.rawOTotalsFromCounts(inst.counts, tgRes);
             const rankedTemperaments = SCHEMA.rankTemperamentsByRawO(totalsO);
             const totalOXSlots = SCHEMA.totalOXSlotsFromCounts(inst.counts, tgRes);
+            const hasRevPs = tgRes === 'preschool' && SCHEMA.questionsPreschool.some((q) => q.isReverse);
             const maxO = Math.max(1, ...rankedTemperaments.map((r) => r.score));
             const name = this.esc(inst.name);
             const preview = STATE.isPreviewSample
@@ -3015,6 +3054,11 @@
             const rankSectionHtml = `
                 <div class="ms-card p-6 md:p-8 text-left mb-6 border-2 border-[rgba(45,74,62,0.15)] bg-[rgba(253,251,247,0.98)]">
                     <h3 class="text-sm font-black text-[#2D4A3E] tracking-[0.12em] mb-1">기질별 순위 (O·X 반영 총점)</h3>
+                    ${
+                        hasRevPs
+                            ? `<p class="text-[11px] text-[#D4A373] mb-2 leading-relaxed">유아·유치부 <strong>역채점</strong> 문항(Q1)은 집계 시 예·아니오가 아래 규칙과 <strong>반대로</strong> 합산됩니다.</p>`
+                            : ''
+                    }
                     <p class="text-[11px] text-ms-muted mb-2 leading-relaxed">
                         각 문항마다 <strong class="text-[#2D4A3E]">O(예)</strong>는 해당 문항 기질에,
                         <strong class="text-[#2D4A3E]">X(아니오)</strong>는 대안 발현 기질(예: 매화 문항의 X → 신중·안정 국화)에 더합니다.
@@ -3187,119 +3231,93 @@
 
     const FOREST_MANUAL_DATA = {
         preschool: {
-            heading: '🌲 [유아·유치부] 4군자 숲속 기질 지표 정의서',
-            intro:
-                '본 문항은 영유아의 기질이 숲이라는 첫 사회적 놀이 환경에서 어떻게 본능적 행동으로 나타나는지 측정합니다.',
+            heading: '🌲 유아·유치부 가이드 (8문항)',
+            intro: '영유아의 본능적 기질과 첫 사회적 놀이 반응을 측정합니다.',
             groups: [
                 {
-                    emoji: '🔴',
-                    name: '매화',
-                    sub: '주도·책임',
+                    emoji: '🌸',
+                    name: '난초',
+                    sub: '공감/배려',
                     items: [
                         {
                             n: 1,
-                            text: '좁은 숲길이나 오르막에서 멈추지 않고 선두로 나간다.',
-                            bu: '낯선 길에서도 망설임 없이 발을 내디디며 "내가 1등!"이라고 외치는지 확인합니다.',
-                            def: '(추동): 초기 탐색 에너지를 측정하며, 환경에 대한 주도적 태도와 선천적 추진력을 봅니다.'
+                            text: 'Q1 (역채점): 벌레/새싹을 직접 만지거나 밟는지 관찰.',
+                            bu: '생명을 함부로 다루지 않고 보호하려는 태도를 측정',
+                            def: ''
                         },
                         {
                             n: 2,
-                            text: '숲 선생님의 설명이 끝나자마자 놀이 재료를 먼저 집어 든다.',
-                            bu: '나뭇잎 놀이 등을 시작할 때, 가장 먼저 손을 뻗어 자신의 재료를 확보하는지 봅니다.',
-                            def: '(장악): 목표물에 대한 즉각적인 반응성을 측정하며, 상황을 주도하려는 행동 성향을 파악합니다.'
-                        },
-                        {
-                            n: 3,
-                            text: '다 놀고 난 뒤 자신의 바구니나 숲 가방을 스스로 챙긴다.',
-                            bu: '이동하자는 말에 선생님 도움 없이 자신의 물건을 챙기려 노력하는지 확인합니다.',
-                            def: '(자조): 자립성의 초기 형태를 측정하며, 자신의 영역을 관리하려는 책임 의식을 봅니다.'
+                            text: 'Q2: 친구가 울 때 다가가는지 관찰.',
+                            bu: '정서적 유대감의 기초 확인',
+                            def: ''
                         }
                     ]
                 },
                 {
-                    emoji: '🟢',
-                    name: '난초',
-                    sub: '공감·배려',
+                    emoji: '🎋',
+                    name: '대나무',
+                    sub: '자유/탐구',
                     items: [
                         {
-                            n: 4,
-                            text: '친구가 넘어져서 울 때 하던 놀이를 멈추고 쳐다보거나 다가간다.',
-                            bu: '주변의 울음소리에 민감하게 반응하며 친구 곁에서 걱정스러운 표정을 짓는지 봅니다.',
-                            def: '(동조): 타인의 감정 자극에 대한 반응성을 측정하며, 정서적 유대감의 기초를 파악합니다.'
+                            n: 3,
+                            text: 'Q3: 지시 전 행동 개시 여부.',
+                            bu: '행동적 호기심과 즉각적인 반응성 확인',
+                            def: ''
                         },
                         {
+                            n: 4,
+                            text: 'Q4: 역동적인 신체 활동 여부.',
+                            bu: '신체적 유능감과 모험심 측정',
+                            def: ''
+                        }
+                    ]
+                },
+                {
+                    emoji: '🌼',
+                    name: '국화',
+                    sub: '신중/보호',
+                    items: [
+                        {
                             n: 5,
-                            text: '숲에서 발견한 개미나 꽃을 밟지 않으려고 조심해서 걷는다.',
-                            bu: '"개미 살려줘야 해"라고 말하며 작은 생명을 피해서 걷는 세심함이 있는지 확인합니다.',
-                            def: '(연민): 공감 능력의 초기 발현을 측정하며, 생명에 대한 부드러운 태도를 봅니다.'
+                            text: 'Q5: 낯선 곳에서 교사 의존도.',
+                            bu: '위험 회피 및 신중함 측정',
+                            def: ''
                         },
                         {
                             n: 6,
-                            text: '자신이 가진 예쁜 돌이나 열매를 친구에게 선뜻 보여주거나 준다.',
-                            bu: '소중한 것을 혼자 독점하지 않고 친구에게 "자, 이거 봐" 하며 나누려 하는지 봅니다.',
-                            def: '(공유): 초기 사회성 발달을 측정하며, 타인과의 긍정적 관계 맺기 성향을 파악합니다.'
+                            text: 'Q6: 청결 및 질서 유지 성향.',
+                            bu: '환경적 안정성에 대한 민감도 확인',
+                            def: ''
                         }
                     ]
                 },
                 {
-                    emoji: '🔵',
-                    name: '국화',
-                    sub: '신중·안정',
+                    emoji: '❄️',
+                    name: '매화',
+                    sub: '원칙/과업',
                     items: [
                         {
                             n: 7,
-                            text: '처음 가보는 숲 장소에서는 선생님의 손을 잡고 조심스럽게 들어간다.',
-                            bu: '새로운 공간에 바로 뛰쳐나가지 않고 안전함을 확인할 때까지 신중히 움직이는지 봅니다.',
-                            def: '(경계): 위험 회피 기제를 측정하며, 상황을 안전하게 탐색하려는 신중함을 봅니다.'
+                            text: 'Q7: 과업 재시도 및 끈기.',
+                            bu: '초기 단계의 과제 집착력 확인',
+                            def: ''
                         },
                         {
                             n: 8,
-                            text: '숲 선생님이 정해준 안전한 구역 안에서만 놀이를 즐긴다.',
-                            bu: '"여기까지야"라고 정한 선을 넘지 않고, 규칙을 지키며 노는 것에 안도감을 느끼는지 봅니다.',
-                            def: '(준수): 규칙 수용성을 측정하며, 정해진 틀 안에서 안정을 찾는 규범적 기질을 봅니다.'
-                        },
-                        {
-                            n: 9,
-                            text: '숲 체험 중 묻은 흙이나 먼지를 털어내며 깔끔하게 유지하려 한다.',
-                            bu: '손에 흙이 묻으면 털어달라고 하거나, 주변 환경이 정돈된 상태를 선호하는지 확인합니다.',
-                            def: '(정돈): 환경적 안정성에 대한 민감도를 측정하며, 체계적이고 깔끔한 성향의 기초를 봅니다.'
-                        }
-                    ]
-                },
-                {
-                    emoji: '🟡',
-                    name: '대나무',
-                    sub: '활기·탐구',
-                    items: [
-                        {
-                            n: 10,
-                            text: '나뭇가지를 흔들거나 돌멩이를 던지며 다양한 소리와 반응을 즐긴다.',
-                            bu: '사물을 있는 그대로 두지 않고, 두드리거나 던지며 어떤 변화가 일어나는지 관찰하는지 봅니다.',
-                            def: '(실험): 도구 활용 지능의 초기 단계를 측정하며, 사물과의 상호작용 의지를 파악합니다.'
-                        },
-                        {
-                            n: 11,
-                            text: '언덕을 구르거나 나무 사이를 뛰어다니며 신체 활동을 쉬지 않는다.',
-                            bu: '지치지 않고 숲 전체를 뛰어다니며 몸을 쓰는 활동에 큰 즐거움을 느끼는지 확인합니다.',
-                            def: '(활력): 신체적 에너지 수준을 측정하며, 역동적인 자극 추구 성향을 봅니다.'
-                        },
-                        {
-                            n: 12,
-                            text: '나무 구멍 속이나 돌 밑 등 구석진 곳을 끊임없이 들여다본다.',
-                            bu: '눈에 보이지 않는 곳에 무엇이 있는지 궁금해하며 계속해서 뒤져보고 찾아보는지 봅니다.',
-                            def: '(호기심): 지적/행동적 탐구 의지를 측정하며, 낯선 자극에 대한 긍정적 개방성을 파악합니다.'
+                            text: 'Q8: 스스로 정리정돈 여부.',
+                            bu: '자립성 및 내적 책임감 확인',
+                            def: ''
                         }
                     ]
                 }
             ]
         },
         elementary: {
-            heading: '🌲 [초등부/지역아동센터] 4군자 숲속 기질 지표 정의서',
-            intro:
-                '본 문항은 초등학생의 기질이 숲이라는 역동적 환경에서 어떻게 사회적 역할과 행동으로 나타나는지 측정합니다.',
+            heading: '🌲 초등부 가이드 (12문항)',
+            intro: '아동의 사회적 역할 수행과 환경 적응 능력을 측정합니다.',
             groups: [
                 {
-                    emoji: '🔴',
+                    emoji: '❄️',
                     name: '매화',
                     sub: '주도·책임',
                     items: [
@@ -3324,7 +3342,7 @@
                     ]
                 },
                 {
-                    emoji: '🟢',
+                    emoji: '🌸',
                     name: '난초',
                     sub: '공감·배려',
                     items: [
@@ -3349,7 +3367,7 @@
                     ]
                 },
                 {
-                    emoji: '🔵',
+                    emoji: '🌼',
                     name: '국화',
                     sub: '신중·안정',
                     items: [
@@ -3374,7 +3392,7 @@
                     ]
                 },
                 {
-                    emoji: '🟡',
+                    emoji: '🎋',
                     name: '대나무',
                     sub: '활기·탐구',
                     items: [
@@ -3406,26 +3424,32 @@
         const e = UI.esc.bind(UI);
         const d = FOREST_MANUAL_DATA[kind];
         if (!d) return '';
-        let html = `<div class="ms-manual-print-root px-1">
-            <header class="mb-10 text-center">
-                <h2 class="text-lg md:text-xl font-black text-[#2D4A3E] leading-snug">${e(d.heading)}</h2>
-                <p class="mt-5 text-sm text-[#5D4037] leading-relaxed">${e(d.intro)}</p>
+        const guideLabel = kind === 'preschool' ? '💡 가이드' : '💡 현장 관찰 포인트';
+        let html = `<div class="ms-manual-print-root px-0 sm:px-1">
+            <header class="mb-8 sm:mb-10 text-center px-1">
+                <h2 class="text-[15px] sm:text-base md:text-lg font-black text-[#2D4A3E] leading-snug tracking-tight">${e(d.heading)}</h2>
+                <p class="mt-3 sm:mt-4 text-sm sm:text-[15px] md:text-base text-[#5D4037] leading-relaxed max-w-prose mx-auto">${e(d.intro)}</p>
             </header>`;
         d.groups.forEach((g) => {
-            html += `<section class="mb-14">
-                <h3 class="text-base md:text-lg font-black text-[#2D4A3E] mb-6 flex flex-wrap items-baseline gap-2">
-                    <span>${g.emoji} ${e(g.name)}</span>
-                    <span class="text-sm font-bold text-[#5D4037]/90">(${e(g.sub)})</span>
+            html += `<section class="mb-10 sm:mb-12">
+                <h3 class="text-sm sm:text-base md:text-lg font-black text-[#2D4A3E] mb-4 sm:mb-5 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                    <span>${g.emoji} ${e(g.name)} 기질</span>
+                    <span class="text-sm sm:text-[15px] font-bold text-[#5D4037]/90">(${e(g.sub)})</span>
                 </h3>`;
             g.items.forEach((it) => {
-                html += `<article class="rounded-2xl border border-[#5D4037]/12 bg-white/90 p-5 md:p-6 mb-10 shadow-sm ms-print-avoid-break">
-                    <p class="text-base md:text-lg font-black text-[#2D4A3E] leading-snug mb-5">${it.n}. ${e(it.text)}</p>
-                    <div class="rounded-xl bg-gray-50 p-4 mb-5 border border-[#5D4037]/10">
-                        <p class="text-xs font-black text-[#5D4037]/80 mb-2">💡 현장 관찰 포인트</p>
-                        <p class="text-sm text-[#5D4037]/95 leading-relaxed">${e(it.bu)}</p>
+                const defStr = it.def != null ? String(it.def).trim() : '';
+                const defBlock =
+                    defStr.length > 0
+                        ? `<p class="text-[11px] sm:text-xs font-black text-[#5D4037] mb-1.5">🔍 지표 정의</p>
+                    <p class="text-sm sm:text-[15px] font-medium leading-relaxed text-[#5D4037]">${e(it.def)}</p>`
+                        : '';
+                html += `<article class="rounded-2xl border border-[#5D4037]/12 bg-white/90 p-4 sm:p-5 md:p-6 mb-6 sm:mb-8 last:mb-0 shadow-sm ms-print-avoid-break">
+                    <p class="text-sm sm:text-[15px] md:text-base font-black text-[#2D4A3E] leading-snug mb-3 sm:mb-4">${it.n}. ${e(it.text)}</p>
+                    <div class="rounded-xl bg-gray-50 p-3 sm:p-4 border border-[#5D4037]/10">
+                        <p class="text-[11px] sm:text-xs font-black text-[#5D4037]/80 mb-1.5">${guideLabel}</p>
+                        <p class="text-sm sm:text-[15px] text-[#5D4037]/95 leading-relaxed">${e(it.bu)}</p>
                     </div>
-                    <p class="text-xs font-black text-[#5D4037] mb-2">🔍 지표 정의</p>
-                    <p class="text-sm font-medium leading-relaxed text-[#5D4037]">${e(it.def)}</p>
+                    ${defBlock ? `<div class="mt-3 sm:mt-4">${defBlock}</div>` : ''}
                 </article>`;
             });
             html += '</section>';
@@ -3851,29 +3875,30 @@
             const pHidden = MS._manualTab === 'elementary' ? 'hidden' : '';
             const eHidden = MS._manualTab === 'preschool' ? 'hidden' : '';
             const tabPsCls = MS._manualTab === 'preschool'
-                ? 'flex-1 rounded-full py-3.5 text-sm font-black min-h-[48px] transition-colors bg-[#2D4A3E] text-white shadow-inner'
-                : 'flex-1 rounded-full py-3.5 text-sm font-black min-h-[48px] transition-colors bg-white border-2 border-[#5D4037]/20 text-[#5D4037]';
+                ? 'flex-1 rounded-full py-3 sm:py-3.5 text-xs sm:text-sm font-black min-h-[44px] sm:min-h-[48px] transition-colors bg-[#2D4A3E] text-white shadow-inner'
+                : 'flex-1 rounded-full py-3 sm:py-3.5 text-xs sm:text-sm font-black min-h-[44px] sm:min-h-[48px] transition-colors bg-white border-2 border-[#5D4037]/20 text-[#5D4037]';
             const tabElCls =
                 MS._manualTab === 'elementary'
-                ? 'flex-1 rounded-full py-3.5 text-sm font-black min-h-[48px] transition-colors bg-[#2D4A3E] text-white shadow-inner'
-                : 'flex-1 rounded-full py-3.5 text-sm font-black min-h-[48px] transition-colors bg-white border-2 border-[#5D4037]/20 text-[#5D4037]';
-            root.className = 'fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-4';
+                ? 'flex-1 rounded-full py-3 sm:py-3.5 text-xs sm:text-sm font-black min-h-[44px] sm:min-h-[48px] transition-colors bg-[#2D4A3E] text-white shadow-inner'
+                : 'flex-1 rounded-full py-3 sm:py-3.5 text-xs sm:text-sm font-black min-h-[44px] sm:min-h-[48px] transition-colors bg-white border-2 border-[#5D4037]/20 text-[#5D4037]';
+            root.className =
+                'fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4 print:p-4';
             root.innerHTML = `
                 <div class="ms-manual-no-print absolute inset-0 bg-black/45" onclick="MS.closeManualModal()" aria-hidden="true"></div>
-                <div class="ms-manual-sheet relative w-full max-w-lg rounded-[2rem] bg-[#FDFBF7] shadow-2xl border-2 border-[#5D4037]/15 flex flex-col max-h-[92vh] overflow-hidden text-[#5D4037]" onclick="event.stopPropagation()" role="dialog" aria-modal="true" aria-label="4군자 숲속 기질 지표 정의서">
-                    <div class="ms-manual-no-print shrink-0 flex flex-wrap items-center justify-between gap-2 p-4 pb-2 border-b border-[#5D4037]/10">
+                <div class="ms-manual-sheet relative w-full max-w-full sm:max-w-xl lg:max-w-2xl sm:mx-auto rounded-t-[1.75rem] sm:rounded-[2rem] bg-[#FDFBF7] shadow-2xl border-2 border-[#5D4037]/15 flex flex-col max-h-[96vh] sm:max-h-[92vh] overflow-hidden text-[#5D4037] text-[15px] sm:text-base" onclick="event.stopPropagation()" role="dialog" aria-modal="true" aria-label="4군자 숲속 기질 지표 정의서">
+                    <div class="ms-manual-no-print shrink-0 flex flex-wrap items-center justify-between gap-2 px-3 sm:px-4 pt-3 sm:pt-4 pb-2 border-b border-[#5D4037]/10">
                         <button type="button" class="rounded-full border-2 border-[#5D4037]/30 bg-white px-4 py-2.5 text-xs font-black text-[#5D4037] shadow-sm active:scale-[0.99] min-h-[44px]"
                             onclick="MS.triggerManualPrint()">설명서 인쇄/PDF 저장</button>
                         <button type="button" class="rounded-full bg-[#5D4037] text-white px-5 py-2.5 text-xs font-black min-h-[44px] shadow-md active:scale-[0.99]"
                             onclick="MS.closeManualModal()">닫기</button>
                     </div>
-                    <div class="ms-manual-no-print shrink-0 flex gap-2 px-4 pt-3 pb-2">
+                    <div class="ms-manual-no-print shrink-0 flex gap-2 px-3 sm:px-4 pt-2 sm:pt-3 pb-2">
                         <button type="button" id="ms-manual-tab-ps" class="${tabPsCls}"
                             onclick="MS.setManualTab('preschool')">유아·유치부 가이드</button>
                         <button type="button" id="ms-manual-tab-el" class="${tabElCls}"
                             onclick="MS.setManualTab('elementary')">초등부 가이드</button>
                     </div>
-                    <div class="ms-manual-scroll flex-1 min-h-0 overflow-y-auto px-4 pb-8 pt-2 overscroll-contain">
+                    <div class="ms-manual-scroll flex-1 min-h-0 overflow-y-auto px-3 sm:px-4 pb-6 sm:pb-8 pt-1 sm:pt-2 overscroll-contain">
                         <div id="ms-manual-panel-preschool" class="${pHidden}">
                             ${forestManualBuildPanelHtml('preschool')}
                         </div>
@@ -3881,8 +3906,8 @@
                             ${forestManualBuildPanelHtml('elementary')}
                         </div>
                     </div>
-                    <div class="ms-manual-no-print shrink-0 p-4 pt-2 border-t border-[#5D4037]/10">
-                        <button type="button" class="w-full rounded-full border-2 border-[#5D4037]/30 bg-white py-3.5 text-sm font-black text-[#5D4037] min-h-[48px] shadow-sm active:scale-[0.99]"
+                    <div class="ms-manual-no-print shrink-0 px-3 sm:px-4 p-4 pt-2 pb-[max(1rem,env(safe-area-inset-bottom,0px))] border-t border-[#5D4037]/10">
+                        <button type="button" class="w-full rounded-full border-2 border-[#5D4037]/30 bg-white py-3.5 text-sm sm:text-base font-black text-[#5D4037] min-h-[48px] shadow-sm active:scale-[0.99]"
                             onclick="MS.closeManualModal()">닫기</button>
                     </div>
                 </div>
@@ -3906,8 +3931,8 @@
             const btnEl = document.getElementById('ms-manual-tab-el');
             if (ps) ps.classList.toggle('hidden', tab !== 'preschool');
             if (el) el.classList.toggle('hidden', tab !== 'elementary');
-            const on = 'flex-1 rounded-full py-3.5 text-sm font-black min-h-[48px] transition-colors bg-[#2D4A3E] text-white shadow-inner';
-            const off = 'flex-1 rounded-full py-3.5 text-sm font-black min-h-[48px] transition-colors bg-white border-2 border-[#5D4037]/20 text-[#5D4037]';
+            const on = 'flex-1 rounded-full py-3 sm:py-3.5 text-xs sm:text-sm font-black min-h-[44px] sm:min-h-[48px] transition-colors bg-[#2D4A3E] text-white shadow-inner';
+            const off = 'flex-1 rounded-full py-3 sm:py-3.5 text-xs sm:text-sm font-black min-h-[44px] sm:min-h-[48px] transition-colors bg-white border-2 border-[#5D4037]/20 text-[#5D4037]';
             if (btnPs) btnPs.className = tab === 'preschool' ? on : off;
             if (btnEl) btnEl.className = tab === 'elementary' ? on : off;
         },
@@ -3962,6 +3987,11 @@
                 <div class="absolute inset-0 bg-black/45" onclick="MS.closeQuestionHelpModal()" aria-hidden="true"></div>
                 <div class="relative w-full max-w-lg rounded-[2rem] bg-[#FDFBF7] shadow-2xl border border-[#2D4A3E]/12 p-6 md:p-8 max-h-[88vh] overflow-y-auto" onclick="event.stopPropagation()">
                     <h3 id="ms-modal-title" class="text-base md:text-lg font-black text-[#2D4A3E] mb-4 leading-snug">${UI.esc(q.text)}</h3>
+                    ${
+                        q.isReverse
+                            ? `<p class="text-[11px] font-bold text-[#D4A373] mb-3 leading-relaxed rounded-xl border border-[#D4A373]/40 bg-[rgba(212,163,115,0.12)] px-3 py-2">이 문항은 <strong>역채점</strong>입니다. 「아니다」에 가산되는 인원이 공감·배려 쪽으로 집계됩니다.</p>`
+                            : ''
+                    }
                     <p class="text-[10px] font-black text-[#D4A373] tracking-[0.15em] mb-1">부연</p>
                     <p class="text-sm text-ms-body leading-relaxed mb-5">${UI.esc(q.sub || '')}</p>
                     <p class="text-[10px] font-black text-[#2D4A3E] tracking-[0.12em] mb-1">설명</p>
@@ -4148,6 +4178,32 @@
             return normalizePresetInstitutionNames(INSTITUTION_DATABASE);
         },
 
+        /** 모달에서 세부 유형(어린이집·유치원·기타) 선택 시 자동완성에 같은 유형만 남길 때 사용 */
+        matchesInstPrepKind(inst, want) {
+            const t = String(inst.type || '').trim();
+            const n = String(inst.name || '');
+            if (want === '기타') return t === '기타';
+            const g = STATE.guessType(n);
+            if (want === '어린이집') {
+                if (t === '어린이집') return true;
+                if (t === '유치원') return false;
+                return g === '어린이집';
+            }
+            if (want === '유치원') {
+                if (t === '유치원') return true;
+                if (t === '어린이집') return false;
+                return g === '유치원';
+            }
+            return true;
+        },
+        matchesPresetPrepKind(name, want) {
+            const n = String(name || '');
+            if (want === '기타') return false;
+            if (want === '어린이집') return n.includes('어린이집') && !n.includes('유치원');
+            if (want === '유치원') return n.includes('유치원');
+            return true;
+        },
+
         /**
          * 설정 화면: 현재 유아/초등 탭 + 사전 명단 + 저장 기관을 합친 드롭다운 행.
          * allMode(▼): 가나다순 전체. 그 외: 입력 q(1글자 이상)로 부분 일치 필터.
@@ -4171,8 +4227,9 @@
                 if (allMode) return true;
                 if (qt.length < 1) return false;
                 if (choseongMode) {
+                    /** 음절 초성열에 검색어가 **부분 문자열**로 포함되면 일치 (예: ㅅ → 사창·장성·삼계…) */
                     const seq = extractChoseongSequenceFromName(nm);
-                    return seq.startsWith(qt);
+                    return seq.includes(qt);
                 }
                 return nameKey(nm).includes(ql);
             };
@@ -4188,7 +4245,16 @@
             }
 
             instList = instList.filter((i) => nameMatches(i.name));
-            const filteredVirtual = virtualPresets.filter((n) => nameMatches(n));
+            let filteredVirtual = virtualPresets.filter((n) => nameMatches(n));
+
+            /** 기관 설정 모달: 세부 유형(어린이집·유치원·기타)이 정해져 있으면 같은 유형만 목록에 표시 */
+            if (tg === 'preschool') {
+                const o = STATE.setupTypeOverride;
+                if (o === '어린이집' || o === '유치원' || o === '기타') {
+                    instList = instList.filter((i) => MS.matchesInstPrepKind(i, o));
+                    filteredVirtual = filteredVirtual.filter((n) => MS.matchesPresetPrepKind(n, o));
+                }
+            }
 
             const rows = [];
             instList.forEach((inst) => rows.push({ kind: 'inst', inst }));
@@ -5079,12 +5145,21 @@
             UI.render();
         },
 
-        /** 관찰 숫자가 있는 기록 중 updatedAt 최신 1건 */
+        /** 관찰 숫자가 있는 기록 중 updatedAt 최신 1건 (직전 검사 결과 버튼·바로가기 공통) */
         getMostRecentInstWithData() {
             const list = STATE.institutions.filter((i) => UI.hasAnyCount(i.counts));
             if (!list.length) return null;
             list.sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
             return list[0];
+        },
+
+        /** 해설사 대시보드: 직전 결과 버튼 라벨 (기록 없으면 null) */
+        getLatestExamResultButtonLabel() {
+            const inst = MS.getMostRecentInstWithData();
+            if (!inst) return null;
+            const name = String(inst.name || '').trim() || '이름 없음';
+            const g = String(inst.groupName || '').trim();
+            return g ? `[최근] ${name} ${g} 결과 확인` : `[최근] ${name} 결과 확인`;
         },
 
         navigateToLatestResult() {
@@ -5276,8 +5351,7 @@
             }
             const demo = [
                 { yes: 14, no: 2 }, { yes: 12, no: 4 }, { yes: 9, no: 7 }, { yes: 11, no: 5 },
-                { yes: 10, no: 6 }, { yes: 8, no: 8 }, { yes: 13, no: 3 }, { yes: 15, no: 1 },
-                { yes: 7, no: 9 }, { yes: 11, no: 5 }, { yes: 6, no: 10 }, { yes: 12, no: 4 }
+                { yes: 10, no: 6 }, { yes: 8, no: 8 }, { yes: 13, no: 3 }, { yes: 15, no: 1 }
             ];
             const tg = SCHEMA.getTargetGroup(inst);
             SCHEMA.questionsForGroup(tg).forEach((q, i) => {

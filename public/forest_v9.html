@@ -362,6 +362,15 @@
         questionsForGroup(g) {
             return g === 'elementary' ? this.questionsElementary : this.questionsPreschool;
         },
+        legacyPreschoolSlotsSum(counts) {
+            const c = counts || {};
+            let s = 0;
+            for (let i = 1; i <= 12; i++) {
+                const row = c['ps_' + i] || {};
+                s += (parseInt(row.yes, 10) || 0) + (parseInt(row.no, 10) || 0);
+            }
+            return s;
+        },
         getTargetGroup(inst) {
             if (!inst) return 'preschool';
             const t = inst.targetGroup;
@@ -374,7 +383,8 @@
                 }, 0);
             const sp = sum(this.questionsPreschool);
             const se = sum(this.questionsElementary);
-            if (se > 0 && sp === 0) return 'elementary';
+            const legPs = this.legacyPreschoolSlotsSum(c);
+            if (se > 0 && sp === 0 && legPs === 0) return 'elementary';
             return 'preschool';
         },
         migrateLegacyCounts(inst) {
@@ -597,7 +607,8 @@
                 const n = parseInt(row.no, 10) || 0;
                 const t = y + n;
                 if (t === 0) return;
-                acc[q.cat].yes += y;
+                const aligned = q.isReverse ? n : y;
+                acc[q.cat].yes += aligned;
                 acc[q.cat].n += t;
             });
             const pct = {};
@@ -620,9 +631,14 @@
                 const row = counts[q.id] || { yes: '', no: '' };
                 const y = parseInt(row.yes, 10) || 0;
                 const x = parseInt(row.no, 10) || 0;
-                totals[q.cat] += y;
                 const alt = xmap[q.cat];
-                if (alt) totals[alt] += x;
+                if (q.isReverse) {
+                    totals[q.cat] += x;
+                    if (alt) totals[alt] += y;
+                } else {
+                    totals[q.cat] += y;
+                    if (alt) totals[alt] += x;
+                }
             });
             return totals;
         },
@@ -698,6 +714,7 @@
                     question_id: idx + 1,
                     question_key: q.id,
                     o_cat: q.cat,
+                    is_reverse: !!q.isReverse,
                     question_text: q.text,
                     question_sub: q.sub || '',
                     question_desc: q.desc || '',
@@ -1194,6 +1211,9 @@
             };
             if (SCHEMA.questionsPreschool.some(rowHas)) return true;
             if (SCHEMA.questionsElementary.some(rowHas)) return true;
+            for (let i = 1; i <= 12; i++) {
+                if (rowHas({ id: 'ps_' + i })) return true;
+            }
             for (let i = 1; i <= 8; i++) {
                 if (rowHas({ id: 'q' + i })) return true;
             }
@@ -4054,8 +4074,7 @@
             }
             const demo = [
                 { yes: 14, no: 2 }, { yes: 12, no: 4 }, { yes: 9, no: 7 }, { yes: 11, no: 5 },
-                { yes: 10, no: 6 }, { yes: 8, no: 8 }, { yes: 13, no: 3 }, { yes: 15, no: 1 },
-                { yes: 7, no: 9 }, { yes: 11, no: 5 }, { yes: 6, no: 10 }, { yes: 12, no: 4 }
+                { yes: 10, no: 6 }, { yes: 8, no: 8 }, { yes: 13, no: 3 }, { yes: 15, no: 1 }
             ];
             const tg = SCHEMA.getTargetGroup(inst);
             SCHEMA.questionsForGroup(tg).forEach((q, i) => {
