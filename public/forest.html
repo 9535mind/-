@@ -331,6 +331,15 @@
     const SCHEMA = {
         version: '8.7',
         categories: ['난초', '대나무', '국화', '매화'],
+        /** 동점 시 정렬: 매(매화) → 란(난초) → 국(국화) → 죽(대나무) */
+        temperamentTieOrder: ['매화', '난초', '국화', '대나무'],
+        temperamentLetter: { 매화: '매', 난초: '란', 국화: '국', 대나무: '죽' },
+        temperamentRankLabel: {
+            매화: '주도·책임형(매화)',
+            난초: '공감·배려형(난초)',
+            국화: '신중·안정형(국화)',
+            대나무: '활기·탐구형(대나무)'
+        },
         questions: [
             { id: 'q1', cat: '난초', text: '작은 벌레나 새싹을 아끼며 구경하나요?' },
             { id: 'q2', cat: '난초', text: '친구가 조금 아파 보이면 곁에 가서 챙겨 주나요?' },
@@ -518,6 +527,45 @@
                 pct[k] = acc[k].n > 0 ? Math.round((acc[k].yes / acc[k].n) * 100) : 0;
             });
             return pct;
+        },
+
+        /**
+         * 기질별 O(예) 인원 누적 — 해당 기질 문항의 yes만 합산 (순위·DB용)
+         */
+        rawOTotalsFromCounts(counts) {
+            const totals = { 난초: 0, 대나무: 0, 국화: 0, 매화: 0 };
+            this.questions.forEach((q) => {
+                const row = counts[q.id] || { yes: '', no: '' };
+                const y = parseInt(row.yes, 10) || 0;
+                totals[q.cat] += y;
+            });
+            return totals;
+        },
+
+        /**
+         * 누적 O 기준 내림차순 순위. 동점: temperamentTieOrder(매→란→국→죽) 앞선 유형이 상위.
+         */
+        rankTemperamentsByRawO(totals) {
+            const order = this.temperamentTieOrder;
+            const L = this.temperamentLetter;
+            const LB = this.temperamentRankLabel;
+            const rows = order.map((cat) => ({
+                cat,
+                score: totals[cat] || 0,
+                letter: L[cat],
+                label: LB[cat]
+            }));
+            rows.sort((a, b) => {
+                if (b.score !== a.score) return b.score - a.score;
+                return order.indexOf(a.cat) - order.indexOf(b.cat);
+            });
+            return rows.map((r, i) => ({
+                rank: i + 1,
+                cat: r.cat,
+                letter: r.letter,
+                score: r.score,
+                label: r.label
+            }));
         },
 
         /** ≥70% 재능·축하 · 40~70% 균형 격려 · &lt;40% 섬세한 보호·치유 (v2.0 내러티브) */
@@ -708,6 +756,7 @@
                 if (!inst.counts[q.id]) inst.counts[q.id] = { yes: '', no: '' };
             });
             if (inst.obsPhase !== 'pre' && inst.obsPhase !== 'post') inst.obsPhase = '';
+            if (inst.groupName === undefined) inst.groupName = '';
         },
 
         selected() {
@@ -843,6 +892,7 @@
                 name: name.trim(),
                 type: this.guessType(name),
                 obsPhase: '',
+                groupName: '',
                 counts: SCHEMA.emptyCounts(),
                 updatedAt: new Date().toISOString()
             };
@@ -935,7 +985,12 @@
             else if (STATE.step === 'institution-type-macro-report') this.renderInstitutionTypeMacroReport(el);
             else if (STATE.step === 'setup') this.renderSetup(el);
             else if (STATE.step === 'input') this.renderInput(el);
-            else if (STATE.step === 'result') this.renderResult(el);
+            else if (STATE.step === 'result') {
+                this.renderResult(el);
+                if (typeof MS !== 'undefined' && MS.scheduleForestGroupSubmit) {
+                    MS.scheduleForestGroupSubmit();
+                }
+            }
             this.renderDataFooter();
             this.renderToast();
         },
@@ -1715,8 +1770,8 @@
                         ? 'bg-[#2D4A3E] shadow-[0_0_8px_rgba(45,74,62,0.3)]'
                         : 'bg-ms-soft border border-ms';
                     const label =
-                        m.childLabel || m.studentName
-                            ? this.esc(String(m.childLabel || m.studentName))
+                        m.groupName || m.childLabel || m.studentName
+                            ? this.esc(String(m.groupName || m.childLabel || m.studentName))
                             : `관찰 기록 ${sorted.length - idx}`;
                     const when = m.updatedAt ? this.esc(String(m.updatedAt).slice(0, 10)) : '—';
                     const safeId = String(m.id).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
@@ -2082,6 +2137,15 @@
                             </div>
                         </div>
                         <p class="text-xs text-ms-muted mb-5 text-center">한 글자만 입력해도 목록이 뜹니다. ▼ 를 누르면 전체 기관이 가나다순으로 펼쳐져요.</p>
+                        <div class="mb-5">
+                            <label for="ms-group-name" class="block text-xs font-bold text-ms-muted mb-2 ml-1 tracking-widest">반 이름(또는 생략)</label>
+                            <input id="ms-group-name" type="text" placeholder="예: 새싹반 · 비워 두어도 됩니다"
+                                class="w-full ms-input px-4 py-3.5 text-sm font-bold text-center rounded-[2rem] border border-ms"
+                                value="${sel && sel.groupName ? this.esc(String(sel.groupName)) : ''}"
+                                maxlength="120"
+                                autocomplete="off"
+                                aria-label="반 이름 또는 생략">
+                        </div>
                         ${this.buildRecentHistorySectionHtml()}
                         <div class="flex gap-3 mb-6">
                             <button type="button" class="ms-btn flex-1 py-4 font-bold border-2 text-sm ${type === '어린이집' ? 'border-[#2D4A3E] bg-[rgba(240,253,244,0.5)] text-[#2D4A3E]' : 'border-ms text-ms-muted'}"
@@ -2177,6 +2241,9 @@
                 return;
             }
             const scores = SCHEMA.scoresFromCounts(inst.counts);
+            const totalsO = SCHEMA.rawOTotalsFromCounts(inst.counts);
+            const rankedTemperaments = SCHEMA.rankTemperamentsByRawO(totalsO);
+            const maxO = Math.max(1, ...rankedTemperaments.map((r) => r.score));
             const name = this.esc(inst.name);
             const preview = STATE.isPreviewSample
                 ? `<div class="mb-5 rounded-[3rem] border-2 border-[#D4A373] text-ms-body text-xs font-bold py-3 px-4 print-hidden text-left bg-[rgba(212,163,115,0.1)]">샘플 숫자로 보는 화면이에요. 실제 관찰 값은 입력 화면에서 넣어 주세요.</div>`
@@ -2240,6 +2307,31 @@
                 </div>
             `;
 
+            const rankSectionHtml = `
+                <div class="ms-card p-6 md:p-8 text-left mb-6 border-2 border-[rgba(45,74,62,0.15)] bg-[rgba(253,251,247,0.98)]">
+                    <h3 class="text-sm font-black text-[#2D4A3E] tracking-[0.12em] mb-1">기질별 순위 (O 인원 누적)</h3>
+                    <p class="text-[11px] text-ms-muted mb-5 leading-relaxed">
+                        각 문항의 <strong class="text-[#2D4A3E]">O(예)</strong> 인원을 기질별로 더한 점수입니다.
+                        동점이면 <strong class="text-[#2D4A3E]">매→란→국→죽</strong>(매화·난초·국화·대나무) 순으로 앞선 유형이 위 순위입니다.
+                    </p>
+                    <ol class="space-y-4 list-none p-0 m-0">
+                        ${rankedTemperaments
+                            .map(
+                                (r) => `
+                        <li class="rounded-2xl border border-ms bg-white/85 px-4 py-3.5 shadow-sm">
+                            <div class="flex flex-wrap items-baseline justify-between gap-2 mb-2">
+                                <span class="text-sm font-black text-[#2D4A3E] leading-snug">[${r.rank}순위] ${this.esc(r.label)}: ${r.score}명</span>
+                            </div>
+                            <div class="w-full h-2.5 rounded-full overflow-hidden bg-ms-soft" aria-hidden="true">
+                                <div class="h-full rounded-full transition-all duration-700" style="width:${Math.round((r.score / maxO) * 100)}%;${SCHEMA.barStyle(r.cat)}"></div>
+                            </div>
+                        </li>`
+                            )
+                            .join('')}
+                    </ol>
+                </div>
+            `;
+
             el.innerHTML = `
                 <div class="max-w-lg mx-auto">
                     <div class="ms-card p-8 md:p-10 text-center border-t-[10px] border-[#2D4A3E]">
@@ -2249,6 +2341,7 @@
                         <p class="text-ms-muted text-xs mb-5">4기질 관찰 기록 · 스키마 v8.7 · 보고서 v2.0</p>
                         <button type="button" class="print-hidden w-full mb-5 rounded-full bg-[#2D4A3E] text-white font-black py-4 px-6 text-sm md:text-base shadow-lg hover:brightness-95 active:scale-[0.99] transition-all"
                             onclick="MS.openForestMapModal()">4군자 종합 지도 보기</button>
+                        ${rankSectionHtml}
                         <div class="print-hidden rounded-2xl border border-ms bg-ms-soft/50 p-4 mb-8 text-left">
                             <p class="text-[10px] font-black text-[#2D4A3E] tracking-[0.15em] mb-1">집단·비교 보고서</p>
                             <p class="text-[10px] text-ms-muted font-semibold mb-3 leading-relaxed">같은 기관명으로 묶인 관찰 전체를 기준으로 합니다.</p>
@@ -2344,6 +2437,10 @@
                         if (!i.id) i.id = newVaultRecordId();
                         if (!i.name) i.name = '이름 없음';
                         if (!i.type) i.type = STATE.guessType(i.name);
+                        if (i.groupName === undefined) i.groupName = '';
+                        if (!String(i.groupName || '').trim() && (i.childLabel || i.studentName)) {
+                            i.groupName = String(i.childLabel || i.studentName || '').trim().slice(0, 120);
+                        }
                         STATE.ensureCounts(i);
                     };
                     let added = 0;
@@ -2383,6 +2480,68 @@
         _advT: {},
         _instDropdownAll: false,
         _instSuggestCloseBound: false,
+
+        scheduleForestGroupSubmit() {
+            requestAnimationFrame(() => {
+                void MS.submitForestGroupResult();
+            });
+        },
+
+        submitForestGroupResult() {
+            if (STATE.isPreviewSample) return;
+            const inst = STATE.selected();
+            if (!inst) return;
+            const iname = String(inst.name || '').trim();
+            if (!iname) return;
+            try {
+                const key = 'ms_forest_submitted:' + inst.id + ':' + String(inst.updatedAt || '');
+                if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(key)) return;
+            } catch (_) {
+                /* ignore */
+            }
+            const scores = SCHEMA.scoresFromCounts(inst.counts);
+            const totalsO = SCHEMA.rawOTotalsFromCounts(inst.counts);
+            const ranked = SCHEMA.rankTemperamentsByRawO(totalsO);
+            const test_type =
+                inst.obsPhase === 'pre' || inst.obsPhase === 'post' ? inst.obsPhase : 'unspecified';
+            const group_name = String(inst.groupName || inst.childLabel || inst.studentName || '').trim();
+            const payload = {
+                institution_name: iname,
+                group_name: group_name,
+                test_type: test_type,
+                scores: {
+                    schema_version: SCHEMA.version,
+                    institution_type: inst.type || '',
+                    record_id: inst.id,
+                    updated_at: inst.updatedAt || '',
+                    scoring_model: 'o_sum_per_temperament_v1',
+                    totals_o_by_temperament: totalsO,
+                    rank_letters: ranked.map((r) => r.letter),
+                    rank_full_names: ranked.map((r) => r.cat),
+                    rank_detail: ranked,
+                    percent_by_type: scores,
+                    dominant_type: ranked[0] ? ranked[0].cat : '',
+                    dominant_type_letter: ranked[0] ? ranked[0].letter : '',
+                    counts: inst.counts
+                }
+            };
+            fetch('/api/forest-results', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+                credentials: 'same-origin'
+            })
+                .then((r) => {
+                    if (!r.ok) return;
+                    try {
+                        const key = 'ms_forest_submitted:' + inst.id + ':' + String(inst.updatedAt || '');
+                        if (typeof sessionStorage !== 'undefined') sessionStorage.setItem(key, '1');
+                    } catch (_) {
+                        /* ignore */
+                    }
+                })
+                .catch(() => {});
+        },
 
         bindInstSuggestCloseOutside() {
             if (MS._instSuggestCloseBound) return;
@@ -2809,6 +2968,9 @@
                 if (STATE.setupTypeOverride) inst.type = STATE.setupTypeOverride;
                 if (phase === 'pre' || phase === 'post') inst.obsPhase = phase;
             }
+            const gEl = document.getElementById('ms-group-name');
+            const gn = gEl && gEl.value.trim() ? gEl.value.trim().slice(0, 120) : '';
+            inst.groupName = gn;
             STATE.setupObsPhase = phase;
             STATE.setupTypeOverride = null;
             STATE.step = 'input';

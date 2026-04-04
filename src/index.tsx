@@ -51,6 +51,7 @@ import pagesCertificates from './routes/pages-certificates'
 import pagesEnrollment from './routes/pages-enrollment'  // 수강신청 페이지
 import pagesBrandCatalog from './routes/pages-brand-catalog'
 import digitalBooks from './routes/digital-books'
+import forestResults from './routes/forest-results'
 import youtubeProxy from './routes/youtube-proxy'
 import security from './routes/security'
 import { FOOTER_HTML_REVISION } from './utils/site-footer-legal'
@@ -171,6 +172,7 @@ app.use('/api/popups', generalRateLimiter)
 app.use('/api/notices', generalRateLimiter)
 app.use('/api/posts', generalRateLimiter)
 app.use('/api/upload', generalRateLimiter)
+app.use('/api/forest-results', generalRateLimiter)
 
 // 관대한 제한: 읽기 전용 API (1분에 200회)
 app.use('/api/auth/me', lenientRateLimiter)
@@ -218,6 +220,7 @@ app.route('/api/analytics', analytics)  // 학습 분석 통계
 app.route('/api/youtube', youtubeProxy)  // YouTube oEmbed 프록시 (CORS 해결)
 app.route('/api/security', security)  // 보안 이벤트 로깅
 app.route('/api/digital-books', digitalBooks) // Next 디지털 도서·ISBN
+app.route('/api/forest-results', forestResults) // 유아숲 4군자 집단 결과(기관·반)
 
 // 구버전 북마크(정적 파일·.html 링크 → Clean URL)
 app.get('/admin-users.html', (c) => c.redirect('/admin/members', 302))
