@@ -1,5 +1,5 @@
 /**
- * 유아부(preschool) 4계절 Temperament TEST(4STT) 문항 — v26.0 최종 8문항 (8Q FINAL)
+ * 유아부(preschool) 4 Jahreszeiten Temperament-Test für Kinder (4STT) 문항 — v26.0 최종 8문항 (8Q FINAL)
  * 초등부(elementary) 12문항
  * forest.html SCHEMA에서 참조 (cat: SPRT·SUMT·AUTT·WINT)
  */

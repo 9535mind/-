@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 공식 접속 URL: https://mindstory.kr/forest.html (어린이 4계절 Temperament TEST · 4STT 단일 페이지 도구) -->
+<!-- 공식 접속 URL: https://mindstory.kr/forest.html (4 Jahreszeiten Temperament-Test für Kinder · 4STT) -->
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
@@ -7,7 +7,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>어린이 4계절 Temperament TEST (4STT) · 마인드스토리</title>
+    <title>4 Jahreszeiten Temperament-Test für Kinder (4STT) · 마인드스토리</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;900&display=swap');
@@ -314,7 +314,7 @@
 <div id="app" class="max-w-2xl mx-auto fade-in w-full flex flex-col flex-1 min-h-0 transition-[max-width] duration-300">
     <header id="ms-app-header" class="text-center mb-8 print-hidden shrink-0 transition-[margin] duration-200">
         <div class="inline-block px-4 py-1 border-2 border-[#2D4A3E] text-[#2D4A3E] text-[9px] font-bold rounded-full mb-2 md:mb-3 tracking-[0.18em]">MINDSTORY</div>
-        <h1 class="text-[1.35rem] sm:text-2xl md:text-3xl font-extrabold text-[#2D4A3E] tracking-tight leading-snug px-2 text-balance">어린이 4계절 Temperament TEST (4STT)</h1>
+        <h1 class="text-[clamp(0.8rem,3.4vw,1.125rem)] sm:text-lg md:text-xl lg:text-2xl font-extrabold text-[#2D4A3E] tracking-tight leading-[1.22] px-2 sm:px-3 text-balance max-w-[min(100%,22rem)] sm:max-w-[26rem] md:max-w-xl mx-auto">4 Jahreszeiten Temperament-Test für Kinder (4STT)</h1>
         <div id="ms-header-age-tabs" class="print-hidden max-w-md mx-auto w-full px-2 mt-4 mb-0 min-h-0" aria-label="연령·문항 세트 선택"></div>
     </header>
 
@@ -1357,6 +1357,9 @@
             STATE.obsLocation = 'forest';
         }
     })();
+
+    /** 공식 앱 표기명 (독일어 · 숲교육 정통 브랜딩) — UI·공유·가이드 공통 */
+    const APP_TITLE_DE = '4 Jahreszeiten Temperament-Test für Kinder (4STT)';
 
     const UI = {
         esc(s) {
@@ -2546,6 +2549,7 @@
                             <button type="button" class="print-hidden ms-btn text-xs font-bold text-ms-muted hover:text-[#2D4A3E] mb-6"
                                 onclick="MS.backFromInstitutionReport()">← 기관 허브</button>
                             <p class="text-[10px] font-black text-[#D4A373] tracking-[0.2em] mb-2">MINDSTORY · GROUP PROFILE</p>
+                            <p class="text-[clamp(0.8rem,2.6vw,1rem)] sm:text-sm font-black text-[#2D4A3E] mb-2 leading-snug text-balance">${APP_TITLE_DE}</p>
                             <h2 class="text-2xl md:text-3xl font-black text-[#2D4A3E] mb-2 leading-tight">기관 종합 분석 보고서</h2>
                             <p class="text-lg font-bold text-[#2D4A3E] mb-1">${this.esc(displayName)}</p>
                             <p class="text-sm text-ms-muted mb-6">[${this.esc(type0)}] · 관찰 데이터 ${nWithData}명 기준 집계 · 등록 건수 ${nTotal}건</p>
@@ -2640,8 +2644,8 @@
                             <button type="button" class="print-hidden ms-btn text-xs font-bold text-ms-muted hover:text-[#2D4A3E] mb-6"
                                 onclick="MS.backFromInstitutionPrePostReport()">← 기관 허브</button>
                             <p class="text-[10px] font-black text-[#D4A373] tracking-[0.2em] mb-2">MINDSTORY · PRE–POST OUTCOMES</p>
-                            <h2 class="text-xl md:text-2xl lg:text-3xl font-black text-[#2D4A3E] mb-3 leading-tight pr-16">
-                                4STT 계절별 기질 관찰 · 성과 보고서<br class="hidden sm:block" /><span class="text-lg md:text-xl font-bold text-ms-muted">(사전/사후 비교)</span>
+                            <h2 class="text-[clamp(0.85rem,2.8vw,1.35rem)] md:text-2xl lg:text-3xl font-black text-[#2D4A3E] mb-3 leading-tight pr-16 text-balance">
+                                ${APP_TITLE_DE}<br class="hidden sm:block" /><span class="block text-base md:text-lg font-bold text-ms-muted mt-1">계절별 기질 관찰 · 성과 보고서 (사전/사후 비교)</span>
                             </h2>
                             <p class="text-lg font-bold text-[#2D4A3E] mb-1">${this.esc(displayName)}</p>
                             <p class="text-sm text-ms-muted mb-6">[${this.esc(type0)}] · 사전 데이터 ${nPre}건 · 사후 데이터 ${nPost}건 평균 비교 · 성장 지수(Δ)=사후−사전</p>
@@ -2721,8 +2725,8 @@
                 .join('');
             const titleMain =
                 variant === 'pe'
-                    ? '4STT 유아부 vs 초등부 기질 분포 비교 보고서'
-                    : '4STT 기관 유형별 유아 기질 분포 비교 보고서';
+                    ? `${APP_TITLE_DE} · 유아부 vs 초등부 기질 분포 비교 보고서`
+                    : `${APP_TITLE_DE} · 기관 유형별 유아 기질 분포 비교 보고서`;
             const subLine =
                 variant === 'pe'
                     ? `로컬 저장소 전체 기준 · 유아부 관찰 <strong class="text-[#5c4a3a]">${nDay}건</strong> · 초등부 관찰 <strong class="text-[#2D4A3E]">${nKg}건</strong> 평균 비교 · Δ = 초등 − 유아`
@@ -2744,7 +2748,7 @@
                             <button type="button" class="print-hidden ms-btn text-xs font-bold text-ms-muted hover:text-[#2D4A3E] mb-6"
                                 onclick="MS.backFromInstitutionTypeMacroReport()">← 대시보드</button>
                             <p class="text-[10px] font-black text-[#D4A373] tracking-[0.22em] mb-2">MINDSTORY · MACRO INSIGHT</p>
-                            <h2 class="text-xl md:text-2xl lg:text-3xl font-black text-[#2D4A3E] mb-3 leading-tight pr-16">
+                            <h2 class="text-[clamp(0.85rem,2.6vw,1.35rem)] md:text-2xl lg:text-3xl font-black text-[#2D4A3E] mb-3 leading-tight pr-16 text-balance">
                                 ${this.esc(titleMain)}
                             </h2>
                             <p class="text-sm text-ms-muted mb-2 leading-relaxed">
@@ -3129,9 +3133,9 @@
                 <div class="max-w-lg mx-auto">
                     <div class="ms-card p-8 md:p-10 text-center border-t-[10px] border-[#2D4A3E]">
                         ${preview}
-                        <p class="text-base md:text-lg font-black text-[#2D4A3E] mb-2 leading-snug">어린이 4계절 Temperament TEST (4STT)</p>
+                        <p class="text-[clamp(0.85rem,3.2vw,1.15rem)] sm:text-lg md:text-xl font-black text-[#2D4A3E] mb-2 leading-snug text-balance px-1">${APP_TITLE_DE}</p>
                         <h2 class="text-2xl font-black text-[#2D4A3E] mb-1">${name}</h2>
-                        <p class="text-ms-muted text-xs mb-5">4STT 계절별 기질 관찰 기록 · ${tgRes === 'elementary' ? '초등부' : '유아·유치부'} · 스키마 v9.2 · 보고서 v2.0</p>
+                        <p class="text-ms-muted text-[10px] sm:text-xs mb-5 leading-relaxed text-balance px-0.5">${APP_TITLE_DE} · 계절별 기질 관찰 기록 · ${tgRes === 'elementary' ? '초등부' : '유아·유치부'} · 스키마 v9.2 · 보고서 v2.0</p>
                         <button type="button" class="print-hidden w-full mb-5 rounded-full bg-[#2D4A3E] text-white font-black py-4 px-6 text-sm md:text-base shadow-lg hover:brightness-95 active:scale-[0.99] transition-all"
                             onclick="MS.openForestMapModal()">4STT 종합 지도 보기</button>
                         ${rankSectionHtml}
@@ -3185,12 +3189,12 @@
                     if (navigator.canShare && navigator.canShare({ files: [file] })) {
                         await navigator.share({
                             files: [file],
-                            title: '어린이 4계절 Temperament TEST (4STT)',
+                            title: APP_TITLE_DE,
                             text: '관찰 기록 백업(JSON)입니다.'
                         });
                     } else {
                         await navigator.share({
-                            title: '어린이 4계절 Temperament TEST (4STT)',
+                            title: APP_TITLE_DE,
                             text: 'JSON 파일이 저장되었습니다. 파일 앱에서 카카오톡으로 보내실 수 있어요.'
                         });
                     }
@@ -3265,7 +3269,7 @@
 
     const FOREST_MANUAL_DATA = {
         preschool: {
-            heading: '🌲 어린이 4계절 Temperament TEST (4STT) 가이드 — 유아·유치부 (8문항)',
+            heading: '🌲 ' + APP_TITLE_DE + ' — 가이드 · 유아·유치부 (8문항)',
             intro: '4계절의 변화와 기질적 특징을 네 축(SPRT·SUMT·AUTT·WINT)에 비유하여, 영유아의 본능적 반응과 첫 사회적 놀이를 읽습니다.',
             groups: [
                 {
@@ -3347,7 +3351,7 @@
             ]
         },
         elementary: {
-            heading: '🌲 어린이 4계절 Temperament TEST (4STT) 가이드 — 초등부 (12문항)',
+            heading: '🌲 ' + APP_TITLE_DE + ' — 가이드 · 초등부 (12문항)',
             intro: '4계절의 변화와 기질적 특징을 네 축에 비유하여, 아동의 사회적 역할 수행과 환경 적응을 읽습니다.',
             groups: [
                 {
@@ -4091,7 +4095,7 @@
                 'fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4 print:p-4';
             root.innerHTML = `
                 <div class="ms-manual-no-print absolute inset-0 bg-black/45" onclick="MS.closeManualModal()" aria-hidden="true"></div>
-                <div class="ms-manual-sheet relative w-full max-w-full sm:max-w-xl lg:max-w-2xl sm:mx-auto rounded-t-[1.75rem] sm:rounded-[2rem] bg-[#FDFBF7] shadow-2xl border-2 border-[#5D4037]/15 flex flex-col max-h-[96vh] sm:max-h-[92vh] overflow-hidden text-[#5D4037] text-[15px] sm:text-base" onclick="event.stopPropagation()" role="dialog" aria-modal="true" aria-label="어린이 4계절 Temperament TEST (4STT) 가이드">
+                <div class="ms-manual-sheet relative w-full max-w-full sm:max-w-xl lg:max-w-2xl sm:mx-auto rounded-t-[1.75rem] sm:rounded-[2rem] bg-[#FDFBF7] shadow-2xl border-2 border-[#5D4037]/15 flex flex-col max-h-[96vh] sm:max-h-[92vh] overflow-hidden text-[#5D4037] text-[15px] sm:text-base" onclick="event.stopPropagation()" role="dialog" aria-modal="true" aria-label="${APP_TITLE_DE} 가이드">
                     <div class="ms-manual-no-print shrink-0 flex flex-wrap items-center justify-between gap-2 px-3 sm:px-4 pt-3 sm:pt-4 pb-2 border-b border-[#5D4037]/10">
                         <button type="button" class="rounded-full border-2 border-[#5D4037]/30 bg-white px-4 py-2.5 text-xs font-black text-[#5D4037] shadow-sm active:scale-[0.99] min-h-[44px]"
                             onclick="MS.triggerManualPrint()">설명서 인쇄/PDF 저장</button>
