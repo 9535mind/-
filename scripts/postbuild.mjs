@@ -85,10 +85,10 @@ const assetsDir = join(publicDir, 'assets')
 if (existsSync(assetsDir)) {
   cpSync(assetsDir, join(dist, 'assets'), { recursive: true })
   console.log('✅ public/assets → dist/assets 복사')
-  const introMp4 = join(dist, 'assets', 'forest_intro.mp4')
+  const introMp4 = join(dist, 'assets', 'forest_test.mp4')
   if (!existsSync(introMp4)) {
     console.warn(
-      '⚠️  dist/assets/forest_intro.mp4 없음 — 프로덕션에서 /assets/forest_intro.mp4 가 404일 수 있음 (public/assets에 추가 후 빌드)'
+      '⚠️  dist/assets/forest_test.mp4 없음 — 프로덕션에서 /assets/forest_test.mp4 가 404일 수 있음 (public/assets에 추가 후 빌드)'
     )
   }
 }
