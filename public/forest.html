@@ -290,7 +290,9 @@
         <div class="inline-block px-4 py-1 border-2 border-[#2D4A3E] text-[#2D4A3E] text-[9px] font-bold rounded-full mb-3 tracking-[0.18em]">MINDSTORY</div>
         <h1 class="text-2xl md:text-3xl font-black text-[#2D4A3E] tracking-tight leading-tight px-1">어린이 4군자 기질검사</h1>
         <div id="ms-header-age-tabs" class="print-hidden max-w-md mx-auto w-full px-2 mt-5 mb-1" aria-label="연령·문항 세트 선택"></div>
-        <p class="mt-2 text-[10px] text-ms-muted">통합 엔진 v1.5 · <span class="font-black text-[#1B5E20] tracking-wide">[REAL V13.0 - NAVER GREEN]</span> · 보고서 v2.0 · 기기 안에서만 저장 · 오프라인</p>
+        <p class="mt-2 text-[10px] text-ms-muted leading-snug px-2 max-w-md mx-auto print-hidden">
+            통합 엔진 v1.5 · <span class="font-black text-[#1B5E20] tracking-wide">[SCHEMA v14.0 - FINAL]</span> · 보고서 v2.0 · 기기 안에서만 저장 · 오프라인
+        </p>
     </header>
 
     <div id="view-content" class="flex-1 min-h-0"></div>
@@ -323,6 +325,16 @@
     const ADMIN_PASSWORDS = ['9535', '0000'];
     /** 전역 관찰 단계(사전/사후) — 앱 재시작 후에도 유지 */
     const LS_OBSERVATION_STAGE = 'ms_observation_stage';
+
+    /** 연령 탭: 선택=네이버초록/오렌지 솔리드+흰 글자, 비선택=같은 색조의 연한 솔리드(테두리만 있는 형태가 아님) */
+    const TAB_AGE_PS_ON =
+        'bg-[#03C75A] text-[#FFFFFF] border-0 shadow-lg shadow-[#03C75A]/35 hover:brightness-[1.02]';
+    const TAB_AGE_PS_OFF =
+        'bg-[rgba(3,199,90,0.12)] text-[#03C75A] border-0 shadow-sm shadow-[#03C75A]/10 hover:bg-[rgba(3,199,90,0.18)]';
+    const TAB_AGE_EL_ON =
+        'bg-[#FF9800] text-[#FFFFFF] border-0 shadow-lg shadow-[#FF9800]/35 hover:brightness-[1.02]';
+    const TAB_AGE_EL_OFF =
+        'bg-[rgba(255,152,0,0.14)] text-[#E65100] border-0 shadow-sm shadow-[#FF9800]/25 hover:bg-[rgba(255,152,0,0.22)]';
 
     /**
      * 유아부 설정 화면 전용: 기관 검색·▼(전체) 목록에 합쳐지는 사전 명단.
@@ -1163,6 +1175,7 @@
         }
     };
 
+    /** 관찰 단계(사전/사후): 브라우저·탭을 닫아도 localStorage(ms_observation_stage)로 복원 */
     (function syncObservationStageFromStorage() {
         try {
             const v = localStorage.getItem(LS_OBSERVATION_STAGE);
@@ -1285,12 +1298,8 @@
             const tg = STATE.targetGroup === 'elementary' ? 'elementary' : 'preschool';
             const base =
                 'ms-btn flex-1 min-h-[48px] px-4 py-3 font-bold text-xs rounded-full transition-colors duration-200 ease-out';
-            const psOn = 'bg-[#03C75A] text-white border-0 shadow-md shadow-[#03C75A]/25';
-            const psOff = 'bg-transparent text-[#03C75A] border border-solid border-[#03C75A]';
-            const elOn = 'bg-[#FF9800] text-white border-0 shadow-md shadow-[#FF9800]/25';
-            const elOff = 'bg-transparent text-[#FF9800] border border-solid border-[#FF9800]';
-            const tabPs = tg === 'preschool' ? psOn : psOff;
-            const tabEl = tg === 'elementary' ? elOn : elOff;
+            const tabPs = tg === 'preschool' ? TAB_AGE_PS_ON : TAB_AGE_PS_OFF;
+            const tabEl = tg === 'elementary' ? TAB_AGE_EL_ON : TAB_AGE_EL_OFF;
             host.innerHTML = `
                 <div class="flex gap-2 justify-center max-w-md mx-auto">
                     <button type="button" class="${base} ${tabPs}"
@@ -2024,7 +2033,7 @@
                         <button type="button" class="rounded-full px-2.5 py-1 min-h-[32px] text-[10px] font-semibold text-gray-400 hover:text-[#2D4A3E] transition-colors"
                             onclick="MS.triggerImport()" title="백업 합치기">불러오기</button>
                     </div>
-                    <span class="block text-[8px] text-gray-300 text-center mt-1.5 tracking-wide">로컬 전용 · ms_forest_v1 · <span class="font-semibold text-[#1B5E20]">[REAL V13.0 - NAVER GREEN]</span></span>
+                    <span class="block text-[8px] text-gray-300 text-center mt-1.5 tracking-wide">로컬 전용 · ms_forest_v1</span>
                     <p class="text-[9px] text-gray-400 text-center mt-2 px-3 leading-relaxed max-w-md mx-auto">
                         본 시스템은 <span class="text-gray-500 font-semibold">폐쇄형 저장</span> 방식을 사용합니다. 모든 데이터는 <span class="text-gray-500 font-semibold">현재 기기</span>에만 안전하게 보관됩니다.
                     </p>
@@ -2042,8 +2051,8 @@
                         <h2 class="text-xl md:text-2xl font-black text-[#2D4A3E] mb-6">현장 해설사용 안내</h2>
                         <div class="space-y-4 text-sm text-ms-body leading-relaxed text-left">
                             <p><strong class="text-[#2D4A3E]">1. 연령 선택</strong> — 상단에서 유아·유치부 또는 초등부를 선택하면 문항 세트가 바뀝니다.</p>
-                            <p><strong class="text-[#2D4A3E]">2. 새 검사 시작</strong> — 팝업에서 진행자 성함을 입력한 뒤 기관명·유형·사전·사후를 지정하고, 입력 화면에서 O/X 인원을 넣습니다.</p>
-                            <p><strong class="text-[#2D4A3E]">3. 진행자 성함</strong> — 「새 검사 시작」 팝업에서만 입력합니다. 이 기기에 저장되며 서버 전송 시 함께 기록됩니다.</p>
+                            <p><strong class="text-[#2D4A3E]">2. 새 검사 시작</strong> — 팝업에서 진행자(해설사) 성함을 입력한 뒤 기관명·유형·사전·사후를 지정하고, 입력 화면에서 O/X 인원을 넣습니다.</p>
+                            <p><strong class="text-[#2D4A3E]">3. 진행자(해설사) 성함</strong> — 「새 검사 시작」 팝업에서만 입력합니다. 이 기기에 저장되며 서버 전송 시 함께 기록됩니다.</p>
                             <p><strong class="text-[#2D4A3E]">4. 결과</strong> — 「분석 보고서 만들기」 후 인쇄·PDF 저장이 가능합니다. 전송이 완료되면 안내가 뜹니다.</p>
                             <p><strong class="text-[#2D4A3E]">5. 관리자</strong> — 기관 목록·대시보드·백업은 관리자 인증 후에만 열립니다.</p>
                         </div>
@@ -2116,7 +2125,6 @@
                 : '';
 
             const showAdmin = MS.isAdminUnlocked();
-            const hasRecent = !!MS.getMostRecentInstWithData();
 
             let bm = 'single';
             let btf = 'all';
@@ -2153,19 +2161,7 @@
             }
 
             const facilitatorActions = `
-                        <div class="space-y-3 mb-2 print:hidden">
-                            <button type="button" class="ms-btn w-full !rounded-xl border-2 border-[#2D4A3E]/25 bg-white text-[#2D4A3E] font-black py-4 text-sm shadow-sm hover:bg-[rgba(45,74,62,0.04)]"
-                                onclick="MS.runPreview()">문항 예시 보기</button>
-                            ${
-                                hasRecent
-                                    ? `<button type="button" class="ms-btn w-full !rounded-xl bg-[#5D4037] text-white font-black py-4 text-sm md:text-base shadow-[0_5px_16px_rgba(0,0,0,0.15)] hover:bg-[#4E342E]"
-                                onclick="MS.navigateToLatestResult()">직전 검사 결과 보기</button>`
-                                    : ''
-                            }
-                            <button type="button" class="ms-btn w-full !rounded-xl border-2 border-[#D4A373]/50 bg-[rgba(212,163,115,0.08)] text-[#2D4A3E] font-black py-4 text-sm"
-                                onclick="MS.goGuide()">검사설명서 보기</button>
-                        </div>
-                        <p class="text-center mt-5 pt-3 border-t border-[#2D4A3E]/10 print:hidden">
+                        <p class="text-center mt-2 print:hidden">
                             <button type="button" class="text-[10px] font-semibold text-[#5D4037]/70 hover:text-[#5D4037] underline underline-offset-2"
                                 onclick="MS.openAdminUnlockModal()">관리자 · 대시보드 잠금 해제</button>
                         </p>`;
@@ -2230,7 +2226,7 @@
             el.innerHTML = `
                 <div class="max-w-lg mx-auto">
                     <div class="ms-card p-8 md:p-10 mb-6 shadow-[0_12px_40px_rgba(45,74,62,0.1)] border-2 border-[rgba(45,74,62,0.1)]">
-                        <button type="button" class="ms-btn w-full !rounded-2xl md:!rounded-3xl bg-[#5D4037] text-[#FFFFFF] font-black py-6 md:py-7 text-lg md:text-xl mb-5 shadow-[0_5px_18px_rgba(0,0,0,0.22)] hover:bg-[#4E342E] active:bg-[#4E342E] active:scale-[0.99] transition-colors duration-200 ease-out"
+                        <button type="button" class="ms-btn w-full !rounded-2xl md:!rounded-3xl bg-[#5D4037] text-[#FFFFFF] font-black py-6 md:py-7 text-lg md:text-xl ${showAdmin ? 'mb-5' : 'mb-0'} shadow-[0_5px_18px_rgba(0,0,0,0.22)] hover:bg-[#4E342E] active:bg-[#4E342E] active:scale-[0.99] transition-colors duration-200 ease-out"
                             onclick="MS.openNewExamPrepModal()">새 검사 시작</button>
                         ${showAdmin ? adminDashboardPanel : facilitatorActions}
                         ${showAdmin ? listHint : ''}
@@ -2249,7 +2245,6 @@
                         }
                     </div>
                     ${migrateNote}
-                    <p class="text-center text-xs text-ms-muted mb-2">개인정보는 이 기기 브라우저와 직접 저장한 파일에만 남아요.</p>
                 </div>
             `;
         },
@@ -2657,12 +2652,10 @@
             const obsPostOn =
                 'border-[#8d6e54] bg-[rgba(212,163,115,0.18)] text-[#2D4A3E] shadow-md shadow-[#D4A373]/20';
             const obsPostOff = 'border-ms text-ms-muted';
-            const setupPsOn =
-                'bg-[#03C75A] text-white border-2 border-[#03C75A] shadow-md shadow-[#03C75A]/25';
-            const setupPsOff = 'bg-transparent text-[#03C75A] border-2 border-[#03C75A]';
-            const setupElOn =
-                'bg-[#FF9800] text-white border-2 border-[#FF9800] shadow-md shadow-[#FF9800]/25';
-            const setupElOff = 'bg-transparent text-[#FF9800] border-2 border-[#FF9800]';
+            const setupPsOn = TAB_AGE_PS_ON;
+            const setupPsOff = TAB_AGE_PS_OFF;
+            const setupElOn = TAB_AGE_EL_ON;
+            const setupElOff = TAB_AGE_EL_OFF;
             const typeBlock =
                 tgSetup === 'elementary'
                     ? `<div class="flex flex-wrap gap-2 mb-6">
@@ -2772,12 +2765,8 @@
             const qs = SCHEMA.questionsForGroup(tg);
             const base =
                 'ms-btn flex-1 min-h-[48px] px-4 py-3 font-bold text-xs rounded-full transition-colors duration-200 ease-out';
-            const psOn = 'bg-[#03C75A] text-white border-0 shadow-md shadow-[#03C75A]/25';
-            const psOff = 'bg-transparent text-[#03C75A] border border-solid border-[#03C75A]';
-            const elOn = 'bg-[#FF9800] text-white border-0 shadow-md shadow-[#FF9800]/25';
-            const elOff = 'bg-transparent text-[#FF9800] border border-solid border-[#FF9800]';
-            const tabPs = tg === 'preschool' ? psOn : psOff;
-            const tabEl = tg === 'elementary' ? elOn : elOff;
+            const tabPs = tg === 'preschool' ? TAB_AGE_PS_ON : TAB_AGE_PS_OFF;
+            const tabEl = tg === 'elementary' ? TAB_AGE_EL_ON : TAB_AGE_EL_OFF;
 
             el.innerHTML = `
                 <div class="max-w-lg mx-auto">
@@ -3133,8 +3122,8 @@
                 <div class="absolute inset-0 bg-black/45" onclick="MS.closeForestModal()" aria-hidden="true"></div>
                 <div class="relative w-full max-w-md rounded-[2rem] bg-[#FDFBF7] shadow-2xl border border-[#2D4A3E]/12 p-6 md:p-8" onclick="event.stopPropagation()">
                     <h2 id="ms-modal-title" class="text-lg md:text-xl font-black text-[#2D4A3E] mb-2 text-center leading-tight">기관 설정 및 검사 준비</h2>
-                    <p class="text-xs text-ms-muted mb-5 text-center leading-relaxed">진행자 성함을 입력한 뒤 검사 설정으로 이동합니다.</p>
-                    <label for="ms-examiner-name-modal" class="block text-xs font-bold text-ms-muted mb-2 ml-0.5 tracking-widest">진행자 성함</label>
+                    <p class="text-xs text-ms-muted mb-5 text-center leading-relaxed">진행자(해설사) 성함을 입력한 뒤 검사 설정으로 이동합니다.</p>
+                    <label for="ms-examiner-name-modal" class="block text-xs font-bold text-ms-muted mb-2 ml-0.5 tracking-widest">진행자(해설사) 성함</label>
                     <input id="ms-examiner-name-modal" type="text" maxlength="40" autocomplete="name" placeholder="필수"
                         class="w-full ms-input px-4 py-3.5 text-center font-bold rounded-2xl mb-4 text-[#2D4A3E]"
                         value="${UI.esc(name)}"
@@ -3152,7 +3141,7 @@
             const el = document.getElementById('ms-examiner-name-modal');
             const v = String((el && el.value) || '').trim();
             if (!v) {
-                alert('진행자 성함을 입력해 주세요.');
+                alert('진행자(해설사) 성함을 입력해 주세요.');
                 return;
             }
             MS.onExaminerNameInput(v);
@@ -4089,7 +4078,7 @@
         },
         startTest() {
             if (!String(MS.getExaminerName() || '').trim()) {
-                alert('진행자 성함을 입력해 주세요. 대시보드에서 「새 검사 시작」을 눌러 주세요.');
+                alert('진행자(해설사) 성함을 입력해 주세요. 대시보드에서 「새 검사 시작」을 눌러 주세요.');
                 return;
             }
             const el = document.getElementById('inst-name');
