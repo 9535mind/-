@@ -289,8 +289,7 @@
     <header class="text-center mb-8 print-hidden shrink-0">
         <div class="inline-block px-4 py-1 border-2 border-[#2D4A3E] text-[#2D4A3E] text-[9px] font-bold rounded-full mb-3 tracking-[0.18em]">MINDSTORY</div>
         <h1 class="text-2xl md:text-3xl font-black text-[#2D4A3E] tracking-tight leading-tight px-1">어린이 4군자 기질검사</h1>
-        <div id="ms-examiner-header" class="print-hidden max-w-md mx-auto w-full px-2 mt-3 mb-1" aria-label="진행자 이름"></div>
-        <div id="ms-header-age-tabs" class="print-hidden max-w-md mx-auto w-full px-2 mt-4 mb-1" aria-label="연령·문항 세트 선택"></div>
+        <div id="ms-header-age-tabs" class="print-hidden max-w-md mx-auto w-full px-2 mt-5 mb-1" aria-label="연령·문항 세트 선택"></div>
         <p class="mt-2 text-sm text-ms-body font-semibold">마인드스토리 유아숲 행동관찰</p>
         <p class="mt-1 text-sm text-ms-body font-medium">축령산 편백숲 유아학교 · 따뜻한 관찰 기록</p>
         <p class="mt-1 text-[10px] text-ms-muted">통합 엔진 v1.5 · <span class="font-black text-[#1B5E20] tracking-wide">[REAL V10.0 - NAVER GREEN]</span> · 보고서 v2.0 · 기기 안에서만 저장 · 오프라인</p>
@@ -321,12 +320,32 @@
     const LEGACY_V86 = 'ms_mindstory_4gunja_v86';
     const LEGACY_V2 = 'ms_4gunja_v2';
 
-    /** v12.0 진행자 이름 · 관리자 대시보드 잠금 */
+    /** v14.0 진행자 이름은 검사 준비 모달·설정 화면 · 관리자 대시보드 잠금 */
     const LS_EXAMINER_NAME = 'ms_examiner_name';
     const LS_ADMIN_UNLOCKED = 'ms_forest_admin_unlocked_v12';
     const ADMIN_PASSWORDS = ['9535', '0000'];
     /** 전역 관찰 단계(사전/사후) — 앱 재시작 후에도 유지 */
     const LS_OBSERVATION_STAGE = 'ms_observation_stage';
+
+    /**
+     * 유아부 설정 화면 전용: 기관 검색·▼(전체) 목록에 합쳐지는 사전 명단.
+     * 운영 전에 아래 배열에 어린이집·유치원 등 기관명 문자열을 추가하면 됩니다.
+     */
+    const PRESET_FOREST_DAYCARE_NAMES = [];
+
+    function normalizePresetInstitutionNames(arr) {
+        const seen = new Set();
+        const out = [];
+        for (const raw of arr || []) {
+            const n = String(raw || '').trim();
+            if (!n) continue;
+            const k = n.toLocaleLowerCase('ko-KR');
+            if (seen.has(k)) continue;
+            seen.add(k);
+            out.push(n);
+        }
+        return out;
+    }
 
     function newVaultRecordId() {
         try {
@@ -338,11 +357,11 @@
     }
 
     /**
-     * SCHEMA — v12.0 진행자·권한 분리 + v10 빌더
+     * SCHEMA — v14.0 UI · 진행자 입력 지연 + v10 빌더
      * 톤: MINDSTORY V1 · 관찰과 공감 · 따뜻한 어휘
      */
     const SCHEMA = {
-        version: '12.0',
+        version: '14.0',
         categories: ['난초', '대나무', '국화', '매화'],
         /** 동점 시 정렬: 매(매화) → 란(난초) → 국(국화) → 죽(대나무) */
         temperamentTieOrder: ['매화', '난초', '국화', '대나무'],
@@ -1259,32 +1278,7 @@
             }
             this.renderDataFooter();
             this.renderToast();
-            this.renderExaminerHeader();
             this.renderHeaderAgeTabs();
-        },
-
-        /** 헤더: 진행자 이름 (localStorage ms_examiner_name) */
-        renderExaminerHeader() {
-            const wrap = document.getElementById('ms-examiner-header');
-            if (!wrap || typeof MS === 'undefined' || !MS.getExaminerName) return;
-            const name = String(MS.getExaminerName() || '').trim();
-            const greet = name ? `안녕하세요, ${name} 해설사님` : '진행자 이름을 입력해 주세요';
-            const inp = document.getElementById('ms-examiner-name');
-            if (inp && document.activeElement === inp) {
-                const p = document.getElementById('ms-examiner-greeting');
-                if (p) p.textContent = greet;
-                return;
-            }
-            wrap.innerHTML = `
-                <p id="ms-examiner-greeting" class="text-sm text-[#2D4A3E] font-bold mb-2 text-center">${this.esc(greet)}</p>
-                <div class="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center justify-center max-w-md mx-auto">
-                    <label for="ms-examiner-name" class="text-xs font-bold text-ms-muted shrink-0 self-center text-center sm:text-left">진행자 이름</label>
-                    <input id="ms-examiner-name" type="text" maxlength="40" autocomplete="name" placeholder="한 번 입력하면 이 기기에 저장됩니다"
-                        class="flex-1 min-h-[48px] rounded-2xl border-2 border-[#2D4A3E]/20 bg-white/90 px-4 py-2.5 text-sm font-bold text-[#2D4A3E] text-center"
-                        value="${this.esc(name)}"
-                        oninput="MS.onExaminerNameInput(this.value)" />
-                </div>
-            `;
         },
 
         /** 헤더: 연령·문항 세트 탭 (전역 STATE.targetGroup 과 동기화) — 유아 #03C75A · 초등 #FF9800 */
@@ -2051,8 +2045,8 @@
                         <h2 class="text-xl md:text-2xl font-black text-[#2D4A3E] mb-6">현장 해설사용 안내</h2>
                         <div class="space-y-4 text-sm text-ms-body leading-relaxed text-left">
                             <p><strong class="text-[#2D4A3E]">1. 연령 선택</strong> — 상단에서 유아·유치부 또는 초등부를 선택하면 문항 세트가 바뀝니다.</p>
-                            <p><strong class="text-[#2D4A3E]">2. 새 검사 시작</strong> — 기관명·유형·사전·사후를 지정한 뒤 입력 화면에서 O/X 인원을 넣습니다.</p>
-                            <p><strong class="text-[#2D4A3E]">3. 진행자 이름</strong> — 헤더에 입력하면 이 기기에 저장되며, 서버 전송 시 함께 기록됩니다.</p>
+                            <p><strong class="text-[#2D4A3E]">2. 새 검사 시작</strong> — 「검사 준비」에서 진행자 이름을 넣은 뒤 기관명·유형·사전·사후를 지정하고, 입력 화면에서 O/X 인원을 넣습니다.</p>
+                            <p><strong class="text-[#2D4A3E]">3. 진행자 이름</strong> — 검사 준비 팝업·설정 화면에서 입력하면 이 기기에 저장되며, 서버 전송 시 함께 기록됩니다.</p>
                             <p><strong class="text-[#2D4A3E]">4. 결과</strong> — 「분석 보고서 만들기」 후 인쇄·PDF 저장이 가능합니다. 전송이 완료되면 안내가 뜹니다.</p>
                             <p><strong class="text-[#2D4A3E]">5. 관리자</strong> — 기관 목록·대시보드·백업은 관리자 인증 후에만 열립니다.</p>
                         </div>
@@ -2238,10 +2232,9 @@
 
             el.innerHTML = `
                 <div class="max-w-lg mx-auto">
-                    ${migrateNote}
-                    <div class="ms-card p-8 md:p-10 mb-6">
+                    <div class="ms-card p-8 md:p-10 mb-6 shadow-[0_12px_40px_rgba(45,74,62,0.1)] border-2 border-[rgba(45,74,62,0.1)]">
                         <button type="button" class="ms-btn w-full !rounded-2xl md:!rounded-3xl bg-[#5D4037] text-[#FFFFFF] font-black py-6 md:py-7 text-lg md:text-xl mb-5 shadow-[0_5px_18px_rgba(0,0,0,0.22)] hover:bg-[#4E342E] active:bg-[#4E342E] active:scale-[0.99] transition-colors duration-200 ease-out"
-                            onclick="MS.goSetup()">새 검사 시작</button>
+                            onclick="MS.openNewExamPrepModal()">새 검사 시작</button>
                         ${showAdmin ? adminDashboardPanel : facilitatorActions}
                         ${showAdmin ? listHint : ''}
                         ${
@@ -2258,6 +2251,7 @@
                                 : ''
                         }
                     </div>
+                    ${migrateNote}
                     <p class="text-center text-xs text-ms-muted mb-2">개인정보는 이 기기 브라우저와 직접 저장한 파일에만 남아요.</p>
                 </div>
             `;
@@ -2666,6 +2660,16 @@
             const obsPostOn =
                 'border-[#8d6e54] bg-[rgba(212,163,115,0.18)] text-[#2D4A3E] shadow-md shadow-[#D4A373]/20';
             const obsPostOff = 'border-ms text-ms-muted';
+            const examinerNameVal =
+                typeof MS !== 'undefined' && MS.getExaminerName
+                    ? String(MS.getExaminerName() || '').trim()
+                    : '';
+            const setupPsOn =
+                'bg-[#03C75A] text-white border-2 border-[#03C75A] shadow-md shadow-[#03C75A]/25';
+            const setupPsOff = 'bg-transparent text-[#03C75A] border-2 border-[#03C75A]';
+            const setupElOn =
+                'bg-[#FF9800] text-white border-2 border-[#FF9800] shadow-md shadow-[#FF9800]/25';
+            const setupElOff = 'bg-transparent text-[#FF9800] border-2 border-[#FF9800]';
             const typeBlock =
                 tgSetup === 'elementary'
                     ? `<div class="flex flex-wrap gap-2 mb-6">
@@ -2689,6 +2693,12 @@
                         onclick="MS.goDashboard()">← 대시보드</button>
 
                     <div class="ms-card p-8 md:p-10 shadow-xl border-2 border-[rgba(45,74,62,0.12)]">
+                        <p class="text-[10px] font-black text-[#D4A373] tracking-[0.18em] mb-1 text-center">기관 설정 및 검사 준비</p>
+                        <label for="ms-examiner-name" class="block text-xs font-bold text-ms-muted mb-2 ml-1 tracking-widest">진행자(해설사) 이름</label>
+                        <input id="ms-examiner-name" type="text" maxlength="40" autocomplete="name" placeholder="필수 · 한 번 입력하면 이 기기에 저장됩니다"
+                            class="w-full ms-input px-4 py-3.5 text-sm font-bold text-center rounded-[2rem] mb-5 border border-ms"
+                            value="${this.esc(examinerNameVal)}"
+                            oninput="MS.onExaminerNameInput(this.value)" />
                         <span class="block text-xs font-bold text-ms-muted mb-2 ml-1 tracking-widest">관찰 단계 (사전·사후)</span>
                         <div class="flex flex-wrap gap-2 mb-2" role="group" aria-label="관찰 단계 사전 또는 사후">
                             <button type="button" class="ms-btn flex-1 min-w-[120px] min-h-[52px] py-3 font-bold border-2 text-sm ${STATE.observationStage === 'pre' ? obsPreOn : obsPreOff}"
@@ -2708,7 +2718,7 @@
                                     onkeydown="MS.onInstNameKeydown(event)">
                                 <button type="button" id="ms-inst-toggle-all"
                                     class="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center justify-center w-11 h-11 min-h-[44px] min-w-[44px] rounded-2xl text-[#2D4A3E] hover:bg-[rgba(240,253,244,0.75)] active:bg-[rgba(240,253,244,0.9)] transition-colors print-hidden"
-                                    aria-label="전체 기관 목록 (가나다순)" aria-expanded="false" aria-controls="ms-inst-dropdown"
+                                    aria-label="저장 기관·사전 명단 전체 보기 (가나다순)" aria-expanded="false" aria-controls="ms-inst-dropdown"
                                     onmousedown="event.preventDefault()"
                                     onclick="MS.toggleInstListAll(event)">
                                     <span class="text-base font-bold leading-none select-none" aria-hidden="true">▼</span>
@@ -2717,7 +2727,7 @@
                                     role="listbox" aria-label="기관 목록"></div>
                             </div>
                         </div>
-                        <p class="text-xs text-ms-muted mb-5 text-center">한 글자만 입력해도 목록이 뜹니다. ▼ 를 누르면 전체 기관이 가나다순으로 펼쳐져요.</p>
+                        <p class="text-xs text-ms-muted mb-5 text-center leading-relaxed">글자를 입력하면 맞는 기관명이 바로 뜹니다. ▼ 는 이 기기에 저장된 기관과, 파일 상단에 적어 둔 <strong class="text-[#2D4A3E]">사전 명단</strong>(유아부)을 가나다순으로 모두 보여 줍니다.</p>
                         <div class="mb-5">
                             <label for="ms-group-name" class="block text-xs font-bold text-ms-muted mb-2 ml-1 tracking-widest">반 이름(또는 생략)</label>
                             <input id="ms-group-name" type="text" placeholder="예: 새싹반 · 비워 두어도 됩니다"
@@ -2732,9 +2742,9 @@
                         <div class="mb-4">
                             <span class="block text-xs font-bold text-ms-muted mb-2 ml-1 tracking-widest">대상 (문항뱅크)</span>
                             <div class="flex gap-2">
-                                <button type="button" class="ms-btn flex-1 min-h-[52px] py-3 font-bold border-2 text-sm ${tgSetup === 'preschool' ? 'border-[#03C75A] bg-[rgba(3,199,90,0.1)] text-[#2D4A3E]' : 'border-ms text-ms-muted'}"
+                                <button type="button" class="ms-btn flex-1 min-h-[52px] py-3 font-bold text-sm rounded-full ${tgSetup === 'preschool' ? setupPsOn : setupPsOff}"
                                     onclick="MS.setSetupTargetGroup('preschool')">유아부</button>
-                                <button type="button" class="ms-btn flex-1 min-h-[52px] py-3 font-bold border-2 text-sm ${tgSetup === 'elementary' ? 'border-[#FF9800] bg-[rgba(255,152,0,0.12)] text-[#2D4A3E]' : 'border-ms text-ms-muted'}"
+                                <button type="button" class="ms-btn flex-1 min-h-[52px] py-3 font-bold text-sm rounded-full ${tgSetup === 'elementary' ? setupElOn : setupElOff}"
                                     onclick="MS.setSetupTargetGroup('elementary')">초등부</button>
                             </div>
                         </div>
@@ -3132,6 +3142,41 @@
                 return false;
             }
         },
+        openNewExamPrepModal() {
+            const root = document.getElementById('ms-modal-root');
+            if (!root) return;
+            const name = String(MS.getExaminerName() || '').trim();
+            root.className = 'print-hidden fixed inset-0 z-[200] flex items-center justify-center p-4';
+            root.innerHTML = `
+                <div class="absolute inset-0 bg-black/45" onclick="MS.closeForestModal()" aria-hidden="true"></div>
+                <div class="relative w-full max-w-md rounded-[2rem] bg-[#FDFBF7] shadow-2xl border border-[#2D4A3E]/12 p-6 md:p-8" onclick="event.stopPropagation()">
+                    <h2 id="ms-modal-title" class="text-lg md:text-xl font-black text-[#2D4A3E] mb-2 text-center leading-tight">기관 설정 및 검사 준비</h2>
+                    <p class="text-xs text-ms-muted mb-5 text-center leading-relaxed">진행자 이름을 입력한 뒤 검사 설정 화면으로 이동합니다. 이름은 이 기기에 저장되며 다음 검사 시 자동으로 채워집니다.</p>
+                    <label for="ms-examiner-name-modal" class="block text-xs font-bold text-ms-muted mb-2 ml-0.5 tracking-widest">진행자(해설사) 이름</label>
+                    <input id="ms-examiner-name-modal" type="text" maxlength="40" autocomplete="name" placeholder="필수 입력"
+                        class="w-full ms-input px-4 py-3.5 text-center font-bold rounded-2xl mb-4 text-[#2D4A3E]"
+                        value="${UI.esc(name)}"
+                        oninput="MS.onExaminerNameInput(this.value)" />
+                    <div class="flex flex-col sm:flex-row gap-2">
+                        <button type="button" class="ms-btn flex-1 rounded-full border-2 border-ms text-[#2D4A3E] font-bold py-3.5 text-sm" onclick="MS.closeForestModal()">취소</button>
+                        <button type="button" class="ms-btn flex-1 rounded-full bg-[#2D4A3E] text-white font-black py-3.5 text-sm shadow-lg" onclick="MS.confirmNewExamPrepModal()">검사 설정으로 이동</button>
+                    </div>
+                </div>
+            `;
+            document.body.style.overflow = 'hidden';
+            requestAnimationFrame(() => document.getElementById('ms-examiner-name-modal')?.focus());
+        },
+        confirmNewExamPrepModal() {
+            const el = document.getElementById('ms-examiner-name-modal');
+            const v = String((el && el.value) || '').trim();
+            if (!v) {
+                alert('진행자(해설사) 이름을 입력해 주세요.');
+                return;
+            }
+            MS.onExaminerNameInput(v);
+            MS.closeForestModal();
+            MS.goSetup();
+        },
         openAdminUnlockModal() {
             const root = document.getElementById('ms-modal-root');
             if (!root) return;
@@ -3381,6 +3426,52 @@
             return [...list].sort((a, b) => a.name.localeCompare(b.name, 'ko'));
         },
 
+        /** onclick="..." 용: 작은따옴표 문자열 이스케이프 */
+        escapeAttrJs(s) {
+            return String(s || '')
+                .replace(/\\/g, '\\\\')
+                .replace(/'/g, "\\'")
+                .replace(/\r|\n/g, ' ');
+        },
+
+        getPresetDaycareNamesForSetup() {
+            if (STATE.targetGroup === 'elementary') return [];
+            return normalizePresetInstitutionNames(PRESET_FOREST_DAYCARE_NAMES);
+        },
+
+        /**
+         * 설정 화면: 현재 유아/초등 탭 + 사전 명단 + 저장 기관을 합친 드롭다운 행.
+         * allMode(▼): 가나다순 전체. 그 외: 입력 q(1글자 이상)로 부분 일치 필터.
+         */
+        buildInstitutionDropdownRows(q, allMode) {
+            const tg = STATE.targetGroup === 'elementary' ? 'elementary' : 'preschool';
+            let instList = STATE.institutions.filter((i) => SCHEMA.getTargetGroup(i) === tg);
+            const presetNames = MS.getPresetDaycareNamesForSetup();
+            const nameKey = (nm) => String(nm || '').trim().toLocaleLowerCase('ko-KR');
+            const namesFromInst = new Set(instList.map((i) => nameKey(i.name)));
+            const virtualPresets = presetNames.filter((n) => !namesFromInst.has(nameKey(n)));
+
+            const ql = q.trim().toLocaleLowerCase('ko-KR');
+            const nameMatches = (nm) => {
+                if (allMode) return true;
+                if (q.length < 1) return false;
+                return nameKey(nm).includes(ql);
+            };
+
+            instList = instList.filter((i) => nameMatches(i.name));
+            const filteredVirtual = virtualPresets.filter((n) => nameMatches(n));
+
+            const rows = [];
+            instList.forEach((inst) => rows.push({ kind: 'inst', inst }));
+            filteredVirtual.forEach((name) => rows.push({ kind: 'preset', name }));
+            rows.sort((a, b) => {
+                const na = a.kind === 'inst' ? a.inst.name : a.name;
+                const nb = b.kind === 'inst' ? b.inst.name : b.name;
+                return na.localeCompare(nb, 'ko');
+            });
+            return rows;
+        },
+
         updateInstDropdown() {
             const panel = document.getElementById('ms-inst-dropdown');
             const inp = document.getElementById('inst-name');
@@ -3390,17 +3481,6 @@
             const q = raw.trim();
             const allMode = MS._instDropdownAll;
 
-            let list = [];
-            if (allMode) {
-                list = MS.sortInstitutionsKo(STATE.institutions);
-            } else if (q.length >= 1) {
-                const ql = q.toLocaleLowerCase('ko-KR');
-                list = STATE.institutions.filter((i) =>
-                    i.name.toLocaleLowerCase('ko-KR').includes(ql)
-                );
-                list = MS.sortInstitutionsKo(list);
-            }
-
             if (!allMode && q.length < 1) {
                 panel.innerHTML = '';
                 panel.classList.add('hidden');
@@ -3408,7 +3488,9 @@
                 return;
             }
 
-            if (list.length === 0) {
+            const rows = MS.buildInstitutionDropdownRows(q, allMode);
+
+            if (rows.length === 0) {
                 panel.classList.remove('hidden');
                 panel.innerHTML =
                     '<div class="px-4 py-3 min-h-[44px] flex items-center text-sm text-ms-muted border-b border-[rgba(45,74,62,0.06)] last:border-0">검색 결과가 없어요.</div>';
@@ -3417,16 +3499,29 @@
             }
 
             panel.classList.remove('hidden');
-            panel.innerHTML = list
-                .map((inst) => {
-                    const labelHtml = allMode ? UI.esc(inst.name) : UI.highlightInstMatch(inst.name, q);
-                    const safeId = String(inst.id).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-                    return `<button type="button" role="option"
+            panel.innerHTML = rows
+                .map((row) => {
+                    if (row.kind === 'inst') {
+                        const inst = row.inst;
+                        const labelHtml = allMode ? UI.esc(inst.name) : UI.highlightInstMatch(inst.name, q);
+                        const safeId = String(inst.id).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                        return `<button type="button" role="option"
                         class="w-full text-left px-4 py-3 min-h-[44px] flex flex-col justify-center sm:flex-row sm:items-baseline sm:gap-2 border-b border-[rgba(45,74,62,0.08)] last:border-b-0 hover:bg-[rgba(240,253,244,0.88)] active:bg-[rgba(240,253,244,0.95)] text-[#2D4A3E] transition-colors"
                         onmousedown="event.preventDefault()"
                         onclick="MS.pickInstitution('${safeId}')">
                         <span class="text-sm font-bold">${labelHtml}</span>
                         <span class="text-[10px] text-ms-muted font-semibold shrink-0">[${UI.esc(inst.type)}]</span>
+                    </button>`;
+                    }
+                    const name = row.name;
+                    const labelHtml = allMode ? UI.esc(name) : UI.highlightInstMatch(name, q);
+                    const safeName = MS.escapeAttrJs(name);
+                    return `<button type="button" role="option"
+                        class="w-full text-left px-4 py-3 min-h-[44px] flex flex-col justify-center sm:flex-row sm:items-baseline sm:gap-2 border-b border-[rgba(45,74,62,0.08)] last:border-b-0 hover:bg-[rgba(240,253,244,0.88)] active:bg-[rgba(240,253,244,0.95)] text-[#2D4A3E] transition-colors"
+                        onmousedown="event.preventDefault()"
+                        onclick="MS.pickInstitutionByName('${safeName}')">
+                        <span class="text-sm font-bold">${labelHtml}</span>
+                        <span class="text-[10px] text-[#03C75A] font-semibold shrink-0">[사전명단]</span>
                     </button>`;
                 })
                 .join('');
@@ -3458,6 +3553,43 @@
             const inst = STATE.institutions.find((i) => i.id === id);
             if (!inst) return;
             STATE.selectedId = inst.id;
+            STATE.searchTerm = inst.name;
+            STATE.targetGroup = SCHEMA.getTargetGroup(inst);
+            STATE.setupObsPhase = STATE.observationStage;
+            MS._instDropdownAll = false;
+            STATE.setupTypeOverride = null;
+            STATE.persist();
+            const panel = document.getElementById('ms-inst-dropdown');
+            if (panel) {
+                panel.innerHTML = '';
+                panel.classList.add('hidden');
+            }
+            MS.setInstToggleAria(false);
+            UI.render();
+        },
+
+        /** 사전 명단만 있고 아직 금고에 없을 때: 동일 이름 기관을 만들고 선택 */
+        pickInstitutionByName(rawName) {
+            const name = String(rawName || '').trim();
+            if (!name) return;
+            const tg = STATE.targetGroup === 'elementary' ? 'elementary' : 'preschool';
+            const pool = STATE.institutions.filter((i) => String(i.name).trim() === name);
+            let inst =
+                pool.find((i) => SCHEMA.getTargetGroup(i) === tg) ||
+                pool[0] ||
+                null;
+            if (!inst) {
+                inst = STATE.addInstitution(name);
+                inst.targetGroup = tg;
+                if (tg === 'elementary') {
+                    inst.type = '방과후학교';
+                } else {
+                    inst.type = '어린이집';
+                }
+            } else {
+                STATE.selectedId = inst.id;
+                STATE.ensureCounts(inst);
+            }
             STATE.searchTerm = inst.name;
             STATE.targetGroup = SCHEMA.getTargetGroup(inst);
             STATE.setupObsPhase = STATE.observationStage;
@@ -3974,6 +4106,10 @@
             UI.render();
         },
         startTest() {
+            if (!String(MS.getExaminerName() || '').trim()) {
+                alert('진행자(해설사) 이름을 입력해 주세요.');
+                return;
+            }
             const el = document.getElementById('inst-name');
             const name = (el && el.value.trim()) || STATE.searchTerm.trim();
             if (!name) {
