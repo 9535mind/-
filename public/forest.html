@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 공식 접속 URL: https://mindstory.kr/forest.html (4 Jahreszeiten Temperament-Test für Kinder · 4STT) -->
+<!-- 공식 접속 URL: https://mindstory.kr/forest.html (4JTT-Kinder · 4 Jahreszeiten Temperament-Test für Kinder) -->
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
@@ -7,7 +7,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>4 Jahreszeiten Temperament-Test für Kinder (4STT) · 마인드스토리</title>
+    <title>4JTT-Kinder · 4 Jahreszeiten Temperament-Test für Kinder · 마인드스토리</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;900&display=swap');
@@ -312,10 +312,17 @@
 <body class="ms-hanji min-h-screen p-4 md:p-10 flex flex-col">
 
 <div id="app" class="max-w-2xl mx-auto fade-in w-full flex flex-col flex-1 min-h-0 transition-[max-width] duration-300">
-    <header id="ms-app-header" class="text-center mb-8 print-hidden shrink-0 transition-[margin] duration-200">
-        <div class="inline-block px-4 py-1 border-2 border-[#2D4A3E] text-[#2D4A3E] text-[9px] font-bold rounded-full mb-2 md:mb-3 tracking-[0.18em]">MINDSTORY</div>
-        <h1 class="text-[clamp(0.8rem,3.4vw,1.125rem)] sm:text-lg md:text-xl lg:text-2xl font-extrabold text-[#2D4A3E] tracking-tight leading-[1.22] px-2 sm:px-3 text-balance max-w-[min(100%,22rem)] sm:max-w-[26rem] md:max-w-xl mx-auto">4 Jahreszeiten Temperament-Test für Kinder (4STT)</h1>
-        <div id="ms-header-age-tabs" class="print-hidden max-w-md mx-auto w-full px-2 mt-4 mb-0 min-h-0" aria-label="연령·문항 세트 선택"></div>
+    <header id="ms-app-header" class="mb-8 print-hidden shrink-0 transition-[margin] duration-200 w-full">
+        <div class="flex flex-col gap-1.5 sm:gap-2">
+            <div class="flex items-baseline justify-start w-full">
+                <span class="inline-block px-3 py-1 sm:px-4 sm:py-1.5 border-2 border-[#2D4A3E] text-[#2D4A3E] text-xl sm:text-2xl md:text-3xl font-black rounded-full tracking-[0.14em] leading-none">MINDSTORY</span>
+            </div>
+            <h1 class="text-left w-full max-w-none px-0.5 sm:px-1">
+                <span class="block text-2xl sm:text-3xl md:text-4xl font-extrabold text-[#2D4A3E] tracking-tight leading-[1.15] text-balance">4JTT-Kinder</span>
+                <span class="block mt-1 sm:mt-1.5 text-[clamp(0.8rem,3.1vw,1.15rem)] sm:text-lg md:text-xl font-extrabold text-[#2D4A3E]/95 tracking-tight leading-snug text-balance">(4 Jahreszeiten Temperament-Test für Kinder)</span>
+            </h1>
+            <div id="ms-header-age-tabs" class="print-hidden max-w-md w-full px-0 mt-2 mb-0 min-h-0" aria-label="연령·문항 세트 선택"></div>
+        </div>
     </header>
 
     <div id="view-content" class="flex-1 min-h-0 flex flex-col"></div>
@@ -1358,8 +1365,8 @@
         }
     })();
 
-    /** 공식 앱 표기명 (독일어 · 숲교육 정통 브랜딩) — UI·공유·가이드 공통 */
-    const APP_TITLE_DE = '4 Jahreszeiten Temperament-Test für Kinder (4STT)';
+    /** 공식 앱 표기명 (4JTT-Kinder · 독일어 부제) — UI·공유·가이드 공통 */
+    const APP_TITLE_DE = '4JTT-Kinder (4 Jahreszeiten Temperament-Test für Kinder)';
 
     const UI = {
         esc(s) {
@@ -1492,7 +1499,7 @@
                 appHdr.setAttribute('aria-hidden', hideHdr ? 'true' : 'false');
                 appHdr.classList.remove('mb-3', 'mb-4', 'mb-8');
                 if (!hideHdr) {
-                    appHdr.classList.add(STATE.step === 'dashboard' ? 'mb-3' : 'mb-8');
+                    appHdr.classList.add(STATE.step === 'dashboard' ? 'mb-2' : 'mb-8');
                 }
             }
         },
@@ -2381,24 +2388,24 @@
                                     <img id="ms-dash-visual-fallback" width="600" height="1067" class="hidden absolute inset-0 w-full h-full object-cover" alt="" decoding="async" data-src="${this.esc(visCfg.posterUrl)}" />
                                 </div>
                             </div>
-                            <p class="text-[10px] text-ms-muted text-center mt-2 mb-0 px-1 leading-snug">숲의 싱그러움을 담은 인트로 · 영상이 없을 때는 사진으로 대체됩니다.</p>
+                            <p class="text-[10px] text-ms-muted text-center mt-1.5 mb-0 px-1 leading-snug">숲의 싱그러움을 담은 인트로 · 영상이 없을 때는 사진으로 대체됩니다.</p>
                         </div>`;
 
             el.innerHTML = `
                 <div class="flex flex-col flex-1 min-h-0 w-full">
-                    <div id="ms-dashboard-visual" class="flex-1 min-h-0 flex flex-col items-center justify-center px-3 pt-1 pb-2 sm:pb-3 print-hidden" aria-hidden="true">
+                    <div id="ms-dashboard-visual" class="flex-1 min-h-0 flex flex-col items-center justify-center px-3 pt-0 pb-1 print-hidden" aria-hidden="true">
                         ${dashboardVisualInner}
                     </div>
-                    <div class="shrink-0 flex flex-col items-stretch py-2 md:py-4">
+                    <div class="shrink-0 flex flex-col items-stretch py-1.5 md:py-2.5">
                         <div class="max-w-lg mx-auto w-full px-1">
-                            <div id="dashboard" class="ms-card p-6 md:p-8 shadow-[0_12px_40px_rgba(45,74,62,0.1)] border-2 border-[rgba(45,74,62,0.1)]">
-                                <button type="button" class="ms-btn w-full !rounded-2xl md:!rounded-3xl bg-[#5D4037] text-[#FFFFFF] font-black py-5 md:py-6 text-base md:text-lg shadow-[0_5px_18px_rgba(0,0,0,0.22)] hover:bg-[#4E342E] active:bg-[#4E342E] active:scale-[0.99] transition-colors duration-200 ease-out min-h-[56px]"
+                            <div id="dashboard" class="ms-card p-5 md:p-7 shadow-[0_12px_40px_rgba(45,74,62,0.1)] border-2 border-[rgba(45,74,62,0.1)]">
+                                <button type="button" class="ms-btn w-full !rounded-2xl md:!rounded-3xl bg-[#A0522D] text-white font-black py-5 md:py-6 text-base md:text-lg shadow-[0_6px_20px_rgba(160,82,45,0.35)] hover:bg-[#B87333] active:bg-[#8B4A28] active:scale-[0.99] transition-colors duration-200 ease-out min-h-[56px]"
                                     onclick="MS.openNewExamPrepModal({ cleanInst: true })">새 검사 시작</button>
                             </div>
-                            <div class="mt-5 flex justify-center px-2 pb-1">
+                            <div class="mt-4 flex justify-center px-2 pb-1">
                                 <button type="button"
                                     class="bg-transparent border-0 cursor-pointer text-center text-sm font-bold text-[#5D4037]/90 hover:text-[#2D4A3E] underline underline-offset-[5px] decoration-[#5D4037]/35 py-3 px-4 min-h-[44px] rounded-xl active:bg-[rgba(93,64,55,0.06)] transition-colors"
-                                    onclick="MS.goGuide()">검사설명서 보기 <span class="text-ms-muted font-semibold">(4STT 지표 해설)</span></button>
+                                    onclick="MS.goGuide()">검사설명서 보기 <span class="text-ms-muted font-semibold">(4JTT 지표 해설)</span></button>
                             </div>
                             ${adminPanelHtml}
                         </div>
@@ -3133,7 +3140,7 @@
                 <div class="max-w-lg mx-auto">
                     <div class="ms-card p-8 md:p-10 text-center border-t-[10px] border-[#2D4A3E]">
                         ${preview}
-                        <p class="text-[clamp(0.85rem,3.2vw,1.15rem)] sm:text-lg md:text-xl font-black text-[#2D4A3E] mb-2 leading-snug text-balance px-1">${APP_TITLE_DE}</p>
+                        <p class="text-[clamp(0.8rem,3vw,1rem)] sm:text-base md:text-lg font-black text-[#2D4A3E] mb-2 leading-snug text-balance px-1">${APP_TITLE_DE}</p>
                         <h2 class="text-2xl font-black text-[#2D4A3E] mb-1">${name}</h2>
                         <p class="text-ms-muted text-[10px] sm:text-xs mb-5 leading-relaxed text-balance px-0.5">${APP_TITLE_DE} · 계절별 기질 관찰 기록 · ${tgRes === 'elementary' ? '초등부' : '유아·유치부'} · 스키마 v9.2 · 보고서 v2.0</p>
                         <button type="button" class="print-hidden w-full mb-5 rounded-full bg-[#2D4A3E] text-white font-black py-4 px-6 text-sm md:text-base shadow-lg hover:brightness-95 active:scale-[0.99] transition-all"
