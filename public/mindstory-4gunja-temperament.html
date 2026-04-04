@@ -142,7 +142,7 @@
             border-radius: 3rem;
         }
 
-        /* 기관 종합 보고서 · 은은한 수묵·4군자 무늬 느낌 */
+        /* 기관 종합 보고서 · 은은한 수묵·4STT 무늬 느낌 */
         .ms-consulting-hero {
             background-color: #FAF9F5;
             background-image:
@@ -285,7 +285,7 @@
 <div id="app" class="max-w-2xl mx-auto fade-in w-full flex flex-col flex-1 min-h-0 transition-[max-width] duration-300">
     <header class="text-center mb-8 print-hidden shrink-0">
         <div class="inline-block px-4 py-1 border-2 border-[#2D4A3E] text-[#2D4A3E] text-[9px] font-bold rounded-full mb-3 tracking-[0.18em]">MINDSTORY</div>
-        <h1 class="text-2xl md:text-3xl font-black text-[#2D4A3E] tracking-tight leading-tight px-1">어린이 4군자 기질검사</h1>
+        <h1 class="text-2xl md:text-3xl font-black text-[#2D4A3E] tracking-tight leading-tight px-1">어린이 4계절 Temperament TEST (4STT)</h1>
         <p class="mt-2 text-sm text-ms-body font-semibold">마인드스토리 유아숲 행동관찰</p>
         <p class="mt-1 text-sm text-ms-body font-medium">축령산 편백숲 유아학교 · 따뜻한 관찰 기록</p>
         <p class="mt-1 text-[10px] text-ms-muted">통합 엔진 v1.5 · v8.7 스키마 · 보고서 v2.0 · 기기 안에서만 저장 · 오프라인</p>
@@ -1808,7 +1808,7 @@
             el.innerHTML = `
                 <div class="ms-consulting-hero rounded-[2rem] border-2 border-[#2D4A3E]/15 shadow-xl overflow-hidden mb-6">
                     <div class="ms-consulting-symbol-layer min-h-[200px]">
-                        <div class="ms-watermark-4gun" aria-hidden="true">난 · 대 · 국 · 매</div>
+                        <div class="ms-watermark-4gun" aria-hidden="true">SPRT · SUMT · AUTT · WINT</div>
                         <div class="ms-consulting-inner p-6 md:p-10 lg:p-12">
                             <button type="button" class="print-hidden ms-btn text-xs font-bold text-ms-muted hover:text-[#2D4A3E] mb-6"
                                 onclick="MS.backFromInstitutionReport()">← 기관 허브</button>
@@ -1894,7 +1894,7 @@
                 <div class="ms-consulting-hero rounded-[2rem] border-2 border-[rgba(212,163,115,0.35)] shadow-xl overflow-hidden mb-6 relative">
                     <div class="ms-mindstory-seal" aria-hidden="true">성과<br />인장</div>
                     <div class="ms-consulting-symbol-layer min-h-[200px]">
-                        <div class="ms-watermark-4gun" aria-hidden="true">난 · 대 · 국 · 매</div>
+                        <div class="ms-watermark-4gun" aria-hidden="true">SPRT · SUMT · AUTT · WINT</div>
                         <div class="ms-consulting-inner p-6 md:p-10 lg:p-12">
                             <button type="button" class="print-hidden ms-btn text-xs font-bold text-ms-muted hover:text-[#2D4A3E] mb-6"
                                 onclick="MS.backFromInstitutionPrePostReport()">← 기관 허브</button>
@@ -1907,7 +1907,7 @@
                             <div class="ms-prepost-page-1 ms-print-avoid-break mb-10">
                                 <div class="ms-prepost-chart-grid gap-6 md:gap-8">
                                     <div class="bg-white/75 rounded-2xl border border-ms p-4 md:p-5 ms-print-avoid-break">
-                                        <h3 class="text-center text-sm font-black text-[#2D4A3E] mb-3">4군자 기질 · 사전/사후 막대 비교</h3>
+                                        <h3 class="text-center text-sm font-black text-[#2D4A3E] mb-3">4STT · 사전/사후 막대 비교</h3>
                                         <div class="flex justify-center overflow-x-auto">${barHtml}</div>
                                     </div>
                                     <div class="bg-white/75 rounded-2xl border border-ms p-4 md:p-5 ms-print-avoid-break">
@@ -1975,7 +1975,7 @@
                 <div class="ms-consulting-hero rounded-[2rem] border-2 border-[#2D4A3E]/18 shadow-xl overflow-hidden mb-6 relative">
                     <div class="ms-mindstory-seal" aria-hidden="true">MACRO<br />리포트</div>
                     <div class="ms-consulting-symbol-layer min-h-[180px]">
-                        <div class="ms-watermark-4gun" aria-hidden="true">난 · 대 · 국 · 매</div>
+                        <div class="ms-watermark-4gun" aria-hidden="true">SPRT · SUMT · AUTT · WINT</div>
                         <div class="ms-consulting-inner p-6 md:p-10 lg:p-12">
                             <button type="button" class="print-hidden ms-btn text-xs font-bold text-ms-muted hover:text-[#2D4A3E] mb-6"
                                 onclick="MS.backFromInstitutionTypeMacroReport()">← 대시보드</button>
@@ -2248,7 +2248,7 @@
                         <h2 class="text-2xl font-black text-[#2D4A3E] mb-1">${name}</h2>
                         <p class="text-ms-muted text-xs mb-5">4기질 관찰 기록 · 스키마 v8.7 · 보고서 v2.0</p>
                         <button type="button" class="print-hidden w-full mb-5 rounded-full bg-[#2D4A3E] text-white font-black py-4 px-6 text-sm md:text-base shadow-lg hover:brightness-95 active:scale-[0.99] transition-all"
-                            onclick="MS.openForestMapModal()">4군자 종합 지도 보기</button>
+                            onclick="MS.openForestMapModal()">4STT 종합 지도 보기</button>
                         <div class="print-hidden rounded-2xl border border-ms bg-ms-soft/50 p-4 mb-8 text-left">
                             <p class="text-[10px] font-black text-[#2D4A3E] tracking-[0.15em] mb-1">집단·비교 보고서</p>
                             <p class="text-[10px] text-ms-muted font-semibold mb-3 leading-relaxed">같은 기관명으로 묶인 관찰 전체를 기준으로 합니다.</p>

@@ -1,5 +1,5 @@
 /**
- * POST /api/forest-results — 유아숲 4STT 집단 결과(기관·반, 점수 JSON) D1 저장
+ * POST /api/forest-results — 4STT(어린이 4계절 Temperament TEST) 집단 결과(기관·반, 점수 JSON) D1 저장
  * 인증 없음(공개 도구); 레이트 리밋은 index에서 적용.
  */
 
