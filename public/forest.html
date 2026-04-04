@@ -316,9 +316,6 @@
         <div class="inline-block px-4 py-1 border-2 border-[#2D4A3E] text-[#2D4A3E] text-[9px] font-bold rounded-full mb-3 tracking-[0.18em]">MINDSTORY</div>
         <h1 class="text-2xl md:text-3xl font-black text-[#2D4A3E] tracking-tight leading-tight px-1">어린이 4군자 기질검사</h1>
         <div id="ms-header-age-tabs" class="print-hidden max-w-md mx-auto w-full px-2 mt-5 mb-1" aria-label="연령·문항 세트 선택"></div>
-        <p class="mt-2 text-[10px] text-ms-muted leading-snug px-2 max-w-md mx-auto print-hidden">
-            통합 엔진 v1.5 · <span class="font-black text-[#1B5E20] tracking-wide">[SCHEMA v18.0 - PLACEHOLDER]</span> · 보고서 v2.0
-        </p>
     </header>
 
     <div id="view-content" class="flex-1 min-h-0"></div>
@@ -352,15 +349,13 @@
     /** 전역 관찰 단계(사전/사후) — 앱 재시작 후에도 유지 */
     const LS_OBSERVATION_STAGE = 'ms_observation_stage';
 
-    /** 연령 탭: 선택=솔리드(#03C75A / #FF9800)+흰 글자(!로 우선순위 고정). 비선택=연한 톤 솔리드(테두리 전용 아님) */
+    /** 연령 탭: 선택·비선택 모두 솔리드 바탕 + 흰 글씨(비선택은 동일 색조의 연한 솔리드, 테두리 전용 스타일 없음) */
     const TAB_AGE_PS_ON =
-        '!bg-[#03C75A] !text-[#FFFFFF] border-0 shadow-lg shadow-[#03C75A]/35 ring-0 outline-none hover:brightness-[1.02]';
-    const TAB_AGE_PS_OFF =
-        '!bg-[rgba(3,199,90,0.14)] !text-[#03C75A] border-0 shadow-sm shadow-[#03C75A]/10 ring-0 outline-none hover:!bg-[rgba(3,199,90,0.22)]';
+        '!bg-[#03C75A] !text-white border-0 shadow-lg shadow-[#03C75A]/35 ring-0 outline-none hover:brightness-[1.02]';
+    const TAB_AGE_PS_OFF = '!bg-[#81C784] !text-white border-0 shadow-sm ring-0 outline-none hover:brightness-95';
     const TAB_AGE_EL_ON =
-        '!bg-[#FF9800] !text-[#FFFFFF] border-0 shadow-lg shadow-[#FF9800]/35 ring-0 outline-none hover:brightness-[1.02]';
-    const TAB_AGE_EL_OFF =
-        '!bg-[rgba(255,152,0,0.18)] !text-[#E65100] border-0 shadow-sm shadow-[#FF9800]/25 ring-0 outline-none hover:!bg-[rgba(255,152,0,0.26)]';
+        '!bg-[#FF9800] !text-white border-0 shadow-lg shadow-[#FF9800]/35 ring-0 outline-none hover:brightness-[1.02]';
+    const TAB_AGE_EL_OFF = '!bg-[#FFB74D] !text-white border-0 shadow-sm ring-0 outline-none hover:brightness-95';
 
     /**
      * v15.0 기관 사전 DB (코드 내장). 검색·▼ 전체 목록·초성 검색에 사용.
@@ -451,6 +446,24 @@
         return out;
     }
 
+    /** 기관명 검색용: NFC + 소문자 (한글 부분 일치 안정화) */
+    function normalizeForInstSearchKey(s) {
+        return String(s || '')
+            .trim()
+            .normalize('NFC')
+            .toLocaleLowerCase('ko-KR');
+    }
+
+    /** 사전 명단 중 어린이집·유치원(병설 포함) 시설명만 */
+    function isPreschoolFacilityPresetName(name) {
+        const n = String(name || '');
+        return (
+            n.includes('어린이집') ||
+            n.includes('유치원') ||
+            (n.includes('병설') && n.includes('유치원'))
+        );
+    }
+
     function newVaultRecordId() {
         try {
             if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -461,11 +474,11 @@
     }
 
     /**
-     * SCHEMA — v18.0 기관명 placeholder·클린 스타트 · v17 설정 최적화 · v16 원클릭
+     * SCHEMA — v14.0 FINAL (v19.0 UI 규격)
      * 톤: MINDSTORY V1 · 관찰과 공감 · 따뜻한 어휘
      */
     const SCHEMA = {
-        version: '18.0',
+        version: '14.0',
         categories: ['난초', '대나무', '국화', '매화'],
         /** 동점 시 정렬: 매(매화) → 란(난초) → 국(국화) → 죽(대나무) */
         temperamentTieOrder: ['매화', '난초', '국화', '대나무'],
@@ -1395,6 +1408,14 @@
                 'ms-btn flex-1 min-h-[48px] px-4 py-3 font-bold text-xs rounded-full transition-colors duration-200 ease-out';
             const tabPs = tg === 'preschool' ? TAB_AGE_PS_ON : TAB_AGE_PS_OFF;
             const tabEl = tg === 'elementary' ? TAB_AGE_EL_ON : TAB_AGE_EL_OFF;
+            const guideRow =
+                STATE.step === 'dashboard'
+                    ? `<div class="mt-4 flex justify-center px-2">
+                    <button type="button"
+                        class="ms-btn w-full max-w-md rounded-2xl border-2 border-[#5D4037] bg-[#FDFBF7] px-4 py-3.5 text-sm font-black text-[#5D4037] shadow-sm active:scale-[0.99]"
+                        onclick="MS.goGuide()">검사설명서 보기 (4군자 지표 해설)</button>
+                </div>`
+                    : '';
             host.innerHTML = `
                 <div class="flex gap-2 justify-center max-w-md mx-auto">
                     <button type="button" class="${base} ${tabPs}"
@@ -1402,6 +1423,7 @@
                     <button type="button" class="${base} ${tabEl}"
                         onclick="MS.setTargetGroup('elementary')">초등부</button>
                 </div>
+                ${guideRow}
             `;
         },
 
@@ -2247,15 +2269,11 @@
                 STATE.dashboardBuilderTypeFilter = btf;
             }
 
-            const facilitatorActions = `
-                        <div class="space-y-3 mt-2 print:hidden">
-                            <button type="button" class="ms-btn w-full !rounded-xl border-2 border-[#D4A373]/50 bg-[rgba(212,163,115,0.08)] text-[#2D4A3E] font-black py-4 text-sm"
-                                onclick="MS.goGuide()">검사설명서 보기</button>
-                            <p class="text-center pt-2 border-t border-[#2D4A3E]/10">
-                                <button type="button" class="text-[10px] font-semibold text-[#5D4037]/70 hover:text-[#5D4037] underline underline-offset-2"
-                                    onclick="MS.openAdminUnlockModal()">관리자 · 대시보드 잠금 해제</button>
-                            </p>
-                        </div>`;
+            const adminOpenInCardHtml = showAdmin
+                ? ''
+                : `<button type="button"
+                        class="ms-btn w-full rounded-2xl border-2 border-[#5D4037] bg-[#FDFBF7] text-[#5D4037] font-black py-4 text-sm mt-5 shadow-sm active:scale-[0.99] hover:bg-[rgba(93,64,55,0.06)]"
+                        onclick="MS.openAdminUnlockModal()">관리자 대시보드 열기</button>`;
 
             const adminDashboardPanel = `
                         <button type="button" id="ms-dashboard-toggle"
@@ -2316,14 +2334,20 @@
 
             el.innerHTML = `
                 <div class="max-w-lg mx-auto">
-                    <div class="ms-card p-8 md:p-10 mb-6 shadow-[0_12px_40px_rgba(45,74,62,0.1)] border-2 border-[rgba(45,74,62,0.1)]">
-                        <button type="button" class="ms-btn w-full !rounded-2xl md:!rounded-3xl bg-[#5D4037] text-[#FFFFFF] font-black py-6 md:py-7 text-lg md:text-xl ${showAdmin ? 'mb-5' : 'mb-0'} shadow-[0_5px_18px_rgba(0,0,0,0.22)] hover:bg-[#4E342E] active:bg-[#4E342E] active:scale-[0.99] transition-colors duration-200 ease-out"
+                    <p class="mb-4 text-[10px] text-ms-muted leading-snug px-2 text-center print-hidden">
+                        통합 엔진 v1.5 · <span class="font-black text-[#1B5E20] tracking-wide">[SCHEMA v14.0 - FINAL]</span> · 보고서 v2.0
+                    </p>
+                    ${migrateNote}
+                    <div id="dashboard" class="ms-card p-8 md:p-10 mb-6 shadow-[0_12px_40px_rgba(45,74,62,0.1)] border-2 border-[rgba(45,74,62,0.1)]">
+                        <button type="button" class="ms-btn w-full !rounded-2xl md:!rounded-3xl bg-[#5D4037] text-[#FFFFFF] font-black py-6 md:py-7 text-lg md:text-xl shadow-[0_5px_18px_rgba(0,0,0,0.22)] hover:bg-[#4E342E] active:bg-[#4E342E] active:scale-[0.99] transition-colors duration-200 ease-out"
                             onclick="MS.openNewExamPrepModal({ cleanInst: true })">새 검사 시작</button>
-                        ${showAdmin ? adminDashboardPanel : facilitatorActions}
-                        ${showAdmin ? listHint : ''}
-                        ${
-                            showAdmin
-                                ? `<div class="rounded-[3rem] overflow-hidden border border-ms bg-ms-soft/50">
+                        ${adminOpenInCardHtml}
+                    </div>
+                    ${
+                        showAdmin
+                            ? `${listHint}
+                        ${adminDashboardPanel}
+                        <div class="rounded-[3rem] overflow-hidden border border-ms bg-ms-soft/50">
                             <table class="w-full text-left text-sm">
                                 <tbody class="divide-y divide-[rgba(45,74,62,0.08)]">${rows || '<tr><td class="p-6 text-center text-ms-muted">등록된 기관이 없어요. 위 버튼으로 추가해 주세요.</td></tr>'}</tbody>
                             </table>
@@ -2332,10 +2356,8 @@
                             <button type="button" class="text-[10px] font-semibold text-gray-400 hover:text-[#D4A373] underline underline-offset-2"
                                 onclick="MS.clearVaultEntirely()">이 기기 금고 비우기 · 전체 기록 삭제</button>
                         </p>`
-                                : ''
-                        }
-                    </div>
-                    ${migrateNote}
+                            : ''
+                    }
                 </div>
             `;
         },
@@ -3495,6 +3517,8 @@
         },
         onModalInstImeCompositionEnd() {
             MS._modalInstImeComposing = false;
+            const el = document.getElementById('ms-modal-inst-name');
+            if (el) MS.applyModalInstNameSync(el);
         },
         /** 조합 완료 후에만 STATE·모달·자동완성 갱신 (조합 중 전체 재렌더 금지) */
         applyModalInstNameSync(el) {
@@ -4131,13 +4155,17 @@
         buildInstitutionDropdownRows(q, allMode) {
             const tg = STATE.targetGroup === 'elementary' ? 'elementary' : 'preschool';
             let instList = STATE.institutions.filter((i) => SCHEMA.getTargetGroup(i) === tg);
-            const presetNames = MS.getPresetDaycareNamesForSetup();
-            const nameKey = (nm) => String(nm || '').trim().toLocaleLowerCase('ko-KR');
+            const presetNamesAll = MS.getPresetDaycareNamesForSetup().filter(isPreschoolFacilityPresetName);
+            const nameKey = (nm) => normalizeForInstSearchKey(nm);
             const namesFromInst = new Set(instList.map((i) => nameKey(i.name)));
-            const virtualPresets = presetNames.filter((n) => !namesFromInst.has(nameKey(n)));
+            /** 초등 탭에서는 사전(유아부) 명단을 섞지 않음 — 유아·유치부에서만 노출 */
+            const virtualPresets =
+                tg === 'preschool'
+                    ? presetNamesAll.filter((n) => !namesFromInst.has(nameKey(n)))
+                    : [];
 
             const qt = q.trim();
-            const ql = qt.toLocaleLowerCase('ko-KR');
+            const ql = normalizeForInstSearchKey(qt);
             const choseongMode = isChoseongOnlyQueryStr(qt);
             const nameMatches = (nm) => {
                 if (allMode) return true;
@@ -4148,6 +4176,16 @@
                 }
                 return nameKey(nm).includes(ql);
             };
+
+            /** 유아·유치부: 유형이「기타」인데 이름에도 시설 구분이 없으면 검색 목록에서 제외 */
+            if (tg === 'preschool') {
+                instList = instList.filter((i) => {
+                    const t = String(i.type || '').trim();
+                    const n = String(i.name || '');
+                    if (t === '기타' && !/(어린이집|유치원|병설)/.test(n)) return false;
+                    return true;
+                });
+            }
 
             instList = instList.filter((i) => nameMatches(i.name));
             const filteredVirtual = virtualPresets.filter((n) => nameMatches(n));
@@ -5106,6 +5144,8 @@
         },
         onInstNameCompositionEnd() {
             MS._setupInstImeComposing = false;
+            const el = document.getElementById('inst-name');
+            if (el) MS.applySetupInstNameFromInput(String(el.value || ''));
         },
         /** 비-IME 경로·접미어 처리 등에서 동일 로직 재사용 */
         onNameInput(val) {
