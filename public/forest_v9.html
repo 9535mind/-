@@ -304,7 +304,7 @@
 <input type="file" id="ms-import-input" accept=".json,application/json" class="hidden" aria-hidden="true" />
 <div id="ms-modal-root" class="hidden print-hidden" role="dialog" aria-modal="true" aria-labelledby="ms-modal-title"></div>
 
-<script src="/forest-question-banks.js"></script>
+<script src="forest-question-banks.js"></script>
 <script>
 (function () {
     'use strict';
@@ -335,6 +335,14 @@
         return 'vault_' + Date.now() + '_' + Math.random().toString(36).slice(2, 12);
     }
 
+    function forestQuestionBank(kind) {
+        if (typeof window === 'undefined') return [];
+        const b = window.FOREST_QUESTION_BANKS;
+        if (!b) return [];
+        const arr = kind === 'elementary' ? b.elementary : b.preschool;
+        return Array.isArray(arr) && arr.length ? arr : [];
+    }
+
     /**
      * SCHEMA — v12.0 진행자·권한 분리 + v10 빌더
      * 톤: MINDSTORY V1 · 관찰과 공감 · 따뜻한 어휘
@@ -351,14 +359,12 @@
             국화: '신중·안정형(국화)',
             대나무: '활기·탐구형(대나무)'
         },
-        questionsPreschool:
-            typeof window !== 'undefined' && window.FOREST_QUESTION_BANKS && window.FOREST_QUESTION_BANKS.preschool
-                ? window.FOREST_QUESTION_BANKS.preschool
-                : [],
-        questionsElementary:
-            typeof window !== 'undefined' && window.FOREST_QUESTION_BANKS && window.FOREST_QUESTION_BANKS.elementary
-                ? window.FOREST_QUESTION_BANKS.elementary
-                : [],
+        get questionsPreschool() {
+            return forestQuestionBank('preschool');
+        },
+        get questionsElementary() {
+            return forestQuestionBank('elementary');
+        },
         questionsForGroup(g) {
             return g === 'elementary' ? this.questionsElementary : this.questionsPreschool;
         },
@@ -375,6 +381,8 @@
             if (!inst) return 'preschool';
             const t = inst.targetGroup;
             if (t === 'elementary' || t === 'preschool') return t;
+            if (t === '초등부' || t === '초등') return 'elementary';
+            if (t === '유아·유치부' || t === '유아' || t === '유치원부') return 'preschool';
             const c = inst.counts || {};
             const sum = (qs) =>
                 qs.reduce((s, q) => {

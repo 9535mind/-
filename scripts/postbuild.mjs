@@ -26,6 +26,7 @@ const ROUTES = {
     '/forest.html',
     /** forest.html 이 로드하는 문항뱅크 — Worker가 잡으면 404 (정적 자산으로 반드시 서빙) */
     '/forest-question-banks.js',
+    '/assets/*',
     '/forest_v9.html',
     /** /forest_v9.html 은 Worker에서 ASSETS.fetch 로 명시 서빙(배포 누락·라우팅 꼬임 완화) */
     '/유아숲 행동관찰.html',
@@ -78,6 +79,12 @@ const forestQbanksDest = join(dist, 'forest-question-banks.js')
 if (existsSync(forestQbanks)) {
   forceCopyFile(forestQbanks, forestQbanksDest)
   console.log('✅ forest-question-banks.js → dist 루트 명시 복사(덮어쓰기)')
+}
+
+const assetsDir = join(publicDir, 'assets')
+if (existsSync(assetsDir)) {
+  cpSync(assetsDir, join(dist, 'assets'), { recursive: true })
+  console.log('✅ public/assets → dist/assets 복사')
 }
 
 writeFileSync(join(dist, '_routes.json'), JSON.stringify(ROUTES, null, 2) + '\n', 'utf8')

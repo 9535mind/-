@@ -312,10 +312,10 @@
 <body class="ms-hanji min-h-screen p-4 md:p-10 flex flex-col">
 
 <div id="app" class="max-w-2xl mx-auto fade-in w-full flex flex-col flex-1 min-h-0 transition-[max-width] duration-300">
-    <header id="ms-app-header" class="text-center mb-8 print-hidden shrink-0">
-        <div class="inline-block px-4 py-1 border-2 border-[#2D4A3E] text-[#2D4A3E] text-[9px] font-bold rounded-full mb-3 tracking-[0.18em]">MINDSTORY</div>
-        <h1 class="text-2xl md:text-3xl font-black text-[#2D4A3E] tracking-tight leading-tight px-1">어린이 4계절 Temperament TEST (4STT)</h1>
-        <div id="ms-header-age-tabs" class="print-hidden max-w-md mx-auto w-full px-2 mt-5 mb-1" aria-label="연령·문항 세트 선택"></div>
+    <header id="ms-app-header" class="text-center mb-8 print-hidden shrink-0 transition-[margin] duration-200">
+        <div class="inline-block px-4 py-1 border-2 border-[#2D4A3E] text-[#2D4A3E] text-[9px] font-bold rounded-full mb-2 md:mb-3 tracking-[0.18em]">MINDSTORY</div>
+        <h1 class="text-[1.35rem] sm:text-2xl md:text-3xl font-extrabold text-[#2D4A3E] tracking-tight leading-snug px-2 text-balance">어린이 4계절 Temperament TEST (4STT)</h1>
+        <div id="ms-header-age-tabs" class="print-hidden max-w-md mx-auto w-full px-2 mt-4 mb-0 min-h-0" aria-label="연령·문항 세트 선택"></div>
     </header>
 
     <div id="view-content" class="flex-1 min-h-0 flex flex-col"></div>
@@ -325,7 +325,7 @@
 <input type="file" id="ms-import-input" accept=".json,application/json" class="hidden" aria-hidden="true" />
 <div id="ms-modal-root" class="hidden print-hidden" role="dialog" aria-modal="true" aria-labelledby="ms-modal-title"></div>
 
-<script src="/forest-question-banks.js"></script>
+<script src="forest-question-banks.js"></script>
 <script>
 (function () {
     'use strict';
@@ -346,6 +346,11 @@
     const LS_EXAMINER_NAME = 'ms_examiner_name';
     const LS_ADMIN_UNLOCKED = 'ms_forest_admin_unlocked_v12';
     const ADMIN_PASSWORDS = ['9535', '0000'];
+    /** 메인 대문 숏츠 비주얼 — 관리자 패널에서 URL 변경 가능 (기본: 로컬 MP4 + Unsplash 포스터) */
+    const LS_FOREST_DASH_VISUAL = 'ms_forest_dashboard_visual_v1';
+    const DEFAULT_FOREST_DASH_VIDEO = 'assets/forest_intro.mp4';
+    const DEFAULT_FOREST_DASH_POSTER =
+        'https://images.unsplash.com/photo-1441974230534-f855a888fb44?w=600&h=1067&fit=crop&q=80';
     /** 전역 관찰 단계(사전/사후) — 앱 재시작 후에도 유지 */
     const LS_OBSERVATION_STAGE = 'ms_observation_stage';
     /** 진행 장소(숲/실내) — 검사 설정 모달과 동기 */
@@ -479,6 +484,18 @@
     }
 
     /**
+     * 문항 배열은 forest-question-banks.js 로드 직후에만 채워지므로, 초기화 시점의 스냅샷([])에 고정되지 않도록
+     * 매 접근 시 window.FOREST_QUESTION_BANKS 를 읽는다.
+     */
+    function forestQuestionBank(kind) {
+        if (typeof window === 'undefined') return [];
+        const b = window.FOREST_QUESTION_BANKS;
+        if (!b) return [];
+        const arr = kind === 'elementary' ? b.elementary : b.preschool;
+        return Array.isArray(arr) && arr.length ? arr : [];
+    }
+
+    /**
      * SCHEMA — 4STT v26 · 유아 8문항 · 초등 12문항 (내부 키 SPRT/SUMT/AUTT/WINT)
      * 톤: 관찰과 공감 · 계절·성장 비유 · 따뜻한 어휘
      */
@@ -494,14 +511,12 @@
             AUTT: 'AUTT(가을) 🌼',
             SUMT: 'SUMT(여름) 🎋'
         },
-        questionsPreschool:
-            typeof window !== 'undefined' && window.FOREST_QUESTION_BANKS && window.FOREST_QUESTION_BANKS.preschool
-                ? window.FOREST_QUESTION_BANKS.preschool
-                : [],
-        questionsElementary:
-            typeof window !== 'undefined' && window.FOREST_QUESTION_BANKS && window.FOREST_QUESTION_BANKS.elementary
-                ? window.FOREST_QUESTION_BANKS.elementary
-                : [],
+        get questionsPreschool() {
+            return forestQuestionBank('preschool');
+        },
+        get questionsElementary() {
+            return forestQuestionBank('elementary');
+        },
         questionsForGroup(g) {
             return g === 'elementary' ? this.questionsElementary : this.questionsPreschool;
         },
@@ -519,6 +534,9 @@
             if (!inst) return 'preschool';
             const t = inst.targetGroup;
             if (t === 'elementary' || t === 'preschool') return t;
+            /** UI·레거시에 남은 표기(내부 키와 불일치 시 문항 0개로 보이는 문제 방지) */
+            if (t === '초등부' || t === '초등') return 'elementary';
+            if (t === '유아·유치부' || t === '유아' || t === '유치원부') return 'preschool';
             const c = inst.counts || {};
             const sum = (qs) =>
                 qs.reduce((s, q) => {
@@ -1250,6 +1268,10 @@
                     this.selectedId = o.selectedId || (this.institutions[0] && this.institutions[0].id) || null;
                     if (o.targetGroup === 'elementary' || o.targetGroup === 'preschool') {
                         this.targetGroup = o.targetGroup;
+                    } else if (o.targetGroup === '초등부' || o.targetGroup === '초등') {
+                        this.targetGroup = 'elementary';
+                    } else if (o.targetGroup === '유아·유치부' || o.targetGroup === '유아' || o.targetGroup === '유치원부') {
+                        this.targetGroup = 'preschool';
                     }
                     if (typeof o.dashboardBuilderInst === 'string') this.dashboardBuilderInst = o.dashboardBuilderInst;
                     if (typeof o.dashboardBuilderTypeFilter === 'string') {
@@ -1465,14 +1487,18 @@
                 const hideHdr = STATE.step === 'input';
                 appHdr.classList.toggle('hidden', hideHdr);
                 appHdr.setAttribute('aria-hidden', hideHdr ? 'true' : 'false');
+                appHdr.classList.remove('mb-3', 'mb-4', 'mb-8');
+                if (!hideHdr) {
+                    appHdr.classList.add(STATE.step === 'dashboard' ? 'mb-3' : 'mb-8');
+                }
             }
         },
 
-        /** 헤더: 연령·문항 세트 탭 (전역 STATE.targetGroup 과 동기화) — 유아 #03C75A · 초등 #FF9800 */
+        /** 헤더: 연령·문항 세트 (메인 대시보드에서는 숨김 — 검사 설정 모달 등에서 선택) */
         renderHeaderAgeTabs() {
             const host = document.getElementById('ms-header-age-tabs');
             if (!host) return;
-            if (STATE.step === 'input') {
+            if (STATE.step === 'input' || STATE.step === 'dashboard') {
                 host.innerHTML = '';
                 host.classList.add('hidden');
                 return;
@@ -1483,14 +1509,6 @@
                 'ms-btn flex-1 min-h-[48px] px-4 py-3 font-bold text-xs rounded-full transition-colors duration-200 ease-out';
             const tabPs = tg === 'preschool' ? TAB_AGE_PS_ON : TAB_AGE_PS_OFF;
             const tabEl = tg === 'elementary' ? TAB_AGE_EL_ON : TAB_AGE_EL_OFF;
-            const guideRow =
-                STATE.step === 'dashboard'
-                    ? `<div class="mt-4 flex justify-center px-2">
-                    <button type="button"
-                        class="ms-btn w-full max-w-md rounded-2xl border-2 border-[#5D4037] bg-[#FDFBF7] px-4 py-3.5 text-sm font-black text-[#5D4037] shadow-sm active:scale-[0.99]"
-                        onclick="MS.goGuide()">검사설명서 보기 (4STT 지표 해설)</button>
-                </div>`
-                    : '';
             host.innerHTML = `
                 <div class="flex gap-2 justify-center max-w-md mx-auto">
                     <button type="button" class="${base} ${tabPs}"
@@ -1498,7 +1516,6 @@
                     <button type="button" class="${base} ${tabEl}"
                         onclick="MS.setTargetGroup('elementary')">초등부</button>
                 </div>
-                ${guideRow}
             `;
         },
 
@@ -2241,6 +2258,7 @@
 
         renderDashboard(el) {
             const showAdmin = MS.isAdminUnlocked();
+            const visCfg = MS.getForestDashboardVisualConfig();
             const byName = {};
             STATE.institutions.forEach((inst) => {
                 const k = String(inst.name).trim();
@@ -2294,6 +2312,24 @@
                                     onclick="MS.navigateToLatestResult()">방금 완료한 검사 바로가기</button>
                                 <p class="text-[10px] text-[#5D4037]/65 text-center mt-2 leading-relaxed">가장 최근에 저장된 관찰 기록(숫자 입력 완료)의 분석 보고서로 이동합니다.</p>
                                 <div class="mt-5 pt-4 border-t border-[#5D4037]/15">
+                                    <p class="text-[10px] font-black text-[#5D4037] tracking-[0.12em] mb-3 uppercase text-center">대문 비주얼 (숏츠)</p>
+                                    <p class="text-[10px] text-[#5D4037]/65 text-center mb-3 leading-relaxed">기본 영상: <code class="text-[#5D4037] font-bold">public/assets/forest_intro.mp4</code> 배포 후 재생됩니다. 영상이 없으면 아래 포스터 이미지가 표시됩니다.</p>
+                                    <label for="ms-admin-dash-video-url" class="block text-xs font-bold text-[#5D4037] mb-1.5">영상 URL (MP4, 무음 권장)</label>
+                                    <input id="ms-admin-dash-video-url" type="text" inputmode="url" autocomplete="off" placeholder="${this.esc(DEFAULT_FOREST_DASH_VIDEO)}"
+                                        class="w-full min-h-[44px] rounded-xl border-2 border-[#5D4037]/30 bg-white px-3 py-2 text-xs font-semibold text-[#5D4037] shadow-sm mb-3"
+                                        value="${this.esc(visCfg.videoUrl)}" />
+                                    <label for="ms-admin-dash-poster-url" class="block text-xs font-bold text-[#5D4037] mb-1.5">포스터·대체 이미지 URL</label>
+                                    <input id="ms-admin-dash-poster-url" type="text" inputmode="url" autocomplete="off" placeholder="https://…"
+                                        class="w-full min-h-[44px] rounded-xl border-2 border-[#5D4037]/30 bg-white px-3 py-2 text-xs font-semibold text-[#5D4037] shadow-sm mb-3"
+                                        value="${this.esc(visCfg.posterUrl)}" />
+                                    <div class="flex flex-wrap gap-2 justify-center">
+                                        <button type="button" class="ms-btn flex-1 min-w-[120px] !rounded-xl bg-[#5D4037] text-white font-bold py-3 text-xs shadow-md hover:bg-[#4E342E]"
+                                            onclick="MS.saveForestDashboardVisual()">비주얼 URL 저장</button>
+                                        <button type="button" class="ms-btn flex-1 min-w-[120px] !rounded-xl border-2 border-[#5D4037]/35 bg-white text-[#5D4037] font-bold py-3 text-xs hover:bg-white/90"
+                                            onclick="MS.resetForestDashboardVisual()">기본값으로</button>
+                                    </div>
+                                </div>
+                                <div class="mt-5 pt-4 border-t border-[#5D4037]/15">
                                     <p class="text-[10px] font-black text-[#5D4037] tracking-[0.18em] mb-3 uppercase text-center">맞춤 보고서 빌더 · v${SCHEMA.version}</p>
                                     <div class="space-y-4">
                                         <div>
@@ -2330,13 +2366,36 @@
                         </div>`
                     : '';
 
+            const dashboardVisualInner = `
+                        <div class="flex flex-col items-center justify-center w-full max-w-[280px] mx-auto">
+                            <div class="relative w-full rounded-2xl border-4 border-white shadow-xl overflow-hidden bg-[#1a3d2e] ring-1 ring-black/10">
+                                <div class="aspect-[9/16] w-full max-h-[min(46vh,420px)] relative">
+                                    <video id="ms-dash-visual-video" class="absolute inset-0 w-full h-full object-cover"
+                                        autoplay muted loop playsinline webkit-playsinline
+                                        poster="${this.esc(visCfg.posterUrl)}"
+                                        data-poster="${this.esc(visCfg.posterUrl)}"
+                                        src="${this.esc(visCfg.videoUrl)}"></video>
+                                    <img id="ms-dash-visual-fallback" width="600" height="1067" class="hidden absolute inset-0 w-full h-full object-cover" alt="" decoding="async" data-src="${this.esc(visCfg.posterUrl)}" />
+                                </div>
+                            </div>
+                            <p class="text-[10px] text-ms-muted text-center mt-2 mb-0 px-1 leading-snug">숲의 싱그러움을 담은 인트로 · 영상이 없을 때는 사진으로 대체됩니다.</p>
+                        </div>`;
+
             el.innerHTML = `
                 <div class="flex flex-col flex-1 min-h-0 w-full">
-                    <div class="flex-1 flex flex-col justify-center items-stretch py-2 md:py-6">
-                        <div class="max-w-lg mx-auto w-full">
-                            <div id="dashboard" class="ms-card p-8 md:p-10 mb-6 shadow-[0_12px_40px_rgba(45,74,62,0.1)] border-2 border-[rgba(45,74,62,0.1)]">
-                                <button type="button" class="ms-btn w-full !rounded-2xl md:!rounded-3xl bg-[#5D4037] text-[#FFFFFF] font-black py-6 md:py-7 text-lg md:text-xl shadow-[0_5px_18px_rgba(0,0,0,0.22)] hover:bg-[#4E342E] active:bg-[#4E342E] active:scale-[0.99] transition-colors duration-200 ease-out"
+                    <div id="ms-dashboard-visual" class="flex-1 min-h-0 flex flex-col items-center justify-center px-3 pt-1 pb-2 sm:pb-3 print-hidden" aria-hidden="true">
+                        ${dashboardVisualInner}
+                    </div>
+                    <div class="shrink-0 flex flex-col items-stretch py-2 md:py-4">
+                        <div class="max-w-lg mx-auto w-full px-1">
+                            <div id="dashboard" class="ms-card p-6 md:p-8 shadow-[0_12px_40px_rgba(45,74,62,0.1)] border-2 border-[rgba(45,74,62,0.1)]">
+                                <button type="button" class="ms-btn w-full !rounded-2xl md:!rounded-3xl bg-[#5D4037] text-[#FFFFFF] font-black py-5 md:py-6 text-base md:text-lg shadow-[0_5px_18px_rgba(0,0,0,0.22)] hover:bg-[#4E342E] active:bg-[#4E342E] active:scale-[0.99] transition-colors duration-200 ease-out min-h-[56px]"
                                     onclick="MS.openNewExamPrepModal({ cleanInst: true })">새 검사 시작</button>
+                            </div>
+                            <div class="mt-5 flex justify-center px-2 pb-1">
+                                <button type="button"
+                                    class="bg-transparent border-0 cursor-pointer text-center text-sm font-bold text-[#5D4037]/90 hover:text-[#2D4A3E] underline underline-offset-[5px] decoration-[#5D4037]/35 py-3 px-4 min-h-[44px] rounded-xl active:bg-[rgba(93,64,55,0.06)] transition-colors"
+                                    onclick="MS.goGuide()">검사설명서 보기 <span class="text-ms-muted font-semibold">(4STT 지표 해설)</span></button>
                             </div>
                             ${adminPanelHtml}
                         </div>
@@ -2356,6 +2415,9 @@
                     </div>
                 </div>
             `;
+            requestAnimationFrame(() => {
+                if (typeof MS !== 'undefined' && MS.initDashboardVisualVideo) MS.initDashboardVisualVideo();
+            });
         },
 
         renderInstitutionHub(el) {
@@ -2887,22 +2949,27 @@
             const canComplete = this.allInputQuestionsFilled(inst);
 
             el.innerHTML = `
-                <div class="max-w-lg mx-auto pt-1">
-                    <div class="mb-4 flex items-center justify-between gap-2 print-hidden">
+                <div class="max-w-lg mx-auto pt-1 flex flex-col min-h-0">
+                    <div class="mb-3 flex items-center justify-between gap-2 print-hidden">
                         <button type="button" class="text-sm font-bold text-[#2D4A3E] hover:underline py-1.5 px-2 -ml-2 rounded-xl bg-transparent border-0 cursor-pointer"
                             onclick="MS.goSetup()">← 뒤로</button>
                         <button type="button" class="text-[11px] text-ms-muted underline ms-btn px-2 py-1.5" onclick="MS.goDashboard()">대시보드</button>
                     </div>
-                    <div class="mb-5 text-center px-1 print-hidden">
+                    <div class="mb-3 text-center px-1 print-hidden shrink-0">
                         <p class="text-sm font-black text-[#2D4A3E] leading-snug">📍 ${name}${groupPart}</p>
-                        <p class="text-[11px] text-ms-muted mt-1.5">${ageLine}</p>
+                        <p class="text-[11px] text-ms-muted mt-1">${ageLine}</p>
                     </div>
-                    <div class="space-y-5 md:space-y-4 max-h-[min(56vh,32rem)] md:max-h-[60vh] overflow-y-auto pr-1 custom-scrollbar mb-6">
+                    ${
+                        qs.length === 0
+                            ? `<p class="text-center text-sm font-bold text-red-700/90 mb-4 px-2">문항 데이터를 불러오지 못했습니다. <strong class="font-black">forest-question-banks.js</strong> 로드 여부를 확인한 뒤 페이지를 새로고침해 주세요.</p>`
+                            : ''
+                    }
+                    <div class="space-y-3 md:space-y-3 flex-1 min-h-0 max-h-[min(58vh,34rem)] md:max-h-[62vh] overflow-y-auto pr-1 custom-scrollbar mb-4">
                         ${qs
                             .map(
                                 (q, idx) => `
-                            <div class="ms-card p-6 md:p-6 border-l-[10px] border-[#2D4A3E]">
-                                <div class="flex items-start gap-2 mb-4 md:mb-3">
+                            <div class="ms-card p-4 md:p-5 border-l-[8px] border-[#2D4A3E]">
+                                <div class="flex items-start gap-2 mb-3">
                                     <p class="font-bold text-ms-body flex-1 text-sm leading-snug m-0">
                                         <span class="text-[#D4A373] mr-2">Q${idx + 1}.</span>${this.esc(q.text)}${
                                     q.isReverse
@@ -2913,8 +2980,8 @@
                                     <button type="button" class="ms-btn shrink-0 flex items-center justify-center w-9 h-9 min-w-[44px] min-h-[44px] rounded-full border-2 border-[#2D4A3E]/25 text-[#2D4A3E] font-black text-sm hover:bg-[rgba(45,74,62,0.06)]"
                                         onclick="MS.openQuestionHelpModal('${q.id}')" aria-label="부연·설명 보기">?</button>
                                 </div>
-                                <div class="grid grid-cols-2 gap-4">
-                                    <div class="flex items-stretch bg-ms-soft rounded-[3rem] px-3 py-2 md:px-4 md:py-3 border border-ms min-h-[52px]">
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div class="flex items-stretch bg-ms-soft rounded-[3rem] px-3 py-2 md:px-4 md:py-2.5 border border-ms min-h-[48px]">
                                         <span class="text-[10px] font-bold text-[#2D4A3E] mr-2 shrink-0 self-center">O</span>
                                         <input id="ms-yes-${q.id}" type="number" inputmode="decimal" min="0" step="1" enterkeyhint="next"
                                             class="ms-field-count w-full bg-transparent text-center font-bold text-lg md:text-base outline-none text-[#2D4A3E]"
@@ -2922,7 +2989,7 @@
                                             onkeydown="MS.onCountKeydown(event,'${q.id}','yes')"
                                             oninput="MS.onYesInput('${q.id}',this)">
                                     </div>
-                                    <div class="flex items-stretch rounded-[3rem] px-3 py-2 md:px-4 md:py-3 border border-ms min-h-[52px]" style="background:rgba(212,163,115,0.12)">
+                                    <div class="flex items-stretch rounded-[3rem] px-3 py-2 md:px-4 md:py-2.5 border border-ms min-h-[48px]" style="background:rgba(212,163,115,0.12)">
                                         <span class="text-[10px] font-bold text-[#D4A373] mr-2 shrink-0 self-center">X</span>
                                         <input id="ms-no-${q.id}" type="number" inputmode="decimal" min="0" step="1" enterkeyhint="next"
                                             class="ms-field-count w-full bg-transparent text-center font-bold text-lg md:text-base outline-none text-[#2D4A3E]"
@@ -2937,8 +3004,8 @@
                             .join('')}
                     </div>
                     <button type="button" id="ms-input-submit-btn"
-                        class="ms-btn w-full bg-[#2D4A3E] text-white font-black py-5 text-base shadow-lg hover:brightness-95 ${canComplete ? '' : 'opacity-45 cursor-not-allowed'}"
-                        ${canComplete ? '' : 'disabled '}
+                        class="ms-btn w-full shrink-0 mt-auto bg-[#2D4A3E] text-white font-black py-4 text-base shadow-lg hover:brightness-95 ${canComplete && qs.length > 0 ? '' : 'opacity-45 cursor-not-allowed'}"
+                        ${canComplete && qs.length > 0 ? '' : 'disabled '}
                         onclick="MS.goResult()">검사 완료 및 전송</button>
                 </div>
             `;
@@ -3492,6 +3559,69 @@
                 return false;
             }
         },
+        getForestDashboardVisualConfig() {
+            try {
+                const raw = localStorage.getItem(LS_FOREST_DASH_VISUAL);
+                if (raw) {
+                    const o = JSON.parse(raw);
+                    return {
+                        videoUrl: String(o.videoUrl || '').trim() || DEFAULT_FOREST_DASH_VIDEO,
+                        posterUrl: String(o.posterUrl || '').trim() || DEFAULT_FOREST_DASH_POSTER
+                    };
+                }
+            } catch (_) {
+                /* ignore */
+            }
+            return { videoUrl: DEFAULT_FOREST_DASH_VIDEO, posterUrl: DEFAULT_FOREST_DASH_POSTER };
+        },
+        saveForestDashboardVisual() {
+            const vEl = document.getElementById('ms-admin-dash-video-url');
+            const pEl = document.getElementById('ms-admin-dash-poster-url');
+            const videoUrl = (vEl && vEl.value.trim()) || DEFAULT_FOREST_DASH_VIDEO;
+            const posterUrl = (pEl && pEl.value.trim()) || DEFAULT_FOREST_DASH_POSTER;
+            try {
+                localStorage.setItem(LS_FOREST_DASH_VISUAL, JSON.stringify({ videoUrl, posterUrl }));
+            } catch (_) {
+                /* ignore */
+            }
+            UI.render();
+        },
+        resetForestDashboardVisual() {
+            try {
+                localStorage.removeItem(LS_FOREST_DASH_VISUAL);
+            } catch (_) {
+                /* ignore */
+            }
+            UI.render();
+        },
+        onDashboardVideoError(el) {
+            if (!el) return;
+            el.classList.add('hidden');
+            const fb = document.getElementById('ms-dash-visual-fallback');
+            if (fb) {
+                const u = fb.getAttribute('data-src') || '';
+                if (u) fb.setAttribute('src', u);
+                fb.classList.remove('hidden');
+            }
+        },
+        initDashboardVisualVideo() {
+            const v = document.getElementById('ms-dash-visual-video');
+            if (!v) return;
+            const onErr = () => {
+                MS.onDashboardVideoError(v);
+            };
+            v.addEventListener('error', onErr);
+            try {
+                const p = v.play && v.play();
+                if (p && typeof p.catch === 'function') {
+                    p.catch(function () {
+                        /* autoplay 정책 등 — 재생만 실패한 경우는 유지 */
+                    });
+                }
+            } catch (_) {
+                /* ignore */
+            }
+        },
         /** 기관명 키워드로 대상·세부 유형 자동 설정(입력 시). 수동으로 언제든 변경 가능 */
         applySmartKeywordFromInstName(raw) {
             const t = String(raw || '');
@@ -3668,31 +3798,31 @@
             const locIndoorCls = STATE.obsLocation === 'indoor' ? obsPostOn : obsPostOff;
             const typeRowHtml =
                 tgSetup === 'elementary'
-                    ? `<div class="flex flex-wrap gap-2 mb-4">
-                            <button type="button" class="ms-btn flex-1 min-w-[100px] min-h-[44px] py-2.5 font-bold border-2 text-xs ${typeForUi === '지역아동센터' ? 'border-[#FF9800] bg-[rgba(255,152,0,0.14)] text-[#2D4A3E] shadow-sm' : 'border-ms text-ms-muted'}"
+                    ? `<div class="flex flex-wrap gap-2 mb-2">
+                            <button type="button" class="ms-btn flex-1 min-w-[100px] min-h-[40px] py-2 font-bold border-2 text-xs ${typeForUi === '지역아동센터' ? 'border-[#FF9800] bg-[rgba(255,152,0,0.14)] text-[#2D4A3E] shadow-sm' : 'border-ms text-ms-muted'}"
                                 onclick="MS.setPrepModalType('지역아동센터')">지역아동센터</button>
-                            <button type="button" class="ms-btn flex-1 min-w-[100px] min-h-[44px] py-2.5 font-bold border-2 text-xs ${typeForUi === '방과후교실' ? 'border-[#FF9800] bg-[rgba(255,152,0,0.14)] text-[#2D4A3E] shadow-sm' : 'border-ms text-ms-muted'}"
+                            <button type="button" class="ms-btn flex-1 min-w-[100px] min-h-[40px] py-2 font-bold border-2 text-xs ${typeForUi === '방과후교실' ? 'border-[#FF9800] bg-[rgba(255,152,0,0.14)] text-[#2D4A3E] shadow-sm' : 'border-ms text-ms-muted'}"
                                 onclick="MS.setPrepModalType('방과후교실')">방과후교실</button>
-                            <button type="button" class="ms-btn flex-1 min-w-[100px] min-h-[44px] py-2.5 font-bold border-2 text-xs ${typeForUi === '초등학교' ? 'border-[#FF9800] bg-[rgba(255,152,0,0.14)] text-[#2D4A3E] shadow-sm' : 'border-ms text-ms-muted'}"
+                            <button type="button" class="ms-btn flex-1 min-w-[100px] min-h-[40px] py-2 font-bold border-2 text-xs ${typeForUi === '초등학교' ? 'border-[#FF9800] bg-[rgba(255,152,0,0.14)] text-[#2D4A3E] shadow-sm' : 'border-ms text-ms-muted'}"
                                 onclick="MS.setPrepModalType('초등학교')">초등학교</button>
                         </div>`
-                    : `<div class="flex flex-wrap gap-2 mb-4">
-                            <button type="button" class="ms-btn flex-1 min-w-[88px] min-h-[44px] py-2.5 font-bold border-2 text-xs ${typeForUi === '어린이집' ? 'border-[#03C75A] bg-[rgba(3,199,90,0.12)] text-[#2D4A3E] shadow-sm' : 'border-ms text-ms-muted'}"
+                    : `<div class="flex flex-wrap gap-2 mb-2">
+                            <button type="button" class="ms-btn flex-1 min-w-[88px] min-h-[40px] py-2 font-bold border-2 text-xs ${typeForUi === '어린이집' ? 'border-[#03C75A] bg-[rgba(3,199,90,0.12)] text-[#2D4A3E] shadow-sm' : 'border-ms text-ms-muted'}"
                                 onclick="MS.setPrepModalType('어린이집')">어린이집</button>
-                            <button type="button" class="ms-btn flex-1 min-w-[88px] min-h-[44px] py-2.5 font-bold border-2 text-xs ${typeForUi === '유치원' ? 'border-[#03C75A] bg-[rgba(3,199,90,0.12)] text-[#2D4A3E] shadow-sm' : 'border-ms text-ms-muted'}"
+                            <button type="button" class="ms-btn flex-1 min-w-[88px] min-h-[40px] py-2 font-bold border-2 text-xs ${typeForUi === '유치원' ? 'border-[#03C75A] bg-[rgba(3,199,90,0.12)] text-[#2D4A3E] shadow-sm' : 'border-ms text-ms-muted'}"
                                 onclick="MS.setPrepModalType('유치원')">유치원</button>
-                            <button type="button" class="ms-btn flex-1 min-w-[88px] min-h-[44px] py-2.5 font-bold border-2 text-xs ${typeForUi === '기타' ? 'border-[#03C75A] bg-[rgba(3,199,90,0.12)] text-[#2D4A3E] shadow-sm' : 'border-ms text-ms-muted'}"
+                            <button type="button" class="ms-btn flex-1 min-w-[88px] min-h-[40px] py-2 font-bold border-2 text-xs ${typeForUi === '기타' ? 'border-[#03C75A] bg-[rgba(3,199,90,0.12)] text-[#2D4A3E] shadow-sm' : 'border-ms text-ms-muted'}"
                                 onclick="MS.setPrepModalType('기타')">기타</button>
                         </div>`;
             root.className = 'print-hidden fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4';
             root.innerHTML = `
                 <div class="absolute inset-0 bg-black/45" onclick="MS.closeForestModal()" aria-hidden="true"></div>
-                <div class="relative w-full max-w-md max-h-[min(92vh,40rem)] overflow-y-auto overscroll-contain rounded-t-[1.75rem] sm:rounded-[1.75rem] bg-[#FDFBF7] shadow-2xl border border-[#2D4A3E]/12 p-5 md:p-6 custom-scrollbar pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] sm:pb-6" onclick="event.stopPropagation()">
-                    <h2 id="ms-modal-title" class="text-base md:text-lg font-black text-[#2D4A3E] mb-4 text-center leading-tight">검사 설정</h2>
-                    <label for="ms-modal-inst-name" class="block text-[11px] font-bold text-ms-muted mb-1.5 ml-0.5 tracking-widest">기관명 검색</label>
-                    <div class="relative z-40 mb-2">
+                <div class="relative w-full max-w-md max-h-[90vh] overflow-y-auto overscroll-contain rounded-t-[1.75rem] sm:rounded-[1.75rem] bg-[#FDFBF7] shadow-2xl border border-[#2D4A3E]/12 p-3 sm:p-4 md:p-5 custom-scrollbar pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] sm:pb-4" onclick="event.stopPropagation()">
+                    <h2 id="ms-modal-title" class="text-base md:text-lg font-black text-[#2D4A3E] mb-2 text-center leading-tight">검사 설정</h2>
+                    <label for="ms-modal-inst-name" class="block text-[11px] font-bold text-ms-muted mb-1 ml-0.5 tracking-widest">기관명 검색</label>
+                    <div class="relative z-40 mb-1.5">
                         <input id="ms-modal-inst-name" type="text" maxlength="120" autocomplete="organization" placeholder="초성·부분 검색 가능 (예: 삼계중앙어린이집)"
-                            class="w-full pl-4 pr-[7.25rem] py-3.5 md:py-4 text-center font-bold rounded-lg border-2 border-[#03C75A] bg-white text-[#111] text-base md:text-lg shadow-[0_2px_8px_rgba(3,199,90,0.12)] outline-none focus:ring-2 focus:ring-[#03C75A]/35 focus:border-[#03C75A]"
+                            class="w-full pl-4 pr-[7.25rem] py-2.5 md:py-3 text-center font-bold rounded-lg border-2 border-[#03C75A] bg-white text-[#111] text-base md:text-lg shadow-[0_2px_8px_rgba(3,199,90,0.12)] outline-none focus:ring-2 focus:ring-[#03C75A]/35 focus:border-[#03C75A]"
                             value="${UI.esc(instDraft)}"
                             aria-autocomplete="list" aria-expanded="false" aria-controls="ms-modal-inst-dropdown"
                             oninput="MS.onModalInstNameInput(this, event)"
@@ -3718,52 +3848,52 @@
                         <div id="ms-modal-inst-dropdown" class="hidden absolute left-0 right-0 top-full mt-2 z-[60] max-h-[min(42vh,18rem)] overflow-y-auto rounded-2xl border-2 border-[#5D4037]/25 bg-white shadow-[0_12px_40px_rgba(93,64,55,0.12)] custom-scrollbar"
                             role="listbox" aria-label="기관 자동완성"></div>
                     </div>
-                    <p class="text-[10px] text-ms-muted mb-4 leading-relaxed rounded-xl bg-[rgba(45,74,62,0.04)] px-2.5 py-2 border border-[rgba(45,74,62,0.07)]">
+                    <p class="text-[10px] text-ms-muted mb-2 leading-relaxed rounded-lg bg-[rgba(45,74,62,0.04)] px-2 py-1.5 border border-[rgba(45,74,62,0.07)]">
                         기관을 고르면 유형이 맞춰지고, 이름에 <span class="font-bold text-[#03C75A]">어린이집·유치원</span>·<span class="font-bold text-[#FF9800]">지역아동·방과후·초등학교</span> 등이 들어가면 자동 감지됩니다.
                     </p>
-                    <span class="block text-[11px] font-bold text-ms-muted mb-1.5 ml-0.5 tracking-widest">대상 (문항뱅크)</span>
-                    <div class="flex gap-2 mb-4">
+                    <span class="block text-[11px] font-bold text-ms-muted mb-1 ml-0.5 tracking-widest">대상 (문항뱅크)</span>
+                    <div class="flex gap-2 mb-2">
                         <button type="button" class="${base} ${tabPs}"
                             onclick="MS.setPrepModalTargetGroup('preschool')">유아·유치부</button>
                         <button type="button" class="${base} ${tabEl}"
                             onclick="MS.setPrepModalTargetGroup('elementary')">초등부</button>
                     </div>
-                    <span class="block text-[11px] font-bold text-ms-muted mb-1.5 ml-0.5 tracking-widest">기관 유형</span>
+                    <span class="block text-[11px] font-bold text-ms-muted mb-1 ml-0.5 tracking-widest">기관 유형</span>
                     ${typeRowHtml}
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-2">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-1">
                         <div>
-                            <span class="block text-[11px] font-bold text-ms-muted mb-1.5 ml-0.5 tracking-widest">관찰 단계</span>
+                            <span class="block text-[11px] font-bold text-ms-muted mb-1 ml-0.5 tracking-widest">관찰 단계</span>
                             <div class="flex flex-wrap gap-2" role="group" aria-label="사전 또는 사후">
-                                <button type="button" class="ms-btn flex-1 min-h-[44px] py-2.5 font-bold border-2 text-xs ${obsPreCls}"
+                                <button type="button" class="ms-btn flex-1 min-h-[40px] py-2 font-bold border-2 text-xs ${obsPreCls}"
                                     onclick="MS.setObservationStage('pre')">사전</button>
-                                <button type="button" class="ms-btn flex-1 min-h-[44px] py-2.5 font-bold border-2 text-xs ${obsPostCls}"
+                                <button type="button" class="ms-btn flex-1 min-h-[40px] py-2 font-bold border-2 text-xs ${obsPostCls}"
                                     onclick="MS.setObservationStage('post')">사후</button>
                             </div>
                         </div>
                         <div>
-                            <span class="block text-[11px] font-bold text-ms-muted mb-1.5 ml-0.5 tracking-widest">진행 장소</span>
+                            <span class="block text-[11px] font-bold text-ms-muted mb-1 ml-0.5 tracking-widest">진행 장소</span>
                             <div class="flex flex-wrap gap-2" role="group" aria-label="숲 또는 실내">
-                                <button type="button" class="ms-btn flex-1 min-h-[44px] py-2.5 font-bold border-2 text-xs ${locForestCls}"
+                                <button type="button" class="ms-btn flex-1 min-h-[40px] py-2 font-bold border-2 text-xs ${locForestCls}"
                                     onclick="MS.setPrepModalObsLocation('forest')">숲</button>
-                                <button type="button" class="ms-btn flex-1 min-h-[44px] py-2.5 font-bold border-2 text-xs ${locIndoorCls}"
+                                <button type="button" class="ms-btn flex-1 min-h-[40px] py-2 font-bold border-2 text-xs ${locIndoorCls}"
                                     onclick="MS.setPrepModalObsLocation('indoor')">실내</button>
                             </div>
                         </div>
                     </div>
-                    <p class="text-[10px] text-ms-muted mb-4 leading-relaxed text-center">사전·사후로 나누어 저장하면 기관 허브에서 성과 비교 보고서를 열 수 있어요.</p>
-                    <label for="ms-unified-group-name" class="block text-[11px] font-bold text-ms-muted mb-1.5 ml-0.5 tracking-widest">반 이름</label>
+                    <p class="text-[10px] text-ms-muted mb-2 leading-relaxed text-center">사전·사후로 나누어 저장하면 기관 허브에서 성과 비교 보고서를 열 수 있어요.</p>
+                    <label for="ms-unified-group-name" class="block text-[11px] font-bold text-ms-muted mb-1 ml-0.5 tracking-widest">반 이름</label>
                     <input id="ms-unified-group-name" type="text" placeholder="예: 새싹반 · 비워 두어도 됩니다"
-                        class="w-full ms-input px-4 py-3 text-center font-bold rounded-2xl mb-4 text-[#2D4A3E] text-sm border border-ms"
+                        class="w-full ms-input px-3 py-2.5 text-center font-bold rounded-2xl mb-2 text-[#2D4A3E] text-sm border border-ms"
                         value="${UI.esc(groupDraft)}"
                         maxlength="120"
                         autocomplete="off"
                         aria-label="반 이름" />
-                    <label for="ms-examiner-name-modal" class="block text-[11px] font-bold text-ms-muted mb-1.5 ml-0.5 tracking-widest">진행자(해설사) 성함</label>
+                    <label for="ms-examiner-name-modal" class="block text-[11px] font-bold text-ms-muted mb-1 ml-0.5 tracking-widest">진행자(해설사) 성함</label>
                     <input id="ms-examiner-name-modal" type="text" maxlength="40" autocomplete="name" placeholder="필수"
-                        class="w-full ms-input px-4 py-3 text-center font-bold rounded-2xl mb-4 text-[#2D4A3E] text-sm"
+                        class="w-full ms-input px-3 py-2.5 text-center font-bold rounded-2xl mb-2 text-[#2D4A3E] text-sm"
                         value="${UI.esc(examinerName)}"
                         oninput="MS.onExaminerNameInput(this.value)" />
-                    <button type="button" class="ms-btn w-full rounded-[2rem] bg-[#2D4A3E] text-white font-black py-5 text-base md:text-lg shadow-xl hover:brightness-95 mb-3"
+                    <button type="button" class="ms-btn w-full rounded-[2rem] bg-[#2D4A3E] text-white font-black py-3.5 text-base md:text-lg shadow-xl hover:brightness-95 mb-2"
                         onclick="MS.submitUnifiedSetupFromModal()">검사 입력으로 이동</button>
                     <div class="flex justify-center">
                         <button type="button" class="ms-btn text-sm font-bold text-ms-muted py-2" onclick="MS.closeForestModal()">취소</button>
