@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 공식 접속 URL: https://mindstory.kr/forest.html (JTT-Kinder · 4 Jahreszeiten Temperament-Test für Kinder) -->
+<!-- 공식 접속 URL: https://mindstory.kr/forest.html (JTT-Kinder · Jahreszeiten Temperament-Test für Kinder) -->
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
@@ -7,7 +7,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>JTT-Kinder · 4 Jahreszeiten Temperament-Test für Kinder · 마인드스토리</title>
+    <title>JTT-Kinder · Jahreszeiten Temperament-Test für Kinder · 마인드스토리</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;900&display=swap');
@@ -312,15 +312,15 @@
 <body class="ms-hanji min-h-screen p-4 md:p-10 flex flex-col">
 
 <div id="app" class="max-w-2xl mx-auto fade-in w-full flex flex-col flex-1 min-h-0 transition-[max-width] duration-300">
-    <header id="ms-app-header" class="mb-8 print-hidden shrink-0 transition-[margin] duration-200 w-full">
+    <header id="ms-app-header" class="mb-6 print-hidden shrink-0 transition-[margin] duration-200 w-full">
         <div class="flex flex-col gap-1.5 sm:gap-2">
-            <div class="flex items-baseline justify-start w-full">
-                <span class="inline-block px-3 py-1 sm:px-4 sm:py-1.5 border-2 border-[#2D4A3E] text-[#2D4A3E] text-xl sm:text-2xl md:text-3xl font-black rounded-full tracking-[0.14em] leading-none">MINDSTORY</span>
+            <div class="flex flex-row flex-wrap items-baseline gap-x-3 gap-y-1 sm:gap-x-4 w-full px-0.5 sm:px-1">
+                <span class="inline-block shrink-0 px-3 py-1 sm:px-4 sm:py-1.5 border-2 border-[#2D4A3E] text-[#2D4A3E] text-lg sm:text-xl md:text-2xl font-black rounded-full tracking-[0.14em] leading-none">MINDSTORY</span>
+                <h1 class="min-w-0 text-left">
+                    <span class="block text-2xl sm:text-3xl md:text-4xl font-extrabold text-[#2D4A3E] tracking-tight leading-[1.15] text-balance">JTT-Kinder</span>
+                </h1>
             </div>
-            <h1 class="text-left w-full max-w-none px-0.5 sm:px-1">
-                <span class="block text-2xl sm:text-3xl md:text-4xl font-extrabold text-[#2D4A3E] tracking-tight leading-[1.15] text-balance">JTT-Kinder</span>
-                <span class="block mt-1 sm:mt-1.5 text-[clamp(0.8rem,3.1vw,1.15rem)] sm:text-lg md:text-xl font-extrabold text-[#2D4A3E]/95 tracking-tight leading-snug text-balance">(4 Jahreszeiten Temperament-Test für Kinder)</span>
-            </h1>
+            <p class="text-left w-full max-w-none px-0.5 sm:px-1 text-[clamp(0.95rem,3.6vw,1.35rem)] sm:text-xl md:text-2xl font-extrabold text-[#2D4A3E]/90 tracking-tight leading-snug text-balance">(Jahreszeiten Temperament-Test für Kinder)</p>
             <div id="ms-header-age-tabs" class="print-hidden max-w-md w-full px-0 mt-2 mb-0 min-h-0" aria-label="연령·문항 세트 선택"></div>
         </div>
     </header>
@@ -376,15 +376,15 @@
     const FOREST_SHEETS_WEBHOOK_URL =
         'https://script.google.com/macros/s/AKfycbz4ADLlzPRw6cMY60plT9_8HZz4x6R-L8YV1xaO3bWoGkTZJcu35AlpcL9ogpUGsNK9/exec';
 
-    /** 연령 탭(대상): 파스텔 — 기관 유형보다 시각적 위계 낮게 */
+    /** 연령 탭(대상): 연한 파스텔 — 기관 유형보다 한 단계 약하게 */
     const TAB_AGE_PS_ON =
-        'bg-[#e8f5ea] border-2 border-[#2D4A3E]/40 text-[#2D4A3E] shadow-sm ring-0 outline-none';
+        'bg-[#eef7f0] border border-[#2D4A3E]/22 text-[#2D4A3E]/85 shadow-none ring-0 outline-none';
     const TAB_AGE_PS_OFF =
-        'bg-[#f7faf8] border border-[rgba(45,74,62,0.14)] text-[#5D4037]/60 ring-0 outline-none hover:bg-[rgba(45,74,62,0.05)]';
+        'bg-[#fafcfb] border border-[rgba(45,74,62,0.1)] text-[#5D4037]/45 ring-0 outline-none hover:bg-[rgba(45,74,62,0.04)]';
     const TAB_AGE_EL_ON =
-        'bg-[#fff3e0] border-2 border-[#e65100]/40 text-[#bf360c] shadow-sm ring-0 outline-none';
+        'bg-[#fff8f0] border border-[#e65100]/22 text-[#bf360c]/85 shadow-none ring-0 outline-none';
     const TAB_AGE_EL_OFF =
-        'bg-[#fffaf5] border border-[rgba(230,81,0,0.15)] text-[#5D4037]/60 ring-0 outline-none hover:bg-[rgba(255,152,0,0.06)]';
+        'bg-[#fffdfb] border border-[rgba(230,81,0,0.1)] text-[#5D4037]/45 ring-0 outline-none hover:bg-[rgba(255,152,0,0.04)]';
 
     /**
      * v15.0 기관 사전 DB (코드 내장). 검색·▼ 전체 목록·초성 검색에 사용.
@@ -1427,7 +1427,7 @@
     })();
 
     /** 공식 앱 표기명 (JTT-Kinder · 독일어 풀네임 유지) — UI·공유·가이드 공통 */
-    const APP_TITLE_DE = 'JTT-Kinder (4 Jahreszeiten Temperament-Test für Kinder)';
+    const APP_TITLE_DE = 'JTT-Kinder (Jahreszeiten Temperament-Test für Kinder)';
 
     const UI = {
         esc(s) {
@@ -2438,18 +2438,16 @@
                     : '';
 
             const dashboardVisualInner = `
-                        <div class="flex flex-col items-center justify-center w-full max-w-[280px] mx-auto">
+                        <div class="flex flex-col items-center justify-center w-full max-w-[min(100%,320px)] mx-auto">
                             <div class="relative w-full rounded-2xl border-4 border-white shadow-xl overflow-hidden bg-[#1a3d2e] ring-1 ring-black/10">
-                                <div class="aspect-[9/16] w-full max-h-[min(38vh,360px)] sm:max-h-[min(42vh,400px)] relative">
+                                <div class="aspect-[9/16] w-full max-h-[min(56vh,520px)] sm:max-h-[min(60vh,580px)] relative">
                                     <img src="${this.esc(visCfg.posterUrl)}" width="600" height="1067" class="absolute inset-0 z-0 w-full h-full object-cover" alt="" decoding="async" loading="eager"
                                         onerror="this.onerror=null;this.style.opacity='0';" />
-                                    <video id="ms-dash-visual-video" class="absolute inset-0 z-10 w-full h-full object-cover opacity-0 pointer-events-none transition-opacity duration-300"
-                                        autoplay muted loop playsinline preload="auto"
-                                        poster="${this.esc(visCfg.posterUrl)}"
-                                        data-video-src="${this.esc(visCfg.videoUrl)}"></video>
+                                    <video id="introVideo" class="absolute inset-0 z-10 w-full h-full object-cover opacity-0 pointer-events-none transition-opacity duration-300"
+                                        autoplay muted playsinline preload="auto"
+                                        poster="${this.esc(visCfg.posterUrl)}"></video>
                                 </div>
                             </div>
-                            <p class="text-[10px] text-ms-muted text-center mt-1.5 mb-0 px-1 leading-snug">숲의 싱그러움을 담은 인트로 · 영상이 없을 때는 사진으로 대체됩니다.</p>
                         </div>`;
 
             el.innerHTML = `
@@ -3679,117 +3677,88 @@
             el.classList.add('hidden');
         },
         /**
-         * MP4가 배포되지 않은 경우 브라우저가 video GET 404를 찍지 않도록,
-         * 초기에는 src 없이 두고 HEAD로 존재할 때만 src 부여.
+         * 메인 인트로: 두 개의 숲 MP4를 순환(relay) 재생. loop 속성 없음 — ended 에서 다음 클립으로 전환.
+         * 파일은 forest.html 과 동일 경로(예: public 루트)에 두면 됩니다.
          */
         initDashboardVisualVideo() {
-            const v = document.getElementById('ms-dash-visual-video');
-            if (!v) return;
-            v.loop = true;
-            v.muted = true;
+            const introVideo = document.getElementById('introVideo');
+            if (!introVideo) return;
+            introVideo.removeAttribute('loop');
+            introVideo.loop = false;
+            introVideo.muted = true;
             try {
-                v.playsInline = true;
+                introVideo.playsInline = true;
             } catch (_) {
                 /* ignore */
             }
             try {
-                v.setAttribute('playsinline', '');
-                v.setAttribute('webkit-playsinline', '');
+                introVideo.setAttribute('playsinline', '');
+                introVideo.setAttribute('webkit-playsinline', '');
             } catch (_) {
                 /* ignore */
             }
-            v.preload = 'auto';
-            const raw = v.getAttribute('data-video-src') || '';
-            const url = String(raw).trim();
+            introVideo.preload = 'auto';
+
+            const videoSources = [
+                new URL('./KakaoTalk_20240501_163910442.mp4', location.href).href,
+                new URL('./KakaoTalk_20240501_172743992.mp4', location.href).href
+            ];
+            let currentVideoIndex = 0;
+
             const onErr = function () {
-                MS.onDashboardVideoError(v);
+                MS.onDashboardVideoError(introVideo);
             };
-            v.addEventListener('error', onErr);
-            v.addEventListener('ended', function () {
-                if (!v.loop) return;
-                try {
-                    v.currentTime = 0;
-                } catch (_) {
-                    /* ignore */
-                }
-                try {
-                    const p = v.play && v.play();
-                    if (p && typeof p.catch === 'function') p.catch(function () {});
-                } catch (_) {
-                    /* ignore */
-                }
-            });
-            v.addEventListener(
+            introVideo.addEventListener('error', onErr);
+            introVideo.addEventListener(
                 'loadeddata',
                 function () {
-                    v.classList.remove('opacity-0', 'pointer-events-none');
+                    introVideo.classList.remove('opacity-0', 'pointer-events-none');
                 },
                 { once: true }
             );
-            const attachAndPlay = function () {
+            introVideo.addEventListener('ended', function () {
+                currentVideoIndex = (currentVideoIndex + 1) % videoSources.length;
+                introVideo.src = videoSources[currentVideoIndex];
                 try {
-                    const p = v.play && v.play();
+                    introVideo.load();
+                } catch (_) {
+                    /* ignore */
+                }
+                try {
+                    const p = introVideo.play && introVideo.play();
                     if (p && typeof p.catch === 'function') {
-                        p.catch(function () {
-                            /* autoplay 정책 */
+                        p.catch(function (e) {
+                            try {
+                                console.log('자동재생 방지됨', e);
+                            } catch (_) {
+                                /* ignore */
+                            }
                         });
                     }
                 } catch (_) {
                     /* ignore */
                 }
-            };
-            if (!url) {
-                onErr();
-                return;
-            }
-            let origin = '';
+            });
+
+            introVideo.src = videoSources[currentVideoIndex];
             try {
-                origin = location.origin || '';
+                introVideo.load();
             } catch (_) {
-                origin = '';
-            }
-            const isExternal = /^https?:\/\//i.test(url) && origin && url.indexOf(origin) !== 0;
-            if (isExternal) {
-                v.src = url;
-                try {
-                    v.load();
-                } catch (_) {
-                    /* ignore */
-                }
-                attachAndPlay();
-                return;
+                /* ignore */
             }
             try {
-                fetch(url, { method: 'HEAD', cache: 'no-store', credentials: 'same-origin' })
-                    .then(function (res) {
-                        if (!res.ok && res.status !== 405 && res.status !== 501) {
-                            onErr();
-                            return;
-                        }
-                        if (!res.ok) {
-                            v.src = url;
-                            try {
-                                v.load();
-                            } catch (_) {
-                                /* ignore */
-                            }
-                            attachAndPlay();
-                            return;
-                        }
-                        v.src = url;
+                const p = introVideo.play && introVideo.play();
+                if (p && typeof p.catch === 'function') {
+                    p.catch(function (e) {
                         try {
-                            v.load();
+                            console.log('자동재생 방지됨', e);
                         } catch (_) {
                             /* ignore */
                         }
-                        attachAndPlay();
-                    })
-                    .catch(function () {
-                        /* HEAD 실패 시 v.src를 넣지 않음 — 없는 파일에 대한 GET 404가 콘솔에 찍히는 것을 막음 */
-                        onErr();
                     });
+                }
             } catch (_) {
-                onErr();
+                /* ignore */
             }
         },
         /** 기관명 키워드로 대상·세부 유형 자동 설정(입력 시). 수동으로 언제든 변경 가능 */
@@ -3940,6 +3909,7 @@
             const prevG = document.getElementById('ms-unified-group-name');
             if (prevG) STATE.unifiedSetupGroupDraft = String(prevG.value || '');
             const clean = opts && opts.cleanInst === true;
+            const skipModalInstDropdown = opts && opts.skipModalInstDropdown === true;
             if (clean) {
                 STATE.searchTerm = '';
                 STATE.selectedId = null;
@@ -3984,7 +3954,7 @@
                 typeForUi = '어린이집';
             }
             const base =
-                'ms-btn flex-1 min-h-[36px] px-3 py-1.5 font-bold text-xs rounded-full transition-colors duration-200';
+                'ms-btn flex-1 min-h-[32px] px-2.5 py-1 font-bold text-xs rounded-full transition-colors duration-200';
             const tabPs = tg === 'preschool' ? TAB_AGE_PS_ON : TAB_AGE_PS_OFF;
             const tabEl = tg === 'elementary' ? TAB_AGE_EL_ON : TAB_AGE_EL_OFF;
             const obsPreOn =
@@ -4002,22 +3972,30 @@
             }
             const locForestCls = STATE.obsLocation !== 'indoor' ? obsPreOn : obsPreOff;
             const locIndoorCls = STATE.obsLocation === 'indoor' ? obsPostOn : obsPostOff;
+            const typeOnPs =
+                'border-2 border-emerald-300/90 bg-gradient-to-b from-[#03C75A] via-[#02b350] to-[#017a3d] text-white shadow-lg shadow-emerald-900/25 ring-2 ring-[#03C75A]/35';
+            const typeOffPs =
+                'border border-[rgba(93,64,55,0.2)] bg-white text-[#5D4037]/75 hover:bg-[rgba(93,64,55,0.05)]';
+            const typeOnEl =
+                'border-2 border-orange-300/90 bg-gradient-to-b from-[#FFB74D] via-[#F57C00] to-[#E65100] text-white shadow-lg shadow-orange-900/25 ring-2 ring-[#FF9800]/40';
+            const typeOffEl =
+                'border border-[rgba(93,64,55,0.2)] bg-white text-[#5D4037]/75 hover:bg-[rgba(93,64,55,0.05)]';
             const typeRowHtml =
                 tgSetup === 'elementary'
-                    ? `<div class="flex flex-wrap gap-2">
-                            <button type="button" class="ms-btn flex-1 min-w-[100px] min-h-[36px] py-1.5 font-bold border-2 text-xs ${typeForUi === '지역아동센터' ? 'border-[#E65100] bg-[#F57C00] text-white shadow-md' : 'border-[rgba(93,64,55,0.22)] bg-white text-[#5D4037]/80 hover:bg-[rgba(93,64,55,0.04)]'}"
-                                onclick="MS.setPrepModalType('지역아동센터')">지역아동센터</button>
-                            <button type="button" class="ms-btn flex-1 min-w-[100px] min-h-[36px] py-1.5 font-bold border-2 text-xs ${typeForUi === '방과후교실' ? 'border-[#E65100] bg-[#F57C00] text-white shadow-md' : 'border-[rgba(93,64,55,0.22)] bg-white text-[#5D4037]/80 hover:bg-[rgba(93,64,55,0.04)]'}"
+                    ? `<div class="flex flex-wrap gap-1.5">
+                            <button type="button" class="ms-btn flex-1 min-w-[88px] min-h-[34px] py-1 font-black border-2 text-[11px] rounded-full transition-all ${typeForUi === '지역아동센터' ? typeOnEl : typeOffEl}"
+                                onclick="MS.setPrepModalType('지역아동센터')">센터</button>
+                            <button type="button" class="ms-btn flex-1 min-w-[88px] min-h-[34px] py-1 font-black border-2 text-[11px] rounded-full transition-all ${typeForUi === '방과후교실' ? typeOnEl : typeOffEl}"
                                 onclick="MS.setPrepModalType('방과후교실')">방과후교실</button>
-                            <button type="button" class="ms-btn flex-1 min-w-[100px] min-h-[36px] py-1.5 font-bold border-2 text-xs ${typeForUi === '초등학교' ? 'border-[#E65100] bg-[#F57C00] text-white shadow-md' : 'border-[rgba(93,64,55,0.22)] bg-white text-[#5D4037]/80 hover:bg-[rgba(93,64,55,0.04)]'}"
+                            <button type="button" class="ms-btn flex-1 min-w-[88px] min-h-[34px] py-1 font-black border-2 text-[11px] rounded-full transition-all ${typeForUi === '초등학교' ? typeOnEl : typeOffEl}"
                                 onclick="MS.setPrepModalType('초등학교')">초등학교</button>
                         </div>`
-                    : `<div class="flex flex-wrap gap-2">
-                            <button type="button" class="ms-btn flex-1 min-w-[88px] min-h-[36px] py-1.5 font-bold border-2 text-xs ${typeForUi === '어린이집' ? 'border-[#028a4a] bg-[#03C75A] text-white shadow-md' : 'border-[rgba(93,64,55,0.22)] bg-white text-[#5D4037]/80 hover:bg-[rgba(93,64,55,0.04)]'}"
+                    : `<div class="flex flex-wrap gap-1.5">
+                            <button type="button" class="ms-btn flex-1 min-w-[80px] min-h-[34px] py-1 font-black border-2 text-[11px] rounded-full transition-all ${typeForUi === '어린이집' ? typeOnPs : typeOffPs}"
                                 onclick="MS.setPrepModalType('어린이집')">어린이집</button>
-                            <button type="button" class="ms-btn flex-1 min-w-[88px] min-h-[36px] py-1.5 font-bold border-2 text-xs ${typeForUi === '유치원' ? 'border-[#028a4a] bg-[#03C75A] text-white shadow-md' : 'border-[rgba(93,64,55,0.22)] bg-white text-[#5D4037]/80 hover:bg-[rgba(93,64,55,0.04)]'}"
+                            <button type="button" class="ms-btn flex-1 min-w-[80px] min-h-[34px] py-1 font-black border-2 text-[11px] rounded-full transition-all ${typeForUi === '유치원' ? typeOnPs : typeOffPs}"
                                 onclick="MS.setPrepModalType('유치원')">유치원</button>
-                            <button type="button" class="ms-btn flex-1 min-w-[88px] min-h-[36px] py-1.5 font-bold border-2 text-xs ${typeForUi === '기타' ? 'border-[#028a4a] bg-[#03C75A] text-white shadow-md' : 'border-[rgba(93,64,55,0.22)] bg-white text-[#5D4037]/80 hover:bg-[rgba(93,64,55,0.04)]'}"
+                            <button type="button" class="ms-btn flex-1 min-w-[80px] min-h-[34px] py-1 font-black border-2 text-[11px] rounded-full transition-all ${typeForUi === '기타' ? typeOnPs : typeOffPs}"
                                 onclick="MS.setPrepModalType('기타')">기타</button>
                         </div>`;
             root.className = 'print-hidden fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4';
@@ -4025,19 +4003,19 @@
                 <div class="absolute inset-0 bg-black/45" onclick="MS.closeForestModal()" aria-hidden="true"></div>
                 <div class="relative w-full max-w-md max-h-[90vh] flex flex-col rounded-t-[1.75rem] sm:rounded-[1.75rem] bg-[#FDFBF7] shadow-2xl border border-[#2D4A3E]/12 overflow-visible" onclick="event.stopPropagation()">
                     <div class="shrink-0 px-3 sm:px-4 md:px-5 pt-3 sm:pt-4 md:pt-5 pb-1">
-                        <h2 id="ms-modal-title" class="text-base md:text-lg font-black text-[#2D4A3E] text-center leading-tight">검사 설정</h2>
+                        <h2 id="ms-modal-title" class="text-base md:text-lg font-black text-[#2D4A3E] text-center leading-tight">JTT-Kinder 검사 설정</h2>
                     </div>
                     <div class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-3 sm:px-4 md:px-5 custom-scrollbar pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] sm:pb-4 space-y-2.5">
-                        <section class="rounded-2xl border border-[rgba(45,74,62,0.12)] bg-[rgba(45,74,62,0.04)] p-1.5 sm:p-2" aria-label="관찰 단계 및 진행 장소">
-                            <h3 class="sr-only">관찰 단계와 진행 장소</h3>
-                            <div class="flex w-full min-w-0 flex-row items-stretch gap-0">
-                                <div class="flex min-w-0 flex-1 gap-1" role="group" aria-label="관찰 단계: 사전 또는 사후">
+                        <section class="rounded-2xl border border-[rgba(45,74,62,0.12)] bg-[rgba(45,74,62,0.04)] p-1.5 sm:p-2" aria-label="관찰 맥락">
+                            <h3 class="sr-only">관찰 맥락</h3>
+                            <div class="flex w-full min-w-0 flex-nowrap flex-row items-stretch gap-0">
+                                <div class="flex min-w-0 flex-1 flex-nowrap gap-1" role="group" aria-label="관찰 단계: 사전 또는 사후">
                                     <button type="button" class="ms-btn flex-1 min-h-[30px] min-w-0 shrink py-1 px-1.5 rounded-full text-[11px] font-black border-2 leading-none transition-colors ${obsPreCls}"
                                         onclick="MS.setObservationStage('pre')">사전</button>
                                     <button type="button" class="ms-btn flex-1 min-h-[30px] min-w-0 shrink py-1 px-1.5 rounded-full text-[11px] font-black border-2 leading-none transition-colors ${obsPostCls}"
                                         onclick="MS.setObservationStage('post')">사후</button>
                                 </div>
-                                <div class="flex min-w-0 flex-1 gap-1 border-l-2 border-[rgba(45,74,62,0.14)] pl-3 sm:pl-4" role="group" aria-label="진행 장소: 숲 또는 실내">
+                                <div class="flex min-w-0 flex-1 flex-nowrap gap-1 border-l-2 border-[rgba(45,74,62,0.14)] pl-3 sm:pl-4" role="group" aria-label="진행 장소: 숲 또는 실내">
                                     <button type="button" class="ms-btn flex-1 min-h-[30px] min-w-0 shrink py-1 px-1.5 rounded-full text-[11px] font-black border-2 leading-none transition-colors ${locForestCls}"
                                         onclick="MS.setPrepModalObsLocation('forest')">숲</button>
                                     <button type="button" class="ms-btn flex-1 min-h-[30px] min-w-0 shrink py-1 px-1.5 rounded-full text-[11px] font-black border-2 leading-none transition-colors ${locIndoorCls}"
@@ -4046,10 +4024,10 @@
                             </div>
                         </section>
                         <section aria-labelledby="ms-modal-search-lbl">
-                            <label id="ms-modal-search-lbl" for="ms-modal-inst-name" class="block text-[11px] font-bold text-ms-muted mb-1 ml-0.5 tracking-widest">기관명 검색</label>
+                            <label id="ms-modal-search-lbl" for="ms-modal-inst-name" class="sr-only">기관명 검색</label>
                             <div class="relative z-[100] mb-1.5">
-                                <input id="ms-modal-inst-name" type="text" maxlength="120" autocomplete="organization" placeholder="예: 마인드스토리어린이집"
-                                    class="w-full pl-4 pr-[7.25rem] py-2 md:py-2.5 text-center font-bold rounded-lg border-2 border-[#03C75A] bg-white text-[#111] text-base md:text-lg leading-tight shadow-[0_2px_8px_rgba(3,199,90,0.12)] outline-none placeholder:text-[#b8b8b8] placeholder:font-semibold focus:ring-2 focus:ring-[#03C75A]/35 focus:border-[#03C75A]"
+                                <input id="ms-modal-inst-name" type="text" maxlength="120" autocomplete="organization" placeholder="예: 마인드스토리, 숲마을어린이집"
+                                    class="w-full pl-4 pr-[7.25rem] py-1.5 md:py-2 text-center font-bold rounded-lg border-2 border-[#03C75A] bg-white text-[#111] text-base md:text-lg leading-tight shadow-[0_2px_8px_rgba(3,199,90,0.12)] outline-none placeholder:text-[#c8c8c8] placeholder:font-semibold focus:ring-2 focus:ring-[#03C75A]/35 focus:border-[#03C75A]"
                                     value="${UI.esc(instDraft)}"
                                     aria-autocomplete="list" aria-expanded="false" aria-controls="ms-modal-inst-dropdown"
                                     oninput="MS.onModalInstNameInput(this, event)"
@@ -4091,19 +4069,19 @@
                         </section>
                         <div class="space-y-1">
                         <section aria-labelledby="ms-modal-examiner-lbl">
-                            <div class="flex min-w-0 flex-row items-center gap-2">
-                                <label id="ms-modal-examiner-lbl" for="ms-examiner-name-modal" class="min-w-[90px] w-24 shrink-0 text-left text-[10px] font-medium leading-tight text-[#5D4037]/55">진행자(해설사) 성함</label>
+                            <div class="flex min-w-0 flex-nowrap flex-row items-center gap-2">
+                                <label id="ms-modal-examiner-lbl" for="ms-examiner-name-modal" class="w-20 shrink-0 self-center text-left text-[10px] font-semibold leading-tight text-[#5D4037]/55">성함</label>
                                 <input id="ms-examiner-name-modal" type="text" maxlength="40" autocomplete="name" placeholder="필수"
-                                    class="ms-input min-w-0 flex-1 border border-[rgba(45,74,62,0.18)] px-2 py-1.5 text-left text-sm font-bold leading-tight text-[#2D4A3E] rounded-xl"
+                                    class="ms-input min-w-0 flex-1 border border-[rgba(45,74,62,0.18)] px-2 py-1 text-left text-sm font-bold leading-tight text-[#2D4A3E] rounded-xl"
                                     value="${UI.esc(examinerName)}"
                                     oninput="MS.onExaminerNameInput(this.value)" />
                             </div>
                         </section>
                         <section aria-labelledby="ms-modal-group-lbl">
-                            <div class="flex min-w-0 flex-row items-center gap-2">
-                                <label id="ms-modal-group-lbl" for="ms-unified-group-name" class="min-w-[90px] w-24 shrink-0 text-left text-[10px] font-medium leading-tight text-[#5D4037]/55">반 이름</label>
+                            <div class="flex min-w-0 flex-nowrap flex-row items-center gap-2">
+                                <label id="ms-modal-group-lbl" for="ms-unified-group-name" class="w-20 shrink-0 self-center text-left text-[10px] font-semibold leading-tight text-[#5D4037]/55">반명</label>
                                 <input id="ms-unified-group-name" type="text" placeholder="예: 새싹반"
-                                    class="ms-input min-w-0 flex-1 border border-ms px-2 py-1.5 text-left text-sm font-bold leading-tight text-[#2D4A3E] rounded-xl"
+                                    class="ms-input min-w-0 flex-1 border border-ms px-2 py-1 text-left text-sm font-bold leading-tight text-[#2D4A3E] rounded-xl"
                                     value="${UI.esc(groupDraft)}"
                                     maxlength="120"
                                     autocomplete="off"
@@ -4116,7 +4094,7 @@
                                 onclick="MS.submitUnifiedSetupFromModal()">검사 시작</button>
                         </div>
                         <div class="flex justify-center pb-0.5">
-                            <button type="button" class="ms-btn inline-flex items-center justify-center gap-1.5 text-sm font-bold text-ms-muted py-2" onclick="MS.closeForestModal()" aria-label="뒤로 가기"><span class="text-base leading-none opacity-80" aria-hidden="true">↩</span>뒤로 가기</button>
+                            <button type="button" class="ms-btn inline-flex items-center justify-center text-sm font-bold text-ms-muted py-2" onclick="MS.closeForestModal()" aria-label="뒤로 가기">↩ 뒤로 가기</button>
                         </div>
                     </div>
                 </div>
@@ -4127,7 +4105,9 @@
                 if (inst) {
                     inst.focus();
                 }
-                MS.updateModalInstDropdown();
+                if (!skipModalInstDropdown) {
+                    MS.updateModalInstDropdown();
+                }
             });
         },
         submitUnifiedSetupFromModal() {
@@ -4755,7 +4735,7 @@
             const qt = String(q || '').trim();
             const choseongQ = isChoseongOnlyQueryStr(qt);
             const rowBtnClass =
-                'ms-inst-dd-opt w-full text-left px-3 py-1.5 min-h-0 flex flex-row flex-wrap items-center gap-x-1 gap-y-0 border-b border-[rgba(93,64,55,0.1)] last:border-b-0 bg-white text-[#5D4037] leading-tight hover:bg-[rgba(212,163,115,0.22)] active:bg-[rgba(212,163,115,0.3)] transition-colors';
+                'ms-inst-dd-opt w-full text-left px-2 py-1 min-h-0 flex flex-row flex-nowrap items-center justify-between gap-x-2 border-b border-[rgba(93,64,55,0.08)] last:border-b-0 bg-white text-[#5D4037] leading-none hover:bg-[rgba(212,163,115,0.22)] active:bg-[rgba(212,163,115,0.3)] transition-colors';
             return rows
                 .map((row) => {
                     if (row.kind === 'inst') {
@@ -4770,8 +4750,8 @@
                         class="${rowBtnClass}"
                         onmousedown="event.preventDefault()"
                         onclick="MS.pickInstitution('${safeId}')">
-                        <span class="text-sm font-bold leading-tight">${labelHtml}</span>
-                        <span class="text-[10px] text-[#5D4037]/60 font-medium ml-1 shrink-0">[${UI.esc(inst.type)}]</span>
+                        <span class="text-sm font-bold leading-tight truncate min-w-0 flex-1 text-left">${labelHtml}</span>
+                        <span class="text-[10px] text-[#5D4037]/60 font-medium shrink-0">[${UI.esc(inst.type)}]</span>
                     </button>`;
                     }
                     if (row.kind === 'direct') {
@@ -4786,8 +4766,8 @@
                         class="${rowBtnClass}"
                         onmousedown="event.preventDefault()"
                         onclick="MS.pickInstitutionByName('${safeName}')">
-                        <span class="text-sm font-bold leading-tight">직접 입력: &quot;${labelHtml}&quot; 사용하기</span>
-                        <span class="text-[10px] text-[#5D4037]/60 font-medium ml-1 shrink-0">[직접입력]</span>
+                        <span class="text-sm font-bold leading-tight truncate min-w-0 flex-1 text-left">직접 입력: &quot;${labelHtml}&quot; 사용하기</span>
+                        <span class="text-[10px] text-[#5D4037]/60 font-medium shrink-0">[직접입력]</span>
                     </button>`;
                     }
                     const name = row.name;
@@ -4801,8 +4781,8 @@
                         class="${rowBtnClass}"
                         onmousedown="event.preventDefault()"
                         onclick="MS.pickInstitutionByName('${safeName}')">
-                        <span class="text-sm font-bold leading-tight">${labelHtml}</span>
-                        <span class="text-[10px] text-[#5D4037]/60 font-medium ml-1 shrink-0">[사전명단]</span>
+                        <span class="text-sm font-bold leading-tight truncate min-w-0 flex-1 text-left">${labelHtml}</span>
+                        <span class="text-[10px] text-[#5D4037]/60 font-medium shrink-0">[사전명단]</span>
                     </button>`;
                 })
                 .join('');
@@ -4998,7 +4978,7 @@
             const btnM = document.getElementById('ms-modal-inst-toggle-all');
             if (btnM) btnM.setAttribute('aria-expanded', 'false');
             if (MS.isExamPrepModalOpen()) {
-                MS.openNewExamPrepModal();
+                MS.openNewExamPrepModal({ skipModalInstDropdown: true });
             } else {
                 UI.render();
             }
@@ -5049,7 +5029,7 @@
             const btnM = document.getElementById('ms-modal-inst-toggle-all');
             if (btnM) btnM.setAttribute('aria-expanded', 'false');
             if (MS.isExamPrepModalOpen()) {
-                MS.openNewExamPrepModal();
+                MS.openNewExamPrepModal({ skipModalInstDropdown: true });
             } else {
                 UI.render();
             }

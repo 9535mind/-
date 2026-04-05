@@ -33,17 +33,17 @@ export interface SetupDashboardProps {
     onCancel: () => void;
 }
 
-/** 대상(연령) 탭 — 파스텔·얇은 테두리로 기관 유형보다 한 단계 낮게 */
+/** 대상(연령) 탭 — 연한 파스텔로 기관 유형보다 시각적 힘을 낮게 */
 const tabBase =
-    'ms-btn flex-1 min-h-[36px] px-3 py-1.5 font-bold text-xs rounded-full transition-colors duration-200';
+    'ms-btn flex-1 min-h-[32px] px-2.5 py-1 font-bold text-xs rounded-full transition-colors duration-200';
 const TAB_AGE_PS_ON =
-    'bg-[#e8f5ea] border-2 border-[#2D4A3E]/40 text-[#2D4A3E] shadow-sm ring-0 outline-none';
+    'bg-[#eef7f0] border border-[#2D4A3E]/22 text-[#2D4A3E]/85 shadow-none ring-0 outline-none';
 const TAB_AGE_PS_OFF =
-    'bg-[#f7faf8] border border-[rgba(45,74,62,0.14)] text-[#5D4037]/60 ring-0 outline-none hover:bg-[rgba(45,74,62,0.05)]';
+    'bg-[#fafcfb] border border-[rgba(45,74,62,0.1)] text-[#5D4037]/45 ring-0 outline-none hover:bg-[rgba(45,74,62,0.04)]';
 const TAB_AGE_EL_ON =
-    'bg-[#fff3e0] border-2 border-[#e65100]/40 text-[#bf360c] shadow-sm ring-0 outline-none';
+    'bg-[#fff8f0] border border-[#e65100]/22 text-[#bf360c]/85 shadow-none ring-0 outline-none';
 const TAB_AGE_EL_OFF =
-    'bg-[#fffaf5] border border-[rgba(230,81,0,0.15)] text-[#5D4037]/60 ring-0 outline-none hover:bg-[rgba(255,152,0,0.06)]';
+    'bg-[#fffdfb] border border-[rgba(230,81,0,0.1)] text-[#5D4037]/45 ring-0 outline-none hover:bg-[rgba(255,152,0,0.04)]';
 
 function newInstitutionId(): string {
     try {
@@ -267,6 +267,15 @@ export function SetupDashboard({
     const locForestCls = obsLocation !== 'indoor' ? obsPreOn : obsPreOff;
     const locIndoorCls = obsLocation === 'indoor' ? obsPostOn : obsPostOff;
 
+    const typeOnPs =
+        'border-2 border-emerald-300/90 bg-gradient-to-b from-[#03C75A] via-[#02b350] to-[#017a3d] text-white shadow-lg shadow-emerald-900/25 ring-2 ring-[#03C75A]/35';
+    const typeOffPs =
+        'border border-[rgba(93,64,55,0.2)] bg-white text-[#5D4037]/75 hover:bg-[rgba(93,64,55,0.05)]';
+    const typeOnEl =
+        'border-2 border-orange-300/90 bg-gradient-to-b from-[#FFB74D] via-[#F57C00] to-[#E65100] text-white shadow-lg shadow-orange-900/25 ring-2 ring-[#FF9800]/40';
+    const typeOffEl =
+        'border border-[rgba(93,64,55,0.2)] bg-white text-[#5D4037]/75 hover:bg-[rgba(93,64,55,0.05)]';
+
     return (
         <div
             className="relative w-full max-w-md max-h-[90vh] flex flex-col rounded-t-[1.75rem] sm:rounded-[1.75rem] bg-[#FDFBF7] shadow-2xl border border-[#2D4A3E]/12 overflow-visible"
@@ -278,7 +287,7 @@ export function SetupDashboard({
                     id="ms-modal-title"
                     className="text-base md:text-lg font-black text-[#2D4A3E] text-center leading-tight"
                 >
-                    검사 설정
+                    JTT-Kinder 검사 설정
                 </h2>
             </div>
 
@@ -295,13 +304,9 @@ export function SetupDashboard({
 
                 {/* 3단: 기관명 검색 */}
                 <section aria-labelledby="ms-setup-search-heading">
-                    <label
-                        id="ms-setup-search-heading"
-                        htmlFor="ms-modal-inst-name-react"
-                        className="block text-[11px] font-bold text-ms-muted mb-1 ml-0.5 tracking-widest"
-                    >
+                    <span id="ms-setup-search-heading" className="sr-only">
                         기관명 검색
-                    </label>
+                    </span>
                     <InstitutionSearchInput
                         inputId="ms-modal-inst-name-react"
                         inputRef={instSearchInputRef}
@@ -316,27 +321,18 @@ export function SetupDashboard({
                         onValueCommit={onValueCommit}
                         onChange={onValueCommit}
                         onBlurSearch={onBlurSearch}
-                        placeholder="예: 마인드스토리어린이집"
+                        placeholder="예: 마인드스토리, 숲마을어린이집"
                         showAllListMode={showAllListMode}
                         onToggleShowAllList={onToggleShowAllList}
                         onPickInstitution={onPickInstitution}
                         onPickPresetName={onPickPresetName}
                         onClear={onClearSearch}
                     />
-                    <p className="text-[10px] text-ms-muted mt-2 leading-relaxed rounded-lg bg-[rgba(45,74,62,0.04)] px-2 py-1.5 border border-[rgba(45,74,62,0.07)]">
-                        유아·유치부는 <strong className="text-[#2D4A3E]">타겟 사전 23곳</strong>이 입력 즉시 반영되고, 사전에
-                        없을 때만 저장 기관 검색이 200ms 디바운스로 최대 50건 붙습니다. 오른쪽{' '}
-                        <span className="font-bold text-[#2D4A3E]">검은 ▼</span>은 검색어 없이 사전·저장 목록을 펼칩니다.
-                        React 상태로만 갱신되어 한글 입력이 끊기지 않습니다.
-                    </p>
                 </section>
 
                 {/* 4단: 대상 (문항뱅크) */}
                 <section aria-labelledby="ms-setup-target-heading">
-                    <span
-                        id="ms-setup-target-heading"
-                        className="block text-[11px] font-bold text-ms-muted mb-1 ml-0.5 tracking-widest"
-                    >
+                    <span id="ms-setup-target-heading" className="sr-only">
                         대상 (문항뱅크)
                     </span>
                     <div className="flex gap-2">
@@ -370,24 +366,20 @@ export function SetupDashboard({
                 {/* 5단: 기관 유형 */}
                 <section aria-label="기관 유형">
                     {targetGroup === 'elementary' ? (
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-1.5">
                             <button
                                 type="button"
-                                className={`ms-btn flex-1 min-w-[100px] min-h-[36px] py-1.5 font-bold border-2 text-xs ${
-                                    typeForUiElementary === '지역아동센터'
-                                        ? 'border-[#E65100] bg-[#F57C00] text-white shadow-md'
-                                        : 'border-[rgba(93,64,55,0.22)] bg-white text-[#5D4037]/80 hover:bg-[rgba(93,64,55,0.04)]'
+                                className={`ms-btn flex-1 min-w-[88px] min-h-[34px] rounded-full py-1 font-black border-2 text-[11px] transition-all ${
+                                    typeForUiElementary === '지역아동센터' ? typeOnEl : typeOffEl
                                 }`}
                                 onClick={() => setSetupTypeOverride('지역아동센터')}
                             >
-                                지역아동센터
+                                센터
                             </button>
                             <button
                                 type="button"
-                                className={`ms-btn flex-1 min-w-[100px] min-h-[36px] py-1.5 font-bold border-2 text-xs ${
-                                    typeForUiElementary === '방과후교실'
-                                        ? 'border-[#E65100] bg-[#F57C00] text-white shadow-md'
-                                        : 'border-[rgba(93,64,55,0.22)] bg-white text-[#5D4037]/80 hover:bg-[rgba(93,64,55,0.04)]'
+                                className={`ms-btn flex-1 min-w-[88px] min-h-[34px] rounded-full py-1 font-black border-2 text-[11px] transition-all ${
+                                    typeForUiElementary === '방과후교실' ? typeOnEl : typeOffEl
                                 }`}
                                 onClick={() => setSetupTypeOverride('방과후교실')}
                             >
@@ -395,10 +387,8 @@ export function SetupDashboard({
                             </button>
                             <button
                                 type="button"
-                                className={`ms-btn flex-1 min-w-[100px] min-h-[36px] py-1.5 font-bold border-2 text-xs ${
-                                    typeForUiElementary === '초등학교'
-                                        ? 'border-[#E65100] bg-[#F57C00] text-white shadow-md'
-                                        : 'border-[rgba(93,64,55,0.22)] bg-white text-[#5D4037]/80 hover:bg-[rgba(93,64,55,0.04)]'
+                                className={`ms-btn flex-1 min-w-[88px] min-h-[34px] rounded-full py-1 font-black border-2 text-[11px] transition-all ${
+                                    typeForUiElementary === '초등학교' ? typeOnEl : typeOffEl
                                 }`}
                                 onClick={() => setSetupTypeOverride('초등학교')}
                             >
@@ -406,13 +396,11 @@ export function SetupDashboard({
                             </button>
                         </div>
                     ) : (
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-1.5">
                             <button
                                 type="button"
-                                className={`ms-btn flex-1 min-w-[88px] min-h-[36px] py-1.5 font-bold border-2 text-xs ${
-                                    typeForUiPreschool === '어린이집'
-                                        ? 'border-[#028a4a] bg-[#03C75A] text-white shadow-md'
-                                        : 'border-[rgba(93,64,55,0.22)] bg-white text-[#5D4037]/80 hover:bg-[rgba(93,64,55,0.04)]'
+                                className={`ms-btn flex-1 min-w-[80px] min-h-[34px] rounded-full py-1 font-black border-2 text-[11px] transition-all ${
+                                    typeForUiPreschool === '어린이집' ? typeOnPs : typeOffPs
                                 }`}
                                 onClick={() => setSetupTypeOverride('어린이집')}
                             >
@@ -420,10 +408,8 @@ export function SetupDashboard({
                             </button>
                             <button
                                 type="button"
-                                className={`ms-btn flex-1 min-w-[88px] min-h-[36px] py-1.5 font-bold border-2 text-xs ${
-                                    typeForUiPreschool === '유치원'
-                                        ? 'border-[#028a4a] bg-[#03C75A] text-white shadow-md'
-                                        : 'border-[rgba(93,64,55,0.22)] bg-white text-[#5D4037]/80 hover:bg-[rgba(93,64,55,0.04)]'
+                                className={`ms-btn flex-1 min-w-[80px] min-h-[34px] rounded-full py-1 font-black border-2 text-[11px] transition-all ${
+                                    typeForUiPreschool === '유치원' ? typeOnPs : typeOffPs
                                 }`}
                                 onClick={() => setSetupTypeOverride('유치원')}
                             >
@@ -431,10 +417,8 @@ export function SetupDashboard({
                             </button>
                             <button
                                 type="button"
-                                className={`ms-btn flex-1 min-w-[88px] min-h-[36px] py-1.5 font-bold border-2 text-xs ${
-                                    typeForUiPreschool === '기타'
-                                        ? 'border-[#028a4a] bg-[#03C75A] text-white shadow-md'
-                                        : 'border-[rgba(93,64,55,0.22)] bg-white text-[#5D4037]/80 hover:bg-[rgba(93,64,55,0.04)]'
+                                className={`ms-btn flex-1 min-w-[80px] min-h-[34px] rounded-full py-1 font-black border-2 text-[11px] transition-all ${
+                                    typeForUiPreschool === '기타' ? typeOnPs : typeOffPs
                                 }`}
                                 onClick={() => setSetupTypeOverride('기타')}
                             >
@@ -447,13 +431,13 @@ export function SetupDashboard({
                 {/* 6·7단: 진행자 / 반 이름 — 한 줄 행 */}
                 <div className="space-y-1">
                     <section aria-labelledby="ms-setup-examiner-heading">
-                        <div className="flex min-w-0 flex-row items-center gap-2">
+                        <div className="flex min-w-0 flex-nowrap flex-row items-center gap-2">
                             <label
                                 id="ms-setup-examiner-heading"
                                 htmlFor="ms-examiner-name-react"
-                                className="min-w-[90px] w-24 shrink-0 text-left text-[10px] font-medium leading-tight text-[#5D4037]/55"
+                                className="w-20 shrink-0 self-center text-left text-[10px] font-semibold leading-tight text-[#5D4037]/55"
                             >
-                                진행자(해설사) 성함
+                                성함
                             </label>
                             <input
                                 id="ms-examiner-name-react"
@@ -461,26 +445,26 @@ export function SetupDashboard({
                                 maxLength={40}
                                 autoComplete="name"
                                 placeholder="필수"
-                                className="ms-input min-w-0 flex-1 border border-[rgba(45,74,62,0.18)] px-2 py-1.5 text-left text-sm font-bold leading-tight text-[#2D4A3E] rounded-xl"
+                                className="ms-input min-w-0 flex-1 border border-[rgba(45,74,62,0.18)] px-2 py-1 text-left text-sm font-bold leading-tight text-[#2D4A3E] rounded-xl"
                                 value={examinerName}
                                 onChange={(e) => setExaminerName(e.target.value)}
                             />
                         </div>
                     </section>
                     <section aria-labelledby="ms-setup-group-heading">
-                        <div className="flex min-w-0 flex-row items-center gap-2">
+                        <div className="flex min-w-0 flex-nowrap flex-row items-center gap-2">
                             <label
                                 id="ms-setup-group-heading"
                                 htmlFor="ms-unified-group-name-react"
-                                className="min-w-[90px] w-24 shrink-0 text-left text-[10px] font-medium leading-tight text-[#5D4037]/55"
+                                className="w-20 shrink-0 self-center text-left text-[10px] font-semibold leading-tight text-[#5D4037]/55"
                             >
-                                반 이름
+                                반명
                             </label>
                             <input
                                 id="ms-unified-group-name-react"
                                 type="text"
                                 placeholder="예: 새싹반"
-                                className="ms-input min-w-0 flex-1 border border-ms px-2 py-1.5 text-left text-sm font-bold leading-tight text-[#2D4A3E] rounded-xl"
+                                className="ms-input min-w-0 flex-1 border border-ms px-2 py-1 text-left text-sm font-bold leading-tight text-[#2D4A3E] rounded-xl"
                                 maxLength={120}
                                 autoComplete="off"
                                 value={groupName}
@@ -505,14 +489,11 @@ export function SetupDashboard({
                 <div className="flex justify-center pb-0.5">
                     <button
                         type="button"
-                        className="ms-btn inline-flex items-center justify-center gap-1.5 text-sm font-bold text-ms-muted py-2"
+                        className="ms-btn inline-flex items-center justify-center text-sm font-bold text-ms-muted py-2"
                         onClick={onCancel}
                         aria-label="뒤로 가기"
                     >
-                        <span className="text-base leading-none opacity-80" aria-hidden>
-                            ↩
-                        </span>
-                        뒤로 가기
+                        ↩ 뒤로 가기
                     </button>
                 </div>
             </div>

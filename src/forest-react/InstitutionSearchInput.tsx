@@ -96,7 +96,7 @@ const CHIP_ITEMS: { id: CategoryChipFilter; label: string }[] = [
 ];
 
 const chipBase =
-    'ms-inst-chip px-2.5 py-1.5 rounded-full text-[11px] font-bold border transition-colors min-h-[32px] shrink-0';
+    'ms-inst-chip px-2 py-1 rounded-full text-[11px] font-bold border transition-colors min-h-[28px] shrink-0';
 const chipOff = 'border-[rgba(45,74,62,0.2)] bg-white text-[#5D4037] hover:bg-[rgba(45,74,62,0.06)]';
 const chipOn = 'border-[#2D4A3E] bg-[#2D4A3E] text-white shadow-sm';
 
@@ -130,7 +130,7 @@ export interface InstitutionSearchInputProps {
 }
 
 const rowBtnClass =
-    'ms-inst-dd-opt w-full text-left px-3 py-1.5 min-h-0 flex flex-row flex-wrap items-center gap-x-1 gap-y-0 border-b border-[rgba(93,64,55,0.1)] last:border-b-0 bg-white text-[#5D4037] leading-tight hover:bg-[rgba(212,163,115,0.22)] active:bg-[rgba(212,163,115,0.3)] transition-colors';
+    'ms-inst-dd-opt w-full text-left px-2 py-1 min-h-0 flex flex-row flex-nowrap items-center justify-between gap-x-2 border-b border-[rgba(93,64,55,0.08)] last:border-b-0 bg-white text-[#5D4037] leading-none hover:bg-[rgba(212,163,115,0.22)] active:bg-[rgba(212,163,115,0.3)] transition-colors';
 
 export function InstitutionSearchInput({
     value,
@@ -179,6 +179,8 @@ export function InstitutionSearchInput({
     const [isComposing, setIsComposing] = useState(false);
     const [activeFilter, setActiveFilter] = useState<CategoryChipFilter>('ALL');
     const [panelForcedOpen, setPanelForcedOpen] = useState(false);
+    /** 직접 입력·목록 선택 직후: 입력값은 유지하되 드롭다운은 닫음 (`input.length>=1`만으로는 닫히지 않음) */
+    const [suppressDropdownAfterPick, setSuppressDropdownAfterPick] = useState(false);
 
     const composingRef = useRef(false);
 
@@ -225,9 +227,15 @@ export function InstitutionSearchInput({
 
     useEffect(() => {
         if (forceOpenKey > 0 && input.trim().length >= 1) {
+            setSuppressDropdownAfterPick(false);
             setPanelVisible(true);
         }
     }, [forceOpenKey, input, setPanelVisible]);
+
+    /** 전체 목록 모드 켜질 때는 다시 펼침 */
+    useEffect(() => {
+        if (showAllListMode) setSuppressDropdownAfterPick(false);
+    }, [showAllListMode]);
 
     useEffect(() => {
         return () => {
@@ -344,7 +352,9 @@ export function InstitutionSearchInput({
         activeFilter,
     ]);
 
-    const panelVisible = showAllListMode || input.trim().length >= 1 || panelForcedOpen;
+    const panelVisible =
+        !suppressDropdownAfterPick &&
+        (showAllListMode || input.trim().length >= 1 || panelForcedOpen);
 
     const notifyCompose = useCallback(
         (next: boolean) => {
@@ -362,6 +372,7 @@ export function InstitutionSearchInput({
     const onCompositionEnd = useCallback(
         (e: CompositionEvent<HTMLInputElement>) => {
             const v = e.currentTarget.value;
+            setSuppressDropdownAfterPick(false);
             setInput(v);
             setIsComposing(false);
             notifyCompose(false);
@@ -373,6 +384,7 @@ export function InstitutionSearchInput({
 
     const onChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
         const v = e.target.value;
+        setSuppressDropdownAfterPick(false);
         setInput(v);
         if (v.trim().length >= 1) {
             setPanelVisible(true);
@@ -383,6 +395,7 @@ export function InstitutionSearchInput({
         (raw: string) => {
             const next = raw.trim();
             if (!next) return;
+            setPanelVisible(false);
             if (blurCommitTimerRef.current) {
                 clearTimeout(blurCommitTimerRef.current);
                 blurCommitTimerRef.current = null;
@@ -392,6 +405,7 @@ export function InstitutionSearchInput({
             onChangeProp?.(next);
             onValueCommit(next);
             onPickPresetName(next);
+            setSuppressDropdownAfterPick(true);
             setPanelVisible(false);
         },
         [onChangeProp, onValueCommit, onPickPresetName, setPanelVisible]
@@ -436,11 +450,12 @@ export function InstitutionSearchInput({
                     aria-expanded={panelVisible}
                     aria-controls={listboxId}
                     placeholder={placeholder}
-                    className="w-full pl-4 pr-[7.25rem] py-2 md:py-2.5 text-center font-bold leading-tight rounded-lg border-2 border-[#03C75A] bg-white text-[#111] text-base md:text-lg shadow-[0_2px_8px_rgba(3,199,90,0.12)] outline-none placeholder:text-[#b8b8b8] placeholder:font-semibold focus:ring-2 focus:ring-[#03C75A]/35 focus:border-[#03C75A]"
+                    className="w-full pl-4 pr-[7.25rem] py-1.5 md:py-2 text-center font-bold leading-tight rounded-lg border-2 border-[#03C75A] bg-white text-[#111] text-base md:text-lg shadow-[0_2px_8px_rgba(3,199,90,0.12)] outline-none placeholder:text-[#c8c8c8] placeholder:font-semibold focus:ring-2 focus:ring-[#03C75A]/35 focus:border-[#03C75A]"
                     value={input}
                     onChange={onChange}
                     onBlur={onBlur}
                     onFocus={() => {
+                        setSuppressDropdownAfterPick(false);
                         if (input.trim().length >= 1) setPanelVisible(true);
                     }}
                     onCompositionStart={onCompositionStart}
@@ -482,7 +497,7 @@ export function InstitutionSearchInput({
                     }
                 >
                     {panelVisible && rows.length === 0 && emptyHint ? (
-                        <div className="px-3 py-2 flex items-center text-sm leading-tight text-[#5D4037]/80 border-b border-[rgba(93,64,55,0.08)] bg-white">
+                        <div className="px-2 py-1.5 flex items-center text-xs leading-tight text-[#5D4037]/80 border-b border-[rgba(93,64,55,0.08)] bg-white">
                             {emptyHint}
                         </div>
                     ) : null}
@@ -497,9 +512,13 @@ export function InstitutionSearchInput({
                                     role="option"
                                     className={rowBtnClass}
                                     onMouseDown={(e) => e.preventDefault()}
-                                    onClick={() => onPickInstitution(inst.id)}
+                                    onClick={() => {
+                                        setSuppressDropdownAfterPick(true);
+                                        setPanelVisible(false);
+                                        onPickInstitution(inst.id);
+                                    }}
                                 >
-                                    <span className="text-sm font-bold">{inst.name}</span>
+                                    <span className="text-sm font-bold truncate min-w-0 flex-1 text-left">{inst.name}</span>
                                     <span className="text-[10px] text-[#5D4037]/70 font-semibold shrink-0">
                                         [{inst.type || '—'}]
                                     </span>
@@ -528,12 +547,10 @@ export function InstitutionSearchInput({
                                         handleDirectPick(dq);
                                     }}
                                 >
-                                    <span className="text-sm font-bold leading-tight">
+                                    <span className="text-sm font-bold leading-tight truncate min-w-0 flex-1 text-left">
                                         직접 입력: &quot;{dq}&quot; 사용하기
                                     </span>
-                                    <span className="text-[10px] text-[#5D4037]/60 font-medium ml-1 shrink-0">
-                                        [직접입력]
-                                    </span>
+                                    <span className="text-[10px] text-[#5D4037]/60 font-medium shrink-0">[직접입력]</span>
                                 </button>
                             );
                         }
@@ -545,12 +562,14 @@ export function InstitutionSearchInput({
                                 role="option"
                                 className={rowBtnClass}
                                 onMouseDown={(e) => e.preventDefault()}
-                                onClick={() => onPickPresetName(name)}
+                                onClick={() => {
+                                    setSuppressDropdownAfterPick(true);
+                                    setPanelVisible(false);
+                                    onPickPresetName(name);
+                                }}
                             >
-                                <span className="text-sm font-bold leading-tight">{name}</span>
-                                <span className="text-[10px] text-[#5D4037]/60 font-medium ml-1 shrink-0">
-                                    [사전명단]
-                                </span>
+                                <span className="text-sm font-bold leading-tight truncate min-w-0 flex-1 text-left">{name}</span>
+                                <span className="text-[10px] text-[#5D4037]/60 font-medium shrink-0">[사전명단]</span>
                             </button>
                         );
                     })}
