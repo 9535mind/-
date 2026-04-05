@@ -128,24 +128,24 @@ app.use('/api/auth/google/*', async (c, next) => {
 
 // CORS: 공식 도메인 + Cloudflare Pages 프리뷰(https)에서 API + 쿠키
 // Origin 헤더가 없는 일부 클라이언트는 Host 로 동일 출처 ACAO 를 맞춰야 credentialed 응답이 안정적
-function corsResolveOrigin(origin: string, c: Context): string | false {
+function corsResolveOrigin(origin: string, c: Context): string | null {
   if (origin) {
     try {
       const u = new URL(origin)
-      if (u.protocol !== 'https:') return false
+      if (u.protocol !== 'https:') return null
       const h = u.hostname
       if (h === 'mindstory.kr' || h.endsWith('.mindstory.kr')) return origin
       if (h === 'mslms.pages.dev' || h.endsWith('.mslms.pages.dev')) return origin
-      return false
+      return null
     } catch {
-      return false
+      return null
     }
   }
   const raw = c.req.header('x-forwarded-host') || c.req.header('host') || ''
   const host = raw.split(',')[0].trim().split(':')[0]
   if (host === 'mindstory.kr' || host.endsWith('.mindstory.kr')) return `https://${host}`
   if (host === 'mslms.pages.dev' || host.endsWith('.mslms.pages.dev')) return `https://${host}`
-  return false
+  return null
 }
 app.use('/api/*', cors({
   origin: corsResolveOrigin,
@@ -190,8 +190,8 @@ app.use(
 )
 
 // 정적 파일 서빙 (Cloudflare Pages용 - root 제거)
-app.use('/static/*', serveStatic())
-app.use('/uploads/*', serveStatic()) // 업로드된 파일 서빙
+app.use('/static/*', serveStatic({ manifest: {} }))
+app.use('/uploads/*', serveStatic({ manifest: {} }))
 
 // API 라우트
 app.route('/api/auth', auth)

@@ -5,10 +5,8 @@
     "moduleResolution": "Bundler",
     "strict": true,
     "skipLibCheck": true,
-    "lib": ["ESNext", "DOM", "DOM.Iterable"],
-    "types": ["vite/client", "@cloudflare/workers-types"],
-    "jsx": "react-jsx",
-    "jsxImportSource": "hono/jsx",
+    "lib": ["ESNext"],
     "noEmit": true
-  }
+  },
+  "include": ["src/psychometrics.ts"]
 }

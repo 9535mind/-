@@ -84,6 +84,14 @@ if (existsSync(forestQbanks)) {
   console.log('✅ forest-question-banks.js → dist 루트 명시 복사(덮어쓰기)')
 }
 
+/** Clean URL: /forest → /forest.html (200 rewrite, 주소창 유지) — Cloudflare Pages _redirects */
+const redirectsSrc = join(publicDir, '_redirects')
+const redirectsDest = join(dist, '_redirects')
+if (existsSync(redirectsSrc)) {
+  forceCopyFile(redirectsSrc, redirectsDest)
+  console.log('✅ _redirects → dist 루트 복사 (/forest rewrite)')
+}
+
 const assetsDir = join(publicDir, 'assets')
 if (existsSync(assetsDir)) {
   cpSync(assetsDir, join(dist, 'assets'), { recursive: true })

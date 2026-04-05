@@ -173,14 +173,6 @@ aiChat.post('/chat', async (c) => {
   messages.push({ role: 'user', content: userMessage })
 
   try {
-    console.log('[ai-chat] LLM 전송 직전 messages 전문', {
-      model,
-      courseRowCount,
-      messageCount: messages.length,
-      roles: messages.map((m) => m.role),
-      messages: messages.map((m) => ({ role: m.role, content: m.content }))
-    })
-
     const res = await fetch(`${base}/chat/completions`, {
       method: 'POST',
       headers: {

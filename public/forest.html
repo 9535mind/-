@@ -389,8 +389,6 @@
      */
     const INSTITUTION_DATABASE = [
         '삼계중앙어린이집',
-        '서울중앙어린이집',
-        '서울한빛어린이집',
         '사창유치원',
         '장성중앙초 병설유치원',
         '장성성산초병설유치원',
@@ -398,7 +396,7 @@
         '장성성모유치원',
         '공립정다운상무어린이집',
         '공립소중한어린이집',
-        '진원초병설유치원',
+        '진원초동병설유치원',
         '동화초병설유치원',
         '삼서초 병설유치원',
         '분향초 병설유치원',
@@ -2922,8 +2920,8 @@
                                     <span class="text-lg font-black leading-none" aria-hidden="true">×</span>
                                 </button>
                                 <button type="button" id="ms-inst-toggle-all"
-                                    class="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center justify-center w-11 h-11 min-h-[44px] min-w-[44px] rounded-2xl text-[#2D4A3E] hover:bg-[rgba(240,253,244,0.75)] active:bg-[rgba(240,253,244,0.9)] transition-colors print-hidden"
-                                    aria-label="저장 기관·사전 명단 전체 보기 (가나다순)" aria-expanded="false" aria-controls="ms-inst-dropdown"
+                                    class="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center justify-center w-11 h-11 min-h-[44px] min-w-[44px] rounded-2xl bg-[#2D4A3E] text-white shadow-sm hover:bg-[#1e352c] active:bg-[#1a2d28] transition-colors print-hidden"
+                                    aria-label="저장 기관·사전 명단 전체 보기 (검색 없이, 가나다순)" aria-expanded="false" aria-controls="ms-inst-dropdown"
                                     onmousedown="event.preventDefault()"
                                     onclick="MS.toggleInstListAll(event)">
                                     <span class="text-base font-bold leading-none select-none" aria-hidden="true">▼</span>
@@ -2932,7 +2930,7 @@
                                     role="listbox" aria-label="기관 목록"></div>
                             </div>
                         </div>
-                        <p class="text-xs text-ms-muted mb-5 text-center leading-relaxed">글자를 입력하면 맞는 기관명이 바로 뜹니다. ▼ 는 이 기기에 저장된 기관과, 파일 상단에 적어 둔 <strong class="text-[#2D4A3E]">사전 명단</strong>(유아부)을 가나다순으로 모두 보여 줍니다.</p>
+                        <p class="text-xs text-ms-muted mb-5 text-center leading-relaxed">글자를 입력하면 맞는 기관명이 바로 뜹니다. 오른쪽 <strong class="text-[#2D4A3E]">검은 ▼</strong>은 검색어 없이도 이 기기에 저장된 기관과 <strong class="text-[#2D4A3E]">사전 명단</strong>(유아부)을 가나다순으로 모두 펼칩니다.</p>
                         <div class="mb-4">
                             <label for="ms-group-name" class="block text-xs font-bold text-ms-muted mb-2 ml-1 tracking-widest">반 이름(또는 생략)</label>
                             <input id="ms-group-name" type="text" placeholder="예: 새싹반 · 비워 두어도 됩니다"
@@ -3983,8 +3981,8 @@
                             <span class="text-lg font-black leading-none" aria-hidden="true">×</span>
                         </button>
                         <button type="button" id="ms-modal-inst-toggle-all"
-                            class="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center justify-center w-11 h-11 min-h-[44px] min-w-[44px] rounded-xl text-[#5D4037] hover:bg-[rgba(212,163,115,0.2)] active:bg-[rgba(212,163,115,0.28)] transition-colors"
-                            aria-label="사전 기관 전체 보기 (가나다순)" aria-expanded="false" aria-controls="ms-modal-inst-dropdown"
+                            class="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center justify-center w-11 h-11 min-h-[44px] min-w-[44px] rounded-xl bg-[#2D4A3E] text-white shadow-sm hover:bg-[#1e352c] active:bg-[#1a2d28] transition-colors"
+                            aria-label="기초 사전·저장 기관 전체 보기 (검색 없이, 가나다순)" aria-expanded="false" aria-controls="ms-modal-inst-dropdown"
                             onmousedown="event.preventDefault()"
                             onclick="MS.toggleModalInstListAll(event)">
                             <span class="text-base font-bold leading-none select-none" aria-hidden="true">▼</span>
@@ -3993,7 +3991,7 @@
                             role="listbox" aria-label="기관 자동완성"></div>
                     </div>
                     <p class="text-[10px] text-ms-muted mb-2 leading-relaxed rounded-lg bg-[rgba(45,74,62,0.04)] px-2 py-1.5 border border-[rgba(45,74,62,0.07)]">
-                        기관을 고르면 유형이 맞춰지고, 이름에 <span class="font-bold text-[#03C75A]">어린이집·유치원</span>·<span class="font-bold text-[#FF9800]">지역아동·방과후·초등학교</span> 등이 들어가면 자동 감지됩니다.
+                        오른쪽 <span class="font-bold text-[#2D4A3E]">검은 ▼</span>을 누르면 <strong class="text-[#2D4A3E]">검색어 없이</strong> 기초 사전·저장 기관 전체가 가나다순으로 펼쳐집니다. 글자를 입력하면 그에 맞게 좁혀집니다. 기관을 고르면 유형이 맞춰지고, 이름에 <span class="font-bold text-[#03C75A]">어린이집·유치원</span>·<span class="font-bold text-[#FF9800]">지역아동·방과후·초등학교</span> 등이 들어가면 자동 감지됩니다.
                     </p>
                     </div>
                     <div class="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 sm:px-4 md:px-5 custom-scrollbar pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] sm:pb-4">
@@ -4595,7 +4593,8 @@
 
         /**
          * 설정 화면: 현재 유아/초등 탭 + 사전 명단 + 저장 기관을 합친 드롭다운 행.
-         * allMode(▼): 가나다순 전체. 그 외: 입력 q(1글자 이상)로 부분 일치 필터.
+         * allMode(▼): 가나다순 전체. 그 외: 저장 기관은 검색어로 필터.
+         * 사전(기초) 명단: **첫 한 글자**(ㅅ·서·삼 등)만 있으면 부분 일치 없이 **기초 데이터 전체**를 보여 그중 선택 가능. 2글자부터 사전도 검색어로 좁힘.
          */
         buildInstitutionDropdownRows(q, allMode) {
             const tg = STATE.targetGroup === 'elementary' ? 'elementary' : 'preschool';
@@ -4635,7 +4634,13 @@
             }
 
             instList = instList.filter((i) => nameMatches(i.name));
-            let filteredVirtual = virtualPresets.filter((n) => nameMatches(n));
+            let filteredVirtual = virtualPresets.filter((n) => {
+                if (allMode) return true;
+                if (qt.length < 1) return false;
+                /** 첫 입력이 한 글자뿐이면(초성 자모·완성 음절 모두) 기초 사전 전체 — 그중 선택 */
+                if (qt.length === 1) return true;
+                return nameMatches(n);
+            });
 
             /** 기관 설정 모달: 세부 유형(어린이집·유치원·기타)이 정해져 있으면 같은 유형만 목록에 표시 */
             if (tg === 'preschool') {
@@ -4710,10 +4715,23 @@
             MS._instDropdownActiveIndex = -1;
 
             if (q.length < 1) {
-                MS._instDropdownAll = false;
-                panel.innerHTML = '';
-                panel.classList.add('hidden');
-                MS.setInstToggleAria(false);
+                if (!MS._instDropdownAll) {
+                    panel.innerHTML = '';
+                    panel.classList.add('hidden');
+                    MS.setInstToggleAria(false);
+                    return;
+                }
+                const rowsAll = MS.buildInstitutionDropdownRows('', true);
+                if (rowsAll.length === 0) {
+                    panel.classList.remove('hidden');
+                    panel.innerHTML =
+                        '<div class="px-4 py-3 min-h-[44px] flex items-center text-sm text-[#5D4037]/80 border-b border-[rgba(93,64,55,0.08)] bg-white">표시할 기관이 없어요.</div>';
+                    MS.setInstToggleAria(true);
+                    return;
+                }
+                panel.classList.remove('hidden');
+                panel.innerHTML = MS.buildInstDropdownRowsHtml(rowsAll, '', true);
+                MS.setInstToggleAria(true);
                 return;
             }
 
@@ -4743,12 +4761,29 @@
             MS._instDropdownActiveIndex = -1;
 
             if (q.length < 1) {
-                MS._modalInstDropdownAll = false;
-                panel.innerHTML = '';
-                panel.classList.add('hidden');
-                const btn = document.getElementById('ms-modal-inst-toggle-all');
-                if (btn) btn.setAttribute('aria-expanded', 'false');
-                if (inp) inp.setAttribute('aria-expanded', 'false');
+                if (!MS._modalInstDropdownAll) {
+                    panel.innerHTML = '';
+                    panel.classList.add('hidden');
+                    const btn0 = document.getElementById('ms-modal-inst-toggle-all');
+                    if (btn0) btn0.setAttribute('aria-expanded', 'false');
+                    if (inp) inp.setAttribute('aria-expanded', 'false');
+                    return;
+                }
+                const rowsAll = MS.buildInstitutionDropdownRows('', true);
+                if (rowsAll.length === 0) {
+                    panel.classList.remove('hidden');
+                    panel.innerHTML =
+                        '<div class="px-4 py-3 min-h-[44px] flex items-center text-sm text-[#5D4037]/80 border-b border-[rgba(93,64,55,0.08)] bg-white">표시할 기관이 없어요.</div>';
+                    const btnE = document.getElementById('ms-modal-inst-toggle-all');
+                    if (btnE) btnE.setAttribute('aria-expanded', 'true');
+                    if (inp) inp.setAttribute('aria-expanded', 'true');
+                    return;
+                }
+                panel.classList.remove('hidden');
+                panel.innerHTML = MS.buildInstDropdownRowsHtml(rowsAll, '', true);
+                const btnA = document.getElementById('ms-modal-inst-toggle-all');
+                if (btnA) btnA.setAttribute('aria-expanded', 'true');
+                if (inp) inp.setAttribute('aria-expanded', 'true');
                 return;
             }
 
@@ -4777,11 +4812,6 @@
                 ev.stopPropagation();
             }
             const inp = document.getElementById('inst-name');
-            const q = (inp && inp.value.trim()) || '';
-            const willOpen = !MS._instDropdownAll;
-            if (willOpen && q.length < 1) {
-                return;
-            }
             MS._instDropdownAll = !MS._instDropdownAll;
             if (!MS._instDropdownAll) {
                 const panel = document.getElementById('ms-inst-dropdown');
@@ -4919,10 +4949,9 @@
         },
 
         onInstNameFocus() {
-            MS._instDropdownAll = false;
             const inp = document.getElementById('inst-name');
             const q = (inp && inp.value.trim()) || '';
-            if (q.length >= 1) MS.updateInstDropdown();
+            if (q.length >= 1 || MS._instDropdownAll) MS.updateInstDropdown();
         },
 
         /** 초등부: 기관명 입력 후 포커스가 나가면 '지역아동센터' 접미어 자동 완성 (드롭다운 클릭 시 blur 무시) */
@@ -5016,11 +5045,6 @@
                 ev.stopPropagation();
             }
             const inp = document.getElementById('ms-modal-inst-name');
-            const q = (inp && inp.value.trim()) || '';
-            const willOpen = !MS._modalInstDropdownAll;
-            if (willOpen && q.length < 1) {
-                return;
-            }
             MS._modalInstDropdownAll = !MS._modalInstDropdownAll;
             if (!MS._modalInstDropdownAll) {
                 const panel = document.getElementById('ms-modal-inst-dropdown');
@@ -5038,10 +5062,9 @@
         },
 
         onModalInstNameFocus() {
-            MS._modalInstDropdownAll = false;
             const inp = document.getElementById('ms-modal-inst-name');
             const q = (inp && inp.value.trim()) || '';
-            if (q.length >= 1) MS.updateModalInstDropdown();
+            if (q.length >= 1 || MS._modalInstDropdownAll) MS.updateModalInstDropdown();
         },
 
         onModalInstNameBlur(el) {

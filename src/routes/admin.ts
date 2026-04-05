@@ -1497,8 +1497,6 @@ admin.post('/users/:userId/reset-password', requireAdmin, async (c) => {
       `).bind(hashedPassword, userId).run()
     }
     
-    console.log(`Password reset for user ${userId}: ${newPassword}`)
-    
     return c.json(successResponse({
       new_password: newPassword,
       mode: mode || 'manual'

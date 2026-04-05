@@ -631,9 +631,6 @@ auth.post('/phone/request', async (c) => {
       VALUES (?, ?, 'register', ?)
     `).bind(phone, code, expiresAt).run()
 
-    // 실제 SMS 연동 전까지는 서버 로그로 확인
-    console.log(`[phone/request] code issued phone=${phone} code=${code} expiresAt=${expiresAt}`)
-
     return c.json(successResponse({ expires_at: expiresAt }, '인증번호가 발송되었습니다.'))
   } catch (error) {
     console.error('Phone request error:', error)

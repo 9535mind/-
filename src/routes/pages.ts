@@ -322,18 +322,15 @@ pages.get('/login', async (c) => {
             const hasLocalSession = AuthManager.isLoggedIn()
 
             if (!hasLocalSession) {
-                console.log('ℹ️ No local session found')
                 return
             }
 
             loginSessionCheckAbort = new AbortController()
             const signal = loginSessionCheckAbort.signal
-            console.log('🔍 Checking server session...')
             try {
                 const response = await axios.get('/api/auth/me', { timeout: 3000, withCredentials: true, signal })
 
                 if (response.data && response.data.success && response.data.data) {
-                    console.log('✅ Server session valid, redirecting...')
                     const urlParams = new URLSearchParams(window.location.search)
                     const redirect = safeRedirectPath(urlParams.get('redirect')) || '/'
                     window.location.href = redirect
@@ -344,11 +341,9 @@ pages.get('/login', async (c) => {
                 }
             } catch (error) {
                 if (axios.isCancel?.(error) || error.code === 'ERR_CANCELED' || error.name === 'CanceledError') {
-                    console.log('ℹ️ Session check cancelled (로그인 시도)')
                     return
                 }
                 if (loginFlowActive) {
-                    console.log('ℹ️ 로그인 처리 중 — 초기 세션 확인 응답 무시')
                     return
                 }
                 const status = error?.response?.status
@@ -356,7 +351,6 @@ pages.get('/login', async (c) => {
                     console.error('❌ Session check failed:', error.message)
                 }
                 AuthManager.clearSession()
-                console.log('🧹 Local session cleared')
             }
         }
 
@@ -770,20 +764,16 @@ pages.get('/register', async (c) => {
             const method = btn.getAttribute('data-method');
             if (!method) return;
             
-            console.log('[REGISTER_METHOD] active:', method);
-            
             if (method === 'email') {
                 selectRegisterMethod('email');
             } else if (method === 'kakao') {
                 selectRegisterMethod('kakao');
             } else if (method === 'google') {
-                console.log('[GOOGLE] Redirecting to /api/auth/google/login');
                 window.location.href = '/api/auth/google/login';
             }
         });
         
         function selectRegisterMethod(method) {
-            console.log('[SELECT_METHOD]', method);
             document.getElementById('registerMethodSelection').style.display = 'none'
             
             if (method === 'email') {
@@ -1148,27 +1138,15 @@ pages.get('/courses/:id', async (c) => {
         
         async function loadCourseDetail() {
             try {
-                console.log('[DEBUG] Loading course:', courseId)
-                console.log('[DEBUG] AuthManager:', typeof AuthManager, AuthManager)
-                
                 const response = await axios.get(\`/api/courses/\${courseId}\`)
-                console.log('[DEBUG] API Response:', response.data)
                 
                 const { course, lessons, enrollment, has_paid_access } = response.data.data
                 
-                console.log('[DEBUG] Course data:', course)
-                console.log('[DEBUG] Lessons count:', lessons?.length)
-                console.log('[DEBUG] Enrollment:', enrollment)
-                
                 // 현재 사용자 확인 (서버 세션 쿠키 기준)
                 const currentUser = await getCurrentUser()
-                console.log('[DEBUG] Current User:', currentUser)
                 
                 const isAdmin = !!(currentUser && currentUser.role === 'admin')
                 const hasAccess = isAdmin || enrollment || has_paid_access === true
-                
-                console.log('[DEBUG] isAdmin:', isAdmin, 'hasAccess:', hasAccess)
-                console.log('[DEBUG] Starting HTML render...')
                 
                 function msCatalogLineKeys(cg, groups) {
                     if (Array.isArray(groups) && groups.length) {
@@ -1382,10 +1360,7 @@ pages.get('/courses/:id', async (c) => {
                     </div>
                 \`
                 
-                console.log('[DEBUG] HTML length:', detailHtml.length)
-                console.log('[DEBUG] Setting innerHTML...')
                 document.getElementById('courseDetail').innerHTML = detailHtml
-                console.log('[DEBUG] Page rendered successfully!')
                 
             } catch (error) {
                 console.error('[ERROR] Failed to load course:', error)
@@ -1823,10 +1798,6 @@ pages.get('/courses/:courseId/lessons/:lessonId', async (c) => {
             // 비디오 요소 이벤트 리스너 추가 (DOM 삽입 후)
             const videoElement = document.getElementById('lessonVideo')
             if (videoElement) {
-                console.log('[VIDEO] Video element found, adding listeners')
-                videoElement.addEventListener('loadstart', () => console.log('[VIDEO] Load started'))
-                videoElement.addEventListener('loadeddata', () => console.log('[VIDEO] Video loaded successfully'))
-                videoElement.addEventListener('canplay', () => console.log('[VIDEO] Video can play'))
                 videoElement.addEventListener('error', (e) => {
                     console.error('[VIDEO] Video error event:', e)
                     console.error('[VIDEO] Error code:', videoElement.error?.code)
@@ -1856,7 +1827,6 @@ pages.get('/courses/:courseId/lessons/:lessonId', async (c) => {
                     { completed: true },
                     { headers: { 'Authorization': \`Bearer \${token}\` } }
                 )
-                console.log('Progress recorded')
             } catch (error) {
                 console.error('Record progress error:', error)
             }
@@ -1864,7 +1834,6 @@ pages.get('/courses/:courseId/lessons/:lessonId', async (c) => {
         
         // 모든 스크립트 로드 후 실행
         window.addEventListener('load', () => {
-            console.log('[LESSON] Page loaded, axios:', typeof axios, 'AuthManager:', typeof AuthManager)
             if (typeof axios === 'undefined' || typeof AuthManager === 'undefined') {
                 console.error('[LESSON] Required libraries not loaded!')
                 document.getElementById('lessonContent').innerHTML = \`
