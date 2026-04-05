@@ -33,14 +33,17 @@ export interface SetupDashboardProps {
     onCancel: () => void;
 }
 
+/** 대상(연령) 탭 — 파스텔·얇은 테두리로 기관 유형보다 한 단계 낮게 */
 const tabBase =
-    'ms-btn flex-1 min-h-[40px] px-3 py-2 font-bold text-xs rounded-full transition-colors duration-200';
+    'ms-btn flex-1 min-h-[36px] px-3 py-1.5 font-bold text-xs rounded-full transition-colors duration-200';
 const TAB_AGE_PS_ON =
-    '!bg-[#03C75A] !text-white border-0 shadow-lg shadow-[#03C75A]/35 ring-0 outline-none hover:brightness-[1.02]';
-const TAB_AGE_PS_OFF = '!bg-[#81C784] !text-white border-0 shadow-sm ring-0 outline-none hover:brightness-95';
+    'bg-[#e8f5ea] border-2 border-[#2D4A3E]/40 text-[#2D4A3E] shadow-sm ring-0 outline-none';
+const TAB_AGE_PS_OFF =
+    'bg-[#f7faf8] border border-[rgba(45,74,62,0.14)] text-[#5D4037]/60 ring-0 outline-none hover:bg-[rgba(45,74,62,0.05)]';
 const TAB_AGE_EL_ON =
-    '!bg-[#FF9800] !text-white border-0 shadow-lg shadow-[#FF9800]/35 ring-0 outline-none hover:brightness-[1.02]';
-const TAB_AGE_EL_OFF = '!bg-[#FFB74D] !text-white border-0 shadow-sm ring-0 outline-none hover:brightness-95';
+    'bg-[#fff3e0] border-2 border-[#e65100]/40 text-[#bf360c] shadow-sm ring-0 outline-none';
+const TAB_AGE_EL_OFF =
+    'bg-[#fffaf5] border border-[rgba(230,81,0,0.15)] text-[#5D4037]/60 ring-0 outline-none hover:bg-[rgba(255,152,0,0.06)]';
 
 function newInstitutionId(): string {
     try {
@@ -279,7 +282,7 @@ export function SetupDashboard({
                 </h2>
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-3 sm:px-4 md:px-5 custom-scrollbar pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] sm:pb-4 space-y-4">
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-3 sm:px-4 md:px-5 custom-scrollbar pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] sm:pb-4 space-y-2.5">
                 {/* 2단: 관찰 단계 · 진행 장소 */}
                 <ObservationContextCard
                     obsPreCls={obsPreCls}
@@ -313,7 +316,7 @@ export function SetupDashboard({
                         onValueCommit={onValueCommit}
                         onChange={onValueCommit}
                         onBlurSearch={onBlurSearch}
-                        placeholder="초성·부분 검색 가능 (예: 삼계중앙어린이집)"
+                        placeholder="예: 마인드스토리어린이집"
                         showAllListMode={showAllListMode}
                         onToggleShowAllList={onToggleShowAllList}
                         onPickInstitution={onPickInstitution}
@@ -365,21 +368,15 @@ export function SetupDashboard({
                 </section>
 
                 {/* 5단: 기관 유형 */}
-                <section aria-labelledby="ms-setup-type-heading">
-                    <span
-                        id="ms-setup-type-heading"
-                        className="block text-[11px] font-bold text-ms-muted mb-1 ml-0.5 tracking-widest"
-                    >
-                        기관 유형
-                    </span>
+                <section aria-label="기관 유형">
                     {targetGroup === 'elementary' ? (
                         <div className="flex flex-wrap gap-2">
                             <button
                                 type="button"
                                 className={`ms-btn flex-1 min-w-[100px] min-h-[36px] py-1.5 font-bold border-2 text-xs ${
                                     typeForUiElementary === '지역아동센터'
-                                        ? 'border-[#FF9800] bg-[rgba(255,152,0,0.14)] text-[#2D4A3E] shadow-sm'
-                                        : 'border-ms text-ms-muted'
+                                        ? 'border-[#E65100] bg-[#F57C00] text-white shadow-md'
+                                        : 'border-[rgba(93,64,55,0.22)] bg-white text-[#5D4037]/80 hover:bg-[rgba(93,64,55,0.04)]'
                                 }`}
                                 onClick={() => setSetupTypeOverride('지역아동센터')}
                             >
@@ -389,8 +386,8 @@ export function SetupDashboard({
                                 type="button"
                                 className={`ms-btn flex-1 min-w-[100px] min-h-[36px] py-1.5 font-bold border-2 text-xs ${
                                     typeForUiElementary === '방과후교실'
-                                        ? 'border-[#FF9800] bg-[rgba(255,152,0,0.14)] text-[#2D4A3E] shadow-sm'
-                                        : 'border-ms text-ms-muted'
+                                        ? 'border-[#E65100] bg-[#F57C00] text-white shadow-md'
+                                        : 'border-[rgba(93,64,55,0.22)] bg-white text-[#5D4037]/80 hover:bg-[rgba(93,64,55,0.04)]'
                                 }`}
                                 onClick={() => setSetupTypeOverride('방과후교실')}
                             >
@@ -400,8 +397,8 @@ export function SetupDashboard({
                                 type="button"
                                 className={`ms-btn flex-1 min-w-[100px] min-h-[36px] py-1.5 font-bold border-2 text-xs ${
                                     typeForUiElementary === '초등학교'
-                                        ? 'border-[#FF9800] bg-[rgba(255,152,0,0.14)] text-[#2D4A3E] shadow-sm'
-                                        : 'border-ms text-ms-muted'
+                                        ? 'border-[#E65100] bg-[#F57C00] text-white shadow-md'
+                                        : 'border-[rgba(93,64,55,0.22)] bg-white text-[#5D4037]/80 hover:bg-[rgba(93,64,55,0.04)]'
                                 }`}
                                 onClick={() => setSetupTypeOverride('초등학교')}
                             >
@@ -414,8 +411,8 @@ export function SetupDashboard({
                                 type="button"
                                 className={`ms-btn flex-1 min-w-[88px] min-h-[36px] py-1.5 font-bold border-2 text-xs ${
                                     typeForUiPreschool === '어린이집'
-                                        ? 'border-[#03C75A] bg-[rgba(3,199,90,0.12)] text-[#2D4A3E] shadow-sm'
-                                        : 'border-ms text-ms-muted'
+                                        ? 'border-[#028a4a] bg-[#03C75A] text-white shadow-md'
+                                        : 'border-[rgba(93,64,55,0.22)] bg-white text-[#5D4037]/80 hover:bg-[rgba(93,64,55,0.04)]'
                                 }`}
                                 onClick={() => setSetupTypeOverride('어린이집')}
                             >
@@ -425,8 +422,8 @@ export function SetupDashboard({
                                 type="button"
                                 className={`ms-btn flex-1 min-w-[88px] min-h-[36px] py-1.5 font-bold border-2 text-xs ${
                                     typeForUiPreschool === '유치원'
-                                        ? 'border-[#03C75A] bg-[rgba(3,199,90,0.12)] text-[#2D4A3E] shadow-sm'
-                                        : 'border-ms text-ms-muted'
+                                        ? 'border-[#028a4a] bg-[#03C75A] text-white shadow-md'
+                                        : 'border-[rgba(93,64,55,0.22)] bg-white text-[#5D4037]/80 hover:bg-[rgba(93,64,55,0.04)]'
                                 }`}
                                 onClick={() => setSetupTypeOverride('유치원')}
                             >
@@ -436,8 +433,8 @@ export function SetupDashboard({
                                 type="button"
                                 className={`ms-btn flex-1 min-w-[88px] min-h-[36px] py-1.5 font-bold border-2 text-xs ${
                                     typeForUiPreschool === '기타'
-                                        ? 'border-[#03C75A] bg-[rgba(3,199,90,0.12)] text-[#2D4A3E] shadow-sm'
-                                        : 'border-ms text-ms-muted'
+                                        ? 'border-[#028a4a] bg-[#03C75A] text-white shadow-md'
+                                        : 'border-[rgba(93,64,55,0.22)] bg-white text-[#5D4037]/80 hover:bg-[rgba(93,64,55,0.04)]'
                                 }`}
                                 onClick={() => setSetupTypeOverride('기타')}
                             >

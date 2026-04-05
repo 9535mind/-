@@ -434,7 +434,7 @@ export function InstitutionSearchInput({
                     aria-expanded={panelVisible}
                     aria-controls={listboxId}
                     placeholder={placeholder}
-                    className="w-full pl-4 pr-[7.25rem] py-2 md:py-2.5 text-center font-bold leading-tight rounded-lg border-2 border-[#03C75A] bg-white text-[#111] text-base md:text-lg shadow-[0_2px_8px_rgba(3,199,90,0.12)] outline-none focus:ring-2 focus:ring-[#03C75A]/35 focus:border-[#03C75A]"
+                    className="w-full pl-4 pr-[7.25rem] py-2 md:py-2.5 text-center font-bold leading-tight rounded-lg border-2 border-[#03C75A] bg-white text-[#111] text-base md:text-lg shadow-[0_2px_8px_rgba(3,199,90,0.12)] outline-none placeholder:text-[#b8b8b8] placeholder:font-semibold focus:ring-2 focus:ring-[#03C75A]/35 focus:border-[#03C75A]"
                     value={input}
                     onChange={onChange}
                     onBlur={onBlur}
