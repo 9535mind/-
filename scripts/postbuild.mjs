@@ -24,6 +24,8 @@ const ROUTES = {
     '/forest-question-banks.js',
     '/build.txt',
     '/google7186e759c88da5d4.html',
+    '/KakaoTalk_20240501_163910442.mp4',
+    '/KakaoTalk_20240501_172743992.mp4',
   ],
 }
 
@@ -83,10 +85,22 @@ if (existsSync(forestV9)) {
   console.log('✅ copyFileSync: public/forest_v9.html → dist/forest_v9.html')
 }
 
+const KAKAO_RELAY_MP4 = [
+  'KakaoTalk_20240501_163910442.mp4',
+  'KakaoTalk_20240501_172743992.mp4',
+]
+
 const assetsDir = join(publicDir, 'assets')
 if (existsSync(assetsDir)) {
   cpSync(assetsDir, join(dist, 'assets'), { recursive: true })
   console.log('✅ public/assets → dist/assets 복사')
+  for (const fname of KAKAO_RELAY_MP4) {
+    const src = join(assetsDir, fname)
+    if (existsSync(src)) {
+      copyFileSync(src, join(dist, fname))
+      console.log(`✅ public/assets/${fname} → dist/${fname} (최상단 복사)`)
+    }
+  }
   const introMp4 = join(dist, 'assets', 'forest_test.mp4')
   if (!existsSync(introMp4)) {
     console.warn(

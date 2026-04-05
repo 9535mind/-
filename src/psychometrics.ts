@@ -124,8 +124,8 @@ export function growthPotentialPercent(
     return out;
 }
 
-/** WINT → SPRT → AUTT → SUMT 동점 시 앞선 유형 우선 (forest SCHEMA.temperamentTieOrder) */
-const TIE_ORDER: readonly TemperamentCategory[] = ['WINT', 'SPRT', 'AUTT', 'SUMT'];
+/** 봄→여름→가을→겨울: SPRT → SUMT → AUTT → WINT 동점 시 앞선 유형 우선 (forest SCHEMA.temperamentTieOrder) */
+const TIE_ORDER: readonly TemperamentCategory[] = ['SPRT', 'SUMT', 'AUTT', 'WINT'];
 
 export function rankTemperamentsByActive(activeScores: Record<TemperamentCategory, number>): RankedTemperamentRow[] {
     const grand = sumActiveScores(activeScores) || 1;
@@ -157,7 +157,7 @@ export function totalOXSlotsFromCounts(counts: ObservationCounts, questions: rea
 
 /** forest-question-banks.js 와 동일한 id/cat/isReverse (preschool 8) */
 export const QUESTIONS_PRESCHOOL: readonly QuestionItem[] = [
-    { id: 'ps21_1', cat: SPRT, isReverse: true },
+    { id: 'ps21_1', cat: SPRT },
     { id: 'ps21_2', cat: SPRT },
     { id: 'ps21_3', cat: SUMT },
     { id: 'ps21_4', cat: SUMT },
@@ -167,7 +167,7 @@ export const QUESTIONS_PRESCHOOL: readonly QuestionItem[] = [
     { id: 'ps21_8', cat: WINT },
 ] as const;
 
-/** forest-question-banks.js 와 동일 (elementary 12) */
+/** forest-question-banks.js 와 동일 (elementary 12) — el_7 SPRT·el_11 AUTT 역채점 */
 export const QUESTIONS_ELEMENTARY: readonly QuestionItem[] = [
     { id: 'el_1', cat: WINT },
     { id: 'el_2', cat: WINT },
@@ -175,11 +175,11 @@ export const QUESTIONS_ELEMENTARY: readonly QuestionItem[] = [
     { id: 'el_4', cat: SPRT },
     { id: 'el_5', cat: SPRT },
     { id: 'el_6', cat: SPRT },
-    { id: 'el_7', cat: AUTT },
+    { id: 'el_7', cat: SPRT, isReverse: true },
     { id: 'el_8', cat: AUTT },
     { id: 'el_9', cat: AUTT },
-    { id: 'el_10', cat: SUMT },
-    { id: 'el_11', cat: SUMT },
+    { id: 'el_10', cat: AUTT },
+    { id: 'el_11', cat: AUTT, isReverse: true },
     { id: 'el_12', cat: SUMT },
 ] as const;
 

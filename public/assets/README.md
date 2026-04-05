@@ -19,6 +19,7 @@ move /Y forest_test_small.mp4 forest_test.mp4
 | 파일 | 설명 |
 |------|------|
 | `forest_test.mp4` | 무음·루프 재생용 짧은 영상(권장: 9:16 세로, 수 초~30초). **25 MiB 이하** 권장. 없으면 포스터 이미지(Unsplash 기본값 또는 관리자에서 지정한 URL)만 표시됩니다. |
+| `KakaoTalk_20240501_163910442.mp4`, `KakaoTalk_20240501_172743992.mp4` | (선택) 대시보드 인트로 **릴레이** 2편. 이 이름으로 `public/assets/`에 넣으면 순환 재생. 없으면 `forest_test.mp4`만 사용. **사이트 루트(`/KakaoTalk…`)에는 두지 마세요** — 배포 경로는 `/assets/`만 시도합니다. |
 
 프로덕션에서 **`https://(도메인)/assets/forest_test.mp4`** 가 열려야 합니다. `npm run build` 시 `public/assets/` 전체가 `dist/assets/`로 복사됩니다. 파일이 없거나 한도 초과면 404가 나고, 앱은 포스터 이미지로만 대문을 채웁니다.
 

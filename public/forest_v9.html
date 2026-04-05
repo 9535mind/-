@@ -3194,6 +3194,23 @@
             `;
             document.body.style.overflow = 'hidden';
         },
+        showForestTransmitErrorModal(title, detail) {
+            const root = document.getElementById('ms-modal-root');
+            if (!root) return;
+            const t = String(title || '전송 실패');
+            const d = String(detail || '').trim();
+            root.className = 'print-hidden fixed inset-0 z-[200] flex items-center justify-center p-4';
+            root.innerHTML = `
+                <div class="absolute inset-0 bg-black/45" onclick="MS.closeForestTransmitModal()" aria-hidden="true"></div>
+                <div class="relative w-full max-w-md rounded-[2rem] bg-[#FDFBF7] shadow-2xl border-2 border-red-800/25 p-6 md:p-8 text-center" onclick="event.stopPropagation()">
+                    <p class="text-lg font-black text-red-900 mb-2">${UI.esc(t)}</p>
+                    <p class="text-sm text-ms-body mb-6 leading-relaxed break-words">${d ? UI.esc(d) : '잠시 후 다시 시도해 주세요.'}</p>
+                    <button type="button" class="ms-btn w-full !rounded-2xl border-2 border-[#5D4037]/35 bg-white text-[#5D4037] font-black py-4 text-base shadow-sm mb-2"
+                        onclick="MS.closeForestTransmitModal()">닫기</button>
+                </div>
+            `;
+            document.body.style.overflow = 'hidden';
+        },
         closeForestTransmitModal() {
             MS.closeForestModal();
         },
@@ -3317,8 +3334,55 @@
                 body: JSON.stringify(payload),
                 credentials: 'same-origin'
             })
-                .then((r) => {
-                    if (!r.ok) return;
+                .then(async function (r) {
+                    const ct = (r.headers.get('content-type') || '').toLowerCase();
+                    let data = null;
+                    const rawText = await r.text();
+                    if (rawText) {
+                        const tryJson = ct.includes('application/json') || /^[\s]*[{[]/.test(rawText);
+                        if (tryJson) {
+                            try {
+                                data = JSON.parse(rawText);
+                            } catch (_) {
+                                data = null;
+                            }
+                        }
+                    }
+                    if (!r.ok) {
+                        let detail = 'HTTP ' + r.status;
+                        if (data && (data.message || data.error)) detail = String(data.message || data.error);
+                        else if (rawText && rawText.length < 240) detail = rawText.slice(0, 240);
+                        try {
+                            MS.showForestTransmitErrorModal('서버에 결과를 저장하지 못했습니다.', detail);
+                        } catch (_) {
+                            try {
+                                alert('서버에 결과를 저장하지 못했습니다.\n' + detail);
+                            } catch (_) {
+                                /* ignore */
+                            }
+                        }
+                        return;
+                    }
+                    if (!data || data.success !== true) {
+                        const detail =
+                            !ct.includes('application/json')
+                                ? 'JSON이 아닌 응답입니다(정적 페이지·프록시 오류 가능). API 경로를 확인해 주세요.'
+                                : data && (data.message || data.error)
+                                  ? String(data.message || data.error)
+                                  : rawText
+                                    ? rawText.slice(0, 200)
+                                    : '저장에 실패했습니다.';
+                        try {
+                            MS.showForestTransmitErrorModal('서버에 결과를 저장하지 못했습니다.', detail);
+                        } catch (_) {
+                            try {
+                                alert('서버에 결과를 저장하지 못했습니다.\n' + detail);
+                            } catch (_) {
+                                /* ignore */
+                            }
+                        }
+                        return;
+                    }
                     try {
                         const key = 'ms_forest_submitted:' + inst.id + ':' + String(inst.updatedAt || '');
                         if (typeof sessionStorage !== 'undefined') sessionStorage.setItem(key, '1');
@@ -3331,7 +3395,18 @@
                         /* ignore */
                     }
                 })
-                .catch(() => {});
+                .catch(function (err) {
+                    const msg = err && err.message ? String(err.message) : '네트워크 오류';
+                    try {
+                        MS.showForestTransmitErrorModal('전송에 실패했습니다.', msg);
+                    } catch (_) {
+                        try {
+                            alert('전송에 실패했습니다: ' + msg);
+                        } catch (_) {
+                            /* ignore */
+                        }
+                    }
+                });
         },
 
         bindInstSuggestCloseOutside() {
