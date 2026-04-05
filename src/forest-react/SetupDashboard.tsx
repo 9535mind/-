@@ -444,47 +444,51 @@ export function SetupDashboard({
                     )}
                 </section>
 
-                {/* 6단: 진행자(해설사) 성함 */}
-                <section aria-labelledby="ms-setup-examiner-heading">
-                    <label
-                        id="ms-setup-examiner-heading"
-                        htmlFor="ms-examiner-name-react"
-                        className="block text-[11px] font-bold text-ms-muted mb-1 ml-0.5 tracking-widest"
-                    >
-                        진행자(해설사) 성함
-                    </label>
-                    <input
-                        id="ms-examiner-name-react"
-                        type="text"
-                        maxLength={40}
-                        autoComplete="name"
-                        placeholder="필수"
-                        className="w-full ms-input px-3 py-2 text-center font-bold leading-tight rounded-2xl text-[#2D4A3E] text-sm"
-                        value={examinerName}
-                        onChange={(e) => setExaminerName(e.target.value)}
-                    />
-                </section>
-
-                {/* 7단: 반 이름 */}
-                <section aria-labelledby="ms-setup-group-heading">
-                    <label
-                        id="ms-setup-group-heading"
-                        htmlFor="ms-unified-group-name-react"
-                        className="block text-[11px] font-bold text-ms-muted mb-1 ml-0.5 tracking-widest"
-                    >
-                        반 이름
-                    </label>
-                    <input
-                        id="ms-unified-group-name-react"
-                        type="text"
-                        placeholder="예: 새싹반 · 비워 두어도 됩니다"
-                        className="w-full ms-input px-3 py-2 text-center font-bold leading-tight rounded-2xl text-[#2D4A3E] text-sm border border-ms"
-                        maxLength={120}
-                        autoComplete="off"
-                        value={groupName}
-                        onChange={(e) => setGroupName(e.target.value)}
-                    />
-                </section>
+                {/* 6·7단: 진행자 / 반 이름 — 한 줄 행 */}
+                <div className="space-y-1">
+                    <section aria-labelledby="ms-setup-examiner-heading">
+                        <div className="flex min-w-0 flex-row items-center gap-2">
+                            <label
+                                id="ms-setup-examiner-heading"
+                                htmlFor="ms-examiner-name-react"
+                                className="min-w-[90px] w-24 shrink-0 text-left text-[10px] font-medium leading-tight text-[#5D4037]/55"
+                            >
+                                진행자(해설사) 성함
+                            </label>
+                            <input
+                                id="ms-examiner-name-react"
+                                type="text"
+                                maxLength={40}
+                                autoComplete="name"
+                                placeholder="필수"
+                                className="ms-input min-w-0 flex-1 border border-[rgba(45,74,62,0.18)] px-2 py-1.5 text-left text-sm font-bold leading-tight text-[#2D4A3E] rounded-xl"
+                                value={examinerName}
+                                onChange={(e) => setExaminerName(e.target.value)}
+                            />
+                        </div>
+                    </section>
+                    <section aria-labelledby="ms-setup-group-heading">
+                        <div className="flex min-w-0 flex-row items-center gap-2">
+                            <label
+                                id="ms-setup-group-heading"
+                                htmlFor="ms-unified-group-name-react"
+                                className="min-w-[90px] w-24 shrink-0 text-left text-[10px] font-medium leading-tight text-[#5D4037]/55"
+                            >
+                                반 이름
+                            </label>
+                            <input
+                                id="ms-unified-group-name-react"
+                                type="text"
+                                placeholder="예: 새싹반"
+                                className="ms-input min-w-0 flex-1 border border-ms px-2 py-1.5 text-left text-sm font-bold leading-tight text-[#2D4A3E] rounded-xl"
+                                maxLength={120}
+                                autoComplete="off"
+                                value={groupName}
+                                onChange={(e) => setGroupName(e.target.value)}
+                            />
+                        </div>
+                    </section>
+                </div>
 
                 {/* 8단: 주요 액션 */}
                 <div className="pt-1">
