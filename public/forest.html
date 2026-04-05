@@ -2891,11 +2891,13 @@
                 typeForUi = '어린이집';
             }
             const obsPreOn =
-                'border-[#2D4A3E] bg-[rgba(240,253,244,0.5)] text-[#2D4A3E] shadow-md shadow-[#2D4A3E]/15';
-            const obsPreOff = 'border-ms text-ms-muted';
+                'border-[#2D4A3E] bg-[rgba(240,253,244,0.65)] text-[#2D4A3E] shadow-md shadow-[#2D4A3E]/20';
+            const obsPreOff =
+                'border-[rgba(93,64,55,0.28)] bg-white text-[#5D4037]/55 shadow-none hover:bg-[rgba(93,64,55,0.06)]';
             const obsPostOn =
-                'border-[#8d6e54] bg-[rgba(212,163,115,0.18)] text-[#2D4A3E] shadow-md shadow-[#D4A373]/20';
-            const obsPostOff = 'border-ms text-ms-muted';
+                'border-[#8d6e54] bg-[rgba(212,163,115,0.22)] text-[#2D4A3E] shadow-md shadow-[#D4A373]/25';
+            const obsPostOff =
+                'border-[rgba(93,64,55,0.28)] bg-white text-[#5D4037]/55 shadow-none hover:bg-[rgba(93,64,55,0.06)]';
             const typeBlock =
                 tgSetup === 'elementary'
                     ? `<div class="flex flex-wrap gap-2 mb-5">
@@ -3980,11 +3982,13 @@
             const tabPs = tg === 'preschool' ? TAB_AGE_PS_ON : TAB_AGE_PS_OFF;
             const tabEl = tg === 'elementary' ? TAB_AGE_EL_ON : TAB_AGE_EL_OFF;
             const obsPreOn =
-                'border-[#2D4A3E] bg-[rgba(240,253,244,0.5)] text-[#2D4A3E] shadow-md shadow-[#2D4A3E]/15';
-            const obsPreOff = 'border-ms text-ms-muted';
+                'border-[#2D4A3E] bg-[rgba(240,253,244,0.65)] text-[#2D4A3E] shadow-md shadow-[#2D4A3E]/20';
+            const obsPreOff =
+                'border-[rgba(93,64,55,0.28)] bg-white text-[#5D4037]/55 shadow-none hover:bg-[rgba(93,64,55,0.06)]';
             const obsPostOn =
-                'border-[#8d6e54] bg-[rgba(212,163,115,0.18)] text-[#2D4A3E] shadow-md shadow-[#D4A373]/20';
-            const obsPostOff = 'border-ms text-ms-muted';
+                'border-[#8d6e54] bg-[rgba(212,163,115,0.22)] text-[#2D4A3E] shadow-md shadow-[#D4A373]/25';
+            const obsPostOff =
+                'border-[rgba(93,64,55,0.28)] bg-white text-[#5D4037]/55 shadow-none hover:bg-[rgba(93,64,55,0.06)]';
             const obsPreCls = STATE.observationStage === 'pre' ? obsPreOn : obsPreOff;
             const obsPostCls = STATE.observationStage === 'post' ? obsPostOn : obsPostOff;
             if (!clean && sel && sel.obsLocation) {
@@ -4018,25 +4022,20 @@
                         <h2 id="ms-modal-title" class="text-base md:text-lg font-black text-[#2D4A3E] text-center leading-tight">검사 설정</h2>
                     </div>
                     <div class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-3 sm:px-4 md:px-5 custom-scrollbar pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] sm:pb-4 space-y-4">
-                        <section class="rounded-2xl border border-[rgba(45,74,62,0.1)] bg-[rgba(45,74,62,0.03)] p-2 sm:p-2.5" aria-label="관찰 맥락">
-                            <div class="flex flex-col gap-2">
-                                <div class="flex min-w-0 items-center gap-2">
-                                    <span class="w-24 shrink-0 text-[11px] font-bold text-ms-muted tracking-widest">관찰 단계</span>
-                                    <div class="flex min-w-0 flex-1 gap-2" role="group" aria-label="사전 또는 사후">
-                                        <button type="button" class="ms-btn flex-1 min-h-[36px] py-1.5 font-bold border-2 text-xs ${obsPreCls}"
-                                            onclick="MS.setObservationStage('pre')">사전</button>
-                                        <button type="button" class="ms-btn flex-1 min-h-[36px] py-1.5 font-bold border-2 text-xs ${obsPostCls}"
-                                            onclick="MS.setObservationStage('post')">사후</button>
-                                    </div>
+                        <section class="rounded-2xl border border-[rgba(45,74,62,0.12)] bg-[rgba(45,74,62,0.04)] p-1.5 sm:p-2" aria-label="관찰 단계 및 진행 장소">
+                            <h3 class="sr-only">관찰 단계와 진행 장소</h3>
+                            <div class="flex w-full min-w-0 flex-row items-stretch gap-0">
+                                <div class="flex min-w-0 flex-1 gap-1" role="group" aria-label="관찰 단계: 사전 또는 사후">
+                                    <button type="button" class="ms-btn flex-1 min-h-[30px] min-w-0 shrink py-1 px-1.5 rounded-full text-[11px] font-black border-2 leading-none transition-colors ${obsPreCls}"
+                                        onclick="MS.setObservationStage('pre')">사전</button>
+                                    <button type="button" class="ms-btn flex-1 min-h-[30px] min-w-0 shrink py-1 px-1.5 rounded-full text-[11px] font-black border-2 leading-none transition-colors ${obsPostCls}"
+                                        onclick="MS.setObservationStage('post')">사후</button>
                                 </div>
-                                <div class="flex min-w-0 items-center gap-2">
-                                    <span class="w-24 shrink-0 text-[11px] font-bold text-ms-muted tracking-widest">진행 장소</span>
-                                    <div class="flex min-w-0 flex-1 gap-2" role="group" aria-label="숲 또는 실내">
-                                        <button type="button" class="ms-btn flex-1 min-h-[36px] py-1.5 font-bold border-2 text-xs ${locForestCls}"
-                                            onclick="MS.setPrepModalObsLocation('forest')">숲</button>
-                                        <button type="button" class="ms-btn flex-1 min-h-[36px] py-1.5 font-bold border-2 text-xs ${locIndoorCls}"
-                                            onclick="MS.setPrepModalObsLocation('indoor')">실내</button>
-                                    </div>
+                                <div class="flex min-w-0 flex-1 gap-1 border-l-2 border-[rgba(45,74,62,0.14)] pl-3 sm:pl-4" role="group" aria-label="진행 장소: 숲 또는 실내">
+                                    <button type="button" class="ms-btn flex-1 min-h-[30px] min-w-0 shrink py-1 px-1.5 rounded-full text-[11px] font-black border-2 leading-none transition-colors ${locForestCls}"
+                                        onclick="MS.setPrepModalObsLocation('forest')">숲</button>
+                                    <button type="button" class="ms-btn flex-1 min-h-[30px] min-w-0 shrink py-1 px-1.5 rounded-full text-[11px] font-black border-2 leading-none transition-colors ${locIndoorCls}"
+                                        onclick="MS.setPrepModalObsLocation('indoor')">실내</button>
                                 </div>
                             </div>
                         </section>

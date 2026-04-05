@@ -252,7 +252,7 @@ export function SetupDashboard({
     const tabEl = targetGroup === 'elementary' ? TAB_AGE_EL_ON : TAB_AGE_EL_OFF;
 
     const obsPreOn =
-        'border-[#2D4A3E] bg-[rgba(240,253,244,0.5)] text-[#2D4A3E] shadow-md shadow-[#2D4A3E]/15';
+        'border-[#2D4A3E] bg-[rgba(240,253,244,0.65)] text-[#2D4A3E] shadow-md shadow-[#2D4A3E]/20';
     const obsPreOff =
         'border-[rgba(93,64,55,0.28)] bg-white text-[#5D4037]/55 shadow-none hover:bg-[rgba(93,64,55,0.06)]';
     const obsPostOn =
