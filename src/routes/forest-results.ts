@@ -1,5 +1,5 @@
 /**
- * POST /api/forest-results — 4STT(어린이 4계절 Temperament TEST) 집단 결과(기관·반, 점수 JSON) D1 저장
+ * POST /api/forest-results — JTT-Kinder(어린이 4계절 Temperament TEST) 집단 결과(기관·반, 점수 JSON) D1 저장
  * 인증 없음(공개 도구); 레이트 리밋은 index에서 적용.
  */
 
@@ -55,6 +55,10 @@ forestResults.post('/', async (c) => {
     if (tgTop && o.target_group === undefined) o.target_group = tgTop
     const obsTop = typeof b.observation_stage === 'string' ? b.observation_stage.trim().slice(0, 16) : ''
     if (obsTop && o.observation_stage === undefined) o.observation_stage = obsTop
+    const rawTop = b.rawInputs ?? b.raw_inputs
+    if (rawTop !== null && typeof rawTop === 'object' && !Array.isArray(rawTop)) {
+      o.rawInputs = rawTop
+    }
     scoresForDb = o
   }
 

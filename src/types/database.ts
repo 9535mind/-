@@ -41,6 +41,9 @@ export type Bindings = {
 
   /** 공개 사이트 URL(참고용·디버그; OAuth 콜백은 코드 상수 사용) */
   NEXT_PUBLIC_SITE_URL?: string;
+
+  /** JTT 숲 시트 GAS 웹앱 /exec URL — GET 보고서(/api/forest-gas-report)·POST 시트(/api/forest-gas-webhook) 프록시에 사용 */
+  FOREST_GAS_WEBHOOK_URL?: string;
   
   // JWT
   JWT_SECRET?: string;

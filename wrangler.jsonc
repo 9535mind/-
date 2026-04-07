@@ -22,6 +22,8 @@
   ],
   "vars": {
     "OPENAI_BASE_URL": "https://api.openai.com/v1",
-    "OPENAI_MODEL": "gpt-4o"
+    "OPENAI_MODEL": "gpt-4o",
+    // GAS 웹앱 [새 배포] 시 URL 변경 가능 — forest.html FOREST_SHEETS_WEBHOOK_URL 과 맞출 것
+    "FOREST_GAS_WEBHOOK_URL": "https://script.google.com/macros/s/AKfycby8NYv9wk6AcMOc-fIwD354TKRcNEgGOxWqs0chdwj2LUfouue2CyRBfI2f0v0hh6Q/exec"
   }
 }

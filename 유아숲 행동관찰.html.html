@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>마인드스토리 4군자 기질검사 · 유아숲 정서 관찰</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@600;700&family=Noto+Sans+KR:wght@400;600;700;900&display=swap');
+
+        :root {
+            --ms-green: #2D4A3E;
+            --ms-bg: #FDFBF7;
+            --ms-earth: #D4A373;
+        }
+
+        /* 한지 포근함 + 심산녹·흙색만 포인트 (보조는 동일 색의 투명도) */
+        .ms-hanji {
+            background-color: var(--ms-bg);
+            background-image:
+                linear-gradient(180deg, rgba(253, 251, 247, 0.95) 0%, rgba(248, 244, 236, 0.99) 100%),
+                repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(45, 74, 62, 0.035) 3px, rgba(45, 74, 62, 0.035) 4px),
+                repeating-linear-gradient(90deg, transparent, transparent 3px, rgba(45, 74, 62, 0.022) 3px, rgba(45, 74, 62, 0.022) 4px);
+        }
+
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            color: rgba(45, 74, 62, 0.92);
+        }
+
+        .serif { font-family: 'Noto Serif KR', serif; }
+
+        .text-ms-muted { color: rgba(45, 74, 62, 0.5); }
+        .text-ms-body { color: rgba(45, 74, 62, 0.78); }
+        .bg-ms-soft { background: rgba(45, 74, 62, 0.06); }
+        .bg-ms-card { background: rgba(255, 255, 255, 0.95); }
+        .border-ms { border-color: rgba(45, 74, 62, 0.12); }
+
+        .ms-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 3rem;
+            box-shadow: 0 12px 40px rgba(45, 74, 62, 0.06);
+            border: 1px solid rgba(45, 74, 62, 0.08);
+        }
+
+        .ms-btn {
+            border-radius: 3rem;
+            min-height: 48px;
+            transition: transform 0.15s ease, box-shadow 0.2s ease, background-color 0.2s ease, opacity 0.2s ease;
+        }
+
+        .ms-btn:active { transform: scale(0.98); }
+
+        .ms-input {
+            border: 2px solid rgba(45, 74, 62, 0.12);
+            border-radius: 3rem;
+            background: rgba(253, 251, 247, 0.85);
+            transition: border-color 0.25s ease, background 0.25s ease;
+        }
+
+        .ms-input:focus {
+            border-color: var(--ms-green);
+            outline: none;
+            background: rgba(240, 253, 244, 0.6);
+        }
+
+        .ms-preview-box {
+            border: 2px dashed var(--ms-earth);
+            border-radius: 3rem;
+            background: rgba(212, 163, 115, 0.08);
+        }
+
+        .fade-in { animation: fadeIn 0.5s ease-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: var(--ms-green);
+            border-radius: 3rem;
+        }
+
+        @media print {
+            .print-hidden { display: none !important; }
+            .ms-hanji { background: #fff; }
+        }
+    </style>
+</head>
+<body class="ms-hanji min-h-screen p-4 md:p-10">
+
+<div id="app" class="max-w-2xl mx-auto fade-in">
+    <header class="text-center mb-8 print-hidden">
+        <div class="inline-block px-5 py-1.5 border-2 border-[#2D4A3E] text-[#2D4A3E] text-[10px] font-bold rounded-full mb-3 uppercase tracking-widest">MINDSTORY V1</div>
+        <h1 class="serif text-2xl md:text-3xl font-bold text-[#2D4A3E] tracking-tight">어린이 4군자 기질검사</h1>
+        <p class="mt-2 text-sm text-ms-body font-medium">축령산 편백숲 유아학교 · 숲에서 아이를 따뜻하게 관찰한 기록</p>
+        <p class="mt-1 text-[10px] text-ms-muted">엔진 v8.6 · 브라우저 안에서만 처리 · 오프라인 백업</p>
+    </header>
+
+    <div id="view-content"></div>
+</div>
+
+<input type="file" id="ms-import-input" accept=".json,application/json" class="hidden" aria-hidden="true" />
+
+<script>
+(function () {
+    'use strict';
+
+    /** 로컬 저장 키 (작업지시서) + 이전 버전 이행용 */
+    const STORAGE_KEY = 'ms_forest_data';
+    const LEGACY_V86 = 'ms_mindstory_4gunja_v86';
+    const LEGACY_V2 = 'ms_4gunja_v2';
+
+    /**
+     * SCHEMA — v8.6 하이브리드 (title / strength / concern / action)
+     * 톤: 평가가 아닌 관찰 기록 · 아동 친화 어휘
+     */
+    const SCHEMA = {
+        version: '8.6',
+        categories: ['난초', '대나무', '국화', '매화'],
+        questions: [
+            { id: 'q1', cat: '난초', text: '작은 벌레나 새싹을 아끼며 구경하나요?' },
+            { id: 'q2', cat: '난초', text: '친구가 조금 아파 보이면 곁에 가서 챙겨 주나요?' },
+            { id: 'q3', cat: '대나무', text: '새로운 놀이가 보이면 먼저 가 보고 싶어 하나요?' },
+            { id: 'q4', cat: '대나무', text: '숲속 언덕이나 나무 사이를 씩씩하게 걸어 다니나요?' },
+            { id: 'q5', cat: '국화', text: '처음 가는 곳에서는 선생님 곁을 지키나요?' },
+            { id: 'q6', cat: '국화', text: '옷에 흙이 묻으면 깨끗이 하고 싶어 하나요?' },
+            { id: 'q7', cat: '매화', text: '놀이가 어려워도 한번 더 해 보나요?' },
+            { id: 'q8', cat: '매화', text: '놀이가 끝나면 장난감을 제자리에 두나요?' }
+        ],
+        interpretations: {
+            난초: {
+                title: '따뜻한 공감의 난초',
+                strength: '타인의 기분에 예민하게 공감하며, 작은 변화도 살펴봐 주는 따뜻함이 있어요.',
+                concern: '마음이 겹칠 때는 내 마음을 말하기 어려울 수 있어요. 이름으로 천천히 불러 주세요.',
+                action: '작은 성공에도 「그렇게 해내다니 멋지다」며 칭찬을 건네 주세요.'
+            },
+            대나무: {
+                title: '활기찬 탐구의 대나무',
+                strength: '새로운 것에 겁이 적고, 몸으로 부딪치며 배우는 힘이 커요.',
+                concern: '움직임이 빠를 때는 안전한 선을 함께 정해 주세요.',
+                action: '활동 전에 우리들의 약속을 짧게 말로 정해 두면 좋아요.'
+            },
+            국화: {
+                title: '신중한 안정의 국화',
+                strength: '주변을 살피고 위험을 미리 가늠하는 조심성이 있어요.',
+                concern: '처음 보는 자리에서는 잠시 멈춰 설 수 있어요. 옆에서 함께 걸음을 맞춰 주세요.',
+                action: '선생님이 먼저 천천히 시범을 보여 주면 마음이 편해져요.'
+            },
+            매화: {
+                title: '단단한 마무리의 매화',
+                strength: '한 가지를 끝까지 보려는 다시 시작하는 예쁜 마음이 보여요.',
+                concern: '잘 안될 때는 잠시 숨 고르기 시간을 주세요.',
+                action: '스스로 해낼 때까지 곁에서 지켜봐 주세요.'
+            }
+        },
+
+        barStyle(cat) {
+            if (cat === '난초') return 'background-color:#D4A373';
+            if (cat === '대나무') return 'background-color:#2D4A3E';
+            if (cat === '국화') return 'background:linear-gradient(90deg,#2D4A3E 0%,#D4A373 100%)';
+            return 'background-color:#2D4A3E;opacity:0.72';
+        },
+
+        emptyCounts() {
+            const o = {};
+            this.questions.forEach((q) => { o[q.id] = { yes: '', no: '' }; });
+            return o;
+        },
+
+        scoresFromCounts(counts) {
+            const acc = {
+                난초: { yes: 0, n: 0 },
+                대나무: { yes: 0, n: 0 },
+                국화: { yes: 0, n: 0 },
+                매화: { yes: 0, n: 0 }
+            };
+            this.questions.forEach((q) => {
+                const row = counts[q.id] || { yes: '', no: '' };
+                const y = parseInt(row.yes, 10) || 0;
+                const n = parseInt(row.no, 10) || 0;
+                const t = y + n;
+                if (t === 0) return;
+                acc[q.cat].yes += y;
+                acc[q.cat].n += t;
+            });
+            const pct = {};
+            Object.keys(acc).forEach((k) => {
+                pct[k] = acc[k].n > 0 ? Math.round((acc[k].yes / acc[k].n) * 100) : 0;
+            });
+            return pct;
+        },
+
+        /** ≥70% 강점(strength) · &lt;40% 주의/보호(concern) · 그 사이 고른 성장 */
+        segmentForScore(pct, cat) {
+            const I = this.interpretations[cat];
+            if (!I) return { tier: 'mid', badge: '', headline: '', body: '', foot: '' };
+            if (pct >= 70) {
+                return {
+                    tier: 'high',
+                    badge: '강점',
+                    headline: I.title,
+                    body: I.strength,
+                    foot: I.action
+                };
+            }
+            if (pct < 40) {
+                return {
+                    tier: 'low',
+                    badge: '주의/보호',
+                    headline: I.title,
+                    body: I.concern,
+                    foot: I.action
+                };
+            }
+            return {
+                tier: 'mid',
+                badge: '고른 성장',
+                headline: I.title,
+                body: '이 영역은 지금 차곡차곡 쌓여 가요. 잘 보이는 면과 함께 살펴볼 면이 함께 있어요.',
+                foot: I.action
+            };
+        }
+    };
+
+    const STATE = {
+        step: 'dashboard',
+        institutions: [],
+        selectedId: null,
+        searchTerm: '',
+        isPreviewSample: false,
+        setupTypeOverride: null,
+
+        guessType(name) {
+            const s = String(name);
+            return s.includes('유치원') || s.includes('병설') ? '유치원' : '어린이집';
+        },
+
+        ensureCounts(inst) {
+            if (!inst.counts || typeof inst.counts !== 'object') inst.counts = SCHEMA.emptyCounts();
+            SCHEMA.questions.forEach((q) => {
+                if (!inst.counts[q.id]) inst.counts[q.id] = { yes: '', no: '' };
+            });
+        },
+
+        selected() {
+            return this.institutions.find((i) => i.id === this.selectedId) || null;
+        },
+
+        persist() {
+            try {
+                localStorage.setItem(
+                    STORAGE_KEY,
+                    JSON.stringify({
+                        v: SCHEMA.version,
+                        institutions: this.institutions,
+                        selectedId: this.selectedId
+                    })
+                );
+            } catch (_) {}
+        },
+
+        hydrate() {
+            try {
+                let raw = localStorage.getItem(STORAGE_KEY);
+                let fromKey = STORAGE_KEY;
+                if (!raw) {
+                    raw = localStorage.getItem(LEGACY_V86);
+                    if (raw) fromKey = LEGACY_V86;
+                }
+                if (!raw) {
+                    raw = localStorage.getItem(LEGACY_V2);
+                    if (raw) {
+                        this._migrateLegacyV2(raw);
+                        return;
+                    }
+                }
+                if (!raw) {
+                    this.institutions = [];
+                    this.selectedId = null;
+                    return;
+                }
+                const o = JSON.parse(raw);
+                if (o.institutions && Array.isArray(o.institutions)) {
+                    this.institutions = o.institutions;
+                    this.selectedId = o.selectedId || (this.institutions[0] && this.institutions[0].id) || null;
+                    this.institutions.forEach((i) => this.ensureCounts(i));
+                    if (fromKey !== STORAGE_KEY) {
+                        try { localStorage.removeItem(fromKey); } catch (_) {}
+                        this.persist();
+                    }
+                    return;
+                }
+            } catch (_) {}
+            this.institutions = [];
+            this.selectedId = null;
+        },
+
+        _migrateLegacyV2(raw) {
+            try {
+                const o = JSON.parse(raw);
+                if (!o.institution || !o.counts) return;
+                const id = 'mig_' + Date.now();
+                const inst = {
+                    id,
+                    name: o.institution,
+                    type: this.guessType(o.institution),
+                    counts: o.counts,
+                    updatedAt: new Date().toISOString()
+                };
+                this.ensureCounts(inst);
+                this.institutions = [inst];
+                this.selectedId = id;
+                try { localStorage.removeItem(LEGACY_V2); } catch (_) {}
+                this.persist();
+            } catch (_) {}
+        },
+
+        addInstitution(name) {
+            const id = 'inst_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+            const inst = {
+                id,
+                name: name.trim(),
+                type: this.guessType(name),
+                counts: SCHEMA.emptyCounts(),
+                updatedAt: new Date().toISOString()
+            };
+            this.institutions.push(inst);
+            this.selectedId = id;
+            this.persist();
+            return inst;
+        },
+
+        touchSelected() {
+            const i = this.selected();
+            if (i) i.updatedAt = new Date().toISOString();
+        }
+    };
+
+    const UI = {
+        esc(s) {
+            return String(s)
+                .replace(/&/g, '&amp;')
+                .replace(/"/g, '&quot;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+        },
+
+        hasAnyCount(counts) {
+            return SCHEMA.questions.some((q) => {
+                const row = counts[q.id] || {};
+                const y = parseInt(row.yes, 10) || 0;
+                const n = parseInt(row.no, 10) || 0;
+                return y + n > 0;
+            });
+        },
+
+        render() {
+            const el = document.getElementById('view-content');
+            if (!el) return;
+            if (STATE.step === 'dashboard') this.renderDashboard(el);
+            else if (STATE.step === 'setup') this.renderSetup(el);
+            else if (STATE.step === 'input') this.renderInput(el);
+            else if (STATE.step === 'result') this.renderResult(el);
+        },
+
+        toolbarBackupHtml() {
+            return `
+                <div class="flex flex-col sm:flex-row gap-3 mb-6 print-hidden">
+                    <button type="button" class="ms-btn flex-1 bg-[#2D4A3E] text-white font-bold py-4 px-5 shadow-md text-sm"
+                        onclick="MS.exportBackup()">데이터보내기 (.json)</button>
+                    <button type="button" class="ms-btn flex-1 bg-ms-card border-2 border-[#2D4A3E] text-[#2D4A3E] font-bold py-4 px-5 text-sm bg-ms-soft"
+                        onclick="MS.triggerImport()">백업 파일 불러오기</button>
+                </div>
+            `;
+        },
+
+        renderDashboard(el) {
+            const rows = STATE.institutions
+                .map((inst) => {
+                    const filled = this.hasAnyCount(inst.counts);
+                    const dot = filled
+                        ? 'bg-[#2D4A3E] shadow-[0_0_10px_rgba(45,74,62,0.35)]'
+                        : 'bg-ms-soft border border-ms';
+                    return `
+                        <tr class="hover:bg-ms-soft/80 transition-colors">
+                            <td class="px-5 py-4">
+                                <span class="inline-block w-2.5 h-2.5 rounded-full ${dot} mr-3 align-middle"></span>
+                                <span class="font-bold text-[#2D4A3E]">${this.esc(inst.name)}</span>
+                                <span class="text-xs text-ms-muted ml-2">[${this.esc(inst.type)}]</span>
+                            </td>
+                            <td class="px-5 py-4 text-right">
+                                <button type="button" class="text-sm font-bold text-[#D4A373] hover:opacity-80 ms-btn px-3 py-1"
+                                    onclick="MS.openInput('${this.esc(inst.id)}')">입력 · 편집</button>
+                            </td>
+                        </tr>
+                    `;
+                })
+                .join('');
+
+            el.innerHTML = `
+                <div class="max-w-lg mx-auto">
+                    ${this.toolbarBackupHtml()}
+                    <div class="ms-card p-8 md:p-10 mb-6">
+                        <h2 class="serif text-xl font-bold text-[#2D4A3E] mb-2 text-center">관리 대시보드</h2>
+                        <p class="text-center text-sm text-ms-body mb-8">기관별 관찰 기록 · 서버 없이 JSON 파일로 옮기고 보관할 수 있어요.</p>
+                        <button type="button" class="ms-btn w-full bg-[#D4A373] text-white font-bold py-5 text-base shadow-lg mb-6"
+                            onclick="MS.goSetup()">새 기관 검사 시작</button>
+                        <div class="rounded-[3rem] overflow-hidden border border-ms bg-ms-soft/50">
+                            <table class="w-full text-left text-sm">
+                                <tbody class="divide-y divide-[rgba(45,74,62,0.08)]">${rows || '<tr><td class="p-6 text-center text-ms-muted">등록된 기관이 없어요. 위 버튼으로 추가해 주세요.</td></tr>'}</tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <p class="text-center text-xs text-ms-muted">개인정보는 이 기기 브라우저와 직접 저장한 파일에만 남아요.</p>
+                </div>
+            `;
+        },
+
+        renderSetup(el) {
+            const sel = STATE.selected();
+            const nameVal = STATE.searchTerm || (sel ? sel.name : '');
+            const type = sel ? sel.type : STATE.setupTypeOverride || STATE.guessType(nameVal);
+
+            el.innerHTML = `
+                <div class="max-w-lg mx-auto space-y-8">
+                    ${this.toolbarBackupHtml()}
+                    <button type="button" class="ms-btn text-xs font-bold text-ms-muted hover:text-[#2D4A3E] mb-2 print-hidden"
+                        onclick="MS.goDashboard()">← 대시보드</button>
+
+                    <div class="ms-preview-box p-6 md:p-8 text-center print-hidden">
+                        <p class="text-[#D4A373] font-bold text-sm mb-2">✨ 미리보기 모드</p>
+                        <p class="text-ms-body text-sm leading-relaxed mb-6">
+                            아래 버튼을 누르면 테스트 숫자가 채워진<br class="hidden sm:inline" />
+                            <strong class="text-[#2D4A3E]">분석 보고서</strong> 화면을 미리 볼 수 있어요.
+                        </p>
+                        <button type="button" class="ms-btn inline-flex bg-[#2D4A3E] text-white font-bold py-4 px-8 text-sm shadow-lg"
+                            onclick="MS.runPreview()">분석 결과 미리보기 ↗</button>
+                    </div>
+
+                    <div class="ms-card p-8 md:p-10">
+                        <label for="inst-name" class="block text-xs font-bold text-ms-muted mb-2 ml-1 tracking-widest">기관명 검색</label>
+                        <input id="inst-name" type="text" placeholder="예: 삼계중앙어린이집"
+                            class="w-full ms-input px-6 py-4 text-base font-bold text-center mb-6"
+                            value="${this.esc(nameVal)}" autocomplete="organization"
+                            oninput="MS.onNameInput(this.value)">
+                        <p class="text-xs text-ms-muted mb-4 text-center">같은 이름이 있으면 그 기관으로 이어집니다.</p>
+                        <div class="flex gap-3 mb-6">
+                            <button type="button" class="ms-btn flex-1 py-4 font-bold border-2 text-sm ${type === '어린이집' ? 'border-[#2D4A3E] bg-[rgba(240,253,244,0.5)] text-[#2D4A3E]' : 'border-ms text-ms-muted'}"
+                                onclick="MS.setType('어린이집')">어린이집</button>
+                            <button type="button" class="ms-btn flex-1 py-4 font-bold border-2 text-sm ${type === '유치원' ? 'border-[#2D4A3E] bg-[rgba(240,253,244,0.5)] text-[#2D4A3E]' : 'border-ms text-ms-muted'}"
+                                onclick="MS.setType('유치원')">유치원</button>
+                        </div>
+                        <button type="button" class="ms-btn w-full bg-[#2D4A3E] text-white font-bold py-5 text-base shadow-lg"
+                            onclick="MS.startTest()">검사 입력으로 이동</button>
+                    </div>
+                </div>
+            `;
+        },
+
+        renderInput(el) {
+            const inst = STATE.selected();
+            if (!inst) {
+                STATE.step = 'dashboard';
+                STATE.persist();
+                this.render();
+                return;
+            }
+            STATE.ensureCounts(inst);
+            const name = this.esc(inst.name);
+
+            el.innerHTML = `
+                <div class="max-w-lg mx-auto">
+                    ${this.toolbarBackupHtml()}
+                    <div class="mb-5 flex justify-between items-center print-hidden">
+                        <span class="font-bold text-[#2D4A3E] text-sm">📍 ${name}</span>
+                        <div class="flex gap-2">
+                            <button type="button" class="text-xs text-ms-muted underline ms-btn px-2" onclick="MS.goSetup()">기관 설정</button>
+                            <button type="button" class="text-xs text-ms-muted underline ms-btn px-2" onclick="MS.goDashboard()">대시보드</button>
+                        </div>
+                    </div>
+                    <div class="space-y-4 max-h-[56vh] overflow-y-auto pr-1 custom-scrollbar mb-6">
+                        ${SCHEMA.questions.map((q, idx) => `
+                            <div class="ms-card p-6 border-l-[10px] border-[#2D4A3E]">
+                                <p class="font-bold text-ms-body mb-4 text-sm leading-snug">
+                                    <span class="text-[#D4A373] mr-2">Q${idx + 1}.</span>${this.esc(q.text)}
+                                </p>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div class="flex items-center bg-ms-soft rounded-[3rem] px-4 py-3 border border-ms">
+                                        <span class="text-[10px] font-bold text-[#2D4A3E] mr-2 shrink-0">O</span>
+                                        <input type="number" min="0" class="w-full bg-transparent text-center font-bold text-base outline-none text-[#2D4A3E]"
+                                            value="${inst.counts[q.id].yes}"
+                                            oninput="MS.setCount('${q.id}','yes',this.value)">
+                                    </div>
+                                    <div class="flex items-center rounded-[3rem] px-4 py-3 border border-ms" style="background:rgba(212,163,115,0.12)">
+                                        <span class="text-[10px] font-bold text-[#D4A373] mr-2 shrink-0">X</span>
+                                        <input type="number" min="0" class="w-full bg-transparent text-center font-bold text-base outline-none text-[#2D4A3E]"
+                                            value="${inst.counts[q.id].no}"
+                                            oninput="MS.setCount('${q.id}','no',this.value)">
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <button type="button" class="ms-btn w-full bg-[#D4A373] text-white font-bold py-5 text-base shadow-lg"
+                        onclick="MS.goResult()">분석 보고서 만들기</button>
+                </div>
+            `;
+        },
+
+        renderResult(el) {
+            const inst = STATE.selected();
+            if (!inst) {
+                STATE.step = 'dashboard';
+                this.render();
+                return;
+            }
+            const scores = SCHEMA.scoresFromCounts(inst.counts);
+            const name = this.esc(inst.name);
+            const preview = STATE.isPreviewSample
+                ? `<div class="mb-5 rounded-[3rem] border-2 border-[#D4A373] text-ms-body text-xs font-bold py-3 px-4 print-hidden text-left bg-[rgba(212,163,115,0.1)]">샘플 숫자로 보는 화면이에요. 실제 관찰 값은 입력 화면에서 넣어 주세요.</div>`
+                : '';
+
+            const blocks = SCHEMA.categories.map((cat) => {
+                const pct = scores[cat];
+                const seg = SCHEMA.segmentForScore(pct, cat);
+                let badgeBg = 'bg-ms-soft text-[#2D4A3E]';
+                if (seg.tier === 'high') badgeBg = 'bg-[rgba(45,74,62,0.12)] text-[#2D4A3E]';
+                if (seg.tier === 'low') badgeBg = 'bg-[rgba(212,163,115,0.25)] text-[#2D4A3E]';
+                return `
+                    <div class="ms-card p-6 text-left mb-5">
+                        <div class="flex flex-wrap items-center gap-2 mb-2">
+                            <span class="text-sm font-black text-[#2D4A3E]">${this.esc(cat)} · ${pct}%</span>
+                            <span class="text-[10px] font-bold px-3 py-1 rounded-full ${badgeBg}">${this.esc(seg.badge)}</span>
+                        </div>
+                        <div class="w-full h-2.5 rounded-full overflow-hidden mb-4 bg-ms-soft">
+                            <div class="h-full transition-all duration-700 rounded-full" style="width:${pct}%;${SCHEMA.barStyle(cat)}"></div>
+                        </div>
+                        <h3 class="serif text-base font-bold text-[#2D4A3E] mb-2">${this.esc(seg.headline)}</h3>
+                        <p class="text-sm text-ms-body leading-relaxed mb-3">${this.esc(seg.body)}</p>
+                        <p class="text-xs text-[#2D4A3E] font-semibold bg-ms-soft rounded-[3rem] px-4 py-3 border border-ms">관찰 가이드: ${this.esc(seg.foot)}</p>
+                    </div>
+                `;
+            }).join('');
+
+            el.innerHTML = `
+                <div class="max-w-lg mx-auto">
+                    <div class="ms-card p-8 md:p-10 text-center border-t-[10px] border-[#2D4A3E]">
+                        ${preview}
+                        <h2 class="serif text-2xl font-bold text-[#2D4A3E] mb-1">${name}</h2>
+                        <p class="text-ms-muted text-xs font-bold tracking-widest uppercase mb-1">Temperament observation report</p>
+                        <p class="text-ms-body text-sm mb-8">기질 분석 결과 보고서 · v8.6</p>
+                        <div class="text-left mb-8">${blocks}</div>
+                        <button type="button" class="ms-btn w-full bg-ms-soft text-[#2D4A3E] font-bold py-5 mb-4 border border-ms print-hidden"
+                            onclick="MS.backToInput()">데이터 고치기</button>
+                        <button type="button" class="ms-btn w-full bg-[#2D4A3E] text-white font-bold py-5 print-hidden"
+                            onclick="window.print()">PDF 저장 · 인쇄</button>
+                    </div>
+                </div>
+            `;
+        },
+
+        exportBackup() {
+            const payload = {
+                mindstoryExport: true,
+                schemaVersion: SCHEMA.version,
+                storageKey: STORAGE_KEY,
+                exportedAt: new Date().toISOString(),
+                institutions: STATE.institutions
+            };
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a');
+            const d = new Date().toISOString().slice(0, 10);
+            a.href = URL.createObjectURL(blob);
+            a.download = `mindstory-forest-temperament-${d}.json`;
+            a.click();
+            URL.revokeObjectURL(a.href);
+        },
+
+        triggerImport() {
+            const inp = document.getElementById('ms-import-input');
+            if (inp) {
+                inp.value = '';
+                inp.onchange = () => UI.handleImportFile(inp.files[0]);
+                inp.click();
+            }
+        },
+
+        handleImportFile(file) {
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = () => {
+                try {
+                    const data = JSON.parse(reader.result);
+                    const list = data.institutions;
+                    if (!Array.isArray(list)) {
+                        alert('파일 형식이 맞지 않아요. 보낸 JSON 인지 확인해 주세요.');
+                        return;
+                    }
+                    const replace = confirm(
+                        '기존 브라우저 데이터를 이 파일로 덮어쓸까요?\n\n확인 = 모두 교체\n취소 = 같은 id는 덮어쓰고 나머지는 합침'
+                    );
+                    const normalize = (i) => {
+                        if (!i.id) i.id = 'imp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
+                        if (!i.name) i.name = '이름 없음';
+                        if (!i.type) i.type = STATE.guessType(i.name);
+                        STATE.ensureCounts(i);
+                        return i;
+                    };
+                    if (replace) {
+                        STATE.institutions = list.map(normalize);
+                        STATE.selectedId = STATE.institutions[0] ? STATE.institutions[0].id : null;
+                    } else {
+                        const byId = new Map(STATE.institutions.map((i) => [i.id, i]));
+                        list.forEach((incoming) => {
+                            byId.set(normalize(incoming).id, incoming);
+                        });
+                        STATE.institutions = Array.from(byId.values());
+                    }
+                    STATE.persist();
+                    STATE.step = 'dashboard';
+                    STATE.isPreviewSample = false;
+                    UI.render();
+                    alert('백업 파일을 불러왔어요.');
+                } catch (e) {
+                    alert('JSON 읽기에 실패했어요.');
+                }
+            };
+            reader.readAsText(file, 'UTF-8');
+        }
+    };
+
+    const MS = {
+        goDashboard() {
+            STATE.step = 'dashboard';
+            STATE.isPreviewSample = false;
+            STATE.persist();
+            UI.render();
+        },
+        goSetup() {
+            STATE.step = 'setup';
+            STATE.isPreviewSample = false;
+            const sel = STATE.selected();
+            STATE.searchTerm = sel ? sel.name : '';
+            STATE.persist();
+            UI.render();
+        },
+        onNameInput(val) {
+            STATE.searchTerm = val;
+            const match = STATE.institutions.find((i) => i.name === val.trim());
+            STATE.selectedId = match ? match.id : null;
+            if (match) STATE.setupTypeOverride = null;
+        },
+        setType(t) {
+            const sel = STATE.selected();
+            if (sel) {
+                sel.type = t;
+                STATE.setupTypeOverride = null;
+            } else {
+                STATE.setupTypeOverride = t;
+            }
+            STATE.persist();
+            UI.render();
+        },
+        startTest() {
+            const el = document.getElementById('inst-name');
+            const name = (el && el.value.trim()) || STATE.searchTerm.trim();
+            if (!name) {
+                alert('기관 이름을 넣어 주세요.');
+                return;
+            }
+            let inst = STATE.institutions.find((i) => i.name === name);
+            if (!inst) {
+                inst = STATE.addInstitution(name);
+                inst.type = STATE.setupTypeOverride || STATE.guessType(name);
+            } else {
+                STATE.selectedId = inst.id;
+                STATE.ensureCounts(inst);
+                if (STATE.setupTypeOverride) inst.type = STATE.setupTypeOverride;
+            }
+            STATE.setupTypeOverride = null;
+            STATE.step = 'input';
+            STATE.isPreviewSample = false;
+            STATE.touchSelected();
+            STATE.persist();
+            UI.render();
+        },
+        openInput(id) {
+            STATE.selectedId = id;
+            STATE.step = 'input';
+            STATE.isPreviewSample = false;
+            STATE.persist();
+            UI.render();
+        },
+        setCount(qid, field, val) {
+            const inst = STATE.selected();
+            if (!inst) return;
+            STATE.ensureCounts(inst);
+            inst.counts[qid][field] = val === '' ? '' : String(Math.max(0, parseInt(val, 10) || 0));
+            STATE.isPreviewSample = false;
+            STATE.touchSelected();
+            STATE.persist();
+        },
+        goResult() {
+            const inst = STATE.selected();
+            if (!inst || !UI.hasAnyCount(inst.counts)) {
+                alert('최소 한 문항에 O 또는 X 인원 수를 넣어 주세요.');
+                return;
+            }
+            STATE.step = 'result';
+            STATE.persist();
+            UI.render();
+        },
+        backToInput() {
+            STATE.step = 'input';
+            STATE.isPreviewSample = false;
+            STATE.persist();
+            UI.render();
+        },
+        runPreview() {
+            const el = document.getElementById('inst-name');
+            let name = (el && el.value.trim()) || STATE.searchTerm.trim();
+            if (!name) name = '삼계중앙어린이집';
+            let inst = STATE.institutions.find((i) => i.name === name);
+            if (!inst) {
+                inst = STATE.addInstitution(name);
+            } else {
+                STATE.selectedId = inst.id;
+                STATE.ensureCounts(inst);
+                STATE.persist();
+            }
+            const demo = [
+                { yes: 14, no: 2 }, { yes: 12, no: 4 }, { yes: 9, no: 7 }, { yes: 11, no: 5 },
+                { yes: 10, no: 6 }, { yes: 8, no: 8 }, { yes: 13, no: 3 }, { yes: 15, no: 1 }
+            ];
+            SCHEMA.questions.forEach((q, i) => {
+                inst.counts[q.id] = { yes: String(demo[i].yes), no: String(demo[i].no) };
+            });
+            STATE.isPreviewSample = true;
+            STATE.step = 'result';
+            STATE.persist();
+            UI.render();
+        },
+        exportBackup: () => UI.exportBackup(),
+        triggerImport: () => UI.triggerImport()
+    };
+
+    window.MS = MS;
+
+    STATE.hydrate();
+    if (!STATE.institutions.length) {
+        STATE.step = 'dashboard';
+        STATE.searchTerm = '';
+        STATE.selectedId = null;
+    }
+    UI.render();
+})();
+</script>
+</body>
+</html>

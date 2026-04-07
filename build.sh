@@ -16,13 +16,6 @@ else
   echo "⚠️  public/forest.html 없음"
 fi
 
-if [ -f "public/forest_v9.html" ]; then
-  cp public/forest_v9.html dist/forest_v9.html
-  echo "✅ forest_v9.html → dist 루트 복사"
-else
-  echo "⚠️  public/forest_v9.html 없음"
-fi
-
 echo "📝 _routes.json 생성 중..."
 # exclude: Worker 우회 정적 경로(실제 public 파일). Clean URL 리다이렉트와 무관.
 cat > dist/_routes.json << 'ROUTES'

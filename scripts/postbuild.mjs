@@ -79,12 +79,6 @@ if (!existsSync(forestQSrc)) {
   console.log('✅ copyFileSync: public/forest-question-banks.js → dist/forest-question-banks.js')
 }
 
-const forestV9 = join(publicDir, 'forest_v9.html')
-if (existsSync(forestV9)) {
-  copyFileSync(forestV9, join(dist, 'forest_v9.html'))
-  console.log('✅ copyFileSync: public/forest_v9.html → dist/forest_v9.html')
-}
-
 const KAKAO_RELAY_MP4 = [
   'KakaoTalk_20240501_163910442.mp4',
   'KakaoTalk_20240501_172743992.mp4',

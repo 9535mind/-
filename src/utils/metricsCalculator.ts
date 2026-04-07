@@ -22,12 +22,12 @@ export const JTT_QUESTION_COUNTS_PRESCHOOL: JTTQuestionCounts = {
     WINT: 2,
 };
 
-/** 초등 12문항 — WINT×3, SPRT×4, AUTT×4, SUMT×1 */
+/** 초등 12문항 황금 밸런스 — 축당 최대 6(△3+□3) */
 export const JTT_QUESTION_COUNTS_ELEMENTARY: JTTQuestionCounts = {
-    WINT: 3,
-    SPRT: 4,
-    SUMT: 1,
-    AUTT: 4,
+    SPRT: 6,
+    SUMT: 6,
+    AUTT: 6,
+    WINT: 6,
 };
 
 export interface JTTMetricsResult {

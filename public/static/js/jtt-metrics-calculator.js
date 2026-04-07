@@ -5,7 +5,8 @@
     'use strict';
 
     global.JTT_QUESTION_COUNTS_PRESCHOOL = { SPRT: 2, SUMT: 2, AUTT: 2, WINT: 2 };
-    global.JTT_QUESTION_COUNTS_ELEMENTARY = { WINT: 3, SPRT: 4, SUMT: 1, AUTT: 4 };
+    /** 초등 12문항 황금 밸런스 — 축당 최대 6(△3+□3) */
+    global.JTT_QUESTION_COUNTS_ELEMENTARY = { SPRT: 6, SUMT: 6, AUTT: 6, WINT: 6 };
 
     global.calculateJTTMetrics = function calculateJTTMetrics(scoresList, questionCounts) {
         var count = scoresList.length;

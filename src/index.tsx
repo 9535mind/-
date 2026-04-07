@@ -52,6 +52,8 @@ import pagesEnrollment from './routes/pages-enrollment'  // 수강신청 페이�
 import pagesBrandCatalog from './routes/pages-brand-catalog'
 import digitalBooks from './routes/digital-books'
 import forestResults from './routes/forest-results'
+import forestGasReport from './routes/forest-gas-report'
+import forestGasWebhook from './routes/forest-gas-webhook'
 import youtubeProxy from './routes/youtube-proxy'
 import security from './routes/security'
 import { FOOTER_HTML_REVISION } from './utils/site-footer-legal'
@@ -173,6 +175,8 @@ app.use('/api/notices', generalRateLimiter)
 app.use('/api/posts', generalRateLimiter)
 app.use('/api/upload', generalRateLimiter)
 app.use('/api/forest-results', generalRateLimiter)
+app.use('/api/forest-gas-report', generalRateLimiter)
+app.use('/api/forest-gas-webhook', generalRateLimiter)
 
 // 관대한 제한: 읽기 전용 API (1분에 200회)
 app.use('/api/auth/me', lenientRateLimiter)
@@ -221,29 +225,17 @@ app.route('/api/youtube', youtubeProxy)  // YouTube oEmbed 프록시 (CORS 해�
 app.route('/api/security', security)  // 보안 이벤트 로깅
 app.route('/api/digital-books', digitalBooks) // Next 디지털 도서·ISBN
 app.route('/api/forest-results', forestResults) // 유아숲 4군자 집단 결과(기관·반)
+app.route('/api/forest-gas-report', forestGasReport) // GAS 보고서 JSON 프록시(CORS 회피)
+app.route('/api/forest-gas-webhook', forestGasWebhook) // GAS 시트 doPost 프록시(브라우저 직접 POST 실패 방지)
 
 // 구버전 북마크(정적 파일·.html 링크 → Clean URL)
 app.get('/admin-users.html', (c) => c.redirect('/admin/members', 302))
 app.get('/admin-users', (c) => c.redirect('/admin/members', 302))
 app.get('/pg-business-info.html', (c) => c.redirect('/pg-business-info', 302))
 
-/** 유아숲 v9 테스트 URL: 정적 exclude만으로 404 나는 경우 ASSETS 번들에서 명시 로드 */
-app.get('/forest_v9.html', async (c) => {
-  const assets = c.env.ASSETS
-  if (!assets) return c.text('Not Found', 404)
-  const u = new URL(c.req.url)
-  u.pathname = '/forest_v9.html'
-  const res = await assets.fetch(new Request(u.toString(), { method: c.req.method, headers: c.req.raw.headers }))
-  return res
-})
-app.get('/forest_v9', async (c) => {
-  const assets = c.env.ASSETS
-  if (!assets) return c.text('Not Found', 404)
-  const u = new URL(c.req.url)
-  u.pathname = '/forest_v9.html'
-  const res = await assets.fetch(new Request(u.toString(), { method: c.req.method, headers: c.req.raw.headers }))
-  return res
-})
+/** 구버전 북마크 → 현재 단일 소스 forest.html */
+app.get('/forest_v9.html', (c) => c.redirect('/forest.html', 302))
+app.get('/forest_v9', (c) => c.redirect('/forest.html', 302))
 
 /**
  * /forest — 302 금지(대시보드 리다이렉트 규칙과 충돌 시 /forest.html ↔ /forest 루프 가능).
