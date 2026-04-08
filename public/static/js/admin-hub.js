@@ -23,6 +23,7 @@ const HUB_VALID_PANELS = new Set([
   'sys-dashboard',
   'popups',
   'settings',
+  'offline-meetups',
 ])
 
 const PANEL_TO_GROUP = {
@@ -44,6 +45,7 @@ const PANEL_TO_GROUP = {
   'sys-dashboard': 'sys',
   popups: 'sys',
   settings: 'sys',
+  'offline-meetups': 'edu',
 }
 
 let hubUserPage = 1
@@ -51,6 +53,7 @@ let currentUserId = null
 let currentCourseId = null
 let courseModalLessons = []
 let hubDescAiGen = 0
+let hubCourseTitleAiTimer = null
 let hubCourseFormOptions = null
 
 function toIntOr(value, fallback = 0) {
@@ -58,8 +61,8 @@ function toIntOr(value, fallback = 0) {
   return Number.isFinite(n) ? n : fallback
 }
 
-async function loadCourseFormOptions() {
-  if (hubCourseFormOptions) return hubCourseFormOptions
+async function loadCourseFormOptions(forceReload) {
+  if (hubCourseFormOptions && !forceReload) return hubCourseFormOptions
   const res = await apiRequest('GET', '/api/admin/course-form-options')
   if (res.success && res.data) {
     hubCourseFormOptions = {
@@ -70,6 +73,482 @@ async function loadCourseFormOptions() {
     hubCourseFormOptions = { instructors: [], certificate_types: [] }
   }
   return hubCourseFormOptions
+}
+
+window.invalidateHubCourseFormOptions = function () {
+  hubCourseFormOptions = null
+}
+
+let hubInstructorsCache = []
+let hubInstructorSaveBusy = false
+window.hubInstructorPreviewObjectUrl = null
+
+function hubInstructorThumbCellHtml(row) {
+  const url = row.profile_image ? String(row.profile_image) : ''
+  const ai = Number(row.profile_image_ai) === 1
+  const imgBlock = url
+    ? '<img src="' +
+      escapeAttr(url) +
+      '" alt="" class="w-14 h-14 rounded-lg object-cover border border-slate-200 bg-white">'
+    : '<div class="w-14 h-14 rounded-lg bg-slate-100 border border-slate-200"></div>'
+  const badge = ai
+    ? '<span class="pointer-events-none absolute bottom-0 right-0 z-[1] max-w-[calc(100%-2px)] truncate rounded-tl px-0.5 py-px text-[7px] font-normal leading-none text-slate-500/90 bg-white/45 backdrop-blur-[1px] border-t border-l border-white/25">AI 생성</span>'
+    : ''
+  return '<div class="relative inline-block">' + imgBlock + badge + '</div>'
+}
+
+function hubSyncInstructorAiNotice() {
+  const notice = document.getElementById('hubInstructorAiNotice')
+  const editId = document.getElementById('hubInstructorEditId')
+  const urlEl = document.getElementById('hubInstructorProfileImage')
+  if (!notice || !editId || !urlEl) return
+  const isNew = !editId.value
+  const emptyUrl = !String(urlEl.value || '').trim()
+  if (isNew && emptyUrl) notice.classList.remove('hidden')
+  else notice.classList.add('hidden')
+}
+
+function hubRefreshInstructorPreview() {
+  const urlEl = document.getElementById('hubInstructorProfileImage')
+  const aiEl = document.getElementById('hubInstructorProfileImageAi')
+  const prev = document.getElementById('hubInstructorPreviewImg')
+  const ph = document.getElementById('hubInstructorPreviewPlaceholder')
+  const badge = document.getElementById('hubInstructorAiBadge')
+  const wrap = document.getElementById('hubInstructorPreviewWrap')
+  if (!urlEl || !prev || !ph || !badge) return
+  if (window.hubInstructorPreviewObjectUrl) {
+    prev.src = window.hubInstructorPreviewObjectUrl
+    prev.classList.remove('hidden')
+    ph.classList.add('hidden')
+    badge.classList.add('hidden')
+    if (wrap) wrap.classList.remove('ring-2', 'ring-violet-200')
+    return
+  }
+  const url = String(urlEl.value || '').trim()
+  const ai = aiEl && aiEl.value === '1'
+  if (url) {
+    prev.src = url
+    prev.classList.remove('hidden')
+    ph.classList.add('hidden')
+    if (wrap) wrap.classList.add('ring-2', 'ring-violet-200')
+  } else {
+    prev.src = ''
+    prev.classList.add('hidden')
+    ph.classList.remove('hidden')
+    if (wrap) wrap.classList.remove('ring-2', 'ring-violet-200')
+  }
+  if (url && ai) badge.classList.remove('hidden')
+  else badge.classList.add('hidden')
+  const regen = document.getElementById('hubInstructorRegenerateAiBtn')
+  const hid = document.getElementById('hubInstructorEditId')
+  if (regen) {
+    const inEdit = !!(hid && String(hid.value || '').trim())
+    const showRegen = inEdit && ai && !window.hubInstructorPreviewObjectUrl
+    regen.classList.toggle('hidden', !showRegen)
+  }
+}
+
+function hubSetInstructorGenderRadio(val) {
+  const raw = String(val || '')
+    .trim()
+    .toUpperCase()
+  let v = 'U'
+  if (raw === 'M' || raw === 'MALE' || raw === '남' || raw === '남성') v = 'M'
+  else if (raw === 'F' || raw === 'FEMALE' || raw === '여' || raw === '여성') v = 'F'
+  document.querySelectorAll('input[name="hubInstructorGender"]').forEach((el) => {
+    el.checked = el.value === v
+  })
+}
+
+function hubUpdateInstructorAutoAiRowUi() {
+  const hid = document.getElementById('hubInstructorEditId')
+  const cb = document.getElementById('hubInstructorAutoAiPhoto')
+  const row = document.getElementById('hubInstructorAutoAiRow')
+  if (!cb || !row) return
+  const editing = !!(hid && String(hid.value || '').trim())
+  cb.disabled = editing
+  row.classList.toggle('opacity-60', editing)
+  row.title = editing ? '신규 등록 시에만 선택할 수 있습니다.' : ''
+}
+
+function hubUpdateInstructorFormModeUi() {
+  const hid = document.getElementById('hubInstructorEditId')
+  const label = document.getElementById('hubInstructorModeLabel')
+  const saveBtn = document.getElementById('hubInstructorSaveBtn')
+  const cancelBtn = document.getElementById('hubInstructorEditCancelBtn')
+  const editId = hid && String(hid.value || '').trim()
+  if (label) {
+    label.textContent = editId
+      ? '편집 중 · 강사 ID #' + editId + ' — 내용을 바꾼 뒤 「수정 저장」을 누르세요.'
+      : '신규 등록 — 아래 입력 후 「등록」을 누르세요.'
+  }
+  if (saveBtn) saveBtn.textContent = editId ? '수정 저장' : '등록'
+  if (cancelBtn) cancelBtn.classList.toggle('hidden', !editId)
+  hubUpdateInstructorAutoAiRowUi()
+}
+
+function hubFillInstructorFormFromRow(row) {
+  if (!row) return
+  if (window.hubInstructorPreviewObjectUrl) {
+    URL.revokeObjectURL(window.hubInstructorPreviewObjectUrl)
+    window.hubInstructorPreviewObjectUrl = null
+  }
+  const fileInput0 = document.getElementById('hubInstructorFileInput')
+  if (fileInput0) fileInput0.value = ''
+  const hid = document.getElementById('hubInstructorEditId')
+  const name = document.getElementById('hubInstructorName')
+  const img = document.getElementById('hubInstructorProfileImage')
+  const sp = document.getElementById('hubInstructorSpecialty')
+  const bio = document.getElementById('hubInstructorBio')
+  const ai = document.getElementById('hubInstructorProfileImageAi')
+  if (hid) hid.value = String(row.id)
+  if (name) name.value = row.name || ''
+  if (img) img.value = row.profile_image || ''
+  if (sp) sp.value = row.specialty || ''
+  if (bio) bio.value = row.bio || ''
+  if (ai) ai.value = Number(row.profile_image_ai) === 1 ? '1' : '0'
+  hubSetInstructorGenderRadio(row.gender)
+  hubRefreshInstructorPreview()
+  hubSyncInstructorAiNotice()
+  hubUpdateInstructorFormModeUi()
+}
+
+function hubResetInstructorForm() {
+  const hid = document.getElementById('hubInstructorEditId')
+  const name = document.getElementById('hubInstructorName')
+  const img = document.getElementById('hubInstructorProfileImage')
+  const sp = document.getElementById('hubInstructorSpecialty')
+  const bio = document.getElementById('hubInstructorBio')
+  const ai = document.getElementById('hubInstructorProfileImageAi')
+  const file = document.getElementById('hubInstructorFileInput')
+  if (hid) hid.value = ''
+  if (name) name.value = ''
+  if (img) img.value = ''
+  if (sp) sp.value = ''
+  if (bio) bio.value = ''
+  if (ai) ai.value = '0'
+  if (file) file.value = ''
+  const autoAi = document.getElementById('hubInstructorAutoAiPhoto')
+  if (autoAi) autoAi.checked = true
+  hubSetInstructorGenderRadio('U')
+  if (window.hubInstructorPreviewObjectUrl) {
+    URL.revokeObjectURL(window.hubInstructorPreviewObjectUrl)
+    window.hubInstructorPreviewObjectUrl = null
+  }
+  hubRefreshInstructorPreview()
+  hubSyncInstructorAiNotice()
+  hubUpdateInstructorFormModeUi()
+}
+
+async function loadHubInstructors() {
+  const body = document.getElementById('hubInstructorsTableBody')
+  if (!body) return
+  body.innerHTML =
+    '<tr><td colspan="6" class="p-6 text-center text-slate-500">불러오는 중…</td></tr>'
+  const res = await apiRequest('GET', '/api/admin/instructors')
+  if (!res.success || !Array.isArray(res.data)) {
+    body.innerHTML =
+      '<tr><td colspan="6" class="p-6 text-center text-red-600">강사 목록을 불러오지 못했습니다.</td></tr>'
+    return
+  }
+  hubInstructorsCache = res.data
+  if (!hubInstructorsCache.length) {
+    body.innerHTML =
+      '<tr><td colspan="6" class="p-6 text-center text-slate-500">등록된 강사가 없습니다. 아래 폼에서 추가하세요.</td></tr>'
+    return
+  }
+  body.innerHTML = hubInstructorsCache
+    .map((row) => {
+      const url = row.profile_image ? String(row.profile_image).slice(0, 48) + (String(row.profile_image).length > 48 ? '…' : '') : '—'
+      return (
+        '<tr class="hover:bg-slate-50/80 border-b border-slate-100">' +
+        '<td class="p-3 align-middle">' +
+        hubInstructorThumbCellHtml(row) +
+        '</td>' +
+        '<td class="p-3 align-middle">' +
+        escapeHtml(String(row.id)) +
+        '</td>' +
+        '<td class="p-3 align-middle font-medium">' +
+        escapeHtml(String(row.name || '')) +
+        '</td>' +
+        '<td class="p-3 align-middle text-slate-600">' +
+        escapeHtml(String(row.specialty || '—')) +
+        '</td>' +
+        '<td class="p-3 align-middle text-slate-500 text-xs max-w-[200px] truncate" title="' +
+        escapeAttr(String(row.profile_image || '')) +
+        '">' +
+        escapeHtml(url) +
+        '</td>' +
+        '<td class="p-3 align-middle text-center">' +
+        '<button type="button" class="text-indigo-600 hover:underline font-semibold text-sm hub-instructor-edit" data-id="' +
+        escapeAttr(String(row.id)) +
+        '">편집</button>' +
+        '</td>' +
+        '</tr>'
+      )
+    })
+    .join('')
+  body.querySelectorAll('.hub-instructor-edit').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = parseInt(btn.getAttribute('data-id') || '', 10)
+      const row = hubInstructorsCache.find((r) => r.id === id)
+      if (!row) return
+      hubFillInstructorFormFromRow(row)
+      document.getElementById('hubInstructorFormModeBar')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      showToast('편집 모드입니다. 수정 후 「수정 저장」을 누르세요.', 'success')
+    })
+  })
+}
+
+window.hubOnInstructorProfileUrlInput = function () {
+  if (window.hubInstructorPreviewObjectUrl) {
+    URL.revokeObjectURL(window.hubInstructorPreviewObjectUrl)
+    window.hubInstructorPreviewObjectUrl = null
+  }
+  const fileInput = document.getElementById('hubInstructorFileInput')
+  if (fileInput) fileInput.value = ''
+  const ai = document.getElementById('hubInstructorProfileImageAi')
+  if (ai) ai.value = '0'
+  hubRefreshInstructorPreview()
+  hubSyncInstructorAiNotice()
+}
+
+/** @param {File} file */
+function hubInstructorSetPendingPhotoFile(file) {
+  if (!file) return
+  const t = (file.type || '').toLowerCase()
+  if (!/^image\/(jpeg|jpg|png|gif|webp)$/i.test(t)) {
+    showToast('JPG, PNG, GIF, WebP 이미지만 사용할 수 있습니다.', 'error')
+    return
+  }
+  const maxSize = 5 * 1024 * 1024
+  if (file.size > maxSize) {
+    showToast('파일 크기는 5MB 이하여야 합니다.', 'error')
+    return
+  }
+  const fileInput = document.getElementById('hubInstructorFileInput')
+  if (fileInput) {
+    try {
+      const dt = new DataTransfer()
+      dt.items.add(file)
+      fileInput.files = dt.files
+    } catch (e) {
+      console.warn('[hub] DataTransfer 파일 설정 실패', e)
+    }
+  }
+  if (window.hubInstructorPreviewObjectUrl) {
+    URL.revokeObjectURL(window.hubInstructorPreviewObjectUrl)
+    window.hubInstructorPreviewObjectUrl = null
+  }
+  window.hubInstructorPreviewObjectUrl = URL.createObjectURL(file)
+  const ai = document.getElementById('hubInstructorProfileImageAi')
+  if (ai) ai.value = '0'
+  hubRefreshInstructorPreview()
+  hubSyncInstructorAiNotice()
+  showToast('저장 시 사진이 업로드·반영됩니다.', 'success')
+}
+
+function hubInstructorOnPasteImage(e) {
+  const items = e.clipboardData && e.clipboardData.items
+  if (!items || !items.length) return
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i]
+    if (item.kind === 'file' && item.type && item.type.indexOf('image') === 0) {
+      e.preventDefault()
+      e.stopPropagation()
+      const file = item.getAsFile()
+      if (file) hubInstructorSetPendingPhotoFile(file)
+      return
+    }
+  }
+}
+
+/** 약력(#hubInstructorBio) 제외, 점선 영역은 zone 전용 paste와 중복되지 않게 처리 */
+function hubInstructorPanelPasteMaybeImage(e) {
+  const panel = document.getElementById('panel-instructors')
+  if (!panel || panel.classList.contains('hidden')) return
+  const t = e.target
+  if (t && t.closest && t.closest('#hubInstructorBio')) return
+
+  const items = e.clipboardData && e.clipboardData.items
+  if (!items || !items.length) return
+  let hasImg = false
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i]
+    if (it.kind === 'file' && it.type && it.type.indexOf('image') === 0) {
+      hasImg = true
+      break
+    }
+  }
+  if (!hasImg) return
+
+  if (t && t.id === 'hubInstructorProfileImage') {
+    hubInstructorOnPasteImage(e)
+    return
+  }
+  if (t && t.closest && t.closest('#hubInstructorPhotoDropZone')) return
+
+  hubInstructorOnPasteImage(e)
+}
+
+window.hubOnInstructorPhotoSelected = function (input) {
+  const file = input && input.files && input.files[0]
+  if (!file) return
+  hubInstructorSetPendingPhotoFile(file)
+}
+
+window.hubSaveInstructor = async function () {
+  if (hubInstructorSaveBusy) return
+  hubInstructorSaveBusy = true
+  const hid = document.getElementById('hubInstructorEditId')
+  const name = document.getElementById('hubInstructorName')
+  const img = document.getElementById('hubInstructorProfileImage')
+  const sp = document.getElementById('hubInstructorSpecialty')
+  const bio = document.getElementById('hubInstructorBio')
+  const fileInput = document.getElementById('hubInstructorFileInput')
+  const genderEl = document.querySelector('input[name="hubInstructorGender"]:checked')
+  const gender = genderEl ? genderEl.value : 'U'
+  const editId = hid && hid.value ? parseInt(String(hid.value), 10) : NaN
+  const autoCb = document.getElementById('hubInstructorAutoAiPhoto')
+  const wantAutoAi =
+    !Number.isFinite(editId) && autoCb && !autoCb.disabled && autoCb.checked
+
+  const payload = {
+    name: (name && name.value) || '',
+    profile_image: (img && img.value) || '',
+    specialty: (sp && sp.value) || '',
+    bio: (bio && bio.value) || '',
+    gender,
+  }
+  if (!Number.isFinite(editId)) {
+    payload.auto_generate_profile_image = wantAutoAi
+  }
+  if (!String(payload.name).trim()) {
+    showToast('이름을 입력해 주세요.', 'error')
+    hubInstructorSaveBusy = false
+    return
+  }
+  const savingAsEditId = Number.isFinite(editId) ? editId : null
+  const pendingFile = fileInput && fileInput.files && fileInput.files[0]
+  let res
+
+  if (
+    !Number.isFinite(editId) &&
+    !String(payload.profile_image || '').trim() &&
+    !pendingFile &&
+    wantAutoAi
+  ) {
+    if (gender !== 'M' && gender !== 'F') {
+      showToast('AI 프로필 사진을 쓰려면 성별(남성 또는 여성)을 선택해 주세요.', 'error')
+      hubInstructorSaveBusy = false
+      return
+    }
+  }
+
+  if (editId && Number.isFinite(editId) && pendingFile) {
+    const fd = new FormData()
+    fd.append('name', payload.name)
+    fd.append('bio', payload.bio || '')
+    fd.append('specialty', payload.specialty || '')
+    fd.append('gender', gender)
+    fd.append('profile_image', payload.profile_image || '')
+    fd.append('file', pendingFile)
+    res = await apiRequest('PUT', '/api/admin/instructors/' + editId, fd)
+  } else if (!editId && pendingFile) {
+    const fd = new FormData()
+    fd.append('file', pendingFile)
+    const up = await apiRequest('POST', '/api/upload/image', fd)
+    if (!up.success || !up.data || !up.data.url) {
+      showToast(up.error || '이미지 업로드에 실패했습니다.', 'error')
+      hubInstructorSaveBusy = false
+      return
+    }
+    payload.profile_image = up.data.url
+    res = await apiRequest('POST', '/api/admin/instructors', payload)
+  } else if (editId && Number.isFinite(editId)) {
+    res = await apiRequest('PUT', '/api/admin/instructors/' + editId, payload)
+  } else {
+    res = await apiRequest('POST', '/api/admin/instructors', payload)
+  }
+  try {
+    if (res.success) {
+      const msg = (res.data && res.data.message) || res.message || '저장되었습니다.'
+      showToast(
+        savingAsEditId
+          ? '수정 저장되었습니다.'
+          : res.data && res.data.id
+            ? '등록되었습니다. 아래에서 이어서 편집할 수 있습니다.'
+            : msg,
+        'success',
+      )
+      const warns = res.data && res.data.warnings
+      if (Array.isArray(warns) && warns.length) {
+        warns.forEach((w) => showToast(String(w), 'info'))
+      }
+      invalidateHubCourseFormOptions()
+      if (window.hubInstructorPreviewObjectUrl) {
+        URL.revokeObjectURL(window.hubInstructorPreviewObjectUrl)
+        window.hubInstructorPreviewObjectUrl = null
+      }
+      if (fileInput) fileInput.value = ''
+      await loadHubInstructors()
+      const createdId = res.data && res.data.id != null ? Number(res.data.id) : NaN
+      if (savingAsEditId != null) {
+        const row = hubInstructorsCache.find((r) => r.id === savingAsEditId)
+        if (row) hubFillInstructorFormFromRow(row)
+        else hubResetInstructorForm()
+      } else if (Number.isFinite(createdId)) {
+        const row = hubInstructorsCache.find((r) => r.id === createdId)
+        if (row) {
+          hubFillInstructorFormFromRow(row)
+          document.getElementById('hubInstructorFormModeBar')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+        } else hubResetInstructorForm()
+      } else {
+        hubResetInstructorForm()
+      }
+    } else {
+      showToast(res.error || res.message || '저장 실패', 'error')
+    }
+  } finally {
+    hubInstructorSaveBusy = false
+  }
+}
+
+window.hubRegenerateInstructorAiPhoto = async function () {
+  const hid = document.getElementById('hubInstructorEditId')
+  const id = hid && hid.value ? parseInt(String(hid.value), 10) : NaN
+  if (!Number.isFinite(id)) {
+    showToast('저장된 강사만 사진을 다시 그릴 수 있습니다.', 'error')
+    return
+  }
+  const aiEl = document.getElementById('hubInstructorProfileImageAi')
+  if (!aiEl || aiEl.value !== '1') {
+    showToast('AI로 만든 프로필 사진일 때만 다시 생성할 수 있습니다.', 'error')
+    return
+  }
+  const btn = document.getElementById('hubInstructorRegenerateAiBtn')
+  if (btn) btn.disabled = true
+  try {
+    const gEl = document.querySelector('input[name="hubInstructorGender"]:checked')
+    const g = gEl ? gEl.value : 'U'
+    const res = await apiRequest('POST', '/api/admin/instructors/' + id + '/regenerate-image', { gender: g })
+    if (res.success && res.data && res.data.profile_image) {
+      const img = document.getElementById('hubInstructorProfileImage')
+      const ai = document.getElementById('hubInstructorProfileImageAi')
+      if (img) img.value = res.data.profile_image
+      if (ai) ai.value = '1'
+      const prev = document.getElementById('hubInstructorPreviewImg')
+      if (prev) prev.src = String(res.data.profile_image) + (String(res.data.profile_image).includes('?') ? '&' : '?') + 't=' + Date.now()
+      hubRefreshInstructorPreview()
+      showToast((res.data && res.data.message) || '새 프로필로 다시 그렸습니다.', 'success')
+      invalidateHubCourseFormOptions()
+      await loadHubInstructors()
+    } else {
+      showToast(res.error || res.message || '재생성에 실패했습니다.', 'error')
+    }
+  } finally {
+    if (btn) btn.disabled = false
+  }
 }
 
 function hubSelectOptionsHtml(items, selectedValue, placeholder) {
@@ -96,9 +575,11 @@ function hubDifficultySelectOptions(selected) {
     .join('')
 }
 
-window.hubUploadCourseThumb = async function (input) {
-  const file = input && input.files && input.files[0]
-  if (!file) return
+async function hubUploadCourseThumbFile(file) {
+  if (!file || !file.type || !file.type.startsWith('image/')) {
+    showToast('이미지 파일만 업로드할 수 있습니다.', 'error')
+    return
+  }
   const form = new FormData()
   form.append('file', file)
   try {
@@ -108,34 +589,130 @@ window.hubUploadCourseThumb = async function (input) {
     if (response.ok && parsed && parsed.success && parsed.data && parsed.data.url) {
       window.hubCourseDraft = window.hubCourseDraft || {}
       window.hubCourseDraft.thumbnail_url = parsed.data.url
+      window.hubCourseDraft.thumbnail_image_ai = 0
       const preview = document.getElementById('hubCourseThumbPreview')
       if (preview) preview.src = parsed.data.url
+      hubSyncCourseThumbAiHint()
       showToast('썸네일이 업로드되었습니다.', 'success')
     } else {
       showToast((parsed && (parsed.error || parsed.message)) || '썸네일 업로드 실패', 'error')
     }
   } catch (e) {
     showToast('썸네일 업로드 중 오류가 발생했습니다.', 'error')
-  } finally {
-    input.value = ''
+  }
+}
+
+function hubSyncCourseThumbAiHint() {
+  const hint = document.getElementById('hubCourseThumbAiHint')
+  if (!hint) return
+  const ai = Number(window.hubCourseDraft?.thumbnail_image_ai || 0)
+  if (ai) {
+    hint.textContent = 'AI 생성 썸네일이 적용된 상태입니다. 수동 업로드 시 일반 썸네일로 전환됩니다.'
+    hint.classList.remove('hidden')
+  } else {
+    hint.textContent = ''
+    hint.classList.add('hidden')
+  }
+}
+
+function hubWireCourseThumbnailUi() {
+  const drop = document.getElementById('hubCourseThumbDrop')
+  const fileEl = document.getElementById('hubCourseThumbFile')
+  if (fileEl) {
+    fileEl.onchange = () => {
+      hubUploadCourseThumb(fileEl)
+    }
+  }
+  if (!drop) return
+  drop.addEventListener('dragover', (e) => {
+    e.preventDefault()
+    drop.classList.add('border-indigo-400', 'bg-indigo-50/30')
+  })
+  drop.addEventListener('dragleave', () => {
+    drop.classList.remove('border-indigo-400', 'bg-indigo-50/30')
+  })
+  drop.addEventListener('drop', (e) => {
+    e.preventDefault()
+    drop.classList.remove('border-indigo-400', 'bg-indigo-50/30')
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]
+    if (f) hubUploadCourseThumbFile(f)
+  })
+}
+
+let hubCourseThumbPasteBound = false
+function hubEnsureCourseThumbPasteListener() {
+  if (hubCourseThumbPasteBound) return
+  hubCourseThumbPasteBound = true
+  document.addEventListener('paste', (e) => {
+    const modal = document.getElementById('courseModal')
+    if (!modal || modal.classList.contains('hidden')) return
+    const items = e.clipboardData && e.clipboardData.items
+    if (!items) return
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1) {
+        const f = items[i].getAsFile()
+        if (f) {
+          e.preventDefault()
+          hubUploadCourseThumbFile(f)
+          break
+        }
+      }
+    }
+  })
+}
+
+window.hubUploadCourseThumb = async function (input) {
+  const file = input && input.files && input.files[0]
+  if (!file) return
+  await hubUploadCourseThumbFile(file)
+  if (input) input.value = ''
+}
+
+window.hubRegenerateCourseThumbnailAi = async function () {
+  if (currentCourseId == null) {
+    showToast('강좌를 먼저 저장한 뒤 AI 썸네일을 사용할 수 있습니다.', 'warning')
+    return
+  }
+  const hint = document.getElementById('hubCourseThumbAiHint')
+  if (hint) {
+    hint.textContent = 'AI가 이미지를 생성하는 중입니다…'
+    hint.classList.remove('hidden')
+  }
+  const res = await apiRequest('POST', '/api/admin/courses/' + currentCourseId + '/thumbnail-ai', {})
+  if (hint && !res.success) hint.classList.add('hidden')
+  if (res.success && res.data && res.data.thumbnail_url) {
+    window.hubCourseDraft = window.hubCourseDraft || {}
+    window.hubCourseDraft.thumbnail_url = res.data.thumbnail_url
+    window.hubCourseDraft.thumbnail_image_ai = 1
+    const preview = document.getElementById('hubCourseThumbPreview')
+    if (preview) preview.src = res.data.thumbnail_url
+    hubSyncCourseThumbAiHint()
+    showToast('AI 썸네일이 적용되었습니다. 저장하면 반영됩니다.', 'success')
+  } else {
+    showToast(res.error || 'AI 썸네일 생성에 실패했습니다.', 'error')
   }
 }
 
 function wireCoursePricingInputs() {
-  const free = document.getElementById('hubCourseIsFree')
-  const price = document.getElementById('hubCourseOriginalPrice')
+  const reg = document.getElementById('hubCourseRegularPrice')
   const sale = document.getElementById('hubCourseSalePrice')
-  if (!free || !price || !sale) return
+  const hint = document.getElementById('hubCourseDiscountHint')
+  if (!reg || !sale || !hint) return
   const sync = () => {
-    const on = free.checked
-    price.disabled = on
-    sale.disabled = on
-    if (on) {
-      price.value = '0'
-      sale.value = ''
+    const r = Math.max(0, parseInt(String(reg.value || '0'), 10) || 0)
+    const sRaw = String(sale.value || '').trim()
+    const s = sRaw === '' ? null : Math.max(0, parseInt(sRaw, 10) || 0)
+    if (r > 0 && s != null && s > 0 && s < r) {
+      const pct = Math.round((1 - s / r) * 100)
+      hint.textContent = pct + '% 할인가 적용'
+      hint.classList.remove('hidden')
+    } else {
+      hint.textContent = ''
+      hint.classList.add('hidden')
     }
   }
-  free.addEventListener('change', sync)
+  reg.addEventListener('input', sync)
+  sale.addEventListener('input', sync)
   sync()
 }
 
@@ -151,7 +728,7 @@ function hubCourseDescriptionSectionHtml(textareaBodyEscaped) {
     '<span class="inline-block h-4 w-4 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin shrink-0" aria-hidden="true"></span>' +
     '<span class="animate-pulse">AI가 내용을 구상 중입니다...</span>' +
     '</div></div></div>' +
-    '<p class="text-[11px] text-slate-500 mt-0.5">설명 칸이 비어 있을 때만, 제목 입력 후 포커스를 벗어나면 AI가 초안을 채웁니다. 언제든 직접 수정·삭제할 수 있습니다.</p>'
+    '<p class="text-[11px] text-slate-500 mt-0.5">설명 칸이 비어 있을 때만, 제목을 입력하고 잠시 멈추거나 포커스를 벗어나면 AI가 초안을 채웁니다. 언제든 직접 수정·삭제할 수 있습니다.</p>'
   )
 }
 
@@ -161,7 +738,12 @@ function wireHubCourseTitleAiBlur() {
   const overlay = document.getElementById('hubCourseDescAiOverlay')
   if (!titleEl || !descEl) return
 
-  titleEl.onblur = async function () {
+  if (hubCourseTitleAiTimer) {
+    clearTimeout(hubCourseTitleAiTimer)
+    hubCourseTitleAiTimer = null
+  }
+
+  const runAi = async () => {
     const title = String(titleEl.value || '').trim()
     if (title.length < 2) return
     const descNow = String(descEl.value || '').trim()
@@ -173,7 +755,7 @@ function wireHubCourseTitleAiBlur() {
     descEl.setAttribute('aria-busy', 'true')
 
     try {
-      const res = await apiRequest('POST', '/api/ai/generate-description', { title })
+      const res = await apiRequest('POST', '/api/admin/ai/generate-course-description', { title })
       if (gen !== hubDescAiGen) return
       if (res.success && res.data && typeof res.data.description === 'string') {
         let text = res.data.description.trim()
@@ -198,6 +780,28 @@ function wireHubCourseTitleAiBlur() {
         if (overlay) overlay.classList.add('hidden')
       }
     }
+  }
+
+  const scheduleAi = (immediate) => {
+    if (hubCourseTitleAiTimer) {
+      clearTimeout(hubCourseTitleAiTimer)
+      hubCourseTitleAiTimer = null
+    }
+    if (immediate) {
+      void runAi()
+      return
+    }
+    hubCourseTitleAiTimer = setTimeout(() => {
+      hubCourseTitleAiTimer = null
+      void runAi()
+    }, 650)
+  }
+
+  titleEl.oninput = function () {
+    scheduleAi(false)
+  }
+  titleEl.onblur = function () {
+    scheduleAi(true)
   }
 }
 
@@ -434,6 +1038,88 @@ function applyHashRoute() {
   }
   if (tab === 'isbn') loadIsbnAdmin()
   if (tab === 'certificates') loadCertificatesTable()
+  if (tab === 'offline-meetups') loadHubOfflineMeetups()
+  if (tab === 'instructors') {
+    hubUpdateInstructorFormModeUi()
+    void loadHubInstructors().then(() => hubSyncInstructorAiNotice())
+    const resetBtn = document.getElementById('hubInstructorFormReset')
+    const saveBtn = document.getElementById('hubInstructorSaveBtn')
+    const cancelEditBtn = document.getElementById('hubInstructorEditCancelBtn')
+    const pickBtn = document.getElementById('hubInstructorPhotoPickBtn')
+    const fileIn = document.getElementById('hubInstructorFileInput')
+    const urlIn = document.getElementById('hubInstructorProfileImage')
+    if (resetBtn && !resetBtn.dataset.wired) {
+      resetBtn.dataset.wired = '1'
+      resetBtn.addEventListener('click', () => {
+        hubResetInstructorForm()
+        showToast('신규 등록 폼으로 초기화했습니다.', 'success')
+      })
+    }
+    if (cancelEditBtn && !cancelEditBtn.dataset.wired) {
+      cancelEditBtn.dataset.wired = '1'
+      cancelEditBtn.addEventListener('click', () => {
+        hubResetInstructorForm()
+        showToast('편집을 취소하고 신규 등록 모드로 돌아갔습니다.', 'info')
+      })
+    }
+    if (saveBtn && !saveBtn.dataset.wired) {
+      saveBtn.dataset.wired = '1'
+      saveBtn.addEventListener('click', () => void hubSaveInstructor())
+    }
+    if (pickBtn && fileIn && !pickBtn.dataset.wired) {
+      pickBtn.dataset.wired = '1'
+      pickBtn.addEventListener('click', () => fileIn.click())
+    }
+    if (fileIn && !fileIn.dataset.wired) {
+      fileIn.dataset.wired = '1'
+      fileIn.addEventListener('change', () => void hubOnInstructorPhotoSelected(fileIn))
+    }
+    const photoZone = document.getElementById('hubInstructorPhotoDropZone')
+    if (photoZone && !photoZone.dataset.wiredPasteDrop) {
+      photoZone.dataset.wiredPasteDrop = '1'
+      photoZone.addEventListener('click', (ev) => {
+        if (ev.target.closest('#hubInstructorPhotoPickBtn')) return
+        if (ev.target.closest('#hubInstructorRegenerateAiBtn')) return
+        if (ev.target.closest('#hubInstructorFileInput')) return
+        photoZone.focus()
+      })
+      photoZone.addEventListener('paste', hubInstructorOnPasteImage)
+      photoZone.addEventListener('dragover', (ev) => {
+        ev.preventDefault()
+        ev.dataTransfer.dropEffect = 'copy'
+      })
+      photoZone.addEventListener('dragenter', (ev) => {
+        ev.preventDefault()
+        photoZone.classList.add('ring-2', 'ring-indigo-400', 'border-indigo-300', 'bg-indigo-50/70')
+      })
+      photoZone.addEventListener('dragleave', (ev) => {
+        ev.preventDefault()
+        if (!photoZone.contains(ev.relatedTarget)) {
+          photoZone.classList.remove('ring-2', 'ring-indigo-400', 'border-indigo-300', 'bg-indigo-50/70')
+        }
+      })
+      photoZone.addEventListener('drop', (ev) => {
+        ev.preventDefault()
+        photoZone.classList.remove('ring-2', 'ring-indigo-400', 'border-indigo-300', 'bg-indigo-50/70')
+        const f = ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0]
+        if (f) hubInstructorSetPendingPhotoFile(f)
+      })
+    }
+    const instPanel = document.getElementById('panel-instructors')
+    if (instPanel && !instPanel.dataset.pasteImageWired) {
+      instPanel.dataset.pasteImageWired = '1'
+      instPanel.addEventListener('paste', hubInstructorPanelPasteMaybeImage, true)
+    }
+    if (urlIn && !urlIn.dataset.wired) {
+      urlIn.dataset.wired = '1'
+      urlIn.addEventListener('input', hubOnInstructorProfileUrlInput)
+    }
+    const regenBtn = document.getElementById('hubInstructorRegenerateAiBtn')
+    if (regenBtn && !regenBtn.dataset.wired) {
+      regenBtn.dataset.wired = '1'
+      regenBtn.addEventListener('click', () => void window.hubRegenerateInstructorAiPhoto())
+    }
+  }
   if (tab === 'publishing' && typeof window.loadPublishingQueue === 'function') window.loadPublishingQueue()
 }
 
@@ -2584,7 +3270,7 @@ function hubCatalogLinesDisplayForTable(csv) {
 window.openHubNewCourseModal = async function () {
   hubDescAiGen += 1
   currentCourseId = null
-  window.hubCourseDraft = { thumbnail_url: null, price: 0, sale_price: null, is_free: 1, duration_days: 30, validity_unlimited: 0 }
+  window.hubCourseDraft = { thumbnail_url: null, thumbnail_image_ai: 0, price: 0, sale_price: null, duration_days: 30, validity_unlimited: 0 }
   courseModalLessons = []
   const options = await loadCourseFormOptions()
   const modal = document.getElementById('courseModal')
@@ -2617,18 +3303,17 @@ window.openHubNewCourseModal = async function () {
       <select id="hubCourseDifficulty" class="w-full border rounded px-3 py-2">
         ${hubDifficultySelectOptions('beginner')}
       </select>
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <label class="block text-sm font-medium">정가(원)
-          <input type="number" min="0" step="100" id="hubCourseOriginalPrice" class="mt-1 w-full border rounded px-3 py-2" value="0">
+          <input type="number" min="0" step="100" id="hubCourseRegularPrice" class="mt-1 w-full border rounded px-3 py-2" value="0">
         </label>
         <label class="block text-sm font-medium">판매가(원)
-          <input type="number" min="0" step="100" id="hubCourseSalePrice" class="mt-1 w-full border rounded px-3 py-2" value="">
-        </label>
-        <label class="flex items-end gap-2 text-sm font-medium pb-2">
-          <input type="checkbox" id="hubCourseIsFree" checked class="rounded border-slate-300 text-indigo-600">
-          무료 강좌
+          <input type="number" min="0" step="100" id="hubCourseSalePrice" class="mt-1 w-full border rounded px-3 py-2" value="" placeholder="비우면 정가와 동일">
         </label>
       </div>
+      <p id="hubCourseDiscountHint" class="text-sm font-semibold text-indigo-700 hidden min-h-[1.25rem]"></p>
+      <label class="block text-sm font-medium">비고 (할인 사유 등)</label>
+      <textarea id="hubCoursePriceRemarks" rows="2" class="w-full border rounded px-3 py-2" placeholder="예: 오픈 기념 특별 할인"></textarea>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 items-end">
         <label class="block text-sm font-medium">수강 유효 기간(일)
           <input type="number" min="1" step="1" id="hubCourseDurationDays" class="mt-1 w-full border rounded px-3 py-2" value="30">
@@ -2639,17 +3324,26 @@ window.openHubNewCourseModal = async function () {
         </label>
       </div>
       <label class="block text-sm font-medium">대표 썸네일</label>
-      <img id="hubCourseThumbPreview" src="" alt="" class="w-full max-w-xs h-32 object-cover rounded border border-slate-200 bg-slate-50">
-      <input type="file" accept="image/jpeg,image/jpg,image/png,image/gif,image/webp" onchange="hubUploadCourseThumb(this)" class="w-full text-sm">
+      <p class="text-xs text-slate-500">파일 선택, 드래그·놓기, 화면에서 <kbd class="px-1 bg-slate-100 rounded text-[10px]">Ctrl+V</kbd> 붙여넣기, 또는 AI 생성 (저장 후 재생성 가능)</p>
+      <div id="hubCourseThumbDrop" class="border-2 border-dashed border-slate-300 rounded-lg p-2 bg-slate-50/50 min-h-[8.5rem] flex items-center justify-center">
+        <img id="hubCourseThumbPreview" src="" alt="" class="max-h-32 w-full max-w-xs object-cover rounded border border-slate-200 bg-white">
+      </div>
+      <div class="flex flex-wrap gap-2 items-center">
+        <input type="file" accept="image/jpeg,image/jpg,image/png,image/gif,image/webp" id="hubCourseThumbFile" class="text-sm flex-1 min-w-[12rem]">
+        <button type="button" class="text-sm shrink-0 bg-violet-600 text-white px-3 py-2 rounded-lg hover:bg-violet-700" onclick="hubRegenerateCourseThumbnailAi()">🔄 AI 썸네일 다시 생성</button>
+      </div>
+      <p id="hubCourseThumbAiHint" class="text-xs text-indigo-600 hidden min-h-[1rem]"></p>
       ${hubCourseCatalogLinesHtml('CLASSIC')}
-      <label class="block text-sm font-medium">다음 개강일 (YYYY-MM-DD, 선택)</label>
-      <input type="date" id="hubCourseNextCohort" class="w-full border rounded px-3 py-2" value="">
-      <label class="block text-sm font-medium">일정 안내 (선택, 자유 입력)</label>
-      <textarea id="hubCourseScheduleInfo" rows="2" class="w-full border rounded px-3 py-2" placeholder="예: 매월 1·15일 개강"></textarea>
+      <label class="block text-sm font-medium">오프라인 모임 안내 (선택)</label>
+      <p class="text-xs text-slate-500 -mt-1 mb-1">입력 시 강좌 상세에 「오프라인 모임 신청하기」가 열립니다.</p>
+      <textarea id="hubCourseScheduleInfo" rows="3" class="w-full border rounded px-3 py-2" placeholder="모임 일시·장소·안내 문구를 입력하세요."></textarea>
       <button type="button" onclick="saveCourseBasics()" class="mt-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">등록</button>
     </div>`
   wireHubCourseTitleAiBlur()
   wireCoursePricingInputs()
+  hubWireCourseThumbnailUi()
+  hubEnsureCourseThumbPasteListener()
+  hubSyncCourseThumbAiHint()
   const durationUnlimited = document.getElementById('hubCourseDurationUnlimited')
   const durationDays = document.getElementById('hubCourseDurationDays')
   if (durationUnlimited && durationDays) {
@@ -2711,18 +3405,17 @@ window.openCourseModal = async function (courseId) {
       <select id="hubCourseDifficulty" class="w-full border rounded px-3 py-2">
         ${hubDifficultySelectOptions(cr.difficulty || 'beginner')}
       </select>
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <label class="block text-sm font-medium">정가(원)
-          <input type="number" min="0" step="100" id="hubCourseOriginalPrice" class="mt-1 w-full border rounded px-3 py-2" value="${escapeAttr(String(cr.original_price ?? cr.price ?? 0))}">
+          <input type="number" min="0" step="100" id="hubCourseRegularPrice" class="mt-1 w-full border rounded px-3 py-2" value="${escapeAttr(String(cr.regular_price ?? cr.price ?? 0))}">
         </label>
         <label class="block text-sm font-medium">판매가(원)
-          <input type="number" min="0" step="100" id="hubCourseSalePrice" class="mt-1 w-full border rounded px-3 py-2" value="${escapeAttr(cr.sale_price != null ? String(cr.sale_price) : cr.discount_price != null ? String(cr.discount_price) : '')}">
-        </label>
-        <label class="flex items-end gap-2 text-sm font-medium pb-2">
-          <input type="checkbox" id="hubCourseIsFree" ${Number(cr.is_free || 0) ? 'checked' : ''} class="rounded border-slate-300 text-indigo-600">
-          무료 강좌
+          <input type="number" min="0" step="100" id="hubCourseSalePrice" class="mt-1 w-full border rounded px-3 py-2" value="${escapeAttr(cr.sale_price != null ? String(cr.sale_price) : cr.discount_price != null ? String(cr.discount_price) : '')}" placeholder="비우면 정가와 동일">
         </label>
       </div>
+      <p id="hubCourseDiscountHint" class="text-sm font-semibold text-indigo-700 hidden min-h-[1.25rem]"></p>
+      <label class="block text-sm font-medium">비고 (할인 사유 등)</label>
+      <textarea id="hubCoursePriceRemarks" rows="2" class="w-full border rounded px-3 py-2" placeholder="예: 오픈 기념 특별 할인">${escapeHtml(cr.price_remarks || '')}</textarea>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 items-end">
         <label class="block text-sm font-medium">수강 유효 기간(일)
           <input type="number" min="1" step="1" id="hubCourseDurationDays" class="mt-1 w-full border rounded px-3 py-2" value="${escapeAttr(String(cr.duration_days ?? 30))}">
@@ -2733,17 +3426,27 @@ window.openCourseModal = async function (courseId) {
         </label>
       </div>
       <label class="block text-sm font-medium">대표 썸네일</label>
-      <img id="hubCourseThumbPreview" src="${escapeAttr(cr.thumbnail_url || '')}" alt="" class="w-full max-w-xs h-32 object-cover rounded border border-slate-200 bg-slate-50">
-      <input type="file" accept="image/jpeg,image/jpg,image/png,image/gif,image/webp" onchange="hubUploadCourseThumb(this)" class="w-full text-sm">
+      <p class="text-xs text-slate-500">파일 선택, 드래그·놓기, <kbd class="px-1 bg-slate-100 rounded text-[10px]">Ctrl+V</kbd> 붙여넣기, 또는 AI 재생성</p>
+      <div id="hubCourseThumbDrop" class="border-2 border-dashed border-slate-300 rounded-lg p-2 bg-slate-50/50 min-h-[8.5rem] flex items-center justify-center">
+        <img id="hubCourseThumbPreview" src="${escapeAttr(cr.thumbnail_url || '')}" alt="" class="max-h-32 w-full max-w-xs object-cover rounded border border-slate-200 bg-white">
+      </div>
+      <div class="flex flex-wrap gap-2 items-center">
+        <input type="file" accept="image/jpeg,image/jpg,image/png,image/gif,image/webp" id="hubCourseThumbFile" class="text-sm flex-1 min-w-[12rem]">
+        <button type="button" class="text-sm shrink-0 bg-violet-600 text-white px-3 py-2 rounded-lg hover:bg-violet-700" onclick="hubRegenerateCourseThumbnailAi()">🔄 AI 썸네일 다시 생성</button>
+      </div>
+      <p id="hubCourseThumbAiHint" class="text-xs text-indigo-600 hidden min-h-[1rem]"></p>
       ${hubCourseCatalogLinesHtml(cr.category_group || 'CLASSIC')}
-      <label class="block text-sm font-medium">다음 개강일 (YYYY-MM-DD, 선택)</label>
-      <input type="date" id="hubCourseNextCohort" class="w-full border rounded px-3 py-2" value="${escapeAttr((cr.next_cohort_start_date || '').slice(0, 10))}">
-      <label class="block text-sm font-medium">일정 안내 (선택, 자유 입력)</label>
-      <textarea id="hubCourseScheduleInfo" rows="2" class="w-full border rounded px-3 py-2" placeholder="예: 매월 1·15일 개강">${escapeHtml(cr.schedule_info || '')}</textarea>
+      <label class="block text-sm font-medium">오프라인 모임 안내 (선택)</label>
+      <p class="text-xs text-slate-500 -mt-1 mb-1">입력 시 강좌 상세에 「오프라인 모임 신청하기」가 열립니다.</p>
+      <textarea id="hubCourseScheduleInfo" rows="3" class="w-full border rounded px-3 py-2" placeholder="모임 일시·장소·안내 문구를 입력하세요.">${escapeHtml((cr.offline_info != null && String(cr.offline_info).trim() !== '' ? cr.offline_info : cr.schedule_info) || '')}</textarea>
       <button type="button" onclick="saveCourseBasics()" class="mt-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">저장</button>
     </div>`
   wireHubCourseTitleAiBlur()
   wireCoursePricingInputs()
+  hubWireCourseThumbnailUi()
+  hubEnsureCourseThumbPasteListener()
+  if (window.hubCourseDraft && window.hubCourseDraft.thumbnail_image_ai == null) window.hubCourseDraft.thumbnail_image_ai = 0
+  hubSyncCourseThumbAiHint()
   const durationUnlimited = document.getElementById('hubCourseDurationUnlimited')
   const durationDays = document.getElementById('hubCourseDurationDays')
   if (durationUnlimited && durationDays) {
@@ -2759,16 +3462,62 @@ window.openCourseModal = async function (courseId) {
   setupCourseTabs()
 }
 
+async function loadCourseMeetupPanel(courseId) {
+  const mount = document.getElementById('courseMeetupListMount')
+  if (!mount) return
+  mount.innerHTML = '<p class="text-slate-500">불러오는 중…</p>'
+  const res = await apiRequest('GET', '/api/admin/courses/' + courseId + '/offline-applications')
+  if (!res.success || !Array.isArray(res.data)) {
+    mount.innerHTML = '<p class="text-red-600 text-sm">목록을 불러오지 못했습니다.</p>'
+    return
+  }
+  const rows = res.data
+  if (!rows.length) {
+    mount.innerHTML = '<p class="text-slate-500">아직 신청이 없습니다.</p>'
+    return
+  }
+  mount.innerHTML =
+    '<div class="overflow-x-auto border border-slate-200 rounded-lg max-h-[55vh] overflow-y-auto">' +
+    '<table class="w-full text-sm text-left">' +
+    '<thead class="bg-slate-50 text-slate-600 sticky top-0"><tr>' +
+    '<th class="p-2">접수일시</th><th class="p-2">이름</th><th class="p-2">전화</th><th class="p-2">지역</th><th class="p-2 min-w-[12rem]">신청 동기</th><th class="p-2">회원ID</th>' +
+    '</tr></thead><tbody>' +
+    rows
+      .map((r) => {
+        const dt = escapeHtml(String(r.created_at || ''))
+        const nm = escapeHtml(String(r.applicant_name || ''))
+        const ph = escapeHtml(String(r.phone || ''))
+        const rg = escapeHtml(String(r.region || '—'))
+        const mot = escapeHtml(String(r.motivation || '—'))
+        const uid = r.user_id != null ? escapeHtml(String(r.user_id)) : '—'
+        return (
+          '<tr class="border-t border-slate-100">' +
+          `<td class="p-2 whitespace-nowrap text-xs text-slate-600">${dt}</td>` +
+          `<td class="p-2 font-medium">${nm}</td>` +
+          `<td class="p-2">${ph}</td>` +
+          `<td class="p-2">${rg}</td>` +
+          `<td class="p-2 text-xs text-slate-700">${mot}</td>` +
+          `<td class="p-2 text-xs text-slate-500">${uid}</td>` +
+          '</tr>'
+        )
+      })
+      .join('') +
+    '</tbody></table></div>'
+}
+
 function setupCourseTabs() {
   const t1 = document.getElementById('courseTabInfo')
   const t2 = document.getElementById('courseTabLessons')
   const t3 = document.getElementById('courseTabAdvanced')
+  const t4 = document.getElementById('courseTabMeetup')
   const p1 = document.getElementById('courseTabPanelInfo')
   const p2 = document.getElementById('courseTabPanelLessons')
   const p3 = document.getElementById('courseTabPanelAdvanced')
+  const p4 = document.getElementById('courseTabPanelMeetup')
   const isNew = currentCourseId == null
   if (t2) t2.classList.toggle('hidden', isNew)
   if (t3) t3.classList.toggle('hidden', isNew)
+  if (t4) t4.classList.toggle('hidden', isNew)
   const activate = async (n) => {
     if (n !== 1 && hasUnsavedLessonDrafts()) {
       const ok = confirm('차시·영상 탭의 저장되지 않은 변경사항이 있습니다. 탭을 이동할까요?')
@@ -2794,7 +3543,10 @@ function setupCourseTabs() {
       }
       refreshAdvancedLessonsFrame(currentCourseId)
     }
-    ;[t1, t2, t3].forEach((t, i) => {
+    if (n === 3 && currentCourseId) {
+      await loadCourseMeetupPanel(currentCourseId)
+    }
+    ;[t1, t2, t3, t4].forEach((t, i) => {
       if (!t) return
       const on = i === n
       t.classList.toggle('text-indigo-600', on)
@@ -2806,10 +3558,12 @@ function setupCourseTabs() {
     if (p1) p1.classList.toggle('hidden', n !== 0)
     if (p2) p2.classList.toggle('hidden', n !== 1)
     if (p3) p3.classList.toggle('hidden', n !== 2)
+    if (p4) p4.classList.toggle('hidden', n !== 3)
   }
   if (t1) t1.onclick = () => void activate(0)
   if (t2) t2.onclick = () => void activate(1)
   if (t3) t3.onclick = () => void activate(2)
+  if (t4) t4.onclick = () => void activate(3)
   void activate(0)
 }
 
@@ -2973,15 +3727,14 @@ window.saveCourseBasics = async function () {
   const instructor_id = document.getElementById('hubCourseInstructorId')?.value || null
   const certificate_id = document.getElementById('hubCourseCertificateId')?.value || null
   const linked_certificate_id = certificate_id
-  const original_price = Math.max(0, toIntOr(document.getElementById('hubCourseOriginalPrice')?.value, 0))
+  const regular_price = Math.max(0, toIntOr(document.getElementById('hubCourseRegularPrice')?.value, 0))
   const difficulty = document.getElementById('hubCourseDifficulty')?.value || 'beginner'
   const saleRaw = document.getElementById('hubCourseSalePrice')?.value
   const sale_price = String(saleRaw ?? '').trim() === '' ? null : Math.max(0, toIntOr(saleRaw, 0))
-  const is_free = document.getElementById('hubCourseIsFree')?.checked ? 1 : original_price <= 0 ? 1 : 0
   const validity_unlimited = document.getElementById('hubCourseDurationUnlimited')?.checked ? 1 : 0
   const duration_days = validity_unlimited ? null : Math.max(1, toIntOr(document.getElementById('hubCourseDurationDays')?.value, 30))
-  const next_cohort_start_date = document.getElementById('hubCourseNextCohort')?.value?.trim() || null
-  const schedule_info = (document.getElementById('hubCourseScheduleInfo')?.value ?? '').trim()
+  const meetText = (document.getElementById('hubCourseScheduleInfo')?.value ?? '').trim()
+  const price_remarks = (document.getElementById('hubCoursePriceRemarks')?.value ?? '').trim() || null
 
   if (currentCourseId == null) {
     const res = await apiRequest('POST', '/api/admin/courses', {
@@ -2989,10 +3742,10 @@ window.saveCourseBasics = async function () {
       description,
       status,
       thumbnail_url: thumb,
-      original_price,
-      price: original_price,
+      thumbnail_image_ai: window.hubCourseDraft?.thumbnail_image_ai != null ? Number(window.hubCourseDraft.thumbnail_image_ai) : 0,
+      regular_price,
+      price: regular_price,
       sale_price,
-      is_free,
       instructor_id,
       linked_certificate_id,
       certificate_id,
@@ -3000,8 +3753,9 @@ window.saveCourseBasics = async function () {
       duration_days,
       validity_unlimited,
       category_group,
-      next_cohort_start_date,
-      schedule_info: schedule_info || null,
+      offline_info: meetText || null,
+      schedule_info: meetText || null,
+      price_remarks,
     })
     if (res.success && res.data && res.data.id) {
       showToast('강좌가 등록되었습니다. 차시·영상을 이어서 편집할 수 있습니다.', 'success')
@@ -3016,10 +3770,10 @@ window.saveCourseBasics = async function () {
     description,
     status,
     thumbnail_url: thumb,
-    original_price,
-    price: original_price,
+    thumbnail_image_ai: window.hubCourseDraft?.thumbnail_image_ai != null ? Number(window.hubCourseDraft.thumbnail_image_ai) : 0,
+    regular_price,
+    price: regular_price,
     sale_price,
-    is_free,
     instructor_id,
     linked_certificate_id,
     certificate_id,
@@ -3027,8 +3781,9 @@ window.saveCourseBasics = async function () {
     duration_days,
     validity_unlimited,
     category_group,
-    next_cohort_start_date,
-    schedule_info: schedule_info || null,
+    offline_info: meetText || null,
+    schedule_info: meetText || null,
+    price_remarks,
   })
   if (res.success) {
     const okLessons = await hubSaveAllLessonDrafts(currentCourseId)
@@ -3872,6 +4627,30 @@ async function hubDeleteNotice(id) {
   } else {
     showToast(res.error || '삭제 실패', 'error')
   }
+}
+
+async function loadHubOfflineMeetups() {
+  const tbody = document.getElementById('hubOfflineMeetupsBody')
+  if (!tbody) return
+  tbody.innerHTML =
+    '<tr><td colspan="6" class="p-4 text-slate-500 text-center">불러오는 중…</td></tr>'
+  const res = await apiRequest('GET', '/api/admin/offline-applications')
+  const rows = res.success && Array.isArray(res.data) ? res.data : []
+  tbody.innerHTML = rows.length
+    ? rows
+        .map(
+          (r) => `
+    <tr class="border-t border-slate-100">
+      <td class="p-2 align-top">${escapeHtml(r.course_title || '')}<br><span class="text-xs text-slate-500">#${escapeHtml(String(r.course_id))}</span></td>
+      <td class="p-2 align-top">${escapeHtml(r.name || '')}</td>
+      <td class="p-2 align-top whitespace-nowrap">${escapeHtml(r.phone || '')}</td>
+      <td class="p-2 align-top">${escapeHtml(r.region || '')}</td>
+      <td class="p-2 align-top text-xs max-w-[min(28rem,40vw)] whitespace-pre-wrap">${escapeHtml(r.motivation || '')}</td>
+      <td class="p-2 align-top text-xs text-slate-600 whitespace-nowrap">${formatDateTime(r.created_at)}</td>
+    </tr>`,
+        )
+        .join('')
+    : '<tr><td colspan="6" class="p-4 text-slate-500 text-center">등록된 오프라인 모임 신청이 없습니다.</td></tr>'
 }
 
 async function loadCertificatesTable() {

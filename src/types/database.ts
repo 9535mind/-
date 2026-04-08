@@ -20,6 +20,10 @@ export type Bindings = {
   OPENAI_BASE_URL?: string;
   /** 기본 gpt-4o */
   OPENAI_MODEL?: string;
+  /** 강사 프로필 이미지 생성 — 기본 dall-e-3 */
+  OPENAI_IMAGE_MODEL?: string;
+  /** R2 공개 URL 베이스 (미설정 시 코드 기본값 사용) */
+  R2_PUBLIC_BASE_URL?: string;
   TOSS_SECRET_KEY?: string;  // Toss Payments secret key
   /** PortOne(구 아임포트) — https://admin.portone.io */
   PORTONE_IMP_KEY?: string;
@@ -96,11 +100,25 @@ export interface CreateUserInput {
 export type CategoryGroup = 'CLASSIC' | 'NEXT' | 'NCS' | string
 export type CourseSubtype = 'COUNSELING' | 'CAREER' | 'FAIRY_TALE' | 'TECH'
 
+/** 강좌에 표시되는 강사 프로필 (instructors 테이블) */
+export interface Instructor {
+  id: number;
+  name: string;
+  profile_image?: string | null;
+  /** 1이면 AI(DALL·E 등)로 생성된 임시 프로필 이미지 */
+  profile_image_ai?: number;
+  bio?: string | null;
+  specialty?: string | null;
+  created_at: string;
+}
+
 export interface Course {
   id: number;
   title: string;
   description?: string;
   thumbnail_url?: string;
+  /** 1이면 DALL·E 등 AI로 생성된 대표 이미지 */
+  thumbnail_image_ai?: number;
   course_type: 'general' | 'certificate' | 'test';
   duration_days: number;
   total_lessons: number;
@@ -127,10 +145,25 @@ export interface Course {
   isbn_enabled?: number;
   /** Classic 메인 노출 우선순위(관리자 트렌드 토글) */
   highlight_classic?: number;
-  /** 다음 기수 개강일 (ISO YYYY-MM-DD), 챗봇·안내용 */
-  next_cohort_start_date?: string | null;
-  /** 개강·반복 일정 자유 안내 문구 (DB) */
+  /** 정가(표시·할인율 계산 기준). 미설정 시 price와 동일 취급 */
+  regular_price?: number | null;
+  /** 가격 비고(할인 사유 등) */
+  price_remarks?: string | null;
+  /** 오프라인 모임·지역 안내 자유 문구 (DB) */
   schedule_info?: string | null;
+  /** 오프라인 모임 안내(우선 표시). 비어 있으면 schedule_info 사용 */
+  offline_info?: string | null;
+  /** instructors.id — 강사 프로필 */
+  instructor_id?: number | null;
+  /** 마이그레이션 전 users(id) 담당자 (참고용) */
+  legacy_instructor_user_id?: number | null;
+  instructor_name?: string | null;
+  instructor_profile_image?: string | null;
+  instructor_bio?: string | null;
+  instructor_specialty?: string | null;
+  /** 강사 프로필 이미지가 AI 생성인지 (1=AI) */
+  instructor_profile_image_ai?: number | null;
+  difficulty?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -139,6 +172,8 @@ export interface CreateCourseInput {
   title: string;
   description?: string;
   thumbnail_url?: string;
+  /** 1이면 DALL·E 등 AI로 생성된 대표 이미지 */
+  thumbnail_image_ai?: number;
   course_type?: 'general' | 'certificate' | 'test';
   duration_days?: number;
   completion_progress_rate?: number;

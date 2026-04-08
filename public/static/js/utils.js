@@ -246,13 +246,16 @@ async function apiRequest(method, url, data = null) {
   const options = {
     method,
     credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json'
-    }
+    headers: {}
   }
-  
-  if (data) {
-    options.body = JSON.stringify(data)
+
+  if (data instanceof FormData) {
+    options.body = data
+  } else {
+    options.headers['Content-Type'] = 'application/json'
+    if (data) {
+      options.body = JSON.stringify(data)
+    }
   }
   
   try {

@@ -3,6 +3,8 @@
  */
 
 import { Hono } from 'hono'
+import type { Context } from 'hono'
+import type { D1Database } from '@cloudflare/workers-types'
 import { Bindings, DashboardStats } from '../types/database'
 import { successResponse, errorResponse, hashPassword } from '../utils/helpers'
 import { requireAdmin } from '../middleware/auth'
@@ -10,8 +12,138 @@ import { approveBookSubmission } from '../services/publishPipeline'
 import { ean13Svg } from '../utils/ean13-svg'
 import { buildPublishingReportHtml } from '../utils/publish-helper'
 import { normalizeCategoryGroupInput } from '../utils/catalog-lines'
+import { generateAdminCourseDescription } from '../utils/course-description-ai'
+import { deriveCoursePricing } from '../utils/course-pricing'
+import { generateCourseThumbnailAi, normalizeThumbnailUrlInput } from '../utils/course-thumbnail-ai'
+import adminInstructors from './admin-instructors'
+
+/** PUT/POST JSON — 잘못된 JSON·빈 본문 시 500 방지 */
+async function readJsonBody(c: Context): Promise<Record<string, unknown>> {
+  const raw = await c.req.text()
+  if (!raw || !raw.trim()) return {}
+  try {
+    return JSON.parse(raw) as Record<string, unknown>
+  } catch {
+    throw new Error('INVALID_JSON_BODY')
+  }
+}
 
 const admin = new Hono<{ Bindings: Bindings }>()
+
+const DIFFICULTY_ALLOWED = ['intro', 'beginner', 'intermediate', 'advanced'] as const
+
+function normalizeCourseDifficulty(raw: unknown, fallback: string | null | undefined): string {
+  const allowed = DIFFICULTY_ALLOWED as readonly string[]
+  const v = raw != null && String(raw).trim() !== '' ? String(raw).trim() : ''
+  if (v && allowed.includes(v)) return v
+  const fb = fallback != null && String(fallback).trim() !== '' ? String(fallback).trim() : 'beginner'
+  return allowed.includes(fb) ? fb : 'beginner'
+}
+
+/** instructors 테이블이 없으면 검증 생략(레거시 DB), id 없으면 not_found */
+async function assertInstructorExistsOrSkip(
+  DB: D1Database,
+  instructorId: number | null,
+): Promise<'ok' | 'not_found'> {
+  if (instructorId == null) return 'ok'
+  try {
+    const row = await DB.prepare(`SELECT id FROM instructors WHERE id = ?`).bind(instructorId).first<{ id: number }>()
+    return row ? 'ok' : 'not_found'
+  } catch (e) {
+    const m = String(e instanceof Error ? e.message : e)
+    if (/no such table/i.test(m) && /instructors/i.test(m)) return 'ok'
+    throw e
+  }
+}
+
+/** 운영 D1에 일부 courses 컬럼 마이그레이션이 아직 없을 때 INSERT 재시도 */
+function extractSqliteMissingColumnName(err: unknown): string | null {
+  const m = String(err instanceof Error ? err.message : err)
+  const r = m.match(/no such column[:\s]+(?:[a-zA-Z0-9_]+\.)?([a-zA-Z0-9_]+)/i)
+  return r?.[1] ?? null
+}
+
+async function insertCourseRowWithOptionalColumnFallback(
+  DB: D1Database,
+  params: {
+    title: string
+    descriptionText: string
+    thumbForInsert: string | null
+    instructorId: number | null
+    status: string
+    regular_price: number
+    sale_price: number | null
+    discount_price: number | null
+    is_free: number
+    certificateId: number | null
+    durationDays: number
+    validityUnlimited: number
+    categoryGroup: string
+    scheduleInfo: string | null
+    difficulty: string
+    priceRemarks: string | null
+  },
+): Promise<{ meta: { last_row_id?: number | bigint | null } }> {
+  const columnOrder = [
+    'title',
+    'description',
+    'thumbnail_url',
+    'instructor_id',
+    'status',
+    'price',
+    'sale_price',
+    'discount_price',
+    'is_free',
+    'certificate_id',
+    'duration_days',
+    'validity_unlimited',
+    'category_group',
+    'schedule_info',
+    'offline_info',
+    'difficulty',
+    'regular_price',
+    'price_remarks',
+  ] as const
+  const bindRow = [
+    params.title,
+    params.descriptionText,
+    params.thumbForInsert,
+    params.instructorId,
+    params.status,
+    params.regular_price,
+    params.sale_price,
+    params.discount_price,
+    params.is_free,
+    params.certificateId,
+    params.durationDays,
+    params.validityUnlimited,
+    params.categoryGroup,
+    params.scheduleInfo,
+    params.scheduleInfo,
+    params.difficulty,
+    params.regular_price,
+    params.priceRemarks,
+  ]
+  let cols = [...columnOrder]
+  let binds = [...bindRow]
+  const maxStrips = 24
+  for (let attempt = 0; attempt < maxStrips; attempt++) {
+    const placeholders = cols.map(() => '?').join(', ')
+    const sql = `INSERT INTO courses (${cols.join(', ')}, created_at, updated_at) VALUES (${placeholders}, datetime('now'), datetime('now'))`
+    try {
+      return await DB.prepare(sql).bind(...binds).run()
+    } catch (e) {
+      const missing = extractSqliteMissingColumnName(e)
+      if (!missing) throw e
+      const idx = cols.indexOf(missing as (typeof columnOrder)[number])
+      if (idx === -1) throw e
+      cols = cols.filter((_, i) => i !== idx)
+      binds = binds.filter((_, i) => i !== idx)
+      if (cols.length < 5) throw e
+    }
+  }
+  throw new Error('COURSE_INSERT_FALLBACK_EXHAUSTED')
+}
 
 function generateTemporaryPassword(length: number = 14): string {
   const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
@@ -805,18 +937,20 @@ admin.get('/certificates', requireAdmin, async (c) => {
 admin.get('/course-form-options', requireAdmin, async (c) => {
   const { DB } = c.env
   try {
-    let instructors: Array<{ id: number; name: string; email: string }> = []
+    let instructors: Array<{ id: number; name: string }> = []
     let certificate_types: Array<{ id: number; name: string }> = []
 
     try {
       const inst = await DB.prepare(`
-        SELECT id, COALESCE(NULLIF(TRIM(name), ''), email) AS name, email
-        FROM users
-        WHERE role = 'instructor' AND deleted_at IS NULL
-        ORDER BY id DESC
-        LIMIT 200
-      `).all<{ id: number; name: string; email: string }>()
-      instructors = inst.results ?? []
+        SELECT id, name, profile_image, specialty
+        FROM instructors
+        ORDER BY name ASC
+        LIMIT 500
+      `).all<{ id: number; name: string; profile_image: string | null; specialty: string | null }>()
+      instructors = (inst.results ?? []).map((row) => ({
+        id: row.id,
+        name: row.specialty ? `${row.name} (${row.specialty})` : row.name,
+      }))
     } catch (e) {
       console.warn('[admin/course-form-options] instructors load fail:', e)
     }
@@ -839,6 +973,34 @@ admin.get('/course-form-options', requireAdmin, async (c) => {
   } catch (error) {
     console.error('Get course form options error:', error)
     return c.json(errorResponse('강좌 옵션 조회 실패'), 500)
+  }
+})
+
+/** POST /api/admin/ai/generate-course-description — 제목 기반 강좌 홍보 설명(한국어, 약 250자) */
+admin.post('/ai/generate-course-description', requireAdmin, async (c) => {
+  try {
+    const body = await c.req.json<{ title?: string }>()
+    const title = String(body.title ?? '').trim()
+    if (!title) {
+      return c.json(errorResponse('강좌 제목을 입력해 주세요.'), 400)
+    }
+    const description = await generateAdminCourseDescription(c.env, title)
+    return c.json(successResponse({ description }, 'AI 설명이 생성되었습니다.'))
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    if (msg === 'NO_AI_KEY') {
+      return c.json(
+        errorResponse(
+          'AI 키가 설정되지 않았습니다. Cloudflare에 GEMINI_API_KEY 또는 OPENAI_API_KEY를 설정해 주세요.',
+        ),
+        503,
+      )
+    }
+    if (msg === 'EMPTY_TITLE') {
+      return c.json(errorResponse('강좌 제목을 입력해 주세요.'), 400)
+    }
+    console.error('[admin/ai/generate-course-description]', e)
+    return c.json(errorResponse('설명 생성에 실패했습니다.'), 502)
   }
 })
 
@@ -989,38 +1151,40 @@ admin.post('/courses', requireAdmin, async (c) => {
   const { DB } = c.env
 
   try {
-    const body = await c.req.json()
+    const body = await readJsonBody(c)
     const {
       title,
       description,
       thumbnail_url,
       status = 'draft',
-      price: rawPrice,
+      regular_price: rawRegular,
+      price: rawPriceAlias,
       sale_price: rawSalePrice,
-      is_free: rawIsFree,
       instructor_id: rawInstructorId,
       certificate_id: rawCertificateId,
       duration_days: rawDurationDays,
       validity_unlimited: rawValidityUnlimited,
       category_group: rawCg,
-      next_cohort_start_date: rawDate,
+      offline_info: rawOfflineInfo,
       schedule_info: rawScheduleInfo,
+      price_remarks: rawPriceRemarks,
       difficulty: rawDifficulty,
     } = body as {
       title?: string
       description?: string | null
       thumbnail_url?: string | null
       status?: string
+      regular_price?: number | string | null
       price?: number | string | null
       sale_price?: number | string | null
-      is_free?: number | boolean | null
       instructor_id?: number | string | null
       certificate_id?: number | string | null
       duration_days?: number | string | null
       validity_unlimited?: number | boolean | null
       category_group?: string | null
-      next_cohort_start_date?: string | null
+      offline_info?: string | null
       schedule_info?: string | null
+      price_remarks?: string | null
       difficulty?: string | null
     }
 
@@ -1029,180 +1193,509 @@ admin.post('/courses', requireAdmin, async (c) => {
       return c.json(errorResponse('필수 항목을 입력해주세요'), 400)
     }
     const descriptionText = description != null ? String(description) : ''
-    const difficultyAllowed = ['beginner', 'intermediate', 'advanced'] as const
-    const difficulty =
-      rawDifficulty != null &&
-      String(rawDifficulty).trim() !== '' &&
-      difficultyAllowed.includes(String(rawDifficulty).trim() as (typeof difficultyAllowed)[number])
-        ? String(rawDifficulty).trim()
-        : 'beginner'
+    const difficulty = normalizeCourseDifficulty(rawDifficulty, 'beginner')
 
     let categoryGroup = 'CLASSIC'
     if (rawCg !== undefined && rawCg !== null && String(rawCg).trim() !== '') {
       categoryGroup = normalizeCategoryGroupInput(rawCg)
     }
 
-    const nextCohort =
-      rawDate !== undefined && rawDate !== null && String(rawDate).trim() !== ''
-        ? String(rawDate).trim().slice(0, 32)
-        : null
-    if (nextCohort && !/^\d{4}-\d{2}-\d{2}$/.test(nextCohort)) {
-      return c.json(errorResponse('next_cohort_start_date는 YYYY-MM-DD 형식이어야 합니다'), 400)
-    }
+    const meetSource =
+      rawOfflineInfo !== undefined && rawOfflineInfo !== null && String(rawOfflineInfo).trim() !== ''
+        ? rawOfflineInfo
+        : rawScheduleInfo
     const scheduleInfo =
-      rawScheduleInfo !== undefined && rawScheduleInfo !== null && String(rawScheduleInfo).trim() !== ''
-        ? String(rawScheduleInfo).trim().slice(0, 2000)
+      meetSource !== undefined && meetSource !== null && String(meetSource).trim() !== ''
+        ? String(meetSource).trim().slice(0, 2000)
         : null
 
-    const price = Math.max(0, parseInt(String(rawPrice ?? '0'), 10) || 0)
-    const salePrice =
-      rawSalePrice === undefined || rawSalePrice === null || String(rawSalePrice).trim() === ''
-        ? null
-        : Math.max(0, parseInt(String(rawSalePrice), 10) || 0)
-    const isFree = rawIsFree != null ? (Number(rawIsFree) ? 1 : 0) : price <= 0 ? 1 : 0
+    const priceRemarks =
+      rawPriceRemarks !== undefined && rawPriceRemarks !== null && String(rawPriceRemarks).trim() !== ''
+        ? String(rawPriceRemarks).trim().slice(0, 2000)
+        : null
+
+    const regularSource =
+      rawRegular !== undefined && rawRegular !== null && String(rawRegular).trim() !== ''
+        ? rawRegular
+        : rawPriceAlias
+    const { regular_price, sale_price, discount_price, is_free } = deriveCoursePricing(regularSource, rawSalePrice)
     const validityUnlimited = Number(rawValidityUnlimited) ? 1 : 0
     const durationDays = validityUnlimited ? 0 : Math.max(0, parseInt(String(rawDurationDays ?? '30'), 10) || 30)
 
-    // 기본값: 현재 로그인 관리자
-    const session = c.get('session')
     const instructorId =
       rawInstructorId !== undefined && rawInstructorId !== null && String(rawInstructorId).trim() !== ''
         ? parseInt(String(rawInstructorId), 10) || null
-        : session?.user_id || null
+        : null
     const certificateId =
       rawCertificateId !== undefined && rawCertificateId !== null && String(rawCertificateId).trim() !== ''
         ? parseInt(String(rawCertificateId), 10) || null
         : null
 
-    const result = await DB.prepare(`
-      INSERT INTO courses (
-        title, description, thumbnail_url, instructor_id, status,
-        price, sale_price, discount_price, is_free, certificate_id, duration_days, validity_unlimited,
-        category_group,
-        next_cohort_start_date, schedule_info,
-        difficulty,
-        created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-    `).bind(
-      title,
+    const insCheck = await assertInstructorExistsOrSkip(DB, instructorId)
+    if (insCheck === 'not_found') {
+      return c.json(
+        errorResponse('선택한 강사를 찾을 수 없습니다. 강사 목록을 새로고침한 뒤 다시 선택해 주세요.'),
+        400,
+      )
+    }
+
+    let thumbForInsert: string | null
+    try {
+      thumbForInsert = normalizeThumbnailUrlInput(thumbnail_url, null)
+    } catch {
+      return c.json(errorResponse('썸네일 URL이 너무 깁니다. 이미지를 업로드해 주세요.'), 400)
+    }
+
+    const result = await insertCourseRowWithOptionalColumnFallback(DB, {
+      title: String(title),
       descriptionText,
-      thumbnail_url || null,
+      thumbForInsert,
       instructorId,
-      status,
-      price,
-      salePrice,
-      salePrice,
-      isFree,
+      status: String(status),
+      regular_price,
+      sale_price,
+      discount_price,
+      is_free,
       certificateId,
       durationDays,
       validityUnlimited,
       categoryGroup,
-      nextCohort,
       scheduleInfo,
-      difficulty
-    ).run()
+      difficulty,
+      priceRemarks,
+    })
+
+    const newId = Number(result.meta.last_row_id ?? 0)
+
+    if (!String(thumbForInsert || '').trim()) {
+      let certName: string | null = null
+      if (certificateId) {
+        try {
+          const ct = await DB.prepare(`SELECT name FROM certification_types WHERE id = ?`)
+            .bind(certificateId)
+            .first<{ name: string }>()
+          certName = ct?.name ?? null
+        } catch {
+          /* certification_types 없음 */
+        }
+      }
+      const gen = await generateCourseThumbnailAi(c.env, {
+        title: String(title),
+        certificateName: certName,
+        description: descriptionText,
+        scheduleInfo,
+      })
+      if (gen.ok) {
+        try {
+          await DB.prepare(
+            `UPDATE courses SET thumbnail_url = ?, thumbnail_image_ai = 1, updated_at = datetime('now') WHERE id = ?`,
+          )
+            .bind(gen.url, newId)
+            .run()
+        } catch (e) {
+          const m = String(e instanceof Error ? e.message : e)
+          if (!/no such column.*thumbnail_image_ai/i.test(m)) throw e
+          await DB.prepare(`UPDATE courses SET thumbnail_url = ?, updated_at = datetime('now') WHERE id = ?`)
+            .bind(gen.url, newId)
+            .run()
+        }
+      }
+    }
 
     return c.json(successResponse({
-      id: result.meta.last_row_id,
+      id: newId,
       message: '강좌가 등록되었습니다'
     }))
   } catch (error) {
+    if (error instanceof Error && error.message === 'INVALID_JSON_BODY') {
+      return c.json(errorResponse('요청 본문이 올바른 JSON이 아닙니다.'), 400)
+    }
+    if (error instanceof Error && error.message === 'THUMBNAIL_URL_TOO_LARGE') {
+      return c.json(errorResponse('썸네일 URL이 너무 깁니다. 이미지를 업로드해 주세요.'), 400)
+    }
     console.error('Create course error:', error)
     return c.json(errorResponse('강좌 등록 실패: ' + (error as Error).message), 500)
   }
 })
 
-// 강좌 수정
+/** 전체 오프라인 모임 신청 (관리자) — 강좌명 포함 */
+admin.get('/offline-applications', requireAdmin, async (c) => {
+  const { DB } = c.env
+  try {
+    const rows = await DB.prepare(
+      `SELECT o.id, o.course_id,
+              COALESCE(c.title, '(삭제된 강좌)') AS course_title,
+              o.applicant_name AS name, o.phone, o.region, o.motivation, o.created_at
+       FROM offline_applications o
+       LEFT JOIN courses c ON c.id = o.course_id
+       ORDER BY datetime(o.created_at) DESC
+       LIMIT 3000`,
+    ).all<{
+      id: number
+      course_id: number
+      course_title: string
+      name: string
+      phone: string
+      region: string | null
+      motivation: string | null
+      created_at: string
+    }>()
+    return c.json(successResponse(rows.results || []))
+  } catch (e) {
+    const m = String(e instanceof Error ? e.message : e)
+    if (/no such table/i.test(m)) {
+      return c.json(successResponse([]))
+    }
+    console.error('[admin] offline-applications (all):', e)
+    return c.json(errorResponse('오프라인 신청 목록 조회 실패'), 500)
+  }
+})
+
+/** 오프라인 모임 신청 집계 (관리자) — offline_applications, 레거시 테이블 폴백 */
+async function adminOfflineApplicationsRows(DB: D1Database, courseId: string) {
+  const sql = `SELECT id, course_id, user_id, applicant_name, phone, region, motivation, created_at
+       FROM offline_applications WHERE course_id = ? ORDER BY datetime(created_at) DESC`
+  try {
+    return await DB.prepare(sql).bind(courseId).all<{
+      id: number
+      course_id: number
+      user_id: number | null
+      applicant_name: string
+      phone: string
+      region: string | null
+      motivation: string | null
+      created_at: string
+    }>()
+  } catch (e) {
+    const m = String(e instanceof Error ? e.message : e)
+    if (!/no such table/i.test(m)) throw e
+    return await DB.prepare(
+      `SELECT id, course_id, user_id, applicant_name, phone, region, motivation, created_at
+       FROM course_meetup_registrations WHERE course_id = ? ORDER BY datetime(created_at) DESC`,
+    )
+      .bind(courseId)
+      .all<{
+        id: number
+        course_id: number
+        user_id: number | null
+        applicant_name: string
+        phone: string
+        region: string | null
+        motivation: string | null
+        created_at: string
+      }>()
+  }
+}
+
+admin.get('/courses/:id/offline-applications', requireAdmin, async (c) => {
+  const { DB } = c.env
+  const courseId = c.req.param('id')
+  try {
+    const rows = await adminOfflineApplicationsRows(DB, courseId)
+    return c.json(successResponse(rows.results || []))
+  } catch (e) {
+    const m = String(e instanceof Error ? e.message : e)
+    if (/no such table/i.test(m)) {
+      return c.json(errorResponse('오프라인 신청 테이블이 없습니다. 마이그레이션 0052를 적용해 주세요.'), 503)
+    }
+    console.error('[admin] offline-applications:', e)
+    return c.json(errorResponse('명단 조회 실패'), 500)
+  }
+})
+
+admin.get('/courses/:id/meetup-registrations', requireAdmin, async (c) => {
+  const { DB } = c.env
+  const courseId = c.req.param('id')
+  try {
+    const rows = await adminOfflineApplicationsRows(DB, courseId)
+    return c.json(successResponse(rows.results || []))
+  } catch (e) {
+    const m = String(e instanceof Error ? e.message : e)
+    if (/no such table/i.test(m)) {
+      return c.json(errorResponse('모임 신청 테이블이 없습니다. 마이그레이션을 적용해 주세요.'), 503)
+    }
+    console.error('[admin] meetup-registrations:', e)
+    return c.json(errorResponse('명단 조회 실패'), 500)
+  }
+})
+
+/** DALL·E 강좌 썸네일 재생성 (관리자) */
+admin.post('/courses/:id/thumbnail-ai', requireAdmin, async (c) => {
+  const { DB } = c.env
+  const courseId = c.req.param('id')
+  try {
+    const row = await DB.prepare(
+      `SELECT id, title, description, schedule_info, certificate_id FROM courses WHERE id = ?`,
+    )
+      .bind(courseId)
+      .first<{
+        id: number
+        title: string
+        description: string | null
+        schedule_info: string | null
+        certificate_id: number | null
+      }>()
+    if (!row) {
+      return c.json(errorResponse('강좌를 찾을 수 없습니다'), 404)
+    }
+    let certName: string | null = null
+    if (row.certificate_id) {
+      try {
+        const ct = await DB.prepare(`SELECT name FROM certification_types WHERE id = ?`)
+          .bind(row.certificate_id)
+          .first<{ name: string }>()
+        certName = ct?.name ?? null
+      } catch {
+        /* */
+      }
+    }
+    const gen = await generateCourseThumbnailAi(c.env, {
+      title: row.title,
+      certificateName: certName,
+      description: row.description,
+      scheduleInfo: row.schedule_info,
+    })
+    if (!gen.ok) {
+      const msg =
+        gen.reason === 'NO_API_KEY'
+          ? 'OpenAI API 키가 설정되지 않았습니다.'
+          : gen.reason === 'NO_R2'
+            ? 'R2 저장소가 설정되지 않았습니다.'
+            : gen.detail || '이미지 생성에 실패했습니다.'
+      return c.json(errorResponse(msg), gen.reason === 'OPENAI_ERROR' ? 502 : 503)
+    }
+    try {
+      await DB.prepare(
+        `UPDATE courses SET thumbnail_url = ?, thumbnail_image_ai = 1, updated_at = datetime('now') WHERE id = ?`,
+      )
+        .bind(gen.url, courseId)
+        .run()
+    } catch (e) {
+      const m = String(e instanceof Error ? e.message : e)
+      if (!/no such column.*thumbnail_image_ai/i.test(m)) throw e
+      await DB.prepare(`UPDATE courses SET thumbnail_url = ?, updated_at = datetime('now') WHERE id = ?`)
+        .bind(gen.url, courseId)
+        .run()
+    }
+    return c.json(successResponse({ thumbnail_url: gen.url, thumbnail_image_ai: 1 }))
+  } catch (e) {
+    console.error('[admin] thumbnail-ai:', e)
+    return c.json(errorResponse('썸네일 생성에 실패했습니다.'), 500)
+  }
+})
+
+// 강좌 수정 (부분 JSON·undefined 바인딩 방지: 기존 행과 병합)
 admin.put('/courses/:id', requireAdmin, async (c) => {
   const { DB } = c.env
   const courseId = c.req.param('id')
 
   try {
-    const body = await c.req.json()
-    const {
-      title,
-      description,
-      thumbnail_url,
-      status,
-      price: rawPrice,
-      sale_price: rawSalePrice,
-      is_free: rawIsFree,
-      instructor_id: rawInstructorId,
-      certificate_id: rawCertificateId,
-      duration_days: rawDurationDays,
-      validity_unlimited: rawValidityUnlimited,
-      category_group: rawCg,
-      next_cohort_start_date: rawDate,
-      schedule_info: rawScheduleInfo,
-      difficulty: rawDifficulty,
-    } = body as {
-      title?: string
-      description?: string | null
-      thumbnail_url?: string | null
-      status?: string
-      price?: number | string | null
-      sale_price?: number | string | null
-      is_free?: number | boolean | null
-      instructor_id?: number | string | null
-      certificate_id?: number | string | null
-      duration_days?: number | string | null
-      validity_unlimited?: number | boolean | null
-      category_group?: string | null
-      next_cohort_start_date?: string | null
-      schedule_info?: string | null
-      difficulty?: string | null
+    const body = await readJsonBody(c)
+
+    type CoursePutRow = {
+      title: string
+      description: string | null
+      thumbnail_url: string | null
+      status: string | null
+      price: number | null
+      sale_price: number | null
+      is_free: number | null
+      instructor_id: number | null
+      certificate_id: number | null
+      duration_days: number | null
+      validity_unlimited: number | null
+      category_group: string | null
+      schedule_info: string | null
+      offline_info: string | null
+      difficulty: string | null
+      regular_price: number | null
+      price_remarks: string | null
+      thumbnail_image_ai: number | null
     }
 
-    // 필수 필드 검증 (설명은 빈 값 허용)
+    const sqlPutBase = `SELECT title, description, thumbnail_url, status, price, sale_price, is_free,
+              instructor_id, certificate_id, duration_days, validity_unlimited,
+              category_group, schedule_info, difficulty,
+              COALESCE(regular_price, price) AS regular_price, price_remarks`
+
+    let existing: CoursePutRow | null
+    try {
+      existing = await DB.prepare(
+        `${sqlPutBase}, offline_info, COALESCE(thumbnail_image_ai, 0) AS thumbnail_image_ai
+       FROM courses WHERE id = ?`,
+      )
+        .bind(courseId)
+        .first<CoursePutRow>()
+    } catch (e) {
+      const m = String(e instanceof Error ? e.message : e)
+      if (/no such column.*offline_info/i.test(m)) {
+        try {
+          existing = await DB.prepare(
+            `${sqlPutBase}, COALESCE(thumbnail_image_ai, 0) AS thumbnail_image_ai
+       FROM courses WHERE id = ?`,
+          )
+            .bind(courseId)
+            .first<CoursePutRow>()
+          if (existing) existing = { ...existing, offline_info: null }
+        } catch (e2) {
+          const m2 = String(e2 instanceof Error ? e2.message : e2)
+          if (!/no such column.*thumbnail_image_ai/i.test(m2)) throw e2
+          const legacy = await DB.prepare(`${sqlPutBase} FROM courses WHERE id = ?`)
+            .bind(courseId)
+            .first<Omit<CoursePutRow, 'thumbnail_image_ai' | 'offline_info'>>()
+          existing = legacy ? { ...legacy, thumbnail_image_ai: 0, offline_info: null } : null
+        }
+      } else if (/no such column.*thumbnail_image_ai/i.test(m)) {
+        try {
+          const row = await DB.prepare(`${sqlPutBase}, offline_info FROM courses WHERE id = ?`)
+            .bind(courseId)
+            .first<Omit<CoursePutRow, 'thumbnail_image_ai'>>()
+          existing = row ? { ...row, thumbnail_image_ai: 0 } : null
+        } catch (e3) {
+          const m3 = String(e3 instanceof Error ? e3.message : e3)
+          if (!/no such column.*offline_info/i.test(m3)) throw e3
+          const legacy = await DB.prepare(`${sqlPutBase} FROM courses WHERE id = ?`)
+            .bind(courseId)
+            .first<Omit<CoursePutRow, 'offline_info' | 'thumbnail_image_ai'>>()
+          existing = legacy ? { ...legacy, offline_info: null, thumbnail_image_ai: 0 } : null
+        }
+      } else {
+        throw e
+      }
+    }
+
+    if (!existing) {
+      return c.json(errorResponse('강좌를 찾을 수 없습니다'), 404)
+    }
+
+    const title =
+      'title' in body && body.title != null && String(body.title).trim() !== ''
+        ? String(body.title).trim()
+        : existing.title
     if (!title || String(title).trim() === '') {
       return c.json(errorResponse('필수 항목을 입력해주세요'), 400)
     }
-    const descriptionText = description != null ? String(description) : ''
-    const difficultyAllowedPut = ['beginner', 'intermediate', 'advanced'] as const
-    const difficulty =
-      rawDifficulty != null &&
-      String(rawDifficulty).trim() !== '' &&
-      difficultyAllowedPut.includes(String(rawDifficulty).trim() as (typeof difficultyAllowedPut)[number])
-        ? String(rawDifficulty).trim()
-        : 'beginner'
 
-    let categoryGroup: string | null = null
-    if (rawCg !== undefined && rawCg !== null && String(rawCg).trim() !== '') {
-      categoryGroup = normalizeCategoryGroupInput(rawCg)
+    const descriptionText =
+      'description' in body
+        ? body.description != null
+          ? String(body.description)
+          : ''
+        : (existing.description ?? '')
+
+    let thumbnailUrl: string | null
+    try {
+      thumbnailUrl = normalizeThumbnailUrlInput('thumbnail_url' in body ? body.thumbnail_url : undefined, existing.thumbnail_url)
+    } catch {
+      return c.json(errorResponse('썸네일 URL이 너무 깁니다. 이미지를 업로드해 주세요.'), 400)
     }
 
-    const nextCohort =
-      rawDate !== undefined && rawDate !== null && String(rawDate).trim() !== ''
-        ? String(rawDate).trim().slice(0, 32)
-        : null
-    if (nextCohort && !/^\d{4}-\d{2}-\d{2}$/.test(nextCohort)) {
-      return c.json(errorResponse('next_cohort_start_date는 YYYY-MM-DD 형식이어야 합니다'), 400)
-    }
-    const scheduleInfo =
-      rawScheduleInfo !== undefined && rawScheduleInfo !== null && String(rawScheduleInfo).trim() !== ''
-        ? String(rawScheduleInfo).trim().slice(0, 2000)
-        : null
+    const thumbAiFlag =
+      'thumbnail_image_ai' in body && body.thumbnail_image_ai !== undefined
+        ? Number(body.thumbnail_image_ai)
+          ? 1
+          : 0
+        : Number(existing.thumbnail_image_ai ?? 0)
+          ? 1
+          : 0
 
-    const price = Math.max(0, parseInt(String(rawPrice ?? '0'), 10) || 0)
-    const salePrice =
-      rawSalePrice === undefined || rawSalePrice === null || String(rawSalePrice).trim() === ''
-        ? null
-        : Math.max(0, parseInt(String(rawSalePrice), 10) || 0)
-    const isFree = rawIsFree != null ? (Number(rawIsFree) ? 1 : 0) : price <= 0 ? 1 : 0
-    const validityUnlimited = Number(rawValidityUnlimited) ? 1 : 0
-    const durationDays = validityUnlimited ? 0 : Math.max(0, parseInt(String(rawDurationDays ?? '30'), 10) || 30)
+    const status =
+      'status' in body && body.status != null && String(body.status).trim() !== ''
+        ? String(body.status).trim()
+        : (existing.status ?? 'draft')
+
+    const rawRegular =
+      'regular_price' in body
+        ? body.regular_price
+        : 'price' in body
+          ? body.price
+          : existing.regular_price ?? existing.price
+    const rawSale = 'sale_price' in body ? body.sale_price : existing.sale_price
+    const { regular_price, sale_price, discount_price, is_free } = deriveCoursePricing(
+      rawRegular as number | string | null | undefined,
+      rawSale as number | string | null | undefined,
+    )
+
+    const rawValidity = 'validity_unlimited' in body ? body.validity_unlimited : existing.validity_unlimited
+    const validityUnlimited = Number(rawValidity) ? 1 : 0
+
+    const rawDur = 'duration_days' in body ? body.duration_days : existing.duration_days
+    const durationDays = validityUnlimited ? 0 : Math.max(0, parseInt(String(rawDur ?? '30'), 10) || 30)
+
+    const rawInst = 'instructor_id' in body ? body.instructor_id : existing.instructor_id
     const instructorId =
-      rawInstructorId !== undefined && rawInstructorId !== null && String(rawInstructorId).trim() !== ''
-        ? parseInt(String(rawInstructorId), 10) || null
-        : null
-    const certificateId =
-      rawCertificateId !== undefined && rawCertificateId !== null && String(rawCertificateId).trim() !== ''
-        ? parseInt(String(rawCertificateId), 10) || null
+      rawInst !== undefined && rawInst !== null && String(rawInst).trim() !== ''
+        ? parseInt(String(rawInst), 10) || null
         : null
 
-    const result = categoryGroup
-      ? await DB.prepare(`
-      UPDATE courses SET
+    const rawCert = 'certificate_id' in body ? body.certificate_id : existing.certificate_id
+    const certificateId =
+      rawCert !== undefined && rawCert !== null && String(rawCert).trim() !== ''
+        ? parseInt(String(rawCert), 10) || null
+        : null
+
+    const categoryGroup =
+      'category_group' in body && body.category_group != null && String(body.category_group).trim() !== ''
+        ? normalizeCategoryGroupInput(String(body.category_group))
+        : (existing.category_group ?? 'CLASSIC')
+
+    const rawMeet =
+      'offline_info' in body
+        ? body.offline_info
+        : 'schedule_info' in body
+          ? body.schedule_info
+          : existing.offline_info ?? existing.schedule_info
+    const meetText =
+      rawMeet !== undefined && rawMeet !== null && String(rawMeet).trim() !== ''
+        ? String(rawMeet).trim().slice(0, 2000)
+        : null
+    const scheduleInfo = meetText
+
+    const rawDiff = 'difficulty' in body ? body.difficulty : existing.difficulty
+    const difficulty = normalizeCourseDifficulty(rawDiff, existing.difficulty)
+
+    const priceRemarks =
+      'price_remarks' in body
+        ? body.price_remarks != null && String(body.price_remarks).trim() !== ''
+          ? String(body.price_remarks).trim().slice(0, 2000)
+          : null
+        : existing.price_remarks
+
+    const insCheck = await assertInstructorExistsOrSkip(DB, instructorId)
+    if (insCheck === 'not_found') {
+      return c.json(
+        errorResponse('선택한 강사를 찾을 수 없습니다. 강사 목록을 새로고침한 뒤 다시 선택해 주세요.'),
+        400,
+      )
+    }
+
+    const bindPut = [
+      title,
+      descriptionText,
+      thumbnailUrl,
+      status,
+      regular_price,
+      sale_price,
+      discount_price,
+      is_free,
+      instructorId,
+      certificateId,
+      durationDays,
+      validityUnlimited,
+      categoryGroup,
+      scheduleInfo,
+      meetText,
+      difficulty,
+      regular_price,
+      priceRemarks,
+      thumbAiFlag,
+      courseId,
+    ] as const
+
+    let result
+    try {
+      result = await DB.prepare(
+        `UPDATE courses SET
         title = ?,
         description = ?,
         thumbnail_url = ?,
@@ -1216,32 +1709,23 @@ admin.put('/courses/:id', requireAdmin, async (c) => {
         duration_days = ?,
         validity_unlimited = ?,
         category_group = ?,
-        next_cohort_start_date = ?,
         schedule_info = ?,
+        offline_info = ?,
         difficulty = ?,
+        regular_price = ?,
+        price_remarks = ?,
+        thumbnail_image_ai = ?,
         updated_at = datetime('now')
-      WHERE id = ?
-    `).bind(
-        title,
-        descriptionText,
-        thumbnail_url || null,
-        status,
-        price,
-        salePrice,
-        salePrice,
-        isFree,
-        instructorId,
-        certificateId,
-        durationDays,
-        validityUnlimited,
-        categoryGroup,
-        nextCohort,
-        scheduleInfo,
-        difficulty,
-        courseId
-      ).run()
-      : await DB.prepare(`
-      UPDATE courses SET
+      WHERE id = ?`,
+      )
+        .bind(...bindPut)
+        .run()
+    } catch (e) {
+      const m = String(e instanceof Error ? e.message : e)
+      if (/no such column.*offline_info/i.test(m)) {
+        try {
+          result = await DB.prepare(
+            `UPDATE courses SET
         title = ?,
         description = ?,
         thumbnail_url = ?,
@@ -1254,29 +1738,182 @@ admin.put('/courses/:id', requireAdmin, async (c) => {
         certificate_id = ?,
         duration_days = ?,
         validity_unlimited = ?,
-        next_cohort_start_date = ?,
+        category_group = ?,
         schedule_info = ?,
         difficulty = ?,
+        regular_price = ?,
+        price_remarks = ?,
+        thumbnail_image_ai = ?,
         updated_at = datetime('now')
-      WHERE id = ?
-    `).bind(
-        title,
-        descriptionText,
-        thumbnail_url || null,
-        status,
-        price,
-        salePrice,
-        salePrice,
-        isFree,
-        instructorId,
-        certificateId,
-        durationDays,
-        validityUnlimited,
-        nextCohort,
-        scheduleInfo,
-        difficulty,
-        courseId
-      ).run()
+      WHERE id = ?`,
+          )
+            .bind(
+              title,
+              descriptionText,
+              thumbnailUrl,
+              status,
+              regular_price,
+              sale_price,
+              discount_price,
+              is_free,
+              instructorId,
+              certificateId,
+              durationDays,
+              validityUnlimited,
+              categoryGroup,
+              scheduleInfo,
+              difficulty,
+              regular_price,
+              priceRemarks,
+              thumbAiFlag,
+              courseId,
+            )
+            .run()
+        } catch (e2) {
+          const m2 = String(e2 instanceof Error ? e2.message : e2)
+          if (!/no such column.*thumbnail_image_ai/i.test(m2)) throw e2
+          result = await DB.prepare(
+            `UPDATE courses SET
+        title = ?,
+        description = ?,
+        thumbnail_url = ?,
+        status = ?,
+        price = ?,
+        sale_price = ?,
+        discount_price = ?,
+        is_free = ?,
+        instructor_id = ?,
+        certificate_id = ?,
+        duration_days = ?,
+        validity_unlimited = ?,
+        category_group = ?,
+        schedule_info = ?,
+        difficulty = ?,
+        regular_price = ?,
+        price_remarks = ?,
+        updated_at = datetime('now')
+      WHERE id = ?`,
+          )
+            .bind(
+              title,
+              descriptionText,
+              thumbnailUrl,
+              status,
+              regular_price,
+              sale_price,
+              discount_price,
+              is_free,
+              instructorId,
+              certificateId,
+              durationDays,
+              validityUnlimited,
+              categoryGroup,
+              scheduleInfo,
+              difficulty,
+              regular_price,
+              priceRemarks,
+              courseId,
+            )
+            .run()
+        }
+      } else if (!/no such column.*thumbnail_image_ai/i.test(m)) {
+        throw e
+      } else {
+        try {
+          result = await DB.prepare(
+            `UPDATE courses SET
+        title = ?,
+        description = ?,
+        thumbnail_url = ?,
+        status = ?,
+        price = ?,
+        sale_price = ?,
+        discount_price = ?,
+        is_free = ?,
+        instructor_id = ?,
+        certificate_id = ?,
+        duration_days = ?,
+        validity_unlimited = ?,
+        category_group = ?,
+        schedule_info = ?,
+        offline_info = ?,
+        difficulty = ?,
+        regular_price = ?,
+        price_remarks = ?,
+        updated_at = datetime('now')
+      WHERE id = ?`,
+          )
+            .bind(
+              title,
+              descriptionText,
+              thumbnailUrl,
+              status,
+              regular_price,
+              sale_price,
+              discount_price,
+              is_free,
+              instructorId,
+              certificateId,
+              durationDays,
+              validityUnlimited,
+              categoryGroup,
+              scheduleInfo,
+              meetText,
+              difficulty,
+              regular_price,
+              priceRemarks,
+              courseId,
+            )
+            .run()
+        } catch (e3) {
+          const m3 = String(e3 instanceof Error ? e3.message : e3)
+          if (!/no such column.*offline_info/i.test(m3)) throw e3
+          result = await DB.prepare(
+            `UPDATE courses SET
+        title = ?,
+        description = ?,
+        thumbnail_url = ?,
+        status = ?,
+        price = ?,
+        sale_price = ?,
+        discount_price = ?,
+        is_free = ?,
+        instructor_id = ?,
+        certificate_id = ?,
+        duration_days = ?,
+        validity_unlimited = ?,
+        category_group = ?,
+        schedule_info = ?,
+        difficulty = ?,
+        regular_price = ?,
+        price_remarks = ?,
+        updated_at = datetime('now')
+      WHERE id = ?`,
+          )
+            .bind(
+              title,
+              descriptionText,
+              thumbnailUrl,
+              status,
+              regular_price,
+              sale_price,
+              discount_price,
+              is_free,
+              instructorId,
+              certificateId,
+              durationDays,
+              validityUnlimited,
+              categoryGroup,
+              scheduleInfo,
+              difficulty,
+              regular_price,
+              priceRemarks,
+              courseId,
+            )
+            .run()
+        }
+      }
+    }
 
     if (result.meta.changes === 0) {
       return c.json(errorResponse('강좌를 찾을 수 없습니다'), 404)
@@ -1284,6 +1921,9 @@ admin.put('/courses/:id', requireAdmin, async (c) => {
 
     return c.json(successResponse({ message: '강좌가 수정되었습니다' }))
   } catch (error) {
+    if (error instanceof Error && error.message === 'INVALID_JSON_BODY') {
+      return c.json(errorResponse('요청 본문이 올바른 JSON이 아닙니다.'), 400)
+    }
     console.error('Update course error:', error)
     return c.json(errorResponse('강좌 수정 실패: ' + (error as Error).message), 500)
   }
@@ -2043,5 +2683,7 @@ admin.get('/published-books/:id/report.html', requireAdmin, async (c) => {
     return c.text('Error', 500)
   }
 })
+
+admin.route('/', adminInstructors)
 
 export default admin

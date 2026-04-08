@@ -193,7 +193,8 @@ export function adminHubPageHtml(): string {
           <a href="#courses" class="hub-mobile-nav-link block px-3 py-2 rounded-lg hover:bg-white/10 text-slate-200">강좌 (Classic / Next / NCS)</a>
           <a href="#videos" class="hub-mobile-nav-link block px-3 py-2 rounded-lg hover:bg-white/10 text-slate-200">영상 · 차시</a>
           <a href="#certificates" class="hub-mobile-nav-link block px-3 py-2 rounded-lg hover:bg-white/10 text-slate-200">수료 · 자격</a>
-          <a href="#instructors" class="hub-mobile-nav-link block px-3 py-2 rounded-lg hover:bg-white/10 text-slate-200">강사단 · 파견</a>
+          <a href="#instructors" data-hub-panel="instructors" class="hub-mobile-nav-link block px-3 py-2 rounded-lg hover:bg-white/10 text-slate-200">👤 강사 관리 (DB)</a>
+          <a href="#offline-meetups" data-hub-panel="offline-meetups" class="hub-mobile-nav-link block px-3 py-2 rounded-lg hover:bg-white/10 text-slate-200">오프라인 모임 신청 관리</a>
         </div>
       </details>
       <details class="border-b border-white/10 group">
@@ -325,6 +326,7 @@ export function adminHubPageHtml(): string {
                     <button type="button" data-hub-dash-detail="edu-cohort" class="block w-full text-left rounded-md px-3 py-1.5 text-slate-200 hover:bg-indigo-600/85 text-[13px]">📅 차수 · 개강 일정 (데모)</button>
                     <button type="button" data-hub-dash-detail="edu-classroom-links" class="block w-full text-left rounded-md px-3 py-1.5 text-slate-200 hover:bg-indigo-600/85 text-[13px]">🔗 강의실 바로가기 (데모)</button>
                     <a href="#courses" data-hub-panel="courses" class="block rounded-md px-3 py-1.5 text-slate-200 hover:bg-indigo-600/85 text-[13px]">강좌 탭으로 이동</a>
+                    <a href="#offline-meetups" data-hub-panel="offline-meetups" class="block rounded-md px-3 py-1.5 text-slate-200 hover:bg-indigo-600/85 text-[13px]">오프라인 모임 신청 관리</a>
                   </div>
                 </div>
               </div>
@@ -352,7 +354,7 @@ export function adminHubPageHtml(): string {
                     <button type="button" data-hub-dash-api="certificates" class="block w-full text-left rounded-md px-3 py-1.5 text-slate-200 hover:bg-indigo-600/85 text-[13px]">🎓 수료증 발급 내역 (DB)</button>
                     <a href="#certificates" data-hub-panel="certificates" class="block rounded-md px-3 py-1.5 text-slate-200 hover:bg-indigo-600/85 text-[13px]">수료 탭</a>
                     <button type="button" data-hub-dash-detail="edu-instructor-mgmt" class="block w-full text-left rounded-md px-3 py-1.5 text-slate-200 hover:bg-indigo-600/85 text-[13px]">강사 · 정산 (데모)</button>
-                    <a href="#instructors" data-hub-panel="instructors" class="block rounded-md px-3 py-1.5 text-slate-200 hover:bg-indigo-600/85 text-[13px]">강사단 탭</a>
+                    <a href="#instructors" data-hub-panel="instructors" class="block rounded-md px-3 py-1.5 text-slate-200 hover:bg-indigo-600/85 text-[13px]">👤 강사 관리 (DB)</a>
                   </div>
                 </div>
               </div>
@@ -824,6 +826,31 @@ export function adminHubPageHtml(): string {
       </div>
     </section>
 
+    <!-- 오프라인 모임 신청 집계 -->
+    <section id="panel-offline-meetups" class="hub-panel hidden space-y-4">
+      <div>
+        <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+          <i class="fas fa-users text-teal-600" aria-hidden="true"></i> 오프라인 모임 신청 관리
+        </h2>
+        <p class="text-sm text-slate-600 mt-1">강좌에 「오프라인 모임 안내」가 등록된 경우 수강생이 신청한 내역입니다. 최신순으로 표시됩니다.</p>
+      </div>
+      <div class="bg-white rounded-xl shadow border overflow-x-auto max-h-[min(75vh,900px)] overflow-y-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-50 text-slate-600 sticky top-0 z-[1]">
+            <tr>
+              <th class="text-left p-2 font-semibold">강좌</th>
+              <th class="text-left p-2 font-semibold">이름</th>
+              <th class="text-left p-2 font-semibold">연락처</th>
+              <th class="text-left p-2 font-semibold">지역</th>
+              <th class="text-left p-2 font-semibold min-w-[12rem]">신청 동기</th>
+              <th class="text-left p-2 font-semibold whitespace-nowrap">신청 일시</th>
+            </tr>
+          </thead>
+          <tbody id="hubOfflineMeetupsBody"></tbody>
+        </table>
+      </div>
+    </section>
+
     <!-- B2B · 기관 (플레이스홀더) -->
     <section id="panel-b2b" class="hub-panel hidden space-y-4">
       <div class="bg-white rounded-xl shadow border border-slate-200 p-6 text-sm text-slate-600 leading-relaxed">
@@ -850,11 +877,95 @@ export function adminHubPageHtml(): string {
       </div>
     </section>
 
-    <!-- 강사단 · 파견 (플레이스홀더) -->
+    <!-- 강사 프로필 (DB) -->
     <section id="panel-instructors" class="hub-panel hidden space-y-4">
-      <div class="bg-white rounded-xl shadow border border-slate-200 p-6 text-sm text-slate-600 leading-relaxed">
-        <h2 class="text-lg font-bold text-slate-800 mb-2"><i class="fas fa-chalkboard-teacher text-indigo-500 mr-2"></i>강사단 · 파견</h2>
-        <p>지역·분야별 강사 검색 및 파견 이력 관리 UI는 이 패널에 구현 예정입니다.</p>
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h2 class="text-lg font-bold text-slate-800"><i class="fas fa-chalkboard-teacher text-indigo-500 mr-2"></i>강사 관리 (DB)</h2>
+        <button type="button" id="hubInstructorFormReset" class="text-sm font-semibold text-indigo-600 hover:text-indigo-800">+ 신규 등록</button>
+      </div>
+      <p class="text-sm text-slate-600">강좌 등록 시 「담당 강사」 드롭다운에 표시됩니다. 저장 후 강좌 편집 폼 목록을 새로 고침하려면 강좌 모달을 닫았다가 다시 열어 주세요.</p>
+      <div id="hubInstructorAiNotice" class="hidden rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 leading-relaxed">
+        <i class="fas fa-magic mr-2 text-amber-600" aria-hidden="true"></i>
+        아래에서 <strong>「AI로 프로필 자동 생성」</strong>을 켜 두면 사진이 없을 때 OpenAI가 이미지를 그립니다(저장에 수십 초 걸릴 수 있음). 끄면 <strong>이니셜 아바타만</strong> 바로 저장됩니다. 나중에 언제든 사진을 올려 교체할 수 있습니다.
+      </div>
+      <div id="hubInstructorFormModeBar" class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+        <span id="hubInstructorModeLabel" class="font-medium">신규 등록 (아래 입력 후 「등록」)</span>
+        <button type="button" id="hubInstructorEditCancelBtn" class="hidden text-sm font-semibold text-slate-600 hover:text-slate-900 border border-slate-300 bg-white rounded-lg px-3 py-1.5">편집 취소</button>
+      </div>
+      <div class="bg-white rounded-xl shadow border border-slate-200 p-4 space-y-3 text-sm">
+        <input type="hidden" id="hubInstructorEditId" value="">
+        <input type="hidden" id="hubInstructorProfileImageAi" value="0">
+        <div id="hubInstructorPhotoDropZone" tabindex="0" role="region" aria-label="프로필 사진: 드래그 앤 드롭 또는 붙여넣기"
+          class="flex flex-col sm:flex-row gap-4 items-stretch sm:items-start rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/40 p-3 sm:p-4 transition-colors outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-1 hover:border-indigo-200">
+          <div class="relative shrink-0 mx-auto sm:mx-0">
+            <div id="hubInstructorPreviewWrap"
+              class="relative w-28 h-28 rounded-xl border border-slate-200 bg-white overflow-hidden flex items-center justify-center cursor-pointer hover:border-indigo-300 transition-colors">
+              <img id="hubInstructorPreviewImg" src="" alt="" class="max-w-full max-h-full object-cover hidden pointer-events-none">
+              <span id="hubInstructorPreviewPlaceholder" class="text-slate-400 text-xs text-center px-2 pointer-events-none leading-tight">미리보기</span>
+            </div>
+            <span id="hubInstructorAiBadge" class="hidden pointer-events-none absolute bottom-0 right-0 z-[1] max-w-[92%] truncate rounded-tl px-1 py-0.5 text-[7px] sm:text-[8px] font-normal leading-tight text-slate-500/85 bg-white/40 backdrop-blur-[2px] border-t border-l border-white/30">AI 생성</span>
+          </div>
+          <div class="flex-1 space-y-2 w-full min-w-0">
+            <label class="block text-slate-700">프로필 사진
+              <div class="mt-1 flex flex-wrap items-center gap-2">
+                <input type="file" id="hubInstructorFileInput" accept="image/jpeg,image/jpg,image/png,image/gif,image/webp" class="hidden">
+                <button type="button" id="hubInstructorPhotoPickBtn" class="text-sm font-semibold rounded-lg border border-indigo-300 bg-indigo-50 text-indigo-800 px-3 py-2 hover:bg-indigo-100">파일 선택</button>
+                <button type="button" id="hubInstructorRegenerateAiBtn" class="hidden text-sm font-semibold rounded-lg border border-violet-300 bg-violet-50 text-violet-900 px-3 py-2 hover:bg-violet-100" title="저장된 성별·전공 기준으로 AI가 새 초실사 프로필을 그립니다">🔄 사진 다시 생성하기</button>
+              </div>
+              <p class="mt-2 text-xs text-slate-600 leading-relaxed">
+                <strong class="text-slate-700">이미지 넣기:</strong> 이 점선 영역으로 파일을 <strong>끌어다 놓기</strong>, 또는 영역을 클릭한 뒤 <kbd class="px-1 py-0.5 rounded bg-slate-100 border border-slate-200 text-[10px]">Ctrl</kbd>+<kbd class="px-1 py-0.5 rounded bg-slate-100 border border-slate-200 text-[10px]">V</kbd>로 <strong>복사·붙여넣기</strong>. 아래에 이미지 URL을 직접 입력해도 됩니다.
+              </p>
+              <p class="mt-2 text-xs text-slate-600 leading-relaxed border-l-2 border-violet-200 pl-2.5 py-0.5">
+                <strong class="text-slate-700">안내:</strong> AI가 그린 얼굴이 실물과 다르거나 성별이 맞지 않으면, 목록에서 해당 강사를 <strong class="text-slate-700">편집</strong>한 뒤 위 <strong class="text-violet-800">🔄 사진 다시 생성하기</strong>를 누르세요. AI가 새 초상을 다시 그립니다. 성별이 어긋나면 아래에서 남성/여성을 고른 뒤 같은 버튼을 누르면 됩니다. (AI로 생성된 사진일 때만 버튼이 보입니다.)
+              </p>
+            </label>
+            <input type="text" id="hubInstructorProfileImage" class="w-full border border-slate-200 rounded-lg px-3 py-2 bg-white" placeholder="https://... (비우면 등록 시 AI 생성)" maxlength="2000" autocomplete="off">
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <label class="block text-slate-700">이름 <span class="text-red-500">*</span>
+            <input type="text" id="hubInstructorName" class="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2" placeholder="예: 홍길동" maxlength="200">
+          </label>
+          <label class="block text-slate-700">전공 분야
+            <input type="text" id="hubInstructorSpecialty" class="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2" placeholder="예: 진로상담, 미술심리" maxlength="500">
+          </label>
+          <div class="md:col-span-2">
+            <span class="block text-slate-700">성별 <span class="text-xs font-normal text-slate-500">(AI 자동 프로필 켜고 사진 없을 때 남/여 권장)</span></span>
+            <div class="mt-1 flex flex-wrap items-center gap-4 text-slate-800">
+              <label class="inline-flex items-center gap-2 cursor-pointer"><input type="radio" name="hubInstructorGender" value="M" class="border-slate-300 text-indigo-600 focus:ring-indigo-500"> 남성</label>
+              <label class="inline-flex items-center gap-2 cursor-pointer"><input type="radio" name="hubInstructorGender" value="F" class="border-slate-300 text-indigo-600 focus:ring-indigo-500"> 여성</label>
+              <label class="inline-flex items-center gap-2 cursor-pointer"><input type="radio" name="hubInstructorGender" value="U" class="border-slate-300 text-indigo-600 focus:ring-indigo-500"> 미지정</label>
+            </div>
+          </div>
+          <div id="hubInstructorAutoAiRow" class="md:col-span-2 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2">
+            <label class="inline-flex items-start gap-2 cursor-pointer text-slate-800">
+              <input type="checkbox" id="hubInstructorAutoAiPhoto" checked class="mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+              <span><strong class="font-semibold">신규 등록 시 AI로 프로필 사진 자동 생성</strong> <span class="text-slate-500 text-xs font-normal">(끄면 이니셜만·저장 빠름 · 편집 모드에서는 비활성)</span></span>
+            </label>
+          </div>
+        </div>
+        <label class="block text-slate-700">약력 · 소개
+          <textarea id="hubInstructorBio" rows="4" class="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2" placeholder="강의 경력 및 소개"></textarea>
+        </label>
+        <div class="flex flex-wrap items-center gap-2 pt-1">
+          <button type="button" id="hubInstructorSaveBtn" class="bg-indigo-600 text-white px-5 py-2.5 rounded-lg hover:bg-indigo-700 font-semibold shadow-sm">등록</button>
+          <span class="text-xs text-slate-500">목록에서 「편집」을 누르면 이 폼에 불러온 뒤 <strong class="text-slate-600">수정 저장</strong>으로 반영합니다.</span>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl shadow border overflow-x-auto max-h-[65vh] overflow-y-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-50 text-slate-600 sticky top-0">
+            <tr>
+              <th class="text-left p-3">프로필</th>
+              <th class="text-left p-3">ID</th>
+              <th class="text-left p-3">이름</th>
+              <th class="text-left p-3">전공</th>
+              <th class="text-left p-3 max-w-[200px]">사진 URL</th>
+              <th class="text-center p-3">편집</th>
+            </tr>
+          </thead>
+          <tbody id="hubInstructorsTableBody"></tbody>
+        </table>
       </div>
     </section>
 
@@ -1250,15 +1361,20 @@ export function adminHubPageHtml(): string {
         <h3 class="text-lg font-bold text-slate-800" id="courseModalTitle">강좌 편집</h3>
         <button type="button" class="text-slate-500 hover:text-slate-800 text-2xl" onclick="closeCourseModal()">&times;</button>
       </div>
-      <div class="border-b flex gap-1 px-4 pt-2">
+      <div class="border-b flex flex-wrap gap-1 px-4 pt-2">
         <button type="button" id="courseTabInfo" class="tab-btn px-4 py-2 rounded-t-lg font-medium text-indigo-600 border-b-2 border-indigo-600">기본 정보</button>
         <button type="button" id="courseTabLessons" class="tab-btn px-4 py-2 rounded-t-lg font-medium text-slate-500">차시·영상</button>
         <button type="button" id="courseTabAdvanced" class="tab-btn px-4 py-2 rounded-t-lg font-medium text-slate-500">차시 전체 편집</button>
+        <button type="button" id="courseTabMeetup" class="tab-btn px-4 py-2 rounded-t-lg font-medium text-slate-500 hidden">모임 신청 집계</button>
       </div>
       <div id="courseTabPanelInfo" class="p-4 space-y-3"></div>
       <div id="courseTabPanelLessons" class="p-4 hidden space-y-2"></div>
       <div id="courseTabPanelAdvanced" class="p-4 hidden">
         <iframe id="courseLessonsFrame" class="w-full h-[70vh] border rounded-lg" title="차시 관리"></iframe>
+      </div>
+      <div id="courseTabPanelMeetup" class="p-4 hidden">
+        <p class="text-sm text-slate-600 mb-3">이 강좌에 접수된 <strong>오프라인 모임 신청</strong> 목록입니다. 저장된 강좌에서만 조회됩니다.</p>
+        <div id="courseMeetupListMount" class="text-sm text-slate-500">강좌를 불러오는 중…</div>
       </div>
     </div>
   </div>
@@ -1325,7 +1441,7 @@ ${adminHubEntityDetailPanelHtml()}
   <script src="/static/js/admin-status-labels.js?v=20260330-status-ko"></script>
   <script src="/static/js/admin-hub-member-panel.js?v=20260330-members-page"></script>
   <script src="/static/js/admin-hub-entity-panel.js?v=20260330-hub-pillars"></script>
-  <script src="/static/js/admin-hub.js?v=20260331-posts"></script>
+  <script src="/static/js/admin-hub.js?v=20260402-instructor-photo-dnd"></script>
   <script src="/static/js/admin-isbn.js"></script>
   <script src="/static/js/security.js${STATIC_JS_CACHE_QUERY}"></script>
 </body>

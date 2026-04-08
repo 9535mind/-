@@ -136,6 +136,15 @@ app.get('/courses/:id', async (c) => {
                                 <i class="fas fa-book-reader mr-2"></i><span id="learnBtnLabel">학습 시작하기</span>
                             </button>
                         </div>
+                        <div id="meetupSection" class="mt-6 hidden border-t border-gray-200 pt-6">
+                            <h3 class="text-lg font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                                <i class="fas fa-users text-teal-600"></i> 오프라인 모임 안내
+                            </h3>
+                            <p id="meetupInfoText" class="text-gray-600 whitespace-pre-wrap text-sm leading-relaxed mb-4"></p>
+                            <button type="button" id="meetupApplyBtn" onclick="openMeetupModal()" class="inline-flex items-center bg-teal-600 text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-teal-700 transition shadow-sm">
+                                <i class="fas fa-clipboard-check mr-2"></i>오프라인 모임 신청하기
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -193,6 +202,31 @@ app.get('/courses/:id', async (c) => {
         </footer>
         ${siteFloatingQuickMenuMarkup()}
         ${siteAiChatWidgetMarkup()}
+
+        <div id="meetupModal" class="fixed inset-0 bg-black/50 z-[100] hidden items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="meetupModalTitle" onclick="if(event.target===this)closeMeetupModal()">
+            <div class="bg-white rounded-xl max-w-md w-full p-6 shadow-xl max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+                <h3 id="meetupModalTitle" class="text-lg font-bold text-gray-900 mb-1">오프라인 모임 신청</h3>
+                <p class="text-xs text-gray-500 mb-4">원격 교육 수강생을 위한 오프라인 모임 참가 신청입니다.</p>
+                <div class="space-y-3">
+                    <label class="block text-sm font-medium text-gray-700">이름 <span class="text-red-500">*</span>
+                        <input type="text" id="meetupName" maxlength="120" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="실명">
+                    </label>
+                    <label class="block text-sm font-medium text-gray-700">전화번호 <span class="text-red-500">*</span>
+                        <input type="tel" id="meetupPhone" maxlength="40" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="010-0000-0000">
+                    </label>
+                    <label class="block text-sm font-medium text-gray-700">지역
+                        <input type="text" id="meetupRegion" maxlength="200" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="예: 서울 강남구">
+                    </label>
+                    <label class="block text-sm font-medium text-gray-700">신청 동기
+                        <textarea id="meetupMotivation" rows="3" maxlength="2000" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="참여를 희망하는 이유를 적어 주세요."></textarea>
+                    </label>
+                </div>
+                <div class="flex gap-2 mt-6 justify-end">
+                    <button type="button" onclick="closeMeetupModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">취소</button>
+                    <button type="button" onclick="submitMeetup()" class="px-4 py-2 bg-teal-600 text-white rounded-lg font-semibold hover:bg-teal-700">신청하기</button>
+                </div>
+            </div>
+        </div>
 
         <script>
             ${siteFloatingQuickMenuScript()}
@@ -300,6 +334,18 @@ app.get('/courses/:id', async (c) => {
                         buyBtn.classList.remove('hidden');
                     } else {
                         buyBtn.classList.add('hidden');
+                    }
+
+                    const meetupSec = document.getElementById('meetupSection');
+                    const meetupTxt = document.getElementById('meetupInfoText');
+                    const offlineIntro = ((courseData.offline_info != null && String(courseData.offline_info).trim() !== '')
+                        ? String(courseData.offline_info).trim()
+                        : (courseData.schedule_info || '').trim());
+                    if (meetupSec && meetupTxt && courseData.status === 'published' && offlineIntro) {
+                        meetupSec.classList.remove('hidden');
+                        meetupTxt.textContent = offlineIntro;
+                    } else if (meetupSec) {
+                        meetupSec.classList.add('hidden');
                     }
 
                 } catch (error) {
@@ -550,6 +596,48 @@ app.get('/courses/:id', async (c) => {
             // 차시 재생
             function playLesson(lessonId) {
                 window.location.href = \`/courses/\${courseId}/learn?lesson=\${lessonId}\`;
+            }
+
+            function openMeetupModal() {
+                const m = document.getElementById('meetupModal');
+                if (!m) return;
+                m.classList.remove('hidden');
+                m.classList.add('flex');
+                const nm = document.getElementById('meetupName');
+                if (nm && detailUser && detailUser.name) nm.value = detailUser.name;
+            }
+            function closeMeetupModal() {
+                const m = document.getElementById('meetupModal');
+                if (!m) return;
+                m.classList.add('hidden');
+                m.classList.remove('flex');
+            }
+            async function submitMeetup() {
+                const applicant_name = (document.getElementById('meetupName') && document.getElementById('meetupName').value || '').trim();
+                const phone = (document.getElementById('meetupPhone') && document.getElementById('meetupPhone').value || '').trim();
+                const region = (document.getElementById('meetupRegion') && document.getElementById('meetupRegion').value || '').trim();
+                const motivation = (document.getElementById('meetupMotivation') && document.getElementById('meetupMotivation').value || '').trim();
+                if (!applicant_name || !phone) {
+                    alert('이름과 전화번호는 필수입니다.');
+                    return;
+                }
+                try {
+                    const res = await apiRequest('POST', \`/api/courses/\${courseId}/offline-apply\`, {
+                        name: applicant_name,
+                        phone,
+                        region,
+                        motivation
+                    });
+                    if (res.success) {
+                        alert((res.data && res.data.message) || '신청이 완료되었습니다.');
+                        closeMeetupModal();
+                    } else {
+                        alert(res.error || '신청에 실패했습니다.');
+                    }
+                } catch (e) {
+                    console.error(e);
+                    alert('신청 처리 중 오류가 발생했습니다.');
+                }
             }
 
             // 에러 표시

@@ -307,7 +307,7 @@ app.get('/my-courses', async (c) => {
         c.description,
         c.thumbnail_url,
         c.total_duration_minutes,
-        u.name as instructor_name,
+        COALESCE(ins.name, u.name) as instructor_name,
         (
           SELECT cert.certificate_number FROM certificates cert
           WHERE cert.enrollment_id = e.id
@@ -315,7 +315,8 @@ app.get('/my-courses', async (c) => {
         ) as certificate_number
       FROM enrollments e
       JOIN courses c ON e.course_id = c.id
-      LEFT JOIN users u ON c.instructor_id = u.id
+      LEFT JOIN instructors ins ON c.instructor_id = ins.id
+      LEFT JOIN users u ON c.legacy_instructor_user_id = u.id
       WHERE e.user_id = ?
       ORDER BY e.last_watched_at DESC
     `).bind(user.id).all()

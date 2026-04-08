@@ -10,7 +10,8 @@
 import { Hono } from 'hono'
 import type { Bindings } from '../types/database'
 import { buildCourseScheduleContextBlock } from '../config/course-schedule'
-import { MINDSTORY_LMS_AI_GUIDE_SYSTEM } from '../utils/ai-chat-system-prompt'
+import { MINDSTORY_LMS_AI_GUIDE_SYSTEM, MINDSTORY_LMS_RAG_INTERNAL_SYSTEM } from '../utils/ai-chat-system-prompt'
+import { buildLmsFallbackSiteContext, retrieveLmsHybridContext } from '../utils/chat-rag-context'
 
 const aiChat = new Hono<{ Bindings: Bindings }>()
 
@@ -111,17 +112,43 @@ aiChat.post('/chat', async (c) => {
       `- 국가 공인/공인 민간 자격증은 마인드스토리에서 직접 발행하지 않습니다.\n` +
       `- 다만, **자격기본법**에 의한 **등록 민간자격증**과 연계된 과정을 운영하고 있습니다.\n` +
       `- 과정별 발급 주체, 등록번호, 취득 조건(출석·평가·실습)은 상이할 수 있어, 최종 기준은 각 과정 상세 페이지에 안내된 내용을 기준으로 합니다.\n\n` +
-      `제가 ${displayName}을 위해 과정별 자격 연계 여부와 준비 절차를 상세히 찾아보겠습니다.`
+      `관심 있으신 과정명을 알려 주시면, 해당 과정 상세 페이지 기준으로 자격 연계와 준비 절차를 구체적으로 짚어 드리겠습니다.`
     await logAiChatOutcome(DB, true, 'cert_guide')
     return c.json({ success: true, reply: fixedReply })
+  }
+
+  let ragInternalBlock = ''
+  try {
+    ragInternalBlock = await retrieveLmsHybridContext(DB, userMessage)
+    if (!ragInternalBlock.trim()) {
+      ragInternalBlock = await buildLmsFallbackSiteContext(DB)
+    }
+  } catch (e) {
+    console.warn('[ai-chat] RAG 내부 검색 실패', e)
+    try {
+      ragInternalBlock = await buildLmsFallbackSiteContext(DB)
+    } catch {
+      /* ignore */
+    }
   }
 
   let siteDataBlock = ''
   let courseRowCount = -1
   try {
     const listed = await DB.prepare(
-      `SELECT id, title, category_group FROM courses WHERE status = 'published' ORDER BY IFNULL(display_order, 0) ASC, id ASC`
-    ).all<{ id: number; title: string; category_group: string | null }>()
+      `SELECT id, title, category_group, schedule_info, description,
+              COALESCE(regular_price, price) AS price, sale_price, is_free
+       FROM courses WHERE LOWER(TRIM(COALESCE(status,''))) = 'published' ORDER BY id ASC LIMIT 250`
+    ).all<{
+      id: number
+      title: string
+      category_group: string | null
+      schedule_info: string | null
+      description: string | null
+      price: number | null
+      sale_price: number | null
+      is_free: number | null
+    }>()
     const rows = listed.results || []
     courseRowCount = rows.length
     siteDataBlock = buildCourseScheduleContextBlock(rows)
@@ -134,9 +161,17 @@ aiChat.post('/chat', async (c) => {
     courseRowCount = -2
   }
 
+  const ragDataContent =
+    '[내부 Context DB — 강사·강좌 키워드 검색·요약 (공개 강좌·활성 강사만)]\n' +
+    (ragInternalBlock.trim()
+      ? ragInternalBlock
+      : '(이번 질문과 직접 매칭된 강사·강좌 줄은 없음. 아래 [마인드스토리 사이트 데이터] 블록·일반 지식으로 자연스럽게 답하되, 검색 불가·AI 한계 같은 변명 문구는 쓰지 말 것.)')
+
   const messages: { role: 'system' | ChatRole; content: string }[] = [
     { role: 'system', content: MINDSTORY_LMS_AI_GUIDE_SYSTEM },
-    { role: 'system', content: siteDataBlock }
+    { role: 'system', content: MINDSTORY_LMS_RAG_INTERNAL_SYSTEM },
+    { role: 'system', content: ragDataContent },
+    { role: 'system', content: siteDataBlock },
   ]
 
   if (summaryRaw) {
@@ -154,7 +189,7 @@ aiChat.post('/chat', async (c) => {
         displayName +
         '"이다. 답변 첫 문장에서 매번은 아니고 가끔만 이름을 자연스럽게 언급해도 된다. 예: "' +
         displayName +
-        ', 요청하신 정보를 찾았습니다."'
+        ', 말씀하신 내용은 이렇게 정리할 수 있습니다." (검색 불가·정보를 찾는 중 등 변명형 서두는 금지.)'
     })
   }
 
@@ -182,8 +217,8 @@ aiChat.post('/chat', async (c) => {
       body: JSON.stringify({
         model: model,
         messages,
-        temperature: 0.25,
-        max_tokens: 650
+        temperature: 0.12,
+        max_tokens: 900
       })
     })
 
@@ -206,7 +241,7 @@ aiChat.post('/chat', async (c) => {
       return c.json({ success: false, error: '빈 응답이 반환되었습니다.' }, 502)
     }
 
-    await logAiChatOutcome(DB, true, 'openai')
+    await logAiChatOutcome(DB, true, ragInternalBlock.trim() ? 'openai_rag' : 'openai')
     return c.json({ success: true, reply })
   } catch (e) {
     console.error('[ai-chat]', e)

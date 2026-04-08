@@ -7,6 +7,7 @@ import { Hono } from 'hono'
 import { Bindings } from '../types/database'
 import { successResponse, errorResponse } from '../utils/helpers'
 import { requireAdmin } from '../middleware/auth'
+import { uploadImageFileToR2 } from '../utils/r2-image-upload'
 
 const upload = new Hono<{ Bindings: Bindings }>()
 
@@ -71,7 +72,6 @@ upload.post('/image', requireAdmin, async (c) => {
       return c.json(errorResponse('파일 크기는 5MB 이하여야 합니다.'), 400)
     }
 
-    // R2 Storage 사용 가능 여부 확인
     if (!c.env.R2) {
       console.warn('[Upload] R2 바인딩이 없습니다. Placeholder 사용')
       const placeholderUrl = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='600'%3E%3Crect fill='%23667eea' width='800' height='600'/%3E%3Ctext fill='%23ffffff' font-family='Arial' font-size='24' text-anchor='middle' x='400' y='300'%3E${encodeURIComponent(file.name)}%3C/text%3E%3C/svg%3E`
@@ -83,31 +83,25 @@ upload.post('/image', requireAdmin, async (c) => {
       }, '이미지가 업로드되었습니다. (R2 미설정 - Placeholder)'))
     }
 
-    // 파일 이름 생성
-    const timestamp = Date.now()
-    const randomString = Math.random().toString(36).substring(2, 15)
-    const extension = file.name.split('.').pop()
-    const filename = `images/${timestamp}-${randomString}.${extension}`
-
-    // R2에 파일 업로드
-    const arrayBuffer = await file.arrayBuffer()
-    await c.env.R2.put(filename, arrayBuffer, {
-      httpMetadata: {
-        contentType: file.type,
-      },
-    })
-
-    // 공개 URL 생성 (R2 공개 도메인)
-    const publicUrl = `https://pub-baceedca01874770be7f326265d34480.r2.dev/${filename}`
-
-    console.log(`[Upload] 이미지 R2 업로드 성공: ${publicUrl}`)
-
-    return c.json(successResponse({
-      url: publicUrl,
-      filename: file.name,
-      size: file.size,
-      type: file.type
-    }, '이미지가 업로드되었습니다.'))
+    try {
+      const { url: publicUrl } = await uploadImageFileToR2(c.env, file, 'images')
+      console.log(`[Upload] 이미지 R2 업로드 성공: ${publicUrl}`)
+      return c.json(successResponse({
+        url: publicUrl,
+        filename: file.name,
+        size: file.size,
+        type: file.type
+      }, '이미지가 업로드되었습니다.'))
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      if (msg === 'UNSUPPORTED_TYPE') {
+        return c.json(errorResponse('지원하지 않는 파일 형식입니다. (JPG, PNG, GIF, WebP만 가능)'), 400)
+      }
+      if (msg === 'FILE_TOO_LARGE') {
+        return c.json(errorResponse('파일 크기는 5MB 이하여야 합니다.'), 400)
+      }
+      throw e
+    }
 
   } catch (error) {
     console.error('Upload image error:', error)

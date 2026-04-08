@@ -4,6 +4,7 @@
  */
 
 import { Hono } from 'hono'
+import type { Context } from 'hono'
 import { Bindings, Course, Lesson, CreateCourseInput, CreateLessonInput } from '../types/database'
 import { successResponse, errorResponse } from '../utils/helpers'
 import { requireAuth, requireAdmin, optionalAuth } from '../middleware/auth'
@@ -146,6 +147,106 @@ courses.get('/featured', async (c) => {
   }
 })
 
+type CourseOfflineRow = {
+  id: number
+  status: string | null
+  offline_info?: string | null
+  schedule_info?: string | null
+}
+
+function offlineMeetupIntroText(row: CourseOfflineRow): string {
+  const a = String(row.offline_info ?? '').trim()
+  const b = String(row.schedule_info ?? '').trim()
+  return a || b
+}
+
+async function fetchCourseForOfflineApply(DB: Bindings['DB'], courseId: string): Promise<CourseOfflineRow | null> {
+  try {
+    return await DB.prepare(
+      `SELECT id, status, offline_info, schedule_info FROM courses WHERE id = ?`,
+    )
+      .bind(courseId)
+      .first<CourseOfflineRow>()
+  } catch (e) {
+    const m = String(e instanceof Error ? e.message : e)
+    if (!/no such column.*offline_info/i.test(m)) throw e
+    return await DB.prepare(`SELECT id, status, schedule_info FROM courses WHERE id = ?`)
+      .bind(courseId)
+      .first<CourseOfflineRow>()
+  }
+}
+
+/**
+ * POST /api/courses/:id/offline-applications
+ * POST /api/courses/:id/offline-apply
+ * POST /api/courses/:id/meetup-registrations (호환)
+ * 오프라인 모임 신청 (공개 강좌, 로그인 선택) → offline_applications
+ * — 강좌에 오프라인 모임 안내(offline_info 또는 schedule_info)가 있을 때만 허용
+ */
+async function postOfflineApplication(c: Context<{ Bindings: Bindings }>) {
+  try {
+    const courseId = c.req.param('id')
+    const { DB } = c.env
+    const user = c.get('user')
+    let body: { applicant_name?: string; name?: string; phone?: string; region?: string; motivation?: string }
+    try {
+      body = (await c.req.json()) as typeof body
+    } catch {
+      return c.json(errorResponse('요청 본문이 올바르지 않습니다.'), 400)
+    }
+    const applicantName = String(body.applicant_name ?? body.name ?? '').trim()
+    const phone = String(body.phone ?? '').trim()
+    const region = body.region != null ? String(body.region).trim().slice(0, 200) : ''
+    const motivation = body.motivation != null ? String(body.motivation).trim().slice(0, 2000) : ''
+    if (!applicantName || !phone) {
+      return c.json(errorResponse('이름과 전화번호는 필수입니다.'), 400)
+    }
+
+    const course = await fetchCourseForOfflineApply(DB, courseId)
+    if (!course) {
+      return c.json(errorResponse('강좌를 찾을 수 없습니다.'), 404)
+    }
+    if (course.status !== 'published') {
+      return c.json(errorResponse('신청할 수 없는 강좌입니다.'), 403)
+    }
+    if (!offlineMeetupIntroText(course)) {
+      return c.json(errorResponse('이 강좌는 오프라인 모임 신청을 받지 않습니다.'), 400)
+    }
+
+    const userId = user?.id != null ? user.id : null
+    try {
+      await DB.prepare(
+        `INSERT INTO offline_applications (course_id, user_id, applicant_name, phone, region, motivation)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+        .bind(courseId, userId, applicantName, phone, region || null, motivation || null)
+        .run()
+    } catch (insErr) {
+      const im = String(insErr instanceof Error ? insErr.message : insErr)
+      if (!/no such table/i.test(im)) throw insErr
+      await DB.prepare(
+        `INSERT INTO course_meetup_registrations (course_id, user_id, applicant_name, phone, region, motivation)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+        .bind(courseId, userId, applicantName, phone, region || null, motivation || null)
+        .run()
+    }
+
+    return c.json(successResponse({ message: '신청이 완료되었습니다.' }))
+  } catch (e) {
+    const m = String(e instanceof Error ? e.message : e)
+    if (/no such table/i.test(m)) {
+      return c.json(errorResponse('모임 신청 기능을 준비 중입니다. 잠시 후 다시 시도해 주세요.'), 503)
+    }
+    console.error('[courses] offline-applications:', e)
+    return c.json(errorResponse('신청 처리에 실패했습니다.'), 500)
+  }
+}
+
+courses.post('/:id/offline-applications', optionalAuth, postOfflineApplication)
+courses.post('/:id/offline-apply', optionalAuth, postOfflineApplication)
+courses.post('/:id/meetup-registrations', optionalAuth, postOfflineApplication)
+
 /**
  * GET /api/courses/:id
  * 과정 상세 조회
@@ -156,10 +257,23 @@ courses.get('/:id', optionalAuth, async (c) => {
     const { DB } = c.env
     const user = c.get('user')
 
-    // 과정 정보 조회
     const course = await DB.prepare(`
-      SELECT * FROM courses WHERE id = ?
-    `).bind(courseId).first<Course>()
+      SELECT c.*,
+        ins.name AS instructor_name,
+        ins.profile_image AS instructor_profile_image,
+        ins.profile_image_ai AS instructor_profile_image_ai,
+        ins.bio AS instructor_bio,
+        ins.specialty AS instructor_specialty
+      FROM courses c
+      LEFT JOIN instructors ins ON c.instructor_id = ins.id
+      WHERE c.id = ?
+    `).bind(courseId).first<Course & {
+      instructor_name?: string | null
+      instructor_profile_image?: string | null
+      instructor_profile_image_ai?: number | null
+      instructor_bio?: string | null
+      instructor_specialty?: string | null
+    }>()
 
     if (!course) {
       return c.json(errorResponse('과정을 찾을 수 없습니다.'), 404)
@@ -259,8 +373,7 @@ courses.get('/:id', optionalAuth, async (c) => {
  */
 courses.post('/', requireAdmin, async (c) => {
   try {
-    const body = await c.req.json<CreateCourseInput>()
-    const user = c.get('user')
+    const body = await c.req.json<CreateCourseInput & { instructor_id?: number | string | null }>()
     const { title, description, thumbnail_url, price, status } = body
 
     if (!title) {
@@ -269,6 +382,12 @@ courses.post('/', requireAdmin, async (c) => {
 
     const { DB } = c.env
 
+    const bodyInstructor = body.instructor_id
+    const instructorId =
+      bodyInstructor !== undefined && bodyInstructor !== null && String(bodyInstructor).trim() !== ''
+        ? parseInt(String(bodyInstructor), 10) || null
+        : null
+
     const result = await DB.prepare(`
       INSERT INTO courses (
         title, description, instructor_id, thumbnail_url, price, status
@@ -276,7 +395,7 @@ courses.post('/', requireAdmin, async (c) => {
     `).bind(
       title,
       description || null,
-      user?.id || 1,
+      instructorId,
       thumbnail_url || null,
       price || 0,
       status || 'draft'

@@ -7,18 +7,9 @@ import { Hono } from 'hono'
 import { Bindings } from '../types/database'
 import { successResponse, errorResponse } from '../utils/helpers'
 import { requireAdmin } from '../middleware/auth'
+import { generateTextGeminiOrOpenAI } from '../utils/ai-text-generation'
 
 const ai = new Hono<{ Bindings: Bindings }>()
-
-const DEFAULT_OPENAI_BASE = 'https://api.openai.com/v1'
-const DEFAULT_OPENAI_MODEL = 'gpt-4o-mini'
-
-function normalizeOpenAIBase(raw: string): string {
-  const b = (raw || '').replace(/\/$/, '')
-  if (!b) return DEFAULT_OPENAI_BASE
-  if (/\/v\d+(\/|$)/.test(b)) return b
-  return `${b}/v1`
-}
 
 function extractGeminiText(data: unknown): string {
   if (!data || typeof data !== 'object') {
@@ -87,86 +78,6 @@ async function callGemini(apiKey: string, baseURL: string, prompt: string, syste
   }
 
   return extractGeminiText(data)
-}
-
-/**
- * OpenAI Chat Completions — GEMINI 미설정 시 설명 생성 등에 사용
- */
-async function callOpenAIChat(
-  env: Bindings,
-  system: string,
-  user: string,
-): Promise<string> {
-  const apiKey = (env.OPENAI_API_KEY || '').trim()
-  if (!apiKey) {
-    throw new Error('NO_AI_KEY')
-  }
-  const base = normalizeOpenAIBase(env.OPENAI_BASE_URL || DEFAULT_OPENAI_BASE).replace(/\/$/, '')
-  const model = (env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL).trim() || DEFAULT_OPENAI_MODEL
-
-  const res = await fetch(`${base}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: user },
-      ],
-      temperature: 0.65,
-      max_tokens: 1200,
-    }),
-  })
-
-  const raw = await res.text()
-  let parsed: { choices?: Array<{ message?: { content?: string } }> } | null = null
-  try {
-    parsed = raw ? JSON.parse(raw) : null
-  } catch {
-    console.error('OpenAI non-JSON:', raw.slice(0, 400))
-    throw new Error('OpenAI 응답을 해석하지 못했습니다.')
-  }
-
-  if (!res.ok) {
-    console.error('OpenAI HTTP', res.status, raw.slice(0, 600))
-    throw new Error(`OpenAI API 오류 (HTTP ${res.status})`)
-  }
-
-  const out = parsed?.choices?.[0]?.message?.content
-  if (typeof out !== 'string' || !out.trim()) {
-    throw new Error('OpenAI 응답에 본문이 없습니다.')
-  }
-  return out.trim()
-}
-
-/** 강좌/차시 설명용: Gemini 우선, 실패 시 OpenAI(키 있을 때), 둘 다 없으면 NO_AI_KEY */
-async function generateTextGeminiOrOpenAI(
-  c: { env: Bindings },
-  prompt: string,
-  systemInstruction: string,
-): Promise<string> {
-  const geminiKey = (c.env.GEMINI_API_KEY || '').trim()
-  const baseURL = c.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta'
-  const openaiKey = (c.env.OPENAI_API_KEY || '').trim()
-
-  if (geminiKey) {
-    try {
-      return await callGemini(geminiKey, baseURL, prompt, systemInstruction)
-    } catch (e) {
-      if (openaiKey) {
-        console.warn('[ai] Gemini failed, falling back to OpenAI:', e instanceof Error ? e.message : e)
-        return callOpenAIChat(c.env, systemInstruction, prompt)
-      }
-      throw e
-    }
-  }
-  if (openaiKey) {
-    return callOpenAIChat(c.env, systemInstruction, prompt)
-  }
-  throw new Error('NO_AI_KEY')
 }
 
 
@@ -353,7 +264,7 @@ JSON 형식으로만 응답:
 
     const systemInstruction = '당신은 온라인 교육 과정 설명 전문가입니다. 주어진 강좌명에 대해 매력적이고 명확한 설명을 작성합니다.'
 
-    const content = await generateTextGeminiOrOpenAI(c, prompt, systemInstruction)
+    const content = await generateTextGeminiOrOpenAI(c.env, prompt, systemInstruction)
 
     // JSON 파싱
     let description
@@ -418,7 +329,7 @@ JSON 형식으로 응답:
 
     const systemInstruction = '당신은 온라인 교육 차시 설명 전문가입니다. 주어진 차시 제목에 대해 학습자가 쉽게 이해할 수 있는 명확한 설명을 작성합니다.'
 
-    const content = await generateTextGeminiOrOpenAI(c, prompt, systemInstruction)
+    const content = await generateTextGeminiOrOpenAI(c.env, prompt, systemInstruction)
 
     // JSON 파싱
     let description
