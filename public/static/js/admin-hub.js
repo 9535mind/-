@@ -735,14 +735,6 @@ function wireCoursePricingInputs() {
 
 function hubCourseDescriptionSectionHtml(textareaBodyEscaped) {
   return (
-    '<div class="rounded-lg border-2 border-amber-400 bg-amber-50 p-3 mb-2 text-sm text-amber-950 shadow-sm">' +
-    '<p class="font-semibold mb-1.5">⚠️ [필독] 민간자격 홍보 시 과장광고 금지</p>' +
-    '<p class="text-xs font-medium text-amber-900 mb-1.5">국가자격 사칭·취업/수익 보장·근거 없는 최상급 수식어 표현을 사용하지 마세요.</p>' +
-    '<ul class="list-disc pl-5 space-y-0.5 text-xs leading-relaxed">' +
-    '<li>국가자격 사칭 금지 (\'국가공인\' 등 표현 불가)</li>' +
-    '<li>취업·수익 보장 등 단정적 표현 금지 (\'취업 100% 보장\' 등)</li>' +
-    '<li>근거 없는 최상급 수식어 금지 (\'국내 유일\' 등)</li>' +
-    '</ul></div>' +
     '<label class="block text-sm font-medium">설명</label>' +
     '<div id="hubCourseDescWrap" class="relative">' +
     '<textarea id="hubCourseDesc" rows="4" class="w-full border rounded px-3 py-2 relative z-10 bg-white">' +
@@ -3491,6 +3483,7 @@ window.openHubNewCourseModal = async function () {
       <select id="hubCourseCertificateId" class="w-full border rounded px-3 py-2">
         ${hubCertificateCatalogSelectOptionsHtml(options.certificate_types, '')}
       </select>
+      <p class="text-xs text-slate-500 -mt-1">표시의무·민간자격 안내는 <strong class="font-medium text-slate-600">수강생 강좌 상세·사이트 푸터</strong>에 자동 노출됩니다.</p>
       <label class="block text-sm font-medium">난이도</label>
       <select id="hubCourseDifficulty" class="w-full border rounded px-3 py-2">
         ${hubDifficultySelectOptions('beginner')}
@@ -3611,6 +3604,7 @@ window.openCourseModal = async function (courseId) {
       <select id="hubCourseCertificateId" class="w-full border rounded px-3 py-2">
         ${hubCertificateCatalogSelectOptionsHtml(options.certificate_types, cr.certificate_id ?? '')}
       </select>
+      <p class="text-xs text-slate-500 -mt-1">표시의무·민간자격 안내는 <strong class="font-medium text-slate-600">수강생 강좌 상세·사이트 푸터</strong>에 자동 노출됩니다.</p>
       <label class="block text-sm font-medium">난이도</label>
       <select id="hubCourseDifficulty" class="w-full border rounded px-3 py-2">
         ${hubDifficultySelectOptions(cr.difficulty || 'beginner')}

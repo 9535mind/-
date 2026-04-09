@@ -19,6 +19,7 @@ import {
   siteFloatingQuickMenuStyles,
 } from '../utils/site-floating-quick-menu'
 import { siteFooterLegalBlockHtml } from '../utils/site-footer-legal'
+import { privateQualificationStudentNoticeBlockHtml } from '../utils/private-qualification-notice-html'
 import { adminMagicPencilHtml, siteHeaderNavCoursesGlassStyles } from '../utils/site-header-courses-nav'
 
 const app = new Hono<{ Bindings: Bindings; Variables: { user?: User } }>()
@@ -104,6 +105,37 @@ app.get('/courses/:id', async (c) => {
                                 로딩 중...
                             </p>
                             ${editPencil}
+                        </div>
+
+                        <!-- 자격 연계 고지: 소개글 직후 — 표시의무 표 + 유의사항 세트 -->
+                        <div id="courseQualificationDisclosureBundle" class="mb-8 space-y-4" aria-label="자격·민간자격 고지">
+            <!-- 민간자격 표시의무 (강좌에 자격증 연결 시에만 표시) -->
+            <section id="courseCertificateLegalSection" class="hidden" aria-labelledby="courseCertificateLegalHeading">
+                <div class="bg-white rounded-lg shadow border border-slate-200 overflow-hidden">
+                    <h2 id="courseCertificateLegalHeading" class="px-6 py-4 text-lg font-bold text-gray-900 border-b border-slate-200 bg-slate-50">
+                        자격증 정보 및 표시의무 고지
+                    </h2>
+                    <div class="overflow-x-auto p-4">
+                        <table class="min-w-full text-sm text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-100 text-slate-800">
+                                    <th class="border border-slate-200 px-3 py-2 font-semibold whitespace-nowrap">자격명</th>
+                                    <th class="border border-slate-200 px-3 py-2 font-semibold whitespace-nowrap">자격의 종류</th>
+                                    <th class="border border-slate-200 px-3 py-2 font-semibold whitespace-nowrap">등록번호</th>
+                                    <th class="border border-slate-200 px-3 py-2 font-semibold whitespace-nowrap">발급기관</th>
+                                    <th class="border border-slate-200 px-3 py-2 font-semibold whitespace-nowrap">총비용</th>
+                                    <th class="border border-slate-200 px-3 py-2 font-semibold whitespace-nowrap">세부비용</th>
+                                    <th class="border border-slate-200 px-3 py-2 font-semibold whitespace-nowrap">환불규정</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr id="courseCertificateLegalRow"></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+            ${privateQualificationStudentNoticeBlockHtml()}
                         </div>
                         
                         <!-- 강좌 통계 -->
@@ -195,35 +227,6 @@ app.get('/courses/:id', async (c) => {
                 </div>
             </div>
 
-            <!-- 민간자격 표시의무 (강좌에 자격증 연결 시에만 표시) -->
-            <section id="courseCertificateLegalSection" class="hidden mb-8" aria-labelledby="courseCertificateLegalHeading">
-                <div class="bg-white rounded-lg shadow-lg border border-slate-200 overflow-hidden">
-                    <h2 id="courseCertificateLegalHeading" class="px-6 py-4 text-lg font-bold text-gray-900 border-b border-slate-200 bg-slate-50">
-                        자격증 정보 및 표시의무 고지
-                    </h2>
-                    <div class="overflow-x-auto p-4">
-                        <table class="min-w-full text-sm text-left border-collapse">
-                            <thead>
-                                <tr class="bg-slate-100 text-slate-800">
-                                    <th class="border border-slate-200 px-3 py-2 font-semibold whitespace-nowrap">자격명</th>
-                                    <th class="border border-slate-200 px-3 py-2 font-semibold whitespace-nowrap">자격의 종류</th>
-                                    <th class="border border-slate-200 px-3 py-2 font-semibold whitespace-nowrap">등록번호</th>
-                                    <th class="border border-slate-200 px-3 py-2 font-semibold whitespace-nowrap">발급기관</th>
-                                    <th class="border border-slate-200 px-3 py-2 font-semibold whitespace-nowrap">총비용</th>
-                                    <th class="border border-slate-200 px-3 py-2 font-semibold whitespace-nowrap">세부비용</th>
-                                    <th class="border border-slate-200 px-3 py-2 font-semibold whitespace-nowrap">환불규정</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr id="courseCertificateLegalRow"></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    <p class="px-6 pb-6 text-sm font-semibold text-indigo-900 leading-relaxed border-t border-slate-100 pt-4 bg-indigo-50/40">
-                        상기 자격은 자격기본법 규정에 따라 등록한 민간자격으로, 국가로부터 인정받은 공인자격이 아닙니다.
-                    </p>
-                </div>
-            </section>
         </main>
 
         <footer class="bg-gray-900 text-white border-t border-gray-800">
