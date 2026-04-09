@@ -24,6 +24,7 @@ const HUB_VALID_PANELS = new Set([
   'popups',
   'settings',
   'offline-meetups',
+  'academic-dashboard',
 ])
 
 const PANEL_TO_GROUP = {
@@ -46,6 +47,7 @@ const PANEL_TO_GROUP = {
   popups: 'sys',
   settings: 'sys',
   'offline-meetups': 'edu-academic',
+  'academic-dashboard': 'edu-academic',
 }
 
 let hubUserPage = 1
@@ -879,13 +881,23 @@ function hubAdminStatusKo(code) {
   return String(code)
 }
 
+/** DB 값 → 폼 select 값 (3종만). 레거시 active·archived·hidden 정규화 */
+function hubNormalizeCourseStatusForSelect(raw) {
+  const s = String(raw || 'draft')
+    .trim()
+    .toLowerCase()
+  if (s === 'active') return 'published'
+  if (s === 'archived' || s === 'hidden') return 'inactive'
+  if (s === 'draft' || s === 'inactive' || s === 'published') return s
+  return 'draft'
+}
+
 function hubCourseStatusSelectOptions(selected) {
-  const sel = String(selected || 'draft')
+  const sel = hubNormalizeCourseStatusForSelect(selected)
   const pairs = [
     ['draft', '준비 중'],
-    ['inactive', '정지'],
-    ['active', '활성'],
-    ['published', '공개 완료'],
+    ['published', '공개 (수강 가능)'],
+    ['inactive', '비공개 (숨김)'],
   ]
   return pairs
     .map(
@@ -916,6 +928,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   bindHubDashboardCardClicks()
   bindHubDashboardDetailDemo()
   bindHubEduDashboardCards()
+  bindHubAcademicDashboardCards()
   bindHubPubDashboardCards()
   bindHubSysDashboardCards()
   bindHubUnifiedSearch()
@@ -1036,9 +1049,22 @@ function applyHashRoute() {
       /* ignore */
     }
   }
+  if (tab === 'academic-dashboard') void loadAcademicDashboard()
   if (tab === 'pub-dashboard') loadPubDashboard()
   if (tab === 'sys-dashboard') loadSysDashboard()
-  if (tab === 'courses') loadCourses()
+  if (tab === 'courses') {
+    loadCourses()
+    try {
+      if (sessionStorage.getItem('hubOpenNewCourse') === '1') {
+        sessionStorage.removeItem('hubOpenNewCourse')
+        setTimeout(() => {
+          if (typeof window.openHubNewCourseModal === 'function') void window.openHubNewCourseModal()
+        }, 0)
+      }
+    } catch (_) {
+      /* ignore */
+    }
+  }
   if (tab === 'enrollments') loadEnrollmentsTable()
   if (tab === 'payments') loadPaymentsTable()
   if (tab === 'videos') loadVideosTable()
@@ -1298,6 +1324,60 @@ function bindHubEduDashboardCards() {
     if (act === 'exams-list' && typeof window.openHubDashboardModalFromApiKey === 'function') {
       window.openHubDashboardModalFromApiKey('exams')
     }
+  })
+}
+
+const HUB_ACADEMIC_DASH_DUMMY = {
+  grading_pending: 3,
+  certificate_queue: 5,
+  certification_application_pending: 2,
+  offline_meetup_recent: 4,
+}
+
+async function loadAcademicDashboard() {
+  if (!document.getElementById('hubAcademicBadgeGrading')) return
+  const setBadge = (id, n) => {
+    const el = document.getElementById(id)
+    if (el) el.textContent = String(n)
+  }
+  try {
+    const res = await apiRequest('GET', '/api/admin/academic-dashboard/summary')
+    if (res.success && res.data) {
+      const d = res.data
+      setBadge('hubAcademicBadgeGrading', toIntOr(d.grading_pending, 0))
+      setBadge('hubAcademicBadgeCertificate', toIntOr(d.certificate_queue, 0))
+      setBadge('hubAcademicBadgeCertification', toIntOr(d.certification_application_pending, 0))
+      setBadge('hubAcademicBadgeOffline', toIntOr(d.offline_meetup_recent, 0))
+      return
+    }
+  } catch (_) {
+    /* fallback below */
+  }
+  setBadge('hubAcademicBadgeGrading', HUB_ACADEMIC_DASH_DUMMY.grading_pending)
+  setBadge('hubAcademicBadgeCertificate', HUB_ACADEMIC_DASH_DUMMY.certificate_queue)
+  setBadge('hubAcademicBadgeCertification', HUB_ACADEMIC_DASH_DUMMY.certification_application_pending)
+  setBadge('hubAcademicBadgeOffline', HUB_ACADEMIC_DASH_DUMMY.offline_meetup_recent)
+}
+
+function bindHubAcademicDashboardCards() {
+  document.getElementById('hubAcademicCardExams')?.addEventListener('click', () => {
+    if (typeof window.openHubDashboardModalFromApiKey === 'function') {
+      window.openHubDashboardModalFromApiKey('exams')
+    }
+  })
+  document.getElementById('hubAcademicCardCertificates')?.addEventListener('click', () => {
+    location.hash = '#certificates'
+  })
+  document.getElementById('hubAcademicCardCertification')?.addEventListener('click', () => {
+    try {
+      sessionStorage.setItem('hubEduScroll', 'hubEduDashCertBlock')
+    } catch (_) {
+      /* ignore */
+    }
+    location.hash = '#edu-dashboard'
+  })
+  document.getElementById('hubAcademicCardOffline')?.addEventListener('click', () => {
+    location.hash = '#offline-meetups'
   })
 }
 
@@ -3185,7 +3265,7 @@ async function loadCourses() {
 }
 
 window.toggleCoursePublic = async function (courseId, checked) {
-  const next = checked ? 'published' : 'draft'
+  const next = checked ? 'published' : 'inactive'
   const res = await apiRequest('PATCH', '/api/admin/courses/' + courseId, { status: next })
   if (res.success) {
     showToast(checked ? '학생 사이트에 공개되었습니다.' : '학생 사이트에서 숨겼습니다.', 'success')
@@ -3281,7 +3361,7 @@ function hubCatalogLinesDisplayForTable(csv) {
 window.openHubNewCourseModal = async function () {
   hubDescAiGen += 1
   currentCourseId = null
-  window.hubCourseDraft = { thumbnail_url: null, thumbnail_image_ai: 0, price: 0, sale_price: null, duration_days: 30, validity_unlimited: 0 }
+  window.hubCourseDraft = { thumbnail_url: null, thumbnail_image_ai: 0, price: 0, sale_price: null, duration_days: 90, validity_unlimited: 0 }
   courseModalLessons = []
   const options = await loadCourseFormOptions()
   const modal = document.getElementById('courseModal')
@@ -3327,7 +3407,7 @@ window.openHubNewCourseModal = async function () {
       <textarea id="hubCoursePriceRemarks" rows="2" class="w-full border rounded px-3 py-2" placeholder="예: 오픈 기념 특별 할인"></textarea>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 items-end">
         <label class="block text-sm font-medium">수강 유효 기간(일)
-          <input type="number" min="1" step="1" id="hubCourseDurationDays" class="mt-1 w-full border rounded px-3 py-2" value="30">
+          <input type="number" min="1" step="1" id="hubCourseDurationDays" class="mt-1 w-full border rounded px-3 py-2" value="90">
         </label>
         <label class="flex items-center gap-2 text-sm font-medium pb-2">
           <input type="checkbox" id="hubCourseDurationUnlimited" class="rounded border-slate-300 text-indigo-600">
@@ -3371,6 +3451,24 @@ window.openHubNewCourseModal = async function () {
   setupCourseTabs()
 }
 
+window.hubNavigateToNewCourse = function (e) {
+  try {
+    if (String(location.hash || '') === '#courses') {
+      if (e && typeof e.preventDefault === 'function') e.preventDefault()
+      if (typeof window.openHubNewCourseModal === 'function') void window.openHubNewCourseModal()
+      return false
+    }
+  } catch (_) {
+    /* ignore */
+  }
+  try {
+    sessionStorage.setItem('hubOpenNewCourse', '1')
+  } catch (_) {
+    /* ignore */
+  }
+  return true
+}
+
 window.openCourseModal = async function (courseId) {
   hubDescAiGen += 1
   currentCourseId = courseId
@@ -3402,7 +3500,7 @@ window.openCourseModal = async function (courseId) {
       ${hubCourseDescriptionSectionHtml(escapeHtml(cr.description || ''))}
       <label class="block text-sm font-medium">상태</label>
       <select id="hubCourseStatus" class="w-full border rounded px-3 py-2">
-        ${hubCourseStatusSelectOptions(cr.status || 'draft')}
+        ${hubCourseStatusSelectOptions(hubNormalizeCourseStatusForSelect(cr.status || 'draft'))}
       </select>
       <label class="block text-sm font-medium">담당 강사</label>
       <select id="hubCourseInstructorId" class="w-full border rounded px-3 py-2">
@@ -3429,7 +3527,7 @@ window.openCourseModal = async function (courseId) {
       <textarea id="hubCoursePriceRemarks" rows="2" class="w-full border rounded px-3 py-2" placeholder="예: 오픈 기념 특별 할인">${escapeHtml(cr.price_remarks || '')}</textarea>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 items-end">
         <label class="block text-sm font-medium">수강 유효 기간(일)
-          <input type="number" min="1" step="1" id="hubCourseDurationDays" class="mt-1 w-full border rounded px-3 py-2" value="${escapeAttr(String(cr.duration_days ?? 30))}">
+          <input type="number" min="1" step="1" id="hubCourseDurationDays" class="mt-1 w-full border rounded px-3 py-2" value="${escapeAttr(String(cr.duration_days ?? 90))}">
         </label>
         <label class="flex items-center gap-2 text-sm font-medium pb-2">
           <input type="checkbox" id="hubCourseDurationUnlimited" ${Number(cr.validity_unlimited || 0) ? 'checked' : ''} class="rounded border-slate-300 text-indigo-600">
@@ -3466,7 +3564,7 @@ window.openCourseModal = async function (courseId) {
     durationUnlimited.addEventListener('change', () => {
       durationDays.disabled = durationUnlimited.checked
       if (durationUnlimited.checked) durationDays.value = ''
-      else if (!durationDays.value) durationDays.value = String(cr.duration_days || 30)
+      else if (!durationDays.value) durationDays.value = String(cr.duration_days || 90)
     })
   }
   renderLessonEditors(courseId)
@@ -3655,7 +3753,7 @@ window.hubAddLesson = async function () {
     description: '',
     video_url: null,
     video_duration_minutes: 0,
-    is_free_preview: 0,
+    is_preview: 0,
   })
   if (res.success) {
     showToast('차시가 추가되었습니다.', 'success')
@@ -3715,6 +3813,14 @@ window.hubUploadLessonVideo = async function (courseId, lessonId, input) {
   input.value = ''
 }
 
+/** 강좌 저장 API용 — courses 테이블에 없는 레거시·차시 키 제거 */
+function stripCoursePayloadDeadKeys(obj) {
+  if (!obj || typeof obj !== 'object') return
+  delete obj.is_free
+  delete obj.is_free_preview
+  delete obj.is_preview
+}
+
 window.saveLessonVideo = async function (courseId, lessonId) {
   const urlEl = document.getElementById('lesson-url-' + lessonId)
   const durEl = document.getElementById('lesson-dur-' + lessonId)
@@ -3743,12 +3849,12 @@ window.saveCourseBasics = async function () {
   const saleRaw = document.getElementById('hubCourseSalePrice')?.value
   const sale_price = String(saleRaw ?? '').trim() === '' ? null : Math.max(0, toIntOr(saleRaw, 0))
   const validity_unlimited = document.getElementById('hubCourseDurationUnlimited')?.checked ? 1 : 0
-  const duration_days = validity_unlimited ? null : Math.max(1, toIntOr(document.getElementById('hubCourseDurationDays')?.value, 30))
+  const duration_days = validity_unlimited ? null : Math.max(1, toIntOr(document.getElementById('hubCourseDurationDays')?.value, 90))
   const meetText = (document.getElementById('hubCourseScheduleInfo')?.value ?? '').trim()
   const price_remarks = (document.getElementById('hubCoursePriceRemarks')?.value ?? '').trim() || null
 
   if (currentCourseId == null) {
-    const res = await apiRequest('POST', '/api/admin/courses', {
+    const postBody = {
       title,
       description,
       status,
@@ -3767,7 +3873,9 @@ window.saveCourseBasics = async function () {
       offline_info: meetText || null,
       schedule_info: meetText || null,
       price_remarks,
-    })
+    }
+    stripCoursePayloadDeadKeys(postBody)
+    const res = await apiRequest('POST', '/api/admin/courses', postBody)
     if (res.success && res.data && res.data.id) {
       showToast('강좌가 등록되었습니다. 차시·영상을 이어서 편집할 수 있습니다.', 'success')
       loadCourses()
@@ -3776,7 +3884,7 @@ window.saveCourseBasics = async function () {
     return
   }
 
-  const res = await apiRequest('PUT', '/api/admin/courses/' + currentCourseId, {
+  const putBody = {
     title,
     description,
     status,
@@ -3795,7 +3903,9 @@ window.saveCourseBasics = async function () {
     offline_info: meetText || null,
     schedule_info: meetText || null,
     price_remarks,
-  })
+  }
+  stripCoursePayloadDeadKeys(putBody)
+  const res = await apiRequest('PUT', '/api/admin/courses/' + currentCourseId, putBody)
   if (res.success) {
     const okLessons = await hubSaveAllLessonDrafts(currentCourseId)
     loadCourses()

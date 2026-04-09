@@ -137,7 +137,7 @@ aiChat.post('/chat', async (c) => {
   try {
     const listed = await DB.prepare(
       `SELECT id, title, category_group, schedule_info, description,
-              COALESCE(regular_price, price) AS price, sale_price, is_free
+              COALESCE(regular_price, price) AS price, sale_price
        FROM courses WHERE LOWER(TRIM(COALESCE(status,''))) = 'published' ORDER BY id ASC LIMIT 250`
     ).all<{
       id: number
@@ -147,7 +147,6 @@ aiChat.post('/chat', async (c) => {
       description: string | null
       price: number | null
       sale_price: number | null
-      is_free: number | null
     }>()
     const rows = listed.results || []
     courseRowCount = rows.length

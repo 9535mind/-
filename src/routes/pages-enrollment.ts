@@ -81,14 +81,31 @@ pagesEnrollment.get('/enrollment', optionalAuth, async (c) => {
                 box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
             }
             
-            .course-thumbnail {
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                height: 180px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                color: white;
-                font-size: 3rem;
+            .course-thumb-wrap {
+                position: relative;
+                height: 200px;
+                overflow: hidden;
+                background: #1e1b4b;
+            }
+            .course-thumb-wrap img {
+                position: absolute;
+                inset: 0;
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+            }
+            .course-thumb-wrap .thumb-gradient {
+                position: absolute;
+                inset: 0;
+                background: linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.35) 55%, transparent 100%);
+                pointer-events: none;
+            }
+            .course-thumb-wrap .thumb-overlay-text {
+                position: absolute;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                padding: 1rem 1.25rem;
             }
             
             .badge {
@@ -289,6 +306,14 @@ pagesEnrollment.get('/enrollment', optionalAuth, async (c) => {
                 }
             }
             
+            function formatCourseCatalogLine(cg) {
+                const raw = String(cg || 'CLASSIC').toUpperCase().replace(/\\s/g, '').split(/[,，]/).filter(Boolean)
+                const al = ['CLASSIC', 'NEXT', 'NCS']
+                const keys = raw.filter((p) => al.includes(p))
+                const u = keys.length ? keys : ['CLASSIC']
+                return u.map((k) => (k === 'NEXT' ? 'Next' : k === 'NCS' ? 'NCS' : 'Classic')).join(' · ')
+            }
+
             // 강좌 목록 렌더링
             function renderCourses() {
                 const grid = document.getElementById('courses-grid')
@@ -325,26 +350,27 @@ pagesEnrollment.get('/enrollment', optionalAuth, async (c) => {
                     const payAmount = coursePayAmount(course)
                     const isFree = payAmount <= 0
                     
+                    const thumbUrl = course.thumbnail_url || '/static/images/course-placeholder.svg'
                     return \`
                         <div class="course-card" data-course-id="\${course.id}">
-                            <div class="course-thumbnail">
-                                <i class="fas fa-book-open"></i>
+                            <div class="course-thumb-wrap">
+                                <img src="\${thumbUrl}" alt="" onerror="this.src='/static/images/course-placeholder.svg'">
+                                <div class="thumb-gradient"></div>
+                                <div class="thumb-overlay-text">
+                                    <div class="flex flex-wrap gap-2 mb-2">
+                                        <span class="badge \${isFree ? 'badge-free' : 'badge-paid'}">
+                                            \${isFree ? '무료' : '유료'}
+                                        </span>
+                                        \${isEnrolled ? '<span class="badge" style="background: #3b82f6; color: white;">수강중</span>' : ''}
+                                    </div>
+                                    <h3 class="text-lg font-bold text-white leading-snug line-clamp-2 drop-shadow-sm">
+                                        \${course.title}
+                                    </h3>
+                                    <p class="text-gray-300 text-sm mt-1 line-clamp-1">\${formatCourseCatalogLine(course.category_group)} · 온라인 강좌</p>
+                                </div>
                             </div>
                             
                             <div class="p-6">
-                                <!-- 뱃지 -->
-                                <div class="mb-3">
-                                    <span class="badge \${isFree ? 'badge-free' : 'badge-paid'}">
-                                        \${isFree ? '무료' : '유료'}
-                                    </span>
-                                    \${isEnrolled ? '<span class="badge ml-2" style="background: #3b82f6; color: white;">수강중</span>' : ''}
-                                </div>
-                                
-                                <!-- 제목 -->
-                                <h3 class="text-xl font-bold mb-2 text-gray-800">
-                                    \${course.title}
-                                </h3>
-                                
                                 <!-- 설명 -->
                                 <p class="text-gray-600 text-sm mb-4 line-clamp-2">
                                     \${course.description || '강좌 설명이 없습니다.'}

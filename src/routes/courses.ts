@@ -14,8 +14,57 @@ import {
   sqlCategoryGroupMatchesLine,
   type CatalogLineKey,
 } from '../utils/catalog-lines'
+import { lessonPreviewFlagFromRow, normalizeLessonRowForApi } from '../utils/lesson-preview'
 
 const courses = new Hono<{ Bindings: Bindings }>()
+
+/**
+ * courses 테이블에만 존재하는 컬럼명 — PUT 시 body 전개로 레슨 필드·레거시 is_free 등이 들어가면 D1 오류 방지
+ * (is_free는 일부 환경에 컬럼이 없음 → 절대 UPDATE SET에 넣지 않음)
+ */
+const COURSE_TABLE_UPDATE_KEYS = new Set([
+  'title',
+  'description',
+  'thumbnail_url',
+  'thumbnail_image_ai',
+  'instructor_id',
+  'status',
+  'price',
+  'sale_price',
+  'discount_price',
+  'regular_price',
+  'price_remarks',
+  'certificate_id',
+  'duration_days',
+  'validity_unlimited',
+  'total_lessons',
+  'total_hours',
+  'total_duration_minutes',
+  'completion_progress_rate',
+  'completion_test_required',
+  'completion_test_pass_score',
+  'course_type',
+  'is_featured',
+  'display_order',
+  'published_at',
+  'category_group',
+  'course_subtype',
+  'feature_flags',
+  'isbn_enabled',
+  'highlight_classic',
+  'schedule_info',
+  'offline_info',
+  'difficulty',
+  'next_cohort_start_date',
+  'rating_average',
+  'rating_count',
+])
+
+function resolveLessonPreviewFromBody(body: Record<string, unknown>): 0 | 1 {
+  if (body.is_preview !== undefined && body.is_preview !== null) return Number(body.is_preview) ? 1 : 0
+  if (body.is_free_preview !== undefined && body.is_free_preview !== null) return Number(body.is_free_preview) ? 1 : 0
+  return 0
+}
 
 function escapeXml(text: string): string {
   return text
@@ -279,7 +328,7 @@ courses.get('/:id', optionalAuth, async (c) => {
       return c.json(errorResponse('과정을 찾을 수 없습니다.'), 404)
     }
 
-    // 비공개 과정은 관리자만 조회 가능 (published, active는 공개)
+    // 학생·일반: published만 공개. 관리자는 모든 상태 조회 가능
     if (course.status !== 'published' && user?.role !== 'admin') {
       return c.json(errorResponse('접근 권한이 없습니다.'), 403)
     }
@@ -419,7 +468,7 @@ courses.post('/', requireAdmin, async (c) => {
 courses.put('/:id', requireAdmin, async (c) => {
   try {
     const courseId = c.req.param('id')
-    const body = await c.req.json<Partial<CreateCourseInput>>()
+    const body = await c.req.json<Partial<CreateCourseInput> & Record<string, unknown>>()
 
     const { DB } = c.env
 
@@ -432,15 +481,15 @@ courses.put('/:id', requireAdmin, async (c) => {
       return c.json(errorResponse('과정을 찾을 수 없습니다.'), 404)
     }
 
-    // 업데이트할 필드 구성
+    // 업데이트할 필드 구성 (화이트리스트만 — is_free·차시 전용 필드 등 제외)
     const updates: string[] = []
-    const values: any[] = []
+    const values: unknown[] = []
 
-    Object.entries(body).forEach(([key, value]) => {
-      if (value !== undefined) {
-        updates.push(`${key} = ?`)
-        values.push(value)
-      }
+    Object.entries(body as Record<string, unknown>).forEach(([key, value]) => {
+      if (value === undefined) return
+      if (!COURSE_TABLE_UPDATE_KEYS.has(key)) return
+      updates.push(`${key} = ?`)
+      values.push(value)
     })
 
     if (updates.length === 0) {
@@ -523,6 +572,10 @@ courses.get('/:id/lessons', optionalAuth, async (c) => {
       ORDER BY lesson_number ASC
     `).bind(courseId).all<Lesson>()
 
+    const normalizedRows = (lessons.results ?? []).map((row) =>
+      normalizeLessonRowForApi(row as unknown as Record<string, unknown>),
+    )
+
     // 수강 중인 경우 진도 정보 포함 (lesson_progress 테이블 있을 때만)
     if (user) {
       const enrollment = await DB.prepare(`
@@ -535,7 +588,7 @@ courses.get('/:id/lessons', optionalAuth, async (c) => {
         try {
           // 각 차시별 진도 조회
           const lessonsWithProgress = await Promise.all(
-            lessons.results.map(async (lesson) => {
+            normalizedRows.map(async (lesson) => {
               try {
                 const progress = await DB.prepare(`
                   SELECT * FROM lesson_progress 
@@ -556,12 +609,12 @@ courses.get('/:id/lessons', optionalAuth, async (c) => {
           return c.json(successResponse(lessonsWithProgress))
         } catch (error) {
           // lesson_progress 테이블이 없으면 그냥 차시 목록만 반환
-          return c.json(successResponse(lessons.results))
+          return c.json(successResponse(normalizedRows))
         }
       }
     }
 
-    return c.json(successResponse(lessons.results))
+    return c.json(successResponse(normalizedRows))
 
   } catch (error) {
     console.error('Get lessons error:', error)
@@ -658,11 +711,18 @@ courses.get('/:courseId/materials', requireAuth, async (c) => {
 courses.post('/:id/lessons', requireAdmin, async (c) => {
   try {
     const courseId = parseInt(c.req.param('id'))
-    const body = await c.req.json<CreateLessonInput>()
-    const { 
-      lesson_number, title, description, content_type, 
-      video_provider, video_id, video_url, video_duration_minutes, is_free_preview 
+    const body = await c.req.json<CreateLessonInput & Record<string, unknown>>()
+    const {
+      lesson_number,
+      title,
+      description,
+      content_type,
+      video_provider,
+      video_id,
+      video_url,
+      video_duration_minutes,
     } = body
+    const previewVal = resolveLessonPreviewFromBody(body)
 
     // ✅ 필수 필드 검증 강화
     if (!title || !lesson_number) {
@@ -712,7 +772,7 @@ courses.post('/:id/lessons', requireAdmin, async (c) => {
       video_url,
       video_id,
       video_duration_minutes,
-      is_free_preview
+      is_preview: previewVal,
     });
     
     console.log('✅ 차시 생성 요청:', { 
@@ -745,22 +805,52 @@ courses.post('/:id/lessons', requireAdmin, async (c) => {
       return c.json(errorResponse('이미 존재하는 차시 번호입니다.'), 409)
     }
 
-    // 차시 생성
-    const result = await DB.prepare(`
+    // 차시 생성 (is_preview 우선, 레거시 is_free 동기화)
+    let result: { meta: { last_row_id?: number | bigint | null } }
+    try {
+      result = await DB.prepare(
+        `
+      INSERT INTO lessons (
+        course_id, lesson_number, title, description,
+        video_url, video_type, duration_minutes, is_free, is_preview
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+      )
+        .bind(
+          courseId,
+          lesson_number,
+          title,
+          description || null,
+          video_url || null,
+          'youtube',
+          video_duration_minutes || 0,
+          previewVal,
+          previewVal,
+        )
+        .run()
+    } catch (e) {
+      const m = String(e instanceof Error ? e.message : e)
+      if (!/no such column.*is_preview/i.test(m)) throw e
+      result = await DB.prepare(
+        `
       INSERT INTO lessons (
         course_id, lesson_number, title, description,
         video_url, video_type, duration_minutes, is_free
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(
-      courseId,
-      lesson_number,
-      title,
-      description || null,
-      video_url || null,
-      'youtube',  // 고정값: YouTube만 사용
-      video_duration_minutes || 0,
-      is_free_preview ? 1 : 0
-    ).run()
+    `,
+      )
+        .bind(
+          courseId,
+          lesson_number,
+          title,
+          description || null,
+          video_url || null,
+          'youtube',
+          video_duration_minutes || 0,
+          previewVal,
+        )
+        .run()
+    }
 
     return c.json(successResponse({
       id: result.meta.last_row_id,
@@ -834,6 +924,8 @@ courses.put('/:courseId/lessons/:lessonId', requireAdmin, async (c) => {
       'video_type',
       'duration_minutes',
       'is_free',
+      'is_preview',
+      'is_free_preview',
       'video_provider',
       'video_id',
       'content_type',
@@ -844,10 +936,12 @@ courses.put('/:courseId/lessons/:lessonId', requireAdmin, async (c) => {
       normalized.duration_minutes = normalized.video_duration_minutes
     }
     delete normalized.video_duration_minutes
-    if (normalized.is_free_preview !== undefined && normalized.is_free === undefined) {
-      normalized.is_free = (normalized.is_free_preview as number | boolean) ? 1 : 0
+    if (normalized.is_preview !== undefined || normalized.is_free_preview !== undefined) {
+      const previewVal = resolveLessonPreviewFromBody(normalized)
+      normalized.is_preview = previewVal
+      normalized.is_free = previewVal
+      normalized.is_free_preview = previewVal
     }
-    delete normalized.is_free_preview
 
     // 업데이트할 필드 구성 (스키마에 없는 컬럼명은 무시)
     const updates: string[] = []
@@ -980,6 +1074,8 @@ courses.get('/:courseId/lessons/:lessonId', optionalAuth, async (c) => {
       return c.json(errorResponse('차시를 찾을 수 없습니다.'), 404)
     }
 
+    const lessonNorm = normalizeLessonRowForApi(lesson as unknown as Record<string, unknown>)
+
     // 강좌 정보 조회
     const course = await DB.prepare(`
       SELECT * FROM courses WHERE id = ?
@@ -999,8 +1095,8 @@ courses.get('/:courseId/lessons/:lessonId', optionalAuth, async (c) => {
         WHERE user_id = ? AND course_id = ?
       `).bind(user.id, courseId).first()
       
-      // 🔐 수강 등록 확인: 무료 미리보기가 아니면 수강 등록 필수
-      if (!enrollment && !lesson.is_free_preview) {
+      // 🔐 수강 등록 확인: 맛보기(is_preview) 차시가 아니면 수강 등록 필수
+      if (!enrollment && !lessonPreviewFlagFromRow(lesson as unknown as Record<string, unknown>)) {
         return c.json(errorResponse('이 강좌에 수강 등록이 필요합니다.'), 403)
       }
     }
@@ -1024,7 +1120,7 @@ courses.get('/:courseId/lessons/:lessonId', optionalAuth, async (c) => {
     `).bind(courseId, lesson.lesson_number).first()
 
     return c.json(successResponse({
-      lesson,
+      lesson: lessonNorm,
       course: {
         id: course.id,
         title: course.title,

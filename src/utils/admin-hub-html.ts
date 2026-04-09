@@ -190,14 +190,16 @@ export function adminHubPageHtml(): string {
         <summary class="px-3 py-3 cursor-pointer font-medium text-indigo-100 list-none flex justify-between items-center after:content-['+'] after:text-indigo-300 group-open:after:content-['−'] [&::-webkit-details-marker]:hidden">강좌 관리</summary>
         <div class="pb-2 pl-2 flex flex-col gap-0.5">
           <a href="#edu-dashboard" data-hub-panel="edu-dashboard" class="hub-mobile-nav-link block px-3 py-2 rounded-lg hover:bg-white/10 text-slate-200 font-medium">📊 교육 대시보드</a>
-          <a href="#courses" data-hub-panel="courses" class="hub-mobile-nav-link block px-3 py-2 rounded-lg hover:bg-white/10 text-slate-200">과정 · 커리큘럼 (강좌 개설)</a>
-          <a href="#videos" data-hub-panel="videos" class="hub-mobile-nav-link block px-3 py-2 rounded-lg hover:bg-white/10 text-slate-200">영상 · 차시</a>
-          <a href="#instructors" data-hub-panel="instructors" class="hub-mobile-nav-link block px-3 py-2 rounded-lg hover:bg-white/10 text-slate-200">👤 강사 관리 (DB)</a>
+          <a href="#courses" data-hub-panel="courses" class="hub-mobile-nav-link block px-3 py-2 rounded-lg hover:bg-emerald-400/15 border border-emerald-500/30 text-emerald-50 font-medium" onclick="return hubNavigateToNewCourse(event)">➕ 새 강좌 등록</a>
+          <a href="#courses" data-hub-panel="courses" class="hub-mobile-nav-link block px-3 py-2 rounded-lg hover:bg-white/10 text-slate-200">📋 강좌 목록 관리</a>
+          <a href="#videos" data-hub-panel="videos" class="hub-mobile-nav-link block px-3 py-2 rounded-lg hover:bg-white/10 text-slate-200">🎬 영상 · 차시</a>
+          <a href="#instructors" data-hub-panel="instructors" class="hub-mobile-nav-link block px-3 py-2 rounded-lg hover:bg-white/10 text-slate-200">👨‍🏫 강사 관리</a>
         </div>
       </details>
       <details class="border-b border-white/10 group">
         <summary class="px-3 py-3 cursor-pointer font-medium text-indigo-100 list-none flex justify-between items-center after:content-['+'] after:text-indigo-300 group-open:after:content-['−'] [&::-webkit-details-marker]:hidden">학사 및 자격</summary>
         <div class="pb-2 pl-2 flex flex-col gap-0.5">
+          <a href="#academic-dashboard" data-hub-panel="academic-dashboard" class="hub-mobile-nav-link block px-3 py-2 rounded-lg hover:bg-white/10 text-slate-200 font-medium">📊 학사·자격 대시보드</a>
           <button type="button" data-hub-dash-api="exams" class="hub-mobile-nav-link block w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 text-slate-200">📝 시험 · 평가 (시험 목록)</button>
           <a href="#certificates" data-hub-panel="certificates" class="hub-mobile-nav-link block px-3 py-2 rounded-lg hover:bg-white/10 text-slate-200">🎓 수료증 발급 관리</a>
           <a href="#edu-dashboard" data-hub-panel="edu-dashboard" class="hub-mobile-nav-link block px-3 py-2 rounded-lg hover:bg-white/10 text-slate-200" onclick="try{sessionStorage.setItem('hubEduScroll','hubEduDashCertBlock')}catch(e){}">🎖️ 자격증 발급 관리</a>
@@ -322,24 +324,10 @@ export function adminHubPageHtml(): string {
           <div class="hub-gnb-dropdown absolute left-0 top-full pt-1 min-w-[19rem] max-w-[22rem] z-50">
             <div class="rounded-xl bg-slate-800 border border-white/10 shadow-xl py-1.5 text-sm">
               <a href="#edu-dashboard" data-hub-panel="edu-dashboard" class="block px-4 py-2.5 border-b border-white/10 text-slate-100 hover:bg-indigo-600/80 font-medium rounded-t-xl">📊 교육 대시보드</a>
-              <div class="hub-ops-subgroup border-b border-white/10">
-                <button type="button" class="hub-ops-acc-trigger w-full flex items-center justify-between gap-2 px-4 py-2.5 text-left text-slate-100 hover:bg-indigo-600/40 text-sm font-medium">
-                  <span>과정 · 커리큘럼 (강좌 개설)</span>
-                  <i class="fas fa-chevron-down hub-ops-chevron text-[10px] text-indigo-200/90 transition-transform duration-200 shrink-0" aria-hidden="true"></i>
-                </button>
-                <div class="hub-ops-acc-panel hidden border-t border-white/5 bg-slate-900/50">
-                  <div class="flex flex-col gap-0.5 py-1.5 pl-3 pr-2 ml-4 border-l-2 border-teal-500/40">
-                    <button type="button" data-hub-dash-api="courses" class="block w-full text-left rounded-md px-3 py-1.5 text-slate-200 hover:bg-indigo-600/85 text-[13px]">📋 전체 강좌 목록 (DB)</button>
-                    <button type="button" data-hub-dash-detail="edu-cohort" class="block w-full text-left rounded-md px-3 py-1.5 text-slate-200 hover:bg-indigo-600/85 text-[13px]">📅 차수 · 개강 일정 (데모)</button>
-                    <button type="button" data-hub-dash-detail="edu-classroom-links" class="block w-full text-left rounded-md px-3 py-1.5 text-slate-200 hover:bg-indigo-600/85 text-[13px]">🔗 강의실 바로가기 (데모)</button>
-                    <a href="#courses" data-hub-panel="courses" class="block rounded-md px-3 py-1.5 text-slate-200 hover:bg-indigo-600/85 text-[13px]">강좌 탭으로 이동</a>
-                  </div>
-                </div>
-              </div>
-              <div class="hub-ops-subgroup border-t border-white/10 rounded-b-lg overflow-hidden">
-                <a href="#videos" data-hub-panel="videos" class="block px-4 py-2.5 text-slate-100 hover:bg-indigo-600/80 border-b border-white/10">영상 · 차시</a>
-                <a href="#instructors" data-hub-panel="instructors" class="block px-4 py-2.5 text-slate-100 hover:bg-indigo-600/80 rounded-b-lg">👤 강사 관리 (DB)</a>
-              </div>
+              <a href="#courses" data-hub-panel="courses" class="block px-4 py-2.5 border-b border-white/10 text-slate-100 hover:bg-emerald-700/45 bg-emerald-950/35 border-l-[3px] border-emerald-400 font-medium" onclick="return hubNavigateToNewCourse(event)">➕ 새 강좌 등록</a>
+              <a href="#courses" data-hub-panel="courses" class="block px-4 py-2.5 border-b border-white/10 text-slate-100 hover:bg-indigo-600/80">📋 강좌 목록 관리</a>
+              <a href="#videos" data-hub-panel="videos" class="block px-4 py-2.5 border-b border-white/10 text-slate-100 hover:bg-indigo-600/80">🎬 영상 · 차시</a>
+              <a href="#instructors" data-hub-panel="instructors" class="block px-4 py-2.5 text-slate-100 hover:bg-indigo-600/80 rounded-b-lg">👨‍🏫 강사 관리</a>
             </div>
           </div>
         </div>
@@ -352,8 +340,9 @@ export function adminHubPageHtml(): string {
           </button>
           <div class="hub-gnb-dropdown absolute left-0 top-full pt-1 min-w-[19rem] max-w-[22rem] z-50">
             <div class="rounded-xl bg-slate-800 border border-white/10 shadow-xl py-1.5 text-sm">
+              <a href="#academic-dashboard" data-hub-panel="academic-dashboard" class="block px-4 py-2.5 border-b border-white/10 text-slate-100 hover:bg-indigo-600/80 font-medium rounded-t-xl">📊 학사·자격 대시보드</a>
               <div class="hub-ops-subgroup border-b border-white/10">
-                <button type="button" class="hub-ops-acc-trigger w-full flex items-center justify-between gap-2 px-4 py-2.5 text-left text-slate-100 hover:bg-indigo-600/40 text-sm font-medium rounded-t-xl">
+                <button type="button" class="hub-ops-acc-trigger w-full flex items-center justify-between gap-2 px-4 py-2.5 text-left text-slate-100 hover:bg-indigo-600/40 text-sm font-medium">
                   <span>시험 · 평가</span>
                   <i class="fas fa-chevron-down hub-ops-chevron text-[10px] text-indigo-200/90 transition-transform duration-200 shrink-0" aria-hidden="true"></i>
                 </button>
@@ -552,6 +541,45 @@ export function adminHubPageHtml(): string {
             ${dashboardRecentPaymentsHtml}
           </ul>
         </div>
+      </div>
+    </section>
+
+    <!-- 학사 및 자격 — 전용 KPI 대시보드 -->
+    <section id="panel-academic-dashboard" class="hub-panel hidden space-y-0">
+      <p class="text-sm text-slate-500 mb-4">시험·수료·자격·오프라인 모임의 <strong class="text-slate-700">대기·신청 현황</strong>을 한눈에 확인합니다. <span class="text-slate-400">(D1 연동 · 실패 시 안내 수치)</span></p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <button type="button" id="hubAcademicCardExams" class="text-left bg-white rounded-xl border border-slate-200 shadow-sm p-5 w-full cursor-pointer transition hover:border-indigo-300 hover:ring-2 hover:ring-indigo-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
+          <p class="text-sm font-medium text-slate-500 flex items-center gap-2"><span aria-hidden="true">📝</span> 시험 · 평가</p>
+          <p class="text-xs text-slate-500 mt-2">제출된 응시·채점 확인 대상</p>
+          <p class="mt-3">
+            <span class="inline-flex items-center rounded-full bg-amber-100 text-amber-900 px-3 py-1 text-sm font-bold tabular-nums">채점 대기 <span id="hubAcademicBadgeGrading" class="ml-1">—</span>건</span>
+          </p>
+          <p class="text-[11px] text-indigo-500 mt-3">클릭 → 시험 목록 (DB)</p>
+        </button>
+        <button type="button" id="hubAcademicCardCertificates" class="text-left bg-white rounded-xl border border-slate-200 shadow-sm p-5 w-full cursor-pointer transition hover:border-indigo-300 hover:ring-2 hover:ring-indigo-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
+          <p class="text-sm font-medium text-slate-500 flex items-center gap-2"><span aria-hidden="true">🎓</span> 수료증 발급</p>
+          <p class="text-xs text-slate-500 mt-2">완료·미발급 후보 (수료증 미연계)</p>
+          <p class="mt-3">
+            <span class="inline-flex items-center rounded-full bg-emerald-100 text-emerald-900 px-3 py-1 text-sm font-bold tabular-nums">수료증 대기 <span id="hubAcademicBadgeCertificate" class="ml-1">—</span>건</span>
+          </p>
+          <p class="text-[11px] text-indigo-500 mt-3">클릭 → 수료증 발급 관리 (탭)</p>
+        </button>
+        <button type="button" id="hubAcademicCardCertification" class="text-left bg-white rounded-xl border border-slate-200 shadow-sm p-5 w-full cursor-pointer transition hover:border-indigo-300 hover:ring-2 hover:ring-indigo-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
+          <p class="text-sm font-medium text-slate-500 flex items-center gap-2"><span aria-hidden="true">🏅</span> 자격증 발급</p>
+          <p class="text-xs text-slate-500 mt-2">민간자격 신청 심사 대기</p>
+          <p class="mt-3">
+            <span class="inline-flex items-center rounded-full bg-violet-100 text-violet-900 px-3 py-1 text-sm font-bold tabular-nums">자격 신청 <span id="hubAcademicBadgeCertification" class="ml-1">—</span>건</span>
+          </p>
+          <p class="text-[11px] text-indigo-500 mt-3">클릭 → 교육 대시보드 자격 대기 명단</p>
+        </button>
+        <button type="button" id="hubAcademicCardOffline" class="text-left bg-white rounded-xl border border-slate-200 shadow-sm p-5 w-full cursor-pointer transition hover:border-indigo-300 hover:ring-2 hover:ring-indigo-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
+          <p class="text-sm font-medium text-slate-500 flex items-center gap-2"><span aria-hidden="true">🤝</span> 오프라인 모임</p>
+          <p class="text-xs text-slate-500 mt-2">최근 30일 신청 건수</p>
+          <p class="mt-3">
+            <span class="inline-flex items-center rounded-full bg-sky-100 text-sky-900 px-3 py-1 text-sm font-bold tabular-nums">신규·최근 신청 <span id="hubAcademicBadgeOffline" class="ml-1">—</span>건</span>
+          </p>
+          <p class="text-[11px] text-indigo-500 mt-3">클릭 → 오프라인 모임 신청 관리</p>
+        </button>
       </div>
     </section>
 
@@ -890,7 +918,7 @@ export function adminHubPageHtml(): string {
     <!-- 강사 프로필 (DB) -->
     <section id="panel-instructors" class="hub-panel hidden space-y-4">
       <div class="flex flex-wrap items-center justify-between gap-2">
-        <h2 class="text-lg font-bold text-slate-800"><i class="fas fa-chalkboard-teacher text-indigo-500 mr-2"></i>강사 관리 (DB)</h2>
+        <h2 class="text-lg font-bold text-slate-800"><span class="mr-2" aria-hidden="true">👨‍🏫</span>강사 관리</h2>
         <button type="button" id="hubInstructorFormReset" class="text-sm font-semibold text-indigo-600 hover:text-indigo-800">+ 신규 등록</button>
       </div>
       <p class="text-sm text-slate-600">강좌 등록 시 「담당 강사」 드롭다운에 표시됩니다. 저장 후 강좌 편집 폼 목록을 새로 고침하려면 강좌 모달을 닫았다가 다시 열어 주세요.</p>
@@ -1448,10 +1476,10 @@ ${adminHubEntityDetailPanelHtml()}
   <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
   <script src="/static/js/auth.js?v=20260329-admin-name"></script>
   <script src="/static/js/utils.js"></script>
-  <script src="/static/js/admin-status-labels.js?v=20260330-status-ko"></script>
+  <script src="/static/js/admin-status-labels.js?v=20260402-course-status-3way"></script>
   <script src="/static/js/admin-hub-member-panel.js?v=20260330-members-page"></script>
   <script src="/static/js/admin-hub-entity-panel.js?v=20260330-hub-pillars"></script>
-  <script src="/static/js/admin-hub.js?v=20260402-instructor-photo-dnd"></script>
+  <script src="/static/js/admin-hub.js?v=20260402-course-status-3way"></script>
   <script src="/static/js/admin-isbn.js"></script>
   <script src="/static/js/security.js${STATIC_JS_CACHE_QUERY}"></script>
 </body>

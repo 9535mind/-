@@ -369,11 +369,11 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
                             </p>
                         </div>
 
-                        <!-- 무료 미리보기 -->
+                        <!-- 무료 맛보기 -->
                         <div class="md:col-span-2">
                             <label class="flex items-center mb-3">
-                                <input type="checkbox" id="lessonIsFree" class="mr-2" onchange="toggleFreePreviewTime()">
-                                <span class="text-sm font-medium text-gray-700">무료 미리보기 (비로그인 사용자도 시청 가능)</span>
+                                <input type="checkbox" id="lessonIsPreview" class="mr-2 rounded border-gray-300 text-purple-600 focus:ring-purple-500" onchange="toggleFreePreviewTime()">
+                                <span class="text-sm font-medium text-gray-700">👀 무료 맛보기로 공개 <span class="text-xs text-gray-500 font-normal">(수강·결제 없이 이 차시만 시청 가능)</span></span>
                             </label>
                             
                             <!-- 무료 체험 시간 설정 -->
@@ -532,7 +532,7 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
                         <div class="flex items-center space-x-4 text-sm text-gray-500">
                           \${lesson.video_duration_minutes ? \`<span><i class="fas fa-clock mr-1"></i>\${lesson.video_duration_minutes}분</span>\` : ''}
                           \${lesson.video_url ? \`<span><i class="fas fa-video mr-1"></i>영상 있음</span>\` : '<span><i class="fas fa-video-slash mr-1 text-gray-400"></i>영상 없음</span>'}
-                          \${lesson.is_free_preview === 1 ? '<span class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-semibold"><i class="fas fa-unlock mr-1"></i>무료 미리보기</span>' : ''}
+                          \${lesson.is_preview === 1 || lesson.is_free_preview === 1 ? '<span class="bg-amber-100 text-amber-900 px-2 py-1 rounded text-xs font-semibold">✨ 무료 맛보기</span>' : ''}
                           \${lesson.status !== 'active' ? '<span class="bg-gray-100 text-gray-800 px-2 py-1 rounded text-xs font-semibold"><i class="fas fa-eye-slash mr-1"></i>비공개</span>' : ''}
                         </div>
                       </div>
@@ -588,7 +588,8 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
                   document.getElementById('lessonOrder').value = lesson.lesson_number;
                   document.getElementById('lessonDuration').value = lesson.video_duration_minutes || 0;
                   document.getElementById('lessonDescription').value = lesson.description || '';
-                  document.getElementById('lessonIsFree').checked = lesson.is_free_preview === 1;
+                  document.getElementById('lessonIsPreview').checked =
+                    lesson.is_preview === 1 || lesson.is_free_preview === 1;
                   document.getElementById('lessonIsActive').checked = lesson.status === 'active';
                   
                   // 영상 데이터 설정
@@ -794,7 +795,7 @@ pagesAdmin.get('/courses/:courseId/lessons', async (c) => {
                 video_url: videoData.video_url,
                 video_id: videoData.video_id,
                 description: document.getElementById('lessonDescription').value || null,
-                is_free_preview: document.getElementById('lessonIsFree').checked ? 1 : 0,
+                is_preview: document.getElementById('lessonIsPreview').checked ? 1 : 0,
                 status: document.getElementById('lessonIsActive').checked ? 'active' : 'inactive'
               };
 

@@ -30,32 +30,6 @@ DEBUG.error = function(...args) {
 let allCourses = [];
 let currentImageTab = 'video';  // 현재 선택된 탭 ('video', 'url', 'upload')
 
-/**
- * 가격 필드 표시/숨김 토글
- */
-function togglePriceFields() {
-  const isFree = document.getElementById('courseIsFree').checked;
-  const priceFieldsContainer = document.getElementById('priceFieldsContainer');
-  const priceInput = document.getElementById('coursePrice');
-  const discountInput = document.getElementById('courseDiscountPrice');
-  
-  if (isFree) {
-    // 무료 강좌: 가격 필드 비활성화
-    priceFieldsContainer.style.opacity = '0.5';
-    priceFieldsContainer.style.pointerEvents = 'none';
-    priceInput.value = '0';
-    discountInput.value = '';
-    priceInput.disabled = true;
-    discountInput.disabled = true;
-  } else {
-    // 유료 강좌: 가격 필드 활성화
-    priceFieldsContainer.style.opacity = '1';
-    priceFieldsContainer.style.pointerEvents = 'auto';
-    priceInput.disabled = false;
-    discountInput.disabled = false;
-  }
-}
-
 // 탭 전환
 function switchImageTab(tab) {
   currentImageTab = tab;
@@ -287,21 +261,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 폼 제출 이벤트
   document.getElementById('courseForm').addEventListener('submit', handleSubmit);
 
-  // 무료 강좌 체크박스
-  document.getElementById('courseIsFree').addEventListener('change', (e) => {
-    const priceInput = document.getElementById('coursePrice');
-    const discountInput = document.getElementById('courseDiscountPrice');
-    if (e.target.checked) {
-      priceInput.value = 0;
-      discountInput.value = 0;
-      priceInput.disabled = true;
-      discountInput.disabled = true;
-    } else {
-      priceInput.disabled = false;
-      discountInput.disabled = false;
-    }
-  });
-
   // 썸네일 URL 입력 시 미리보기
   document.getElementById('courseThumbnail').addEventListener('input', (e) => {
     const url = e.target.value;
@@ -433,12 +392,22 @@ function renderCourses(courses) {
 }
 
 // 상태 배지
+function normalizeAdminCourseStatusValue(raw) {
+  const s = String(raw || 'draft')
+    .trim()
+    .toLowerCase()
+  if (s === 'active') return 'published'
+  if (s === 'archived' || s === 'hidden') return 'inactive'
+  if (s === 'draft' || s === 'inactive' || s === 'published') return s
+  return 'draft'
+}
+
 function getStatusBadge(status) {
   const badges = {
     draft: '<span class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-semibold">준비 중</span>',
-    inactive: '<span class="px-2 py-1 bg-gray-100 text-gray-800 rounded-full text-xs font-semibold">정지</span>',
-    active: '<span class="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">활성</span>',
-    published: '<span class="px-2 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-semibold">공개 완료</span>',
+    inactive: '<span class="px-2 py-1 bg-gray-100 text-gray-800 rounded-full text-xs font-semibold">비공개 (숨김)</span>',
+    active: '<span class="px-2 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-semibold">공개 (수강 가능)</span>',
+    published: '<span class="px-2 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-semibold">공개 (수강 가능)</span>',
   };
   if (typeof adminStatusLabelKo === 'function' && status && !badges[status]) {
     const lab = adminStatusLabelKo(status)
@@ -513,12 +482,11 @@ async function editCourse(courseId) {
       document.getElementById('courseDescription').value = course.description || '';
       document.getElementById('courseThumbnail').value = course.thumbnail_url || '';
       document.getElementById('courseType').value = course.course_type || 'general';
-      document.getElementById('courseDuration').value = course.duration_days || 30;
+      document.getElementById('courseDuration').value = course.duration_days || 90;
       document.getElementById('coursePrice').value = course.price || 0;
       document.getElementById('courseDiscountPrice').value = course.discount_price || 0;
-      document.getElementById('courseIsFree').checked = course.is_free === 1;
       document.getElementById('courseIsFeatured').checked = course.is_featured === 1;
-      document.getElementById('courseStatus').value = course.status || 'active';
+      document.getElementById('courseStatus').value = normalizeAdminCourseStatusValue(course.status || 'draft');
       
       // 썸네일 미리보기 표시
       if (course.thumbnail_url) {
@@ -570,10 +538,12 @@ async function handleSubmit(e) {
     duration_days: parseInt(document.getElementById('courseDuration').value),
     price: parseInt(document.getElementById('coursePrice').value) || 0,
     discount_price: parseInt(document.getElementById('courseDiscountPrice').value) || 0,
-    is_free: document.getElementById('courseIsFree').checked ? 1 : 0,
     is_featured: document.getElementById('courseIsFeatured').checked ? 1 : 0,
     status: document.getElementById('courseStatus').value
   };
+  delete formData.is_free
+  delete formData.is_free_preview
+  delete formData.is_preview
   
   DEBUG(' formData:', formData);
 
@@ -754,7 +724,7 @@ async function refreshLessonPreview() {
                 <div class="flex items-center space-x-3 text-xs text-gray-500 mt-1">
                   ${lesson.video_duration_minutes ? `<span><i class="fas fa-clock mr-1"></i>${lesson.video_duration_minutes}분</span>` : ''}
                   ${lesson.video_url ? '<span class="text-green-600"><i class="fas fa-video mr-1"></i>영상 있음</span>' : '<span class="text-gray-400"><i class="fas fa-video-slash mr-1"></i>영상 없음</span>'}
-                  ${lesson.is_free_preview === 1 ? '<span class="bg-green-100 text-green-800 px-2 py-0.5 rounded"><i class="fas fa-unlock mr-1"></i>무료</span>' : ''}
+                  ${lesson.is_preview === 1 || lesson.is_free_preview === 1 ? '<span class="bg-amber-100 text-amber-900 px-2 py-0.5 rounded text-xs font-semibold">✨ 맛보기</span>' : ''}
                   ${lesson.status !== 'active' ? '<span class="bg-gray-100 text-gray-800 px-2 py-0.5 rounded"><i class="fas fa-eye-slash mr-1"></i>비공개</span>' : ''}
                 </div>
               </div>
@@ -858,7 +828,7 @@ async function loadCourseLessons(courseId) {
                 <div class="flex items-center space-x-3 mt-1 text-xs text-gray-500">
                   ${lesson.video_duration_minutes ? `<span><i class="fas fa-clock mr-1"></i>${lesson.video_duration_minutes}분</span>` : ''}
                   ${lesson.video_url ? '<span class="text-green-600"><i class="fas fa-video mr-1"></i>영상</span>' : '<span class="text-gray-400"><i class="fas fa-video-slash mr-1"></i>영상 없음</span>'}
-                  ${lesson.is_free_preview === 1 ? '<span class="text-green-600"><i class="fas fa-unlock mr-1"></i>무료</span>' : ''}
+                  ${lesson.is_preview === 1 || lesson.is_free_preview === 1 ? '<span class="text-amber-700 font-semibold">✨ 맛보기</span>' : ''}
                   ${lesson.status !== 'active' ? '<span class="text-gray-400"><i class="fas fa-eye-slash mr-1"></i>비공개</span>' : ''}
                 </div>
               </div>

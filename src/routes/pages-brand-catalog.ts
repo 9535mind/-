@@ -101,6 +101,11 @@ app.get('/courses/classic', async (c) => {
             return '<span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ' + cls + '">' + lab + '</span>'
           }).join(' ')
         }
+        function msLineLabelStr(cg) {
+          return msLineTokens(cg).map(function (k) {
+            return k === 'NEXT' ? 'Next' : k === 'NCS' ? 'NCS' : 'Classic'
+          }).join(' · ')
+        }
         try {
           var msAdmin = document.body.getAttribute('data-ms-admin-chrome') === '1'
           try { if (localStorage.getItem('mindstory_view_mode') === 'student') msAdmin = false } catch (e) {}
@@ -112,12 +117,17 @@ app.get('/courses/classic', async (c) => {
             var pencil = msAdmin
               ? '<a href="/admin/course/edit/' + course.id + '" class="admin-magic-pencil shrink-0 mt-0.5" title="관리자 수정" aria-label="강좌 수정"><i class="fas fa-pencil-alt" aria-hidden="true"></i></a>'
               : ''
-            return '<article class="rounded-2xl border border-classic-sage/25 bg-white shadow-sm hover:shadow-md transition overflow-hidden">' +
-              '<img src="' + (course.thumbnail_url || '/static/images/course-placeholder.svg') + '" class="w-full h-44 object-cover" alt="" />' +
-              '<div class="p-5">' +
-              '<h2 class="font-bold text-classic-forest text-lg">' + (course.title || '') + '</h2>' +
+            return '<article class="rounded-2xl border border-classic-sage/25 bg-white shadow-sm hover:shadow-md transition overflow-hidden group">' +
+              '<a href="/courses/' + course.id + '" class="block relative aspect-[16/10] w-full overflow-hidden bg-slate-900">' +
+              '<img src="' + (course.thumbnail_url || '/static/images/course-placeholder.svg') + '" alt="" class="absolute inset-0 w-full h-full object-cover transition duration-500 group-hover:scale-[1.03]" onerror="this.src=\'/static/images/course-placeholder.svg\'" />' +
+              '<div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none"></div>' +
+              '<div class="absolute bottom-0 left-0 right-0 p-4 md:p-5">' +
+              '<h2 class="font-bold text-white text-lg md:text-xl leading-snug line-clamp-2 drop-shadow-sm">' + (course.title || '') + '</h2>' +
               '<div class="flex flex-wrap gap-1 mt-2">' + msLineBadgesClassic(course.category_group) + '</div>' +
-              '<p class="text-sm text-classic-forest/70 mt-2 flex items-start gap-1">' +
+              '<p class="text-sm text-gray-300 mt-2 line-clamp-1">' + msLineLabelStr(course.category_group) + ' · 마인드스토리 강좌</p>' +
+              '</div></a>' +
+              '<div class="p-5">' +
+              '<p class="text-sm text-classic-forest/70 flex items-start gap-1">' +
               '<span class="line-clamp-2 flex-1 min-w-0">' + (course.description || '') + '</span>' + pencil + '</p>' +
               '<a href="/courses/' + course.id + '" class="mt-4 inline-block rounded-lg bg-classic-sage text-white px-4 py-2 text-sm font-semibold hover:opacity-90">자세히</a>' +
               '</div></article>'
@@ -165,6 +175,11 @@ app.get('/courses/next', async (c) => {
             return '<span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ' + cls + '">' + lab + '</span>'
           }).join(' ')
         }
+        function msLineLabelStrNext(cg) {
+          return msLineTokens(cg).map(function (k) {
+            return k === 'NEXT' ? 'Next' : k === 'NCS' ? 'NCS' : 'Classic'
+          }).join(' · ')
+        }
         try {
           var msAdmin = document.body.getAttribute('data-ms-admin-chrome') === '1'
           try { if (localStorage.getItem('mindstory_view_mode') === 'student') msAdmin = false } catch (e) {}
@@ -176,13 +191,18 @@ app.get('/courses/next', async (c) => {
             var pencil = msAdmin
               ? '<a href="/admin/course/edit/' + course.id + '" class="admin-magic-pencil shrink-0 mt-0.5" title="관리자 수정" aria-label="강좌 수정"><i class="fas fa-pencil-alt" aria-hidden="true"></i></a>'
               : ''
-            return '<article class="rounded-2xl border border-slate-200 bg-white shadow-md hover:border-next-accent/40 hover:shadow-lg transition overflow-hidden">' +
+            return '<article class="rounded-2xl border border-slate-200 bg-white shadow-md hover:border-next-accent/40 hover:shadow-lg transition overflow-hidden group">' +
               '<div class="h-2 bg-gradient-to-r from-next-accent to-slate-400"></div>' +
-              '<img src="' + (course.thumbnail_url || '/static/images/course-placeholder.svg') + '" class="w-full h-44 object-cover bg-slate-100" alt="" />' +
-              '<div class="p-5">' +
-              '<h2 class="font-bold text-next-ink text-lg">' + (course.title || '') + '</h2>' +
+              '<a href="/courses/' + course.id + '" class="block relative aspect-[16/10] w-full overflow-hidden bg-slate-900">' +
+              '<img src="' + (course.thumbnail_url || '/static/images/course-placeholder.svg') + '" alt="" class="absolute inset-0 w-full h-full object-cover transition duration-500 group-hover:scale-[1.03]" onerror="this.src=\'/static/images/course-placeholder.svg\'" />' +
+              '<div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none"></div>' +
+              '<div class="absolute bottom-0 left-0 right-0 p-4 md:p-5">' +
+              '<h2 class="font-bold text-white text-lg md:text-xl leading-snug line-clamp-2 drop-shadow-sm">' + (course.title || '') + '</h2>' +
               '<div class="flex flex-wrap gap-1 mt-2">' + msLineBadgesNext(course.category_group) + '</div>' +
-              '<p class="text-sm text-slate-600 mt-2 flex items-start gap-1">' +
+              '<p class="text-sm text-gray-300 mt-2 line-clamp-1">' + msLineLabelStrNext(course.category_group) + ' · 마인드스토리 강좌</p>' +
+              '</div></a>' +
+              '<div class="p-5">' +
+              '<p class="text-sm text-slate-600 flex items-start gap-1">' +
               '<span class="line-clamp-2 flex-1 min-w-0">' + (course.description || '') + '</span>' + pencil + '</p>' +
               '<a href="/courses/' + course.id + '" class="mt-4 inline-block rounded-lg bg-next-accent text-white px-4 py-2 text-sm font-semibold hover:bg-blue-700">자세히</a>' +
               '</div></article>'
@@ -230,6 +250,11 @@ app.get('/courses/ncs', async (c) => {
             return '<span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ' + cls + '">' + lab + '</span>'
           }).join(' ')
         }
+        function msLineLabelStrNcs(cg) {
+          return msLineTokens(cg).map(function (k) {
+            return k === 'NEXT' ? 'Next' : k === 'NCS' ? 'NCS' : 'Classic'
+          }).join(' · ')
+        }
         try {
           var msAdmin = document.body.getAttribute('data-ms-admin-chrome') === '1'
           try { if (localStorage.getItem('mindstory_view_mode') === 'student') msAdmin = false } catch (e) {}
@@ -241,13 +266,18 @@ app.get('/courses/ncs', async (c) => {
             var pencil = msAdmin
               ? '<a href="/admin/course/edit/' + course.id + '" class="admin-magic-pencil shrink-0 mt-0.5" title="관리자 수정" aria-label="강좌 수정"><i class="fas fa-pencil-alt" aria-hidden="true"></i></a>'
               : ''
-            return '<article class="rounded-2xl border border-amber-200/70 bg-white shadow-md hover:shadow-lg transition overflow-hidden">' +
+            return '<article class="rounded-2xl border border-amber-200/70 bg-white shadow-md hover:shadow-lg transition overflow-hidden group">' +
               '<div class="h-2 bg-gradient-to-r from-amber-500 to-amber-700"></div>' +
-              '<img src="' + (course.thumbnail_url || '/static/images/course-placeholder.svg') + '" class="w-full h-44 object-cover bg-amber-50/30" alt="" />' +
-              '<div class="p-5">' +
-              '<h2 class="font-bold text-amber-950 text-lg">' + (course.title || '') + '</h2>' +
+              '<a href="/courses/' + course.id + '" class="block relative aspect-[16/10] w-full overflow-hidden bg-slate-900">' +
+              '<img src="' + (course.thumbnail_url || '/static/images/course-placeholder.svg') + '" alt="" class="absolute inset-0 w-full h-full object-cover transition duration-500 group-hover:scale-[1.03]" onerror="this.src=\'/static/images/course-placeholder.svg\'" />' +
+              '<div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none"></div>' +
+              '<div class="absolute bottom-0 left-0 right-0 p-4 md:p-5">' +
+              '<h2 class="font-bold text-white text-lg md:text-xl leading-snug line-clamp-2 drop-shadow-sm">' + (course.title || '') + '</h2>' +
               '<div class="flex flex-wrap gap-1 mt-2">' + msLineBadgesNcs(course.category_group) + '</div>' +
-              '<p class="text-sm text-slate-600 mt-2 flex items-start gap-1">' +
+              '<p class="text-sm text-gray-300 mt-2 line-clamp-1">' + msLineLabelStrNcs(course.category_group) + ' · 마인드스토리 강좌</p>' +
+              '</div></a>' +
+              '<div class="p-5">' +
+              '<p class="text-sm text-slate-600 flex items-start gap-1">' +
               '<span class="line-clamp-2 flex-1 min-w-0">' + (course.description || '') + '</span>' + pencil + '</p>' +
               '<a href="/courses/' + course.id + '" class="mt-4 inline-block rounded-lg bg-amber-700 text-white px-4 py-2 text-sm font-semibold hover:bg-amber-800">자세히</a>' +
               '</div></article>'

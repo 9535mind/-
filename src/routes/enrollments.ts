@@ -15,6 +15,7 @@ import {
   isCompletionEligible
 } from '../utils/helpers'
 import { requireAuth } from '../middleware/auth'
+import { lessonPreviewFlagFromRow } from '../utils/lesson-preview'
 
 const enrollments = new Hono<{ Bindings: Bindings }>()
 
@@ -440,7 +441,7 @@ enrollments.get('/:id/lessons/:lessonId', requireAuth, async (c) => {
  * GET /api/enrollments/:enrollmentId/lessons/:lessonId/check-access
  * 차시 접근 권한 확인
  * - 무료 강좌: 모든 차시 접근 가능
- * - 유료 강좌 (결제 안함): 1강만 접근 가능
+ * - 유료 강좌 (결제 안함): 맛보기(is_preview) 차시만 접근 가능
  * - 유료 강좌 (결제 완료): 모든 차시 접근 가능
  */
 enrollments.get('/:enrollmentId/lessons/:lessonId/check-access', requireAuth, async (c) => {
@@ -469,8 +470,7 @@ enrollments.get('/:enrollmentId/lessons/:lessonId/check-access', requireAuth, as
 
     // 차시 정보 조회
     const lesson: any = await DB.prepare(`
-      SELECT lesson_number, title 
-      FROM lessons 
+      SELECT * FROM lessons 
       WHERE id = ? AND course_id = ?
     `).bind(lessonId, enrollment.course_id).first()
 
@@ -529,15 +529,13 @@ enrollments.get('/:enrollmentId/lessons/:lessonId/check-access', requireAuth, as
       })
     }
 
-    // 결제하지 않은 경우 - 1강만 접근 가능
-    const isFirstLesson = lesson.lesson_number === 1
-    
-    if (isFirstLesson) {
+    // 결제하지 않은 경우 — 맛보기(is_preview)로 지정된 차시만 접근
+    if (lessonPreviewFlagFromRow(lesson as Record<string, unknown>) === 1) {
       return c.json({
         success: true,
         hasAccess: true,
-        reason: 'trial_first_lesson',
-        message: '무료 체험 중입니다. 1강은 무료로 시청 가능합니다.',
+        reason: 'preview_lesson',
+        message: '무료 맛보기 차시입니다.',
         courseTitle: enrollment.course_title,
         lessonNumber: lesson.lesson_number,
         lessonTitle: lesson.title,

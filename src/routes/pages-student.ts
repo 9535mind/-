@@ -161,26 +161,29 @@ app.get('/my-courses', (c) => {
                     : '학습 전';
 
                 return \`
-                    <div class="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow overflow-hidden">
-                        <!-- 썸네일 -->
-                        <div class="relative">
+                    <div class="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow overflow-hidden ring-1 ring-slate-200/80">
+                        <!-- 썸네일 + 오버레이 -->
+                        <div class="relative h-48 w-full overflow-hidden bg-slate-900">
                             <img src="\${thumbnailUrl}" 
-                                 alt="\${course.title}" 
-                                 class="w-full h-48 object-cover"
+                                 alt="" 
+                                 class="absolute inset-0 w-full h-full object-cover"
                                  onerror="this.src='/static/images/default-course.jpg'">
+                            <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none"></div>
                             \${isCompleted ? \`
-                                <div class="absolute top-2 right-2 bg-green-500 text-white px-3 py-1 rounded-full text-sm font-semibold">
+                                <div class="absolute top-2 right-2 z-10 bg-green-500 text-white px-3 py-1 rounded-full text-sm font-semibold shadow">
                                     <i class="fas fa-check-circle mr-1"></i>완강
                                 </div>
                             \` : ''}
+                            <div class="absolute bottom-0 left-0 right-0 p-4">
+                                <h3 class="text-lg font-bold text-white line-clamp-2 drop-shadow-sm">
+                                    \${course.title}
+                                </h3>
+                                <p class="text-sm text-gray-300 mt-1 line-clamp-1">내 강의실 · 학습 계속하기</p>
+                            </div>
                         </div>
 
                         <!-- 내용 -->
                         <div class="p-6">
-                            <h3 class="text-lg font-bold text-gray-900 mb-2 line-clamp-2">
-                                \${course.title}
-                            </h3>
-                            
                             <p class="text-sm text-gray-600 mb-4 line-clamp-2">
                                 \${course.description || '강좌 설명이 없습니다.'}
                             </p>
@@ -532,7 +535,7 @@ app.get('/courses/:courseId/lessons/:lessonId', (c) => {
             document.getElementById('lessonDuration').textContent = lessonData.video_duration_minutes || lessonData.duration_minutes || 0;
             
             // Free preview badge
-            if (lessonData.is_free_preview || lessonData.is_free) {
+            if (lessonData.is_preview || lessonData.is_free_preview) {
                 document.getElementById('freePreviewBadge').classList.remove('hidden');
             }
 

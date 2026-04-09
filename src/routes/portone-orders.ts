@@ -145,28 +145,19 @@ portone.post('/prepare', requireAuth, async (c) => {
       status: string
       price: number | null
       discount_price?: number | null
-      is_free?: number | null
     }
 
     let course: CourseRow | null = null
     try {
       course = await DB.prepare(
-        `SELECT id, title, status, price, discount_price, is_free FROM courses WHERE id = ?`
+        `SELECT id, title, status, price, discount_price FROM courses WHERE id = ?`,
       )
         .bind(course_id)
         .first<CourseRow>()
     } catch {
-      try {
-        course = await DB.prepare(
-          `SELECT id, title, status, price, discount_price FROM courses WHERE id = ?`
-        )
-          .bind(course_id)
-          .first<CourseRow>()
-      } catch {
-        course = await DB.prepare(`SELECT id, title, status, price FROM courses WHERE id = ?`)
-          .bind(course_id)
-          .first<CourseRow>()
-      }
+      course = await DB.prepare(`SELECT id, title, status, price FROM courses WHERE id = ?`)
+        .bind(course_id)
+        .first<CourseRow>()
     }
 
     if (!course || course.status !== 'published') {
@@ -177,7 +168,7 @@ portone.post('/prepare', requireAuth, async (c) => {
       course.discount_price != null && course.discount_price > 0
         ? course.discount_price
         : course.price ?? 0
-    if (course.is_free === 1 || amount <= 0) {
+    if (amount <= 0) {
       return c.json(errorResponse('유료 강좌만 결제할 수 있습니다.'), 400)
     }
 

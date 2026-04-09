@@ -40,6 +40,18 @@ function normalizeCourseDifficulty(raw: unknown, fallback: string | null | undef
   return allowed.includes(fb) ? fb : 'beginner'
 }
 
+/** 강좌 status: DB에는 draft | inactive | published. 레거시 active→published, archived/hidden→inactive */
+function normalizeCourseStatusInput(raw: unknown): { ok: true; value: string } | { ok: false } {
+  if (raw === undefined || raw === null || (typeof raw === 'string' && raw.trim() === '')) {
+    return { ok: true, value: 'draft' }
+  }
+  const s = String(raw).trim().toLowerCase()
+  if (s === 'active') return { ok: true, value: 'published' }
+  if (s === 'archived' || s === 'hidden') return { ok: true, value: 'inactive' }
+  if (s === 'draft' || s === 'inactive' || s === 'published') return { ok: true, value: s }
+  return { ok: false }
+}
+
 /** instructors 테이블이 없으면 검증 생략(레거시 DB), id 없으면 not_found */
 async function assertInstructorExistsOrSkip(
   DB: D1Database,
@@ -56,14 +68,7 @@ async function assertInstructorExistsOrSkip(
   }
 }
 
-/** 운영 D1에 일부 courses 컬럼 마이그레이션이 아직 없을 때 INSERT 재시도 */
-function extractSqliteMissingColumnName(err: unknown): string | null {
-  const m = String(err instanceof Error ? err.message : err)
-  const r = m.match(/no such column[:\s]+(?:[a-zA-Z0-9_]+\.)?([a-zA-Z0-9_]+)/i)
-  return r?.[1] ?? null
-}
-
-async function insertCourseRowWithOptionalColumnFallback(
+async function insertCourseRow(
   DB: D1Database,
   params: {
     title: string
@@ -74,7 +79,6 @@ async function insertCourseRowWithOptionalColumnFallback(
     regular_price: number
     sale_price: number | null
     discount_price: number | null
-    is_free: number
     certificateId: number | null
     durationDays: number
     validityUnlimited: number
@@ -84,7 +88,7 @@ async function insertCourseRowWithOptionalColumnFallback(
     priceRemarks: string | null
   },
 ): Promise<{ meta: { last_row_id?: number | bigint | null } }> {
-  const columnOrder = [
+  const cols = [
     'title',
     'description',
     'thumbnail_url',
@@ -93,7 +97,6 @@ async function insertCourseRowWithOptionalColumnFallback(
     'price',
     'sale_price',
     'discount_price',
-    'is_free',
     'certificate_id',
     'duration_days',
     'validity_unlimited',
@@ -104,7 +107,7 @@ async function insertCourseRowWithOptionalColumnFallback(
     'regular_price',
     'price_remarks',
   ] as const
-  const bindRow = [
+  const binds = [
     params.title,
     params.descriptionText,
     params.thumbForInsert,
@@ -113,7 +116,6 @@ async function insertCourseRowWithOptionalColumnFallback(
     params.regular_price,
     params.sale_price,
     params.discount_price,
-    params.is_free,
     params.certificateId,
     params.durationDays,
     params.validityUnlimited,
@@ -124,25 +126,9 @@ async function insertCourseRowWithOptionalColumnFallback(
     params.regular_price,
     params.priceRemarks,
   ]
-  let cols = [...columnOrder]
-  let binds = [...bindRow]
-  const maxStrips = 24
-  for (let attempt = 0; attempt < maxStrips; attempt++) {
-    const placeholders = cols.map(() => '?').join(', ')
-    const sql = `INSERT INTO courses (${cols.join(', ')}, created_at, updated_at) VALUES (${placeholders}, datetime('now'), datetime('now'))`
-    try {
-      return await DB.prepare(sql).bind(...binds).run()
-    } catch (e) {
-      const missing = extractSqliteMissingColumnName(e)
-      if (!missing) throw e
-      const idx = cols.indexOf(missing as (typeof columnOrder)[number])
-      if (idx === -1) throw e
-      cols = cols.filter((_, i) => i !== idx)
-      binds = binds.filter((_, i) => i !== idx)
-      if (cols.length < 5) throw e
-    }
-  }
-  throw new Error('COURSE_INSERT_FALLBACK_EXHAUSTED')
+  const placeholders = cols.map(() => '?').join(', ')
+  const sql = `INSERT INTO courses (${cols.join(', ')}, created_at, updated_at) VALUES (${placeholders}, datetime('now'), datetime('now'))`
+  return await DB.prepare(sql).bind(...binds).run()
 }
 
 function generateTemporaryPassword(length: number = 14): string {
@@ -1070,6 +1056,66 @@ admin.get('/edu-dashboard/summary', requireAdmin, async (c) => {
   )
 })
 
+/** 학사·자격 전용 대시보드 KPI — 시험 제출·수료 대기·자격 신청·오프라인 신청 */
+admin.get('/academic-dashboard/summary', requireAdmin, async (c) => {
+  const { DB } = c.env
+  let grading_pending = 0
+  let certificate_queue = 0
+  let certification_application_pending = 0
+  let offline_meetup_recent = 0
+  try {
+    const row = await DB.prepare(
+      `SELECT COUNT(*) as c FROM exam_attempts WHERE submitted_at IS NOT NULL`,
+    ).first<{ c: number }>()
+    grading_pending = Number(row?.c ?? 0)
+  } catch (e) {
+    console.warn('[admin/academic-dashboard] exam_attempts:', e)
+  }
+  try {
+    const row = await DB.prepare(
+      `SELECT COUNT(*) as c FROM certification_applications WHERE LOWER(TRIM(COALESCE(status,''))) = 'pending'`,
+    ).first<{ c: number }>()
+    certification_application_pending = Number(row?.c ?? 0)
+  } catch (e) {
+    console.warn('[admin/academic-dashboard] certification_applications:', e)
+  }
+  try {
+    const row = await DB.prepare(
+      `SELECT COUNT(*) as c FROM offline_applications WHERE datetime(created_at) >= datetime('now', '-30 days')`,
+    ).first<{ c: number }>()
+    offline_meetup_recent = Number(row?.c ?? 0)
+  } catch (e) {
+    console.warn('[admin/academic-dashboard] offline_applications:', e)
+  }
+  try {
+    const row = await DB.prepare(
+      `SELECT COUNT(*) as c FROM enrollments e
+       WHERE e.completed_at IS NOT NULL
+         AND NOT EXISTS (SELECT 1 FROM certificates c WHERE c.enrollment_id = e.id)`,
+    ).first<{ c: number }>()
+    certificate_queue = Number(row?.c ?? 0)
+  } catch (e) {
+    try {
+      const row2 = await DB.prepare(
+        `SELECT COUNT(*) as c FROM enrollments e
+         WHERE COALESCE(e.certificate_issued, 0) = 0
+           AND COALESCE(e.completion_rate, 0) >= 100`,
+      ).first<{ c: number }>()
+      certificate_queue = Number(row2?.c ?? 0)
+    } catch (e2) {
+      console.warn('[admin/academic-dashboard] certificate_queue:', e2)
+    }
+  }
+  return c.json(
+    successResponse({
+      grading_pending,
+      certificate_queue,
+      certification_application_pending,
+      offline_meetup_recent,
+    }),
+  )
+})
+
 /** 최근 lesson_progress 갱신 (학습 활동) */
 admin.get('/edu-dashboard/recent-activity', requireAdmin, async (c) => {
   const { DB } = c.env
@@ -1218,9 +1264,9 @@ admin.post('/courses', requireAdmin, async (c) => {
       rawRegular !== undefined && rawRegular !== null && String(rawRegular).trim() !== ''
         ? rawRegular
         : rawPriceAlias
-    const { regular_price, sale_price, discount_price, is_free } = deriveCoursePricing(regularSource, rawSalePrice)
+    const { regular_price, sale_price, discount_price } = deriveCoursePricing(regularSource, rawSalePrice)
     const validityUnlimited = Number(rawValidityUnlimited) ? 1 : 0
-    const durationDays = validityUnlimited ? 0 : Math.max(0, parseInt(String(rawDurationDays ?? '30'), 10) || 30)
+    const durationDays = validityUnlimited ? 0 : Math.max(0, parseInt(String(rawDurationDays ?? '90'), 10) || 90)
 
     const instructorId =
       rawInstructorId !== undefined && rawInstructorId !== null && String(rawInstructorId).trim() !== ''
@@ -1246,16 +1292,20 @@ admin.post('/courses', requireAdmin, async (c) => {
       return c.json(errorResponse('썸네일 URL이 너무 깁니다. 이미지를 업로드해 주세요.'), 400)
     }
 
-    const result = await insertCourseRowWithOptionalColumnFallback(DB, {
+    const statusNorm = normalizeCourseStatusInput(status)
+    if (!statusNorm.ok) {
+      return c.json(errorResponse('허용되지 않는 상태입니다'), 400)
+    }
+
+    const result = await insertCourseRow(DB, {
       title: String(title),
       descriptionText,
       thumbForInsert,
       instructorId,
-      status: String(status),
+      status: statusNorm.value,
       regular_price,
       sale_price,
       discount_price,
-      is_free,
       certificateId,
       durationDays,
       validityUnlimited,
@@ -1491,6 +1541,9 @@ admin.put('/courses/:id', requireAdmin, async (c) => {
 
   try {
     const body = await readJsonBody(c)
+    delete body.is_free
+    delete body.is_free_preview
+    delete body.is_preview
 
     type CoursePutRow = {
       title: string
@@ -1499,7 +1552,6 @@ admin.put('/courses/:id', requireAdmin, async (c) => {
       status: string | null
       price: number | null
       sale_price: number | null
-      is_free: number | null
       instructor_id: number | null
       certificate_id: number | null
       duration_days: number | null
@@ -1513,7 +1565,7 @@ admin.put('/courses/:id', requireAdmin, async (c) => {
       thumbnail_image_ai: number | null
     }
 
-    const sqlPutBase = `SELECT title, description, thumbnail_url, status, price, sale_price, is_free,
+    const sqlPutBase = `SELECT title, description, thumbnail_url, status, price, sale_price,
               instructor_id, certificate_id, duration_days, validity_unlimited,
               category_group, schedule_info, difficulty,
               COALESCE(regular_price, price) AS regular_price, price_remarks`
@@ -1599,10 +1651,15 @@ admin.put('/courses/:id', requireAdmin, async (c) => {
           ? 1
           : 0
 
-    const status =
+    const statusRaw =
       'status' in body && body.status != null && String(body.status).trim() !== ''
         ? String(body.status).trim()
         : (existing.status ?? 'draft')
+    const statusNormPut = normalizeCourseStatusInput(statusRaw)
+    if (!statusNormPut.ok) {
+      return c.json(errorResponse('허용되지 않는 상태입니다'), 400)
+    }
+    const status = statusNormPut.value
 
     const rawRegular =
       'regular_price' in body
@@ -1611,7 +1668,7 @@ admin.put('/courses/:id', requireAdmin, async (c) => {
           ? body.price
           : existing.regular_price ?? existing.price
     const rawSale = 'sale_price' in body ? body.sale_price : existing.sale_price
-    const { regular_price, sale_price, discount_price, is_free } = deriveCoursePricing(
+    const { regular_price, sale_price, discount_price } = deriveCoursePricing(
       rawRegular as number | string | null | undefined,
       rawSale as number | string | null | undefined,
     )
@@ -1620,7 +1677,7 @@ admin.put('/courses/:id', requireAdmin, async (c) => {
     const validityUnlimited = Number(rawValidity) ? 1 : 0
 
     const rawDur = 'duration_days' in body ? body.duration_days : existing.duration_days
-    const durationDays = validityUnlimited ? 0 : Math.max(0, parseInt(String(rawDur ?? '30'), 10) || 30)
+    const durationDays = validityUnlimited ? 0 : Math.max(0, parseInt(String(rawDur ?? '90'), 10) || 90)
 
     const rawInst = 'instructor_id' in body ? body.instructor_id : existing.instructor_id
     const instructorId =
@@ -1677,7 +1734,6 @@ admin.put('/courses/:id', requireAdmin, async (c) => {
       regular_price,
       sale_price,
       discount_price,
-      is_free,
       instructorId,
       certificateId,
       durationDays,
@@ -1703,7 +1759,6 @@ admin.put('/courses/:id', requireAdmin, async (c) => {
         price = ?,
         sale_price = ?,
         discount_price = ?,
-        is_free = ?,
         instructor_id = ?,
         certificate_id = ?,
         duration_days = ?,
@@ -1733,7 +1788,6 @@ admin.put('/courses/:id', requireAdmin, async (c) => {
         price = ?,
         sale_price = ?,
         discount_price = ?,
-        is_free = ?,
         instructor_id = ?,
         certificate_id = ?,
         duration_days = ?,
@@ -1755,7 +1809,6 @@ admin.put('/courses/:id', requireAdmin, async (c) => {
               regular_price,
               sale_price,
               discount_price,
-              is_free,
               instructorId,
               certificateId,
               durationDays,
@@ -1781,7 +1834,6 @@ admin.put('/courses/:id', requireAdmin, async (c) => {
         price = ?,
         sale_price = ?,
         discount_price = ?,
-        is_free = ?,
         instructor_id = ?,
         certificate_id = ?,
         duration_days = ?,
@@ -1802,7 +1854,6 @@ admin.put('/courses/:id', requireAdmin, async (c) => {
               regular_price,
               sale_price,
               discount_price,
-              is_free,
               instructorId,
               certificateId,
               durationDays,
@@ -1829,7 +1880,6 @@ admin.put('/courses/:id', requireAdmin, async (c) => {
         price = ?,
         sale_price = ?,
         discount_price = ?,
-        is_free = ?,
         instructor_id = ?,
         certificate_id = ?,
         duration_days = ?,
@@ -1851,7 +1901,6 @@ admin.put('/courses/:id', requireAdmin, async (c) => {
               regular_price,
               sale_price,
               discount_price,
-              is_free,
               instructorId,
               certificateId,
               durationDays,
@@ -1877,7 +1926,6 @@ admin.put('/courses/:id', requireAdmin, async (c) => {
         price = ?,
         sale_price = ?,
         discount_price = ?,
-        is_free = ?,
         instructor_id = ?,
         certificate_id = ?,
         duration_days = ?,
@@ -1898,7 +1946,6 @@ admin.put('/courses/:id', requireAdmin, async (c) => {
               regular_price,
               sale_price,
               discount_price,
-              is_free,
               instructorId,
               certificateId,
               durationDays,
@@ -1955,12 +2002,12 @@ admin.patch('/courses/:id', requireAdmin, async (c) => {
     const vals: unknown[] = []
 
     if (status !== undefined) {
-      const allowed = ['draft', 'inactive', 'active', 'published']
-      if (!allowed.includes(status)) {
+      const st = normalizeCourseStatusInput(status)
+      if (!st.ok) {
         return c.json(errorResponse('허용되지 않는 상태입니다'), 400)
       }
       sets.push('status = ?')
-      vals.push(status)
+      vals.push(st.value)
     }
     if (highlight_classic !== undefined) {
       sets.push('highlight_classic = ?')
@@ -2051,7 +2098,8 @@ admin.get('/videos', requireAdmin, async (c) => {
         l.video_url,
         l.video_provider,
         l.video_duration_minutes,
-        l.is_free_preview,
+        COALESCE(l.is_preview, l.is_free_preview, l.is_free, 0) AS is_preview,
+        COALESCE(l.is_preview, l.is_free_preview, l.is_free, 0) AS is_free_preview,
         l.status,
         l.created_at,
         c.id as course_id,

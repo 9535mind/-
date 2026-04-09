@@ -14,7 +14,7 @@ INSERT INTO users (email, password, name, phone, role, status, phone_verified, p
 ('student3@example.com', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '박철수', '01033334444', 'student', 'active', 0, NULL, '1988-09-10', 1, 1);
 
 -- 3. 샘플 과정 생성
-INSERT INTO courses (title, description, thumbnail_url, course_type, duration_days, total_lessons, total_duration_minutes, completion_progress_rate, price, discount_price, is_free, status, published_at, display_order, is_featured) VALUES 
+INSERT INTO courses (title, description, thumbnail_url, course_type, duration_days, total_lessons, total_duration_minutes, completion_progress_rate, price, discount_price, status, published_at, display_order, is_featured) VALUES 
 (
   '마인드 타임 코칭 입문',
   '시간 관리와 심리학을 결합한 마인드 타임 코칭의 기초를 배우는 과정입니다. 효율적인 시간 활용과 목표 달성을 위한 실전 코칭 기법을 학습합니다.',
@@ -26,7 +26,6 @@ INSERT INTO courses (title, description, thumbnail_url, course_type, duration_da
   80,
   150000,
   120000,
-  0,
   'active',
   CURRENT_TIMESTAMP,
   1,
@@ -43,7 +42,6 @@ INSERT INTO courses (title, description, thumbnail_url, course_type, duration_da
   80,
   100000,
   80000,
-  0,
   'active',
   CURRENT_TIMESTAMP,
   2,
@@ -60,7 +58,6 @@ INSERT INTO courses (title, description, thumbnail_url, course_type, duration_da
   80,
   300000,
   250000,
-  0,
   'active',
   CURRENT_TIMESTAMP,
   3,
@@ -77,7 +74,6 @@ INSERT INTO courses (title, description, thumbnail_url, course_type, duration_da
   80,
   0,
   0,
-  1,
   'active',
   CURRENT_TIMESTAMP,
   0,

@@ -1186,31 +1186,44 @@ pages.get('/courses/:id', async (c) => {
                     return p
                 })()
                 var showCourseAsFree = coursePayAmountDetail <= 0
+                var thumbUrl = (course.thumbnail_url && String(course.thumbnail_url).trim()) ? String(course.thumbnail_url).trim() : '/static/images/course-placeholder.svg'
+                var lineLabelStr = lineKeys.map(function (k) {
+                    return k === 'NEXT' ? 'Next' : k === 'NCS' ? 'NCS' : 'Classic'
+                }).join(' · ')
+                var instructorLine = (course.instructor_name && String(course.instructor_name).trim()) ? String(course.instructor_name).trim() : ''
+                var metaSubtitle = lineLabelStr + (instructorLine ? ' · ' + instructorLine : '')
                 
                 const detailHtml = \`
-                    <!-- 과정 헤더 섹션 -->
-                    <div class="bg-gradient-to-br from-purple-600 via-indigo-600 to-blue-600 text-white rounded-2xl shadow-2xl overflow-hidden mb-8">
-                        <div class="p-8 md:p-12">
-                            <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-                                <div class="flex-1">
-                                    <div class="flex items-center gap-3 mb-4 flex-wrap">
-                                        <span class="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full text-sm font-semibold">
-                                            <i class="fas fa-graduation-cap mr-2"></i>온라인 과정
-                                        </span>
-                                        \${course.is_featured ? '<span class="bg-yellow-400 text-yellow-900 px-4 py-2 rounded-full text-sm font-bold"><i class="fas fa-star mr-1"></i>인기</span>' : ''}
-                                        \${lineBadgesRow}
-                                    </div>
-                                    <h1 class="text-4xl md:text-5xl font-bold mb-4 leading-tight">\${course.title}</h1>
-                                    <p class="text-xl text-white/90 leading-relaxed mb-6">\${course.description || ''}</p>
-                                    <div class="flex flex-wrap items-center gap-6 text-white/80">
-                                        <span><i class="fas fa-users mr-2"></i>\${course.enrolled_count || 0}명 수강 중</span>
-                                        <span><i class="fas fa-calendar mr-2"></i>수강 기간 \${course.duration_days}일</span>
-                                        <span><i class="fas fa-book mr-2"></i>총 \${course.total_lessons}강</span>
-                                    </div>
+                    <!-- 과정 헤더: 썸네일 + 다크 그라데이션 + 텍스트 오버레이 -->
+                    <div class="rounded-2xl shadow-2xl overflow-hidden mb-8 border border-slate-200/80">
+                        <div class="relative min-h-[280px] md:min-h-[340px] w-full">
+                            <img src="\${thumbUrl}" alt="" class="absolute inset-0 w-full h-full object-cover"
+                                 onerror="this.onerror=null;this.src='/static/images/course-placeholder.svg'" />
+                            <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none"></div>
+                            <div class="absolute bottom-0 left-0 right-0 p-6 md:p-10">
+                                <div class="flex items-center gap-2 mb-3 flex-wrap">
+                                    <span class="inline-flex items-center bg-white/15 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-xs font-semibold border border-white/20">
+                                        <i class="fas fa-graduation-cap mr-1.5"></i>온라인 과정
+                                    </span>
+                                    \${course.is_featured ? '<span class="inline-flex items-center bg-amber-400/95 text-amber-950 px-3 py-1.5 rounded-full text-xs font-bold shadow-sm"><i class="fas fa-star mr-1"></i>인기</span>' : ''}
+                                    \${lineBadgesRow}
                                 </div>
-                                
+                                <h1 class="text-3xl md:text-5xl font-bold text-white leading-tight drop-shadow-md">\${course.title}</h1>
+                                <p class="mt-2 text-sm md:text-base text-gray-300">\${metaSubtitle}</p>
+                            </div>
+                        </div>
+                        <div class="bg-white p-6 md:p-8 flex flex-col lg:flex-row gap-8 items-start">
+                            <div class="flex-1 min-w-0">
+                                <p class="text-gray-600 text-base md:text-lg leading-relaxed">\${(course.description || '').replace(/</g, '&lt;')}</p>
+                                <div class="flex flex-wrap items-center gap-4 md:gap-6 mt-6 text-sm text-gray-500">
+                                    <span><i class="fas fa-users mr-1.5 text-indigo-500"></i>\${course.enrolled_count || 0}명 수강 중</span>
+                                    <span><i class="fas fa-calendar mr-1.5 text-indigo-500"></i>수강 기간 \${course.duration_days}일</span>
+                                    <span><i class="fas fa-book mr-1.5 text-indigo-500"></i>총 \${course.total_lessons}강</span>
+                                </div>
+                            </div>
+                            <div class="w-full lg:w-auto lg:min-w-[300px] shrink-0">
                                 <!-- 가격 & 신청 카드 -->
-                                <div class="bg-white rounded-2xl shadow-xl p-6 min-w-[280px] md:min-w-[320px]">
+                                <div class="bg-slate-50 rounded-2xl shadow-lg border border-slate-100 p-6 w-full">
                                     <div class="text-center mb-6">
                                         \${showCourseAsFree ? 
                                             '<div><p class="text-sm text-gray-500 mb-2">수강료</p><p class="text-4xl font-bold text-green-600">무료</p></div>' :
@@ -1332,7 +1345,7 @@ pages.get('/courses/:id', async (c) => {
                         </div>
                         <div class="space-y-3">
                             \${lessons.map((lesson, index) => \`
-                                <div onclick="goToLesson(\${course.id}, \${lesson.id}, \${lesson.is_free_preview}, \${hasAccess ? true : false})" 
+                                <div onclick="goToLesson(\${course.id}, \${lesson.id}, \${lesson.is_preview || lesson.is_free_preview ? 1 : 0}, \${hasAccess ? true : false})" 
                                      class="group bg-gray-50 hover:bg-purple-50 border-2 border-gray-200 hover:border-purple-400 rounded-xl p-5 transition-all cursor-pointer transform hover:scale-[1.02]">
                                     <div class="flex items-center justify-between">
                                         <div class="flex items-center flex-1 gap-4">
@@ -1342,7 +1355,7 @@ pages.get('/courses/:id', async (c) => {
                                             <div class="flex-1">
                                                 <div class="flex items-center flex-wrap gap-2 mb-1">
                                                     <span class="font-bold text-gray-900 text-lg group-hover:text-purple-700 transition">\${lesson.title}</span>
-                                                    \${lesson.is_free_preview ? '<span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold"><i class="fas fa-unlock mr-1"></i>무료</span>' : ''}
+                                                    \${lesson.is_preview || lesson.is_free_preview ? '<span class="inline-flex items-center gap-1 bg-amber-100 text-amber-900 px-3 py-1 rounded-full text-xs font-bold border border-amber-200/80">✨ 무료 맛보기</span>' : ''}
                                                 </div>
                                                 <div class="flex items-center gap-4 text-sm text-gray-600">
                                                     <span><i class="fas fa-clock mr-1 text-purple-600"></i>\${lesson.video_duration_minutes || 0}분</span>
@@ -1660,8 +1673,8 @@ pages.get('/courses/:courseId/lessons/:lessonId', async (c) => {
                                         <span class="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full text-sm font-semibold">
                                             \${currentLesson.lesson_number}강
                                         </span>
-                                        \${currentLesson.is_free_preview ? 
-                                            '<span class="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-semibold"><i class="fas fa-unlock mr-1"></i>무료</span>' : 
+                                        \${currentLesson.is_preview || currentLesson.is_free_preview ? 
+                                            '<span class="bg-amber-100 text-amber-900 px-3 py-1 rounded-full text-sm font-semibold border border-amber-200">✨ 무료 맛보기</span>' : 
                                             ''
                                         }
                                     </div>
@@ -1754,8 +1767,8 @@ pages.get('/courses/:courseId/lessons/:lessonId', async (c) => {
                                                     }">
                                                         \${isCompleted ? '<i class="fas fa-check"></i>' : lesson.lesson_number}
                                                     </span>
-                                                    \${lesson.is_free_preview ? 
-                                                        '<span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-semibold"><i class="fas fa-unlock mr-1"></i>무료</span>' : 
+                                                    \${lesson.is_preview || lesson.is_free_preview ? 
+                                                        '<span class="text-xs bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full font-semibold border border-amber-200/80">✨ 맛보기</span>' : 
                                                         ''
                                                     }
                                                 </div>
@@ -1883,6 +1896,13 @@ pages.get('/courses', async (c) => {
     ${getFooter()}
     
     <script>
+      function formatCourseCatalogLine(cg) {
+        const raw = String(cg || 'CLASSIC').toUpperCase().replace(/\\s/g, '').split(/[,，]/).filter(Boolean)
+        const al = ['CLASSIC', 'NEXT', 'NCS']
+        const keys = raw.filter((p) => al.includes(p))
+        const u = keys.length ? keys : ['CLASSIC']
+        return u.map((k) => (k === 'NEXT' ? 'Next' : k === 'NCS' ? 'NCS' : 'Classic')).join(' · ')
+      }
       async function loadAllCoursesGridPage() {
         try {
           const response = await axios.get('/api/courses')
@@ -1895,22 +1915,23 @@ pages.get('/courses', async (c) => {
           }
           
           grid.innerHTML = courses.map(course => \`
-            <div class="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow">
-              <img src="\${course.thumbnail_url || '/static/images/course-placeholder.svg'}" 
-                   alt="\${course.title}" class="w-full h-48 object-cover"
-                   onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22300%22%3E%3Crect fill=%22%23667eea%22 width=%22400%22 height=%22300%22/%3E%3Ctext fill=%22%23ffffff%22 font-family=%22Arial%22 font-size=%2224%22 text-anchor=%22middle%22 x=%22200%22 y=%22150%22%3E강좌 이미지%3C/text%3E%3C/svg%3E'">
-              <div class="p-6">
-                <h3 class="text-xl font-semibold text-gray-900 mb-2">\${course.title}</h3>
-                <p class="text-gray-600 text-sm mb-4 line-clamp-2">\${course.description || ''}</p>
-                <div class="flex justify-between items-center">
-                  <span class="text-indigo-600 font-semibold">\${(() => { const p = Number(course.price)||0; const d = course.discount_price != null ? Number(course.discount_price) : NaN; const a = Number.isFinite(d)&&d>0?d:p; return a > 0 ? a.toLocaleString() + '원' : '무료'; })()}</span>
-                  <a href="/courses/\${course.id}" 
-                     class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors">
-                    자세히 보기
-                  </a>
+            <a href="/courses/\${course.id}" class="group block bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-shadow ring-1 ring-slate-200/80">
+              <div class="relative aspect-[16/10] w-full overflow-hidden bg-slate-900">
+                <img src="\${course.thumbnail_url || '/static/images/course-placeholder.svg'}"
+                     alt=""
+                     class="absolute inset-0 w-full h-full object-cover transition duration-500 group-hover:scale-[1.03]"
+                     onerror="this.src='/static/images/course-placeholder.svg'">
+                <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none"></div>
+                <div class="absolute bottom-0 left-0 right-0 p-4 md:p-5">
+                  <h3 class="text-lg md:text-xl font-bold text-white leading-snug line-clamp-2 drop-shadow-sm">\${course.title}</h3>
+                  <p class="text-gray-300 text-sm mt-1.5 line-clamp-1">\${formatCourseCatalogLine(course.category_group)} · 온라인 강좌</p>
                 </div>
               </div>
-            </div>
+              <div class="p-4 flex justify-between items-center gap-3 border-t border-slate-100">
+                <span class="text-indigo-600 font-semibold tabular-nums">\${(() => { const p = Number(course.price)||0; const d = course.discount_price != null ? Number(course.discount_price) : NaN; const a = Number.isFinite(d)&&d>0?d:p; return a > 0 ? a.toLocaleString() + '원' : '무료'; })()}</span>
+                <span class="text-sm font-medium text-slate-500 group-hover:text-indigo-600 transition-colors">자세히 보기 <i class="fas fa-chevron-right text-xs ml-0.5"></i></span>
+              </div>
+            </a>
           \`).join('')
         } catch (error) {
           console.error('Failed to load courses:', error)

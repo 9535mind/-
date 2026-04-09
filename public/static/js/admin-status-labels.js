@@ -5,9 +5,11 @@
 ;(function (g) {
   var MAP = {
     draft: '준비 중',
-    inactive: '정지',
-    active: '활성',
-    published: '공개 완료',
+    inactive: '비공개 (숨김)',
+    active: '공개 (수강 가능)',
+    published: '공개 (수강 가능)',
+    archived: '비공개 (숨김)',
+    hidden: '비공개 (숨김)',
     pending: '검수 대기',
     approved: '승인 완료',
     rejected: '반려',

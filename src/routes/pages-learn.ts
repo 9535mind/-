@@ -240,7 +240,7 @@ app.get('/courses/:courseId/learn', async (c) => {
         <script src="/static/js/payment-required.js?v=1767571255"></script>
         
         <!-- 영상 플레이어 시스템 -->
-        <script src="/static/js/learn-player.js?v=1767571255"></script>
+        <script src="/static/js/learn-player.js?v=20260409-lesson-preview"></script>
         ${SITE_POPUP_SCRIPT_TAG}
     </body>
     </html>

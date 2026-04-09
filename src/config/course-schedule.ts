@@ -84,16 +84,15 @@ export type CourseScheduleRow = {
   description?: string | null
   price?: number | null
   sale_price?: number | null
-  is_free?: number | null
 }
 
 export function formatCoursePriceLine(row: CourseScheduleRow): string {
-  if (row.is_free === 1) return '무료'
   const sale = row.sale_price != null && row.sale_price > 0 ? row.sale_price : null
-  const base = row.price != null && row.price > 0 ? row.price : null
-  const p = sale ?? base
-  if (p == null || p === 0) return '금액은 강좌 상세 페이지의 DB 값을 따른다'
-  return `${Number(p).toLocaleString('ko-KR')}원`
+  const base = row.price != null && row.price >= 0 ? row.price : null
+  const effective = sale ?? base
+  if (effective == null) return '금액은 강좌 상세 페이지의 DB 값을 따른다'
+  if (effective <= 0) return '무료'
+  return `${Number(effective).toLocaleString('ko-KR')}원`
 }
 
 function descriptionSnippet(raw: string | null | undefined, max = 140): string {

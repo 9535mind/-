@@ -129,7 +129,6 @@ export interface Course {
   price: number;
   sale_price?: number | null;
   discount_price?: number;
-  is_free: number;
   status: 'active' | 'inactive' | 'draft' | 'published';
   certificate_id?: number | null;
   validity_unlimited?: number;
@@ -180,7 +179,6 @@ export interface CreateCourseInput {
   price: number;
   sale_price?: number | null;
   discount_price?: number;
-  is_free?: number;
   certificate_id?: number | null;
   validity_unlimited?: number;
   status?: 'active' | 'inactive' | 'draft';
@@ -203,6 +201,8 @@ export interface Lesson {
   document_filename?: string;
   document_size_kb?: number;
   allow_download: number;
+  /** 맛보기 차시(결제·수강 없이 시청) — 레거시 is_free_preview·is_free 와 동기화 */
+  is_preview: number;
   is_free_preview: number;
   status: 'active' | 'inactive';
   created_at: string;
@@ -219,6 +219,8 @@ export interface CreateLessonInput {
   video_id?: string;
   video_url?: string;
   video_duration_minutes?: number;
+  /** 1이면 맛보기 공개 */
+  is_preview?: number;
   is_free_preview?: number;
 }
 

@@ -239,6 +239,9 @@ function renderLessonList() {
     container.innerHTML = lessonsData.map(lesson => {
         const isActive = currentLesson && currentLesson.id === lesson.id;
         const isCompleted = lesson.completed;
+        const prevBadge = lessonIsPreview(lesson)
+            ? '<span class="ml-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-200/80">✨맛보기</span>'
+            : '';
         
         return `
             <div class="lesson-item ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''} p-4 border-b cursor-pointer hover:bg-gray-50"
@@ -246,7 +249,7 @@ function renderLessonList() {
                 <div class="flex justify-between items-start">
                     <div class="flex-1">
                         <h3 class="lesson-title text-sm font-medium text-gray-900">
-                            ${lesson.lesson_number}. ${lesson.title}
+                            ${lesson.lesson_number}. ${lesson.title}${prevBadge}
                         </h3>
                         ${lesson.video_duration_minutes ? `<p class="text-xs text-gray-500 mt-1">${lesson.video_duration_minutes}분</p>` : ''}
                     </div>
@@ -255,6 +258,11 @@ function renderLessonList() {
             </div>
         `;
     }).join('');
+}
+
+function lessonIsPreview(lesson) {
+    if (!lesson) return false;
+    return Number(lesson.is_preview) === 1 || Number(lesson.is_free_preview) === 1;
 }
 
 /**
@@ -272,6 +280,14 @@ async function loadLesson(lessonId) {
         if (!currentLesson) {
             showError('차시를 찾을 수 없습니다.');
             return;
+        }
+
+        // 수강·결제 없이 맛보기 차시만 허용
+        if (!learnPlayerIsAdmin && !enrollmentData && !hasPaidAccess) {
+            if (!lessonIsPreview(currentLesson)) {
+                showError('수강 신청 후 이용 가능합니다. 맛보기로 공개된 차시만 재생할 수 있습니다.');
+                return;
+            }
         }
 
         // ✅ 차시 접근 권한 확인 (관리자·미수강은 스킵)

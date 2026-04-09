@@ -77,26 +77,27 @@ app.get('/courses/:id', async (c) => {
 
         <!-- 메인 컨텐츠 -->
         <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <!-- 강좌 헤더 -->
-            <div class="bg-white rounded-lg shadow-lg overflow-hidden mb-8">
-                <div class="md:flex">
-                    <!-- 강좌 썸네일 -->
-                    <div class="md:w-2/5">
-                        <img id="courseThumbnail" src="" alt="강좌 썸네일" class="w-full h-64 md:h-full object-cover">
-                    </div>
-                    <!-- 강좌 정보 -->
-                    <div class="md:w-3/5 p-8">
-                        <div class="flex items-center mb-4">
-                            <span id="courseDifficulty" class="px-3 py-1 bg-blue-100 text-blue-800 text-sm font-semibold rounded-full">
+            <!-- 강좌 헤더: 썸네일 + 그라데이션 오버레이 + 하단 본문 -->
+            <div class="bg-white rounded-lg shadow-lg overflow-hidden mb-8 border border-slate-200/80">
+                <div class="relative min-h-[260px] md:min-h-[320px] w-full">
+                    <img id="courseThumbnail" src="" alt="" class="absolute inset-0 w-full h-full object-cover">
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none" aria-hidden="true"></div>
+                    <div class="absolute bottom-0 left-0 right-0 p-6 md:p-10">
+                        <div class="flex items-center gap-2 mb-3 flex-wrap">
+                            <span id="courseDifficulty" class="px-3 py-1 bg-white/15 backdrop-blur-md text-white text-sm font-semibold rounded-full border border-white/25">
                                 초급
                             </span>
-                            <span id="courseStatus" class="ml-2 px-3 py-1 bg-green-100 text-green-800 text-sm font-semibold rounded-full">
+                            <span id="courseStatus" class="px-3 py-1 bg-emerald-500/90 text-white text-sm font-semibold rounded-full">
                                 공개
                             </span>
                         </div>
-                        <h1 id="courseTitle" class="text-3xl font-bold text-gray-900 mb-4">
+                        <h1 id="courseTitle" class="text-3xl md:text-4xl font-bold text-white mb-2 leading-tight drop-shadow-md">
                             로딩 중...
                         </h1>
+                        <p id="courseHeroMeta" class="text-sm md:text-base text-gray-300"></p>
+                    </div>
+                </div>
+                <div class="p-8">
                         <div class="flex items-start gap-2 mb-6">
                             <p id="courseDescription" class="text-gray-600 flex-1 min-w-0">
                                 로딩 중...
@@ -145,7 +146,6 @@ app.get('/courses/:id', async (c) => {
                                 <i class="fas fa-clipboard-check mr-2"></i>오프라인 모임 신청하기
                             </button>
                         </div>
-                    </div>
                 </div>
             </div>
 
@@ -274,7 +274,7 @@ app.get('/courses/:id', async (c) => {
                     // 강좌 정보 표시
                     document.getElementById('courseTitle').textContent = courseData.title;
                     document.getElementById('courseDescription').textContent = courseData.description || '강좌 설명이 없습니다.';
-                    document.getElementById('courseThumbnail').src = courseData.thumbnail_url || 'https://placehold.co/600x400/667eea/ffffff?text=' + encodeURIComponent(courseData.title);
+                    document.getElementById('courseThumbnail').src = courseData.thumbnail_url || '/static/images/course-placeholder.svg';
                     
                     // 난이도
                     const difficultyMap = {
@@ -282,17 +282,34 @@ app.get('/courses/:id', async (c) => {
                         'intermediate': '중급',
                         'advanced': '고급'
                     };
-                    document.getElementById('courseDifficulty').textContent = difficultyMap[courseData.difficulty] || '초급';
+                    const diffEl = document.getElementById('courseDifficulty');
+                    diffEl.textContent = difficultyMap[courseData.difficulty] || '초급';
+                    diffEl.className = 'px-3 py-1 bg-white/15 backdrop-blur-md text-white text-sm font-semibold rounded-full border border-white/25';
                     
                     // 상태
                     const statusMap = {
-                        'published': { text: '공개', color: 'green' },
-                        'draft': { text: '준비중', color: 'gray' }
+                        'published': { text: '공개' },
+                        'draft': { text: '준비중' }
                     };
                     const status = statusMap[courseData.status] || statusMap['draft'];
                     const statusEl = document.getElementById('courseStatus');
                     statusEl.textContent = status.text;
-                    statusEl.className = \`ml-2 px-3 py-1 bg-\${status.color}-100 text-\${status.color}-800 text-sm font-semibold rounded-full\`;
+                    statusEl.className =
+                        courseData.status === 'published'
+                            ? 'px-3 py-1 bg-emerald-500/90 text-white text-sm font-semibold rounded-full'
+                            : 'px-3 py-1 bg-white/15 backdrop-blur-md text-white text-sm font-semibold rounded-full border border-white/25';
+
+                    // 히어로 메타: 카탈로그 라인 · 강사명
+                    const heroMeta = document.getElementById('courseHeroMeta');
+                    if (heroMeta) {
+                        const raw = String(courseData.category_group || 'CLASSIC').toUpperCase().replace(/\\s/g, '').split(/[,，]/).filter(Boolean);
+                        const al = ['CLASSIC', 'NEXT', 'NCS'];
+                        const keys = raw.filter((p) => al.includes(p));
+                        const u = keys.length ? keys : ['CLASSIC'];
+                        const lineStr = u.map((k) => (k === 'NEXT' ? 'Next' : k === 'NCS' ? 'NCS' : 'Classic')).join(' · ');
+                        const inst = (courseData.instructor_name && String(courseData.instructor_name).trim()) ? String(courseData.instructor_name).trim() : '';
+                        heroMeta.textContent = lineStr + (inst ? ' · ' + inst : '');
+                    }
                     
                     // 통계
                     document.getElementById('totalLessons').textContent = courseData.total_lessons || 0;
@@ -430,7 +447,7 @@ app.get('/courses/:id', async (c) => {
                                     <div class="ml-4 flex-1">
                                         <h3 class="text-2xl md:text-lg font-bold text-gray-900 mb-3">
                                             \${lesson.title}
-                                            \${lesson.is_free || lesson.is_free_preview ? '<span class="ml-2 px-3 py-1 bg-green-100 text-green-800 text-base md:text-xs font-semibold rounded">무료</span>' : ''}
+                                            \${lesson.is_preview || lesson.is_free_preview ? '<span class="ml-2 inline-flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-amber-50 to-amber-100 border border-amber-200/80 text-amber-900 text-base md:text-xs font-semibold rounded-full shadow-sm">✨ 무료 맛보기</span>' : ''}
                                         </h3>
                                         <p class="text-gray-600 text-lg md:text-sm mb-4 leading-relaxed">\${lesson.description || '차시 설명이 없습니다.'}</p>
                                         <div class="flex items-center text-lg md:text-sm text-gray-500 space-x-4">
@@ -446,12 +463,12 @@ app.get('/courses/:id', async (c) => {
                                     </div>
                                 </div>
                                 <div class="mt-5 md:mt-0 md:ml-4 w-full md:w-auto">
-                                    \${enrollment || hasPaidAccessFlag || (detailUser && detailUser.role === 'admin') || lesson.is_free || lesson.is_free_preview ? \`
+                                    \${enrollment || hasPaidAccessFlag || (detailUser && detailUser.role === 'admin') || lesson.is_preview || lesson.is_free_preview ? \`
                                         <button onclick="playLesson(\${lesson.id})" class="w-full md:w-auto bg-green-600 text-white px-8 py-4 md:px-4 md:py-2 rounded-xl hover:bg-green-700 transition text-xl md:text-sm font-bold shadow-lg">
                                             <i class="fas fa-play-circle mr-2 text-2xl md:text-base"></i>재생
                                         </button>
                                     \` : \`
-                                        <button disabled class="w-full md:w-auto bg-gray-300 text-gray-600 px-8 py-4 md:px-4 md:py-2 rounded-xl cursor-not-allowed text-xl md:text-sm font-bold">
+                                        <button type="button" onclick="alert('수강 신청 후 이용 가능합니다.\\n\\n맛보기로 공개된 차시는 상단 배지가 있는 영상만 재생할 수 있습니다.')" class="w-full md:w-auto bg-gray-300 text-gray-600 px-8 py-4 md:px-4 md:py-2 rounded-xl cursor-not-allowed text-xl md:text-sm font-bold">
                                             <i class="fas fa-lock mr-2 text-2xl md:text-base"></i>잠김
                                         </button>
                                     \`}

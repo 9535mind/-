@@ -885,13 +885,16 @@ landing.get('/', async (c) => {
                         }
 
                         courseList.innerHTML = courses.map(course => \`
-                        <div class="glass-card rounded-2xl overflow-hidden cursor-pointer" onclick="viewCourse(\${course.id})">
-                            <div class="h-56 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center relative overflow-hidden">
-                                <div class="absolute inset-0 bg-black/20"></div>
-                                <i class="fas fa-book-open text-7xl text-white opacity-40 relative z-10"></i>
+                        <div class="glass-card rounded-2xl overflow-hidden cursor-pointer group ring-1 ring-white/10 shadow-xl" onclick="viewCourse(\${course.id})">
+                            <div class="relative h-56 w-full overflow-hidden bg-slate-900">
+                                <img src="\${course.thumbnail_url || '/static/images/course-placeholder.svg'}" alt="" class="absolute inset-0 w-full h-full object-cover transition duration-500 group-hover:scale-[1.04]" onerror="this.src='/static/images/course-placeholder.svg'" />
+                                <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none"></div>
+                                <div class="absolute bottom-0 left-0 right-0 p-5">
+                                    <h3 class="text-xl md:text-2xl font-bold text-white leading-snug line-clamp-2 drop-shadow-md">\${course.title}</h3>
+                                    <p class="text-gray-300 text-sm mt-2 line-clamp-1">온라인 강좌 · 마인드스토리</p>
+                                </div>
                             </div>
                             <div class="p-6">
-                                <h3 class="text-2xl font-bold mb-3">\${course.title}</h3>
                                 <p class="text-gray-600 mb-6 leading-relaxed line-clamp-2">\${course.description || '전문가와 함께하는 특별한 학습 경험'}</p>
                                 <div class="flex justify-between items-center mb-4">
                                     <div class="text-sm text-gray-500">
