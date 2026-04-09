@@ -377,14 +377,18 @@ courses.get('/:id', optionalAuth, async (c) => {
       return c.json(errorResponse('과정을 찾을 수 없습니다.'), 404)
     }
 
-    const access = await assertLearnerCanAccessCourse(DB, course, courseId, user)
-    if (access.denied === '404') {
-      return c.json(errorResponse('과정을 찾을 수 없습니다.'), 404)
+    const isAdmin = user?.role === 'admin'
+    let enrollment: unknown | null = null
+    if (!isAdmin) {
+      const access = await assertLearnerCanAccessCourse(DB, course, courseId, user)
+      if (access.denied === '404') {
+        return c.json(errorResponse('과정을 찾을 수 없습니다.'), 404)
+      }
+      if (access.denied === '403') {
+        return c.json(errorResponse('접근 권한이 없습니다.'), 403)
+      }
+      enrollment = access.enrollment
     }
-    if (access.denied === '403') {
-      return c.json(errorResponse('접근 권한이 없습니다.'), 403)
-    }
-    const enrollment = access.enrollment
 
     // 차시 목록 조회
     const lessons = await DB.prepare(`
@@ -672,12 +676,17 @@ courses.get('/:id/lessons', optionalAuth, async (c) => {
       return c.json(errorResponse('과정을 찾을 수 없습니다.'), 404)
     }
 
-    const access = await assertLearnerCanAccessCourse(DB, course, courseId, user)
-    if (access.denied === '404') {
-      return c.json(errorResponse('과정을 찾을 수 없습니다.'), 404)
-    }
-    if (access.denied === '403') {
-      return c.json(errorResponse('접근 권한이 없습니다.'), 403)
+    const isAdminLessons = user?.role === 'admin'
+    let accessEnrollment: unknown | null = null
+    if (!isAdminLessons) {
+      const access = await assertLearnerCanAccessCourse(DB, course, courseId, user)
+      if (access.denied === '404') {
+        return c.json(errorResponse('과정을 찾을 수 없습니다.'), 404)
+      }
+      if (access.denied === '403') {
+        return c.json(errorResponse('접근 권한이 없습니다.'), 403)
+      }
+      accessEnrollment = access.enrollment
     }
 
     // 차시 목록 조회
@@ -693,7 +702,7 @@ courses.get('/:id/lessons', optionalAuth, async (c) => {
 
     // 수강 중인 경우 진도 정보 포함 (lesson_progress 테이블 있을 때만)
     if (user) {
-      const enrollment = access.enrollment
+      const enrollment = accessEnrollment
 
       if (enrollment) {
         // lesson_progress 테이블 존재 확인

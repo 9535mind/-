@@ -3585,7 +3585,12 @@ window.hubNavigateToNewCourse = function (e) {
 
 window.openCourseModal = async function (courseId) {
   hubDescAiGen += 1
-  currentCourseId = courseId
+  const cid = parseInt(String(courseId), 10)
+  if (!Number.isFinite(cid) || cid <= 0) {
+    showToast('잘못된 강좌입니다.', 'error')
+    return
+  }
+  currentCourseId = cid
   const options = await loadCourseFormOptions()
   const modal = document.getElementById('courseModal')
   const title = document.getElementById('courseModalTitle')
@@ -3595,18 +3600,23 @@ window.openCourseModal = async function (courseId) {
   if (!modal || !info || !lessons) return
   modal.classList.remove('hidden')
   modal.classList.add('flex')
-  if (title) title.textContent = '강좌 #' + courseId
-  if (frame) frame.src = '/admin/courses/' + courseId + '/lessons'
+  if (title) title.textContent = '강좌 #' + cid
+  if (frame) frame.src = '/admin/courses/' + cid + '/lessons'
+  info.innerHTML = '<p class="text-sm text-slate-500 py-4">강좌 정보를 불러오는 중…</p>'
 
-  const res = await apiRequest('GET', '/api/courses/' + courseId)
+  const res = await apiRequest('GET', '/api/courses/' + cid)
   if (!res.success || !res.data) {
-    info.innerHTML = '<p class="text-red-600">강좌를 불러올 수 없습니다.</p>'
+    info.innerHTML =
+      '<p class="text-red-600 py-4">' +
+      escapeHtml(String(res.error || res.message || '강좌를 불러올 수 없습니다.')) +
+      '</p><p class="text-xs text-slate-500 mt-2">로그인·관리자 권한을 확인한 뒤 다시 시도해 주세요.</p>'
     return
   }
   const { course, lessons: ls } = res.data
   window.hubCourseDraft = course
   courseModalLessons = ls || []
   const cr = course
+  try {
   info.innerHTML = `
     <div class="space-y-2">
       <label class="block text-sm font-medium">제목</label>
@@ -3674,6 +3684,13 @@ window.openCourseModal = async function (courseId) {
         <button type="button" onclick="hubOpenCourseDeleteModal()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium">삭제</button>
       </div>
     </div>`
+  } catch (err) {
+    console.error('[openCourseModal] render', err)
+    info.innerHTML =
+      '<p class="text-red-600 py-4">폼을 그리는 중 오류가 발생했습니다. 설명·자격증 필드에 특수 문자가 있으면 관리자에게 문의해 주세요.</p>'
+    showToast('강좌 폼 표시 오류', 'error')
+    return
+  }
   wireHubCourseTitleAiBlur()
   wireCoursePricingInputs()
   hubWireCourseThumbnailUi()
@@ -3682,7 +3699,7 @@ window.openCourseModal = async function (courseId) {
   hubSyncCourseThumbAiHint()
   {
     const pub = String(cr.status || '').toLowerCase() === 'published'
-    hubWireCourseModalPublishToggle(courseId, pub, cr.deleted_at)
+    hubWireCourseModalPublishToggle(cid, pub, cr.deleted_at)
   }
   const durationUnlimited = document.getElementById('hubCourseDurationUnlimited')
   const durationDays = document.getElementById('hubCourseDurationDays')
@@ -3695,7 +3712,7 @@ window.openCourseModal = async function (courseId) {
       else if (!durationDays.value) durationDays.value = String(cr.duration_days || 90)
     })
   }
-  renderLessonEditors(courseId)
+  renderLessonEditors(cid)
   setupCourseTabs()
 }
 
