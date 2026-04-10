@@ -228,7 +228,9 @@ landing.get('/', async (c) => {
             }
             .spring-hero-btn:hover {
                 transform: translateY(-5px);
-                box-shadow: 0 14px 36px rgba(255, 255, 255, 0.22), 0 0 32px rgba(167, 192, 170, 0.35);
+                box-shadow:
+                    0 14px 36px rgba(15, 23, 42, 0.1),
+                    0 0 28px rgba(99, 102, 241, 0.12);
             }
 
             .spring-light-cta {
@@ -290,46 +292,26 @@ landing.get('/', async (c) => {
                 }
             }
             
-            /* Hero Section with Image Slider */
+            /* Hero — 밝고 신뢰감 있는 톤 (화이트·연회색 + 인디고 포인트) */
             .hero-section {
                 position: relative;
                 overflow: hidden;
-                min-height: 600px;
+                min-height: 560px;
             }
             
-            .hero-slider {
-                position: absolute;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                z-index: 0;
+            .hero-section--light {
+                background: linear-gradient(168deg, #ffffff 0%, #f4f6fb 42%, #eef2f9 100%);
             }
             
-            .hero-slide {
-                position: absolute;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                opacity: 0;
-                transition: opacity 1.5s ease-in-out;
-                background-size: cover;
-                background-position: center;
-            }
-            
-            .hero-slide.active {
-                opacity: 1;
-            }
-            
-            .hero-slide::after {
+            .hero-section--light::before {
                 content: '';
                 position: absolute;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: linear-gradient(135deg, rgba(99, 102, 241, 0.4) 0%, rgba(168, 85, 247, 0.4) 100%);
+                inset: 0;
+                z-index: 0;
+                pointer-events: none;
+                background:
+                    radial-gradient(ellipse 85% 60% at 72% 8%, rgba(99, 102, 241, 0.1), transparent 58%),
+                    radial-gradient(ellipse 55% 45% at 8% 88%, rgba(148, 163, 184, 0.14), transparent 52%);
             }
             
             .hero-content {
@@ -452,25 +434,22 @@ landing.get('/', async (c) => {
         ${siteHeaderFullMarkup({ variant: 'landing', showEnrollment: true, adminCommandPulse })}
 
         <!-- 히어로 섹션 -->
-        <section class="hero-section text-white py-20 md:py-24">
-            <!-- 배경 이미지 슬라이더 -->
-            <div class="hero-slider">
-                <div class="hero-slide active" style="background-image: url('https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=1920&q=80');"></div>
-                <div class="hero-slide" style="background-image: url('https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=1920&q=80');"></div>
-                <div class="hero-slide" style="background-image: url('https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=1920&q=80');"></div>
-                <div class="hero-slide" style="background-image: url('https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=1920&q=80');"></div>
-            </div>
-            
-            <!-- 콘텐츠 -->
+        <section class="hero-section hero-section--light py-20 md:py-24 border-b border-slate-200/60">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 hero-content">
                 <div class="text-center">
-                    <h1 class="text-5xl md:text-6xl lg:text-7xl font-bold mb-8 leading-tight">
+                    <p class="text-sm md:text-base font-bold tracking-[0.22em] uppercase text-indigo-600 mb-4">
+                        MINDSTORY LMS
+                    </p>
+                    <h1 class="text-5xl md:text-6xl lg:text-7xl font-bold mb-5 leading-tight text-slate-900">
                         마음을 이해하고 성장하는 여정
                     </h1>
-                    <p class="text-2xl md:text-3xl lg:text-4xl mb-6 font-bold tracking-tight">
-                        마인드스토리 원격평생교육원
+                    <p class="text-xl md:text-2xl lg:text-3xl mb-5 font-semibold text-slate-600 tracking-tight">
+                        온라인 교육의 새로운 기준
                     </p>
-                    <p class="text-lg md:text-xl lg:text-2xl mb-12 opacity-90 leading-relaxed max-w-4xl mx-auto">
+                    <p class="text-2xl md:text-3xl lg:text-4xl mb-6 font-bold tracking-tight text-slate-800">
+                        <span class="text-indigo-600">마인드스토리</span> 원격평생교육원
+                    </p>
+                    <p class="text-lg md:text-xl lg:text-2xl mb-12 text-slate-600 leading-relaxed max-w-4xl mx-auto">
                         진로캠프, 메타인지 학습클리닉, 부모자녀 소통, 미술심리까지<br>
                         전문가와 함께 마음을 읽고 성장하는 마인드스토리 평생교육
                     </p>
@@ -479,8 +458,8 @@ landing.get('/', async (c) => {
                             <i class="fas fa-graduation-cap mr-3"></i>
                             수강신청 하기
                         </a>
-                        <button type="button" onclick="scrollToCourses()" class="spring-hero-btn bg-white/20 backdrop-blur-sm text-white px-10 py-4 rounded-xl text-xl font-semibold hover:bg-white/30">
-                            <i class="fas fa-book-open mr-2"></i>
+                        <button type="button" onclick="scrollToCourses()" class="spring-hero-btn inline-flex items-center justify-center border-2 border-slate-300/90 bg-white/90 text-slate-800 px-10 py-4 rounded-xl text-xl font-semibold shadow-sm shadow-slate-900/5 hover:border-indigo-400 hover:bg-indigo-50/90 hover:text-indigo-800 transition-colors">
+                            <i class="fas fa-book-open mr-2 text-indigo-600"></i>
                             과정 둘러보기
                         </button>
                     </div>
@@ -943,19 +922,6 @@ landing.get('/', async (c) => {
                     window.location.href = \`/courses/\${id}\`
                 }
 
-                function initHeroSlider() {
-                    const slides = document.querySelectorAll('.hero-slide')
-                    let currentSlide = 0
-
-                    function nextSlide() {
-                        slides[currentSlide].classList.remove('active')
-                        currentSlide = (currentSlide + 1) % slides.length
-                        slides[currentSlide].classList.add('active')
-                    }
-
-                    setInterval(nextSlide, 5000)
-                }
-
                 // onclick·레거시 호출용 — DOMContentLoaded 전에도 함수 참조가 준비되도록 즉시 전역에 연결
                 window.loadLandingFeaturedCourses = loadLandingFeaturedCourses
                 window.loadCourses = loadLandingFeaturedCourses
@@ -967,7 +933,6 @@ landing.get('/', async (c) => {
                     ${siteHeaderDrawerControlScript('landing')}
                     ;${siteFloatingQuickMenuScript()}
                     ;${siteAiChatWidgetScript()}
-                    initHeroSlider();
                 }
 
                 if (document.readyState === 'loading') {
