@@ -1076,6 +1076,14 @@ courses.put('/:courseId/lessons/:lessonId', requireAdmin, async (c) => {
       normalized.video_type = normalizeLessonVideoType(normalized.video_type)
     }
 
+    if (normalized.lesson_number !== undefined) {
+      const n = parseInt(String(normalized.lesson_number), 10)
+      if (!Number.isFinite(n) || n < 1) {
+        return c.json(errorResponse('차시 번호는 1 이상의 정수여야 합니다.'), 400)
+      }
+      normalized.lesson_number = n
+    }
+
     const lessonRow = lesson as Record<string, unknown>
     const effectiveType = normalizeLessonVideoType(
       normalized.video_type !== undefined ? normalized.video_type : lessonRow.video_type,

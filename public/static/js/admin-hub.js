@@ -848,13 +848,18 @@ async function hubSaveAllLessonDrafts(courseId) {
     const urlEl = document.getElementById('lesson-url-' + lessonId)
     const durEl = document.getElementById('lesson-dur-' + lessonId)
     const titleEl = document.getElementById('lesson-title-' + lessonId)
+    const numEl = document.getElementById('lesson-num-' + lessonId)
     const srcEl = document.querySelector('input[name="lesson-src-' + lessonId + '"]:checked')
     const video_type = srcEl && srcEl.value === 'YOUTUBE' ? 'YOUTUBE' : 'R2'
     const video_url = String(urlEl?.value ?? '').trim()
     const duration_minutes = Math.max(0, parseInt(String(durEl?.value ?? '0'), 10) || 0)
-    const title = titleEl?.value?.trim()
-    const payload = { video_url, duration_minutes, video_type }
-    if (title !== undefined && title !== '') payload.title = title
+    const title = String(titleEl?.value ?? '').trim()
+    if (!title) {
+      showToast('차시 제목을 입력해 주세요. (차시 행 ID ' + lessonId + ')', 'error')
+      return false
+    }
+    const lesson_number = Math.max(1, parseInt(String(numEl?.value ?? '1'), 10) || 1)
+    const payload = { video_url, duration_minutes, video_type, title, lesson_number }
     const res = await apiRequest('PUT', `/api/courses/${courseId}/lessons/${lessonId}`, payload)
     if (!res.success) {
       showToast(res.error || '차시 저장 실패 (#' + lessonId + ')', 'error')
@@ -894,13 +899,16 @@ function hasUnsavedLessonDrafts() {
     const titleEl = document.getElementById('lesson-title-' + lessonId)
     const urlEl = document.getElementById('lesson-url-' + lessonId)
     const durEl = document.getElementById('lesson-dur-' + lessonId)
+    const numEl = document.getElementById('lesson-num-' + lessonId)
     const nowTitle = String(titleEl?.value || '').trim()
     const nowUrl = String(urlEl?.value || '').trim()
     const nowDur = Math.max(0, parseInt(String(durEl?.value ?? '0'), 10) || 0)
+    const nowNum = Math.max(1, parseInt(String(numEl?.value ?? '1'), 10) || 1)
     const oldTitle = String(original.title || '').trim()
     const oldUrl = String(original.video_url || '').trim()
     const oldDur = Math.max(0, parseInt(String(hubLessonDurationDisplay(original)), 10) || 0)
-    if (nowTitle !== oldTitle || nowUrl !== oldUrl || nowDur !== oldDur) return true
+    const oldNum = Math.max(1, parseInt(String(original.lesson_number ?? '1'), 10) || 1)
+    if (nowTitle !== oldTitle || nowUrl !== oldUrl || nowDur !== oldDur || nowNum !== oldNum) return true
   }
   return false
 }
@@ -3877,25 +3885,35 @@ function renderLessonEditors(courseId) {
             : 'https://www.youtube.com/watch?v=… 또는 11자 영상 ID'
         const urlLabel =
           src === 'R2' ? '재생 URL (R2 공개 HTTPS)' : '재생 URL (유튜브 링크·ID 또는 R2 HTTPS)'
+        const ln = Math.max(1, parseInt(String(l.lesson_number ?? '1'), 10) || 1)
+        const safeTitle = String(l.title == null ? '' : l.title)
         return (
           '<div class="border border-slate-200 rounded-lg p-3 mb-2" data-lesson-id="' +
           l.id +
           '">' +
           '<div class="flex flex-wrap items-start justify-between gap-2 mb-2">' +
-          '<span class="font-medium text-sm text-slate-800">' +
-          l.lesson_number +
-          '차시</span>' +
+          '<label class="inline-flex flex-wrap items-center gap-1.5 text-sm text-slate-800">' +
+          '<span class="text-xs text-slate-500 shrink-0">차시</span>' +
+          '<input type="number" min="1" step="1" inputmode="numeric" id="lesson-num-' +
+          l.id +
+          '" class="w-16 border border-slate-300 rounded px-2 py-1 text-sm font-semibold tabular-nums" value="' +
+          ln +
+          '" aria-label="차시 번호">' +
+          '<span class="text-sm font-medium text-slate-800">차시</span>' +
+          '</label>' +
           '<button type="button" class="text-xs text-red-600 hover:underline" onclick="hubDeleteLesson(' +
           courseId +
           ', ' +
           l.id +
           ')">삭제</button></div>' +
-          '<label class="block text-xs text-slate-500 mb-0.5">차시 제목</label>' +
+          '<label class="block text-xs text-slate-500 mb-0.5" for="lesson-title-' +
+          l.id +
+          '">차시 제목</label>' +
           '<input type="text" id="lesson-title-' +
           l.id +
-          '" class="w-full border rounded px-2 py-1 text-sm mb-2" value="' +
-          escapeAttr(l.title || '') +
-          '">' +
+          '" class="w-full border border-slate-300 rounded px-2 py-1.5 text-sm mb-2" value="' +
+          escapeAttr(safeTitle) +
+          '" placeholder="차시 제목을 입력하세요" autocomplete="off" spellcheck="true">' +
           '<div class="mb-2"><span class="block text-xs font-medium text-slate-600 mb-1">영상 소스 선택</span>' +
           '<div class="flex flex-wrap gap-4 text-sm">' +
           '<label class="inline-flex items-center gap-2 cursor-pointer">' +
@@ -4177,13 +4195,18 @@ window.saveLessonVideo = async function (courseId, lessonId) {
   const urlEl = document.getElementById('lesson-url-' + lessonId)
   const durEl = document.getElementById('lesson-dur-' + lessonId)
   const titleEl = document.getElementById('lesson-title-' + lessonId)
+  const numEl = document.getElementById('lesson-num-' + lessonId)
   const srcEl = document.querySelector('input[name="lesson-src-' + lessonId + '"]:checked')
   const video_type = srcEl && srcEl.value === 'YOUTUBE' ? 'YOUTUBE' : 'R2'
   const video_url = urlEl?.value?.trim() || ''
   const duration_minutes = Math.max(0, parseInt(String(durEl?.value ?? '0'), 10) || 0)
-  const title = titleEl?.value?.trim()
-  const payload = { video_url, duration_minutes, video_type }
-  if (title) payload.title = title
+  const title = String(titleEl?.value ?? '').trim()
+  if (!title) {
+    showToast('차시 제목을 입력해 주세요.', 'error')
+    return
+  }
+  const lesson_number = Math.max(1, parseInt(String(numEl?.value ?? '1'), 10) || 1)
+  const payload = { video_url, duration_minutes, video_type, title, lesson_number }
   const res = await apiRequest('PUT', `/api/courses/${courseId}/lessons/${lessonId}`, payload)
   if (res.success) showToast('차시가 저장되었습니다.', 'success')
   else showToast(res.error || '저장 실패', 'error')

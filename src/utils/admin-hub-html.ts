@@ -1518,7 +1518,7 @@ ${adminHubEntityDetailPanelHtml()}
   <script src="/static/js/admin-status-labels.js?v=20260402-course-status-3way"></script>
   <script src="/static/js/admin-hub-member-panel.js?v=20260330-members-page"></script>
   <script src="/static/js/admin-hub-entity-panel.js?v=20260330-hub-pillars"></script>
-  <script src="/static/js/admin-hub.js?v=20260410-hub-course-admin-access"></script>
+  <script src="/static/js/admin-hub.js?v=20260410-lesson-num-title-edit"></script>
   <script src="/static/js/admin-isbn.js"></script>
   <script src="/static/js/security.js${STATIC_JS_CACHE_QUERY}"></script>
 </body>
