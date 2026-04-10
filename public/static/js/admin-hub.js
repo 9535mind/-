@@ -18,6 +18,7 @@ const HUB_VALID_PANELS = new Set([
   'publishing',
   'pub-dashboard',
   'isbn',
+  'ebook-store',
   'ai-cost',
   'support',
   'sys-dashboard',
@@ -41,6 +42,7 @@ const PANEL_TO_GROUP = {
   publishing: 'pub',
   'pub-dashboard': 'pub',
   isbn: 'pub',
+  'ebook-store': 'pub',
   'ai-cost': 'pub',
   support: 'sys',
   'sys-dashboard': 'sys',
@@ -1125,6 +1127,7 @@ function applyHashRoute() {
     void loadHubPosts()
   }
   if (tab === 'isbn') loadIsbnAdmin()
+  if (tab === 'ebook-store') void loadHubEbookStore()
   if (tab === 'certificates') loadCertificatesTable()
   if (tab === 'offline-meetups') loadHubOfflineMeetups()
   if (tab === 'instructors') {
@@ -5481,6 +5484,156 @@ async function loadIsbnAdmin() {
         )
         .join('')
     : '<tr><td colspan="6" class="p-4">데이터가 없습니다.</td></tr>'
+}
+
+let hubEbookStoreCache = []
+
+async function loadHubEbookStore() {
+  const res = await apiRequest('GET', '/api/admin/ebook-store/products')
+  const tbody = document.getElementById('hubEbookStoreTableBody')
+  if (!tbody) return
+  if (!res.success) {
+    tbody.innerHTML =
+      '<tr><td colspan="9" class="p-4 text-red-600">목록을 불러올 수 없습니다. (DB 마이그레이션 0066)</td></tr>'
+    hubEbookStoreCache = []
+    return
+  }
+  const rows = Array.isArray(res.data) ? res.data : []
+  hubEbookStoreCache = rows
+  tbody.innerHTML = rows.length
+    ? rows
+        .map((r) => {
+          const cover = r.cover_image_url
+            ? '<img src="' +
+              escapeAttr(String(r.cover_image_url)) +
+              '" alt="" class="h-12 w-9 object-cover rounded border border-slate-200 bg-white">'
+            : '—'
+          return (
+            '<tr class="border-t border-slate-100">' +
+            '<td class="p-2 tabular-nums">' +
+            r.id +
+            '</td>' +
+            '<td class="p-2 min-w-[8rem]">' +
+            escapeHtml(r.title || '') +
+            '</td>' +
+            '<td class="p-2">' +
+            escapeHtml(r.author || '') +
+            '</td>' +
+            '<td class="p-2 font-mono text-xs">' +
+            escapeHtml(r.isbn || '—') +
+            '</td>' +
+            '<td class="p-2 text-right tabular-nums">' +
+            Number(r.price ?? 0).toLocaleString() +
+            '</td>' +
+            '<td class="p-2">' +
+            cover +
+            '</td>' +
+            '<td class="p-2 text-xs">' +
+            escapeHtml(r.status === 'published' ? '판매' : '준비') +
+            '</td>' +
+            '<td class="p-2 text-xs text-slate-500">' +
+            formatDateTime(r.updated_at) +
+            '</td>' +
+            '<td class="p-2 whitespace-nowrap">' +
+            '<button type="button" class="text-indigo-600 hover:underline text-sm mr-2" onclick="hubEditEbookStoreProduct(' +
+            r.id +
+            ')">편집</button>' +
+            '<button type="button" class="text-red-600 hover:underline text-sm" onclick="hubDeleteEbookStoreProduct(' +
+            r.id +
+            ')">삭제</button>' +
+            '</td></tr>'
+          )
+        })
+        .join('')
+    : '<tr><td colspan="9" class="p-4 text-slate-500">등록된 전자책 상품이 없습니다.</td></tr>'
+}
+
+window.hubResetEbookStoreForm = function () {
+  const idEl = document.getElementById('hubEbookEditId')
+  if (idEl) idEl.value = ''
+  const fields = [
+    ['hubEbookTitle', ''],
+    ['hubEbookAuthor', ''],
+    ['hubEbookIsbn', ''],
+    ['hubEbookPrice', '0'],
+    ['hubEbookCoverUrl', ''],
+    ['hubEbookPdfKey', ''],
+    ['hubEbookDescription', ''],
+  ]
+  for (const [fid, def] of fields) {
+    const el = document.getElementById(fid)
+    if (el) el.value = def
+  }
+  const st = document.getElementById('hubEbookStatus')
+  if (st) st.value = 'draft'
+}
+
+window.hubEditEbookStoreProduct = function (id) {
+  const r = hubEbookStoreCache.find((x) => Number(x.id) === Number(id))
+  if (!r) return
+  const idEl = document.getElementById('hubEbookEditId')
+  if (idEl) idEl.value = String(r.id)
+  const m = {
+    hubEbookTitle: r.title,
+    hubEbookAuthor: r.author,
+    hubEbookIsbn: r.isbn,
+    hubEbookPrice: String(r.price ?? 0),
+    hubEbookCoverUrl: r.cover_image_url,
+    hubEbookPdfKey: r.pdf_object_key,
+    hubEbookDescription: r.description,
+  }
+  for (const k of Object.keys(m)) {
+    const el = document.getElementById(k)
+    if (el) el.value = m[k] != null ? String(m[k]) : ''
+  }
+  const st = document.getElementById('hubEbookStatus')
+  if (st) st.value = r.status === 'published' ? 'published' : 'draft'
+  document.getElementById('hubEbookFormCard')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+window.hubSaveEbookStoreProduct = async function () {
+  const idEl = document.getElementById('hubEbookEditId')
+  const title = document.getElementById('hubEbookTitle')
+  const author = document.getElementById('hubEbookAuthor')
+  const isbn = document.getElementById('hubEbookIsbn')
+  const price = document.getElementById('hubEbookPrice')
+  const cover = document.getElementById('hubEbookCoverUrl')
+  const pdfk = document.getElementById('hubEbookPdfKey')
+  const desc = document.getElementById('hubEbookDescription')
+  const st = document.getElementById('hubEbookStatus')
+  if (!title) return
+  const body = {
+    title: title.value,
+    author: author ? author.value : '',
+    isbn: isbn ? isbn.value : '',
+    price: price ? price.value : '0',
+    cover_image_url: cover ? cover.value : '',
+    pdf_object_key: pdfk ? pdfk.value : '',
+    description: desc ? desc.value : '',
+    status: st ? st.value : 'draft',
+  }
+  const editId = idEl && idEl.value ? parseInt(idEl.value, 10) : NaN
+  const path =
+    Number.isFinite(editId) && editId > 0
+      ? '/api/admin/ebook-store/products/' + editId
+      : '/api/admin/ebook-store/products'
+  const method = Number.isFinite(editId) && editId > 0 ? 'PUT' : 'POST'
+  const res = await apiRequest(method, path, body)
+  if (res.success) {
+    showToast(editId > 0 ? '저장했습니다.' : '등록했습니다.', 'success')
+    hubResetEbookStoreForm()
+    await loadHubEbookStore()
+  } else showToast(res.error || '저장 실패', 'error')
+}
+
+window.hubDeleteEbookStoreProduct = async function (id) {
+  if (!confirm('이 전자책 상품을 삭제할까요?')) return
+  const res = await apiRequest('DELETE', '/api/admin/ebook-store/products/' + id)
+  if (res.success) {
+    showToast('삭제했습니다.', 'success')
+    hubResetEbookStoreForm()
+    await loadHubEbookStore()
+  } else showToast(res.error || '삭제 실패', 'error')
 }
 
 async function submitIsbnBulk() {

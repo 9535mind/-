@@ -18,6 +18,7 @@ import { generateCourseThumbnailAi, normalizeThumbnailUrlInput } from '../utils/
 import adminInstructors from './admin-instructors'
 import adminChatbotKnowledge from './admin-chatbot-knowledge'
 import adminR2 from './admin-r2'
+import adminEbookStore from './admin-ebook-store'
 import {
   DEFAULT_LANDING_SIGNATURE,
   loadLandingSignatureCardsFromDb,
@@ -2993,5 +2994,6 @@ admin.put('/landing/signature-lineup/:id', requireAdmin, async (c) => {
 admin.route('/', adminChatbotKnowledge)
 admin.route('/', adminInstructors)
 admin.route('/', adminR2)
+admin.route('/', adminEbookStore)
 
 export default admin

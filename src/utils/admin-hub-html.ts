@@ -212,6 +212,7 @@ export function adminHubPageHtml(): string {
           <a href="#pub-dashboard" data-hub-panel="pub-dashboard" class="hub-mobile-nav-link block px-3 py-2 rounded-lg hover:bg-white/10 text-slate-200 font-medium">📚 출판 대시보드</a>
           <a href="#publishing" class="hub-mobile-nav-link block px-3 py-2 rounded-lg hover:bg-white/10 text-slate-200">출판 승인 대기</a>
           <a href="#isbn" class="hub-mobile-nav-link block px-3 py-2 rounded-lg hover:bg-white/10 text-slate-200">ISBN 재고</a>
+          <a href="#ebook-store" data-hub-panel="ebook-store" class="hub-mobile-nav-link block px-3 py-2 rounded-lg hover:bg-white/10 text-slate-200">📖 전자책(e-book) 상품</a>
           <a href="#ai-cost" class="hub-mobile-nav-link block px-3 py-2 rounded-lg hover:bg-white/10 text-slate-200">AI API 비용</a>
         </div>
       </details>
@@ -398,6 +399,7 @@ export function adminHubPageHtml(): string {
                     <button type="button" data-hub-dash-api="book-submissions" class="block w-full text-left rounded-md px-3 py-1.5 text-slate-200 hover:bg-indigo-600/85 text-[13px]">📄 출판 검수 대기 (DB)</button>
                     <button type="button" data-hub-dash-detail="pub-isbn-requests" class="block w-full text-left rounded-md px-3 py-1.5 text-slate-200 hover:bg-indigo-600/85 text-[13px]">ISBN 신청 현황 (데모)</button>
                     <a href="#isbn" data-hub-panel="isbn" class="block rounded-md px-3 py-1.5 text-slate-200 hover:bg-indigo-600/85 text-[13px]">ISBN 재고 · 바코드 탭</a>
+                    <a href="#ebook-store" data-hub-panel="ebook-store" class="block rounded-md px-3 py-1.5 text-slate-200 hover:bg-indigo-600/85 text-[13px]">📖 전자책(e-book) 상품</a>
                   </div>
                 </div>
               </div>
@@ -1198,6 +1200,80 @@ export function adminHubPageHtml(): string {
       </div>
     </section>
 
+    <!-- 전자책(e-book) 스토어 상품 메타 -->
+    <section id="panel-ebook-store" class="hub-panel hidden space-y-4">
+      <div>
+        <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2"><i class="fas fa-book-open text-amber-600"></i> 전자책(e-book) 상품</h2>
+        <p class="text-sm text-slate-600 mt-1 max-w-3xl">
+          도서명·저자·ISBN·가격·표지 URL을 등록합니다. PDF 원본은 R2 등 객체 스토리지 키(<code class="text-xs bg-slate-100 px-1 rounded">pdf_object_key</code>)로 연결할 수 있으며,
+          결제·뷰어는 강좌(<code class="text-xs bg-slate-100 px-1 rounded">orders.course_id</code>)와 병행하거나 추후 <code class="text-xs bg-slate-100 px-1 rounded">ebook_store_products.id</code>와 주문 테이블을 확장해 연동하면 됩니다.
+        </p>
+        <p class="text-xs text-amber-900 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mt-3 max-w-3xl">
+          <strong>PDF 웹 뷰어:</strong> 브라우저 내장 뷰어나 Mozilla pdf.js(가벼운 WASM/JS 렌더링)로 구현 가능합니다. 다만 브라우저에 파일이 전달되면 완전한 DRM은 어렵고,
+          짧은 만료의 서명 URL·워터마크·인쇄·다운로드 제한 등을 조합하는 방식이 일반적입니다.
+        </p>
+      </div>
+      <div id="hubEbookFormCard" class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4 max-w-4xl">
+        <input type="hidden" id="hubEbookEditId" value="">
+        <h3 class="font-semibold text-slate-800">상품 등록 · 수정</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label class="block text-sm font-medium text-slate-700">도서명 <span class="text-red-500">*</span>
+            <input type="text" id="hubEbookTitle" class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" placeholder="예: 마인드스토리 심리학 입문">
+          </label>
+          <label class="block text-sm font-medium text-slate-700">저자
+            <input type="text" id="hubEbookAuthor" class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" placeholder="저자 또는 편집부">
+          </label>
+          <label class="block text-sm font-medium text-slate-700">ISBN
+            <input type="text" id="hubEbookIsbn" class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono" placeholder="978xxxxxxxxxx">
+          </label>
+          <label class="block text-sm font-medium text-slate-700">판매가(원)
+            <input type="number" id="hubEbookPrice" min="0" step="100" class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" value="0">
+          </label>
+          <label class="block text-sm font-medium text-slate-700 sm:col-span-2">표지 이미지 URL
+            <input type="url" id="hubEbookCoverUrl" class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" placeholder="https://... (R2 공개 URL 또는 CDN)">
+          </label>
+          <label class="block text-sm font-medium text-slate-700 sm:col-span-2">PDF 객체 키 (선택, R2 등)
+            <input type="text" id="hubEbookPdfKey" class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono" placeholder="ebooks/978xxxx.../book.pdf">
+          </label>
+          <label class="block text-sm font-medium text-slate-700 sm:col-span-2">소개 문구
+            <textarea id="hubEbookDescription" rows="3" class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" placeholder="상품 설명"></textarea>
+          </label>
+          <label class="block text-sm font-medium text-slate-700">상태
+            <select id="hubEbookStatus" class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+              <option value="draft">준비(draft)</option>
+              <option value="published">판매(published)</option>
+            </select>
+          </label>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button type="button" onclick="hubSaveEbookStoreProduct()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700">저장</button>
+          <button type="button" onclick="hubResetEbookStoreForm()" class="border border-slate-200 bg-white text-slate-700 px-4 py-2 rounded-lg text-sm hover:bg-slate-50">새로 작성</button>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm text-left">
+            <thead class="bg-slate-50 text-slate-600 border-b border-slate-200">
+              <tr>
+                <th class="p-2 whitespace-nowrap">ID</th>
+                <th class="p-2 min-w-[8rem]">도서명</th>
+                <th class="p-2">저자</th>
+                <th class="p-2">ISBN</th>
+                <th class="p-2 text-right">가격</th>
+                <th class="p-2">표지</th>
+                <th class="p-2">상태</th>
+                <th class="p-2 whitespace-nowrap">수정일</th>
+                <th class="p-2 text-right">관리</th>
+              </tr>
+            </thead>
+            <tbody id="hubEbookStoreTableBody" class="divide-y divide-slate-100">
+              <tr><td colspan="9" class="p-6 text-center text-slate-500">불러오는 중…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
     <!-- 팝업 관리 -->
     <section id="panel-popups" class="hub-panel hidden space-y-4">
       <div class="flex flex-wrap items-center justify-between gap-3">
@@ -1558,7 +1634,7 @@ ${adminHubEntityDetailPanelHtml()}
   <script src="/static/js/admin-status-labels.js?v=20260402-course-status-3way"></script>
   <script src="/static/js/admin-hub-member-panel.js?v=20260330-members-page"></script>
   <script src="/static/js/admin-hub-entity-panel.js?v=20260330-hub-pillars"></script>
-  <script src="/static/js/admin-hub.js?v=20260410-course-trash-empty"></script>
+  <script src="/static/js/admin-hub.js?v=20260410-ebook-store-admin"></script>
   <script src="/static/js/admin-isbn.js"></script>
   <script src="/static/js/security.js${STATIC_JS_CACHE_QUERY}"></script>
 </body>
