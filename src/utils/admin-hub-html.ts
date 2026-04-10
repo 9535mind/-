@@ -1437,7 +1437,7 @@ export function adminHubPageHtml(): string {
   </div>
 
   <!-- 강좌 삭제 방식 선택 (z-index: 플로팅 차시 바·다른 모달보다 위 — 클릭 이벤트는 admin-hub.js에서 바인딩) -->
-  <div id="hubCourseDeleteModal" class="fixed inset-0 z-[10070] hidden items-center justify-center p-4 bg-black/50" role="dialog" aria-modal="true" aria-labelledby="hubCourseDeleteModalTitle" data-delete-course-id="">
+  <div id="hubCourseDeleteModal" class="fixed inset-0 z-[99990] hidden items-center justify-center p-4 bg-black/50 pointer-events-auto" role="dialog" aria-modal="true" aria-labelledby="hubCourseDeleteModalTitle" data-delete-course-id="">
     <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200 hub-course-delete-inner">
       <h4 id="hubCourseDeleteModalTitle" class="text-lg font-bold text-slate-900">강좌 삭제</h4>
       <p class="text-sm text-slate-600 mt-2">삭제 방식을 선택하세요. 휴지통은 DB에 기록을 남깁니다.</p>
@@ -1518,7 +1518,7 @@ ${adminHubEntityDetailPanelHtml()}
   <script src="/static/js/admin-status-labels.js?v=20260402-course-status-3way"></script>
   <script src="/static/js/admin-hub-member-panel.js?v=20260330-members-page"></script>
   <script src="/static/js/admin-hub-entity-panel.js?v=20260330-hub-pillars"></script>
-  <script src="/static/js/admin-hub.js?v=20260410-course-delete-modal"></script>
+  <script src="/static/js/admin-hub.js?v=20260410-course-hard-delete-fk"></script>
   <script src="/static/js/admin-isbn.js"></script>
   <script src="/static/js/security.js${STATIC_JS_CACHE_QUERY}"></script>
 </body>

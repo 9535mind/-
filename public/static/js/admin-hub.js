@@ -3424,39 +3424,37 @@ window.hubConfirmCourseDelete = async function (hard) {
 
 function initHubCourseDeleteModal() {
   const modal = document.getElementById('hubCourseDeleteModal')
-  if (!modal) return
-  const inner = modal.querySelector('.hub-course-delete-inner')
-  modal.addEventListener('click', function (e) {
-    if (e.target === modal) hubCloseCourseDeleteModal()
-  })
-  if (inner) {
-    inner.addEventListener('click', function (e) {
-      e.stopPropagation()
-    })
-  }
-  const soft = document.getElementById('hubCourseDeleteBtnSoft')
-  const hard = document.getElementById('hubCourseDeleteBtnHard')
-  const cancel = document.getElementById('hubCourseDeleteBtnCancel')
-  if (soft) {
-    soft.addEventListener('click', function (e) {
-      e.preventDefault()
-      e.stopPropagation()
-      void hubConfirmCourseDelete(false)
-    })
-  }
-  if (hard) {
-    hard.addEventListener('click', function (e) {
-      e.preventDefault()
-      e.stopPropagation()
-      void hubConfirmCourseDelete(true)
-    })
-  }
-  if (cancel) {
-    cancel.addEventListener('click', function (e) {
-      e.preventDefault()
-      hubCloseCourseDeleteModal()
-    })
-  }
+  if (!modal || modal.dataset.hubDeleteBound === '1') return
+  modal.dataset.hubDeleteBound = '1'
+  modal.addEventListener(
+    'click',
+    function (e) {
+      if (e.target === modal) {
+        hubCloseCourseDeleteModal()
+        return
+      }
+      const btn = e.target && e.target.closest ? e.target.closest('button') : null
+      if (!btn || !modal.contains(btn)) return
+      const id = btn.id
+      if (id === 'hubCourseDeleteBtnSoft') {
+        e.preventDefault()
+        e.stopPropagation()
+        void hubConfirmCourseDelete(false)
+        return
+      }
+      if (id === 'hubCourseDeleteBtnHard') {
+        e.preventDefault()
+        e.stopPropagation()
+        void hubConfirmCourseDelete(true)
+        return
+      }
+      if (id === 'hubCourseDeleteBtnCancel') {
+        e.preventDefault()
+        hubCloseCourseDeleteModal()
+      }
+    },
+    true,
+  )
 }
 
 function hubCatalogLineTokensFromCsv(csv) {

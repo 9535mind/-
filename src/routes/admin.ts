@@ -2138,7 +2138,9 @@ admin.patch('/courses/:id', requireAdmin, async (c) => {
 admin.delete('/courses/:id', requireAdmin, async (c) => {
   const { DB } = c.env
   const courseId = c.req.param('id')
-  const hard = c.req.query('hard') === 'true'
+  const hardQ = c.req.query('hard')
+  const hard =
+    hardQ === 'true' || hardQ === '1' || String(hardQ || '').toLowerCase() === 'yes'
 
   try {
     if (!hard) {
@@ -2175,6 +2177,22 @@ admin.delete('/courses/:id', requireAdmin, async (c) => {
     if (orderCount > 0) {
       return c.json(errorResponse('주문 기록이 있어 영구 삭제할 수 없습니다.'), 400)
     }
+
+    /** 영구 삭제: FK로 막히지 않도록 의존 행 정리 (마이그레이션 전 스키마는 try/catch로 무시) */
+    const safeRun = async (label: string, sql: string) => {
+      try {
+        await DB.prepare(sql).bind(courseId).run()
+      } catch (e) {
+        console.warn(`[admin delete course ${courseId}] ${label}:`, e)
+      }
+    }
+    await safeRun(
+      'lesson_progress by lessons',
+      `DELETE FROM lesson_progress WHERE lesson_id IN (SELECT id FROM lessons WHERE course_id = ?)`,
+    )
+    await safeRun('exams', `DELETE FROM exams WHERE course_id = ?`)
+    await safeRun('digital_books null course_id', `UPDATE digital_books SET course_id = NULL WHERE course_id = ?`)
+    await safeRun('certification_courses', `DELETE FROM certification_courses WHERE course_id = ?`)
 
     await DB.prepare(`DELETE FROM lessons WHERE course_id = ?`).bind(courseId).run()
     const result = await DB.prepare(`DELETE FROM courses WHERE id = ?`).bind(courseId).run()
