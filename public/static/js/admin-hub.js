@@ -984,6 +984,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initHubPopupsPanel()
   initHubNoticesPanel()
   initHubPostsPanel()
+  initHubCourseDeleteModal()
 
   document.getElementById('userSearchBtn')?.addEventListener('click', () => {
     hubUserPage = 1
@@ -3355,10 +3356,24 @@ function hubWireCourseModalPublishToggle(courseId, isPublished, deletedAt) {
   }
 }
 
+function hubResolveDeleteCourseId() {
+  const m = document.getElementById('hubCourseDeleteModal')
+  const fromAttr = m && m.getAttribute('data-delete-course-id')
+  if (fromAttr != null && String(fromAttr).trim() !== '') {
+    const n = parseInt(String(fromAttr).trim(), 10)
+    if (Number.isFinite(n) && n > 0) return n
+  }
+  return currentCourseId != null ? Number(currentCourseId) : NaN
+}
+
 window.hubOpenCourseDeleteModal = function () {
-  if (currentCourseId == null) return
+  if (currentCourseId == null) {
+    showToast('삭제할 강좌가 선택되지 않았습니다.', 'error')
+    return
+  }
   const m = document.getElementById('hubCourseDeleteModal')
   if (m) {
+    m.setAttribute('data-delete-course-id', String(currentCourseId))
     m.classList.remove('hidden')
     m.classList.add('flex')
   }
@@ -3367,13 +3382,18 @@ window.hubOpenCourseDeleteModal = function () {
 window.hubCloseCourseDeleteModal = function () {
   const m = document.getElementById('hubCourseDeleteModal')
   if (m) {
+    m.setAttribute('data-delete-course-id', '')
     m.classList.add('hidden')
     m.classList.remove('flex')
   }
 }
 
 window.hubConfirmCourseDelete = async function (hard) {
-  if (currentCourseId == null) return
+  const courseIdToDelete = hubResolveDeleteCourseId()
+  if (!Number.isFinite(courseIdToDelete) || courseIdToDelete <= 0) {
+    showToast('삭제할 강좌가 선택되지 않았습니다. 모달을 닫고 다시 시도해 주세요.', 'error')
+    return
+  }
   if (hard) {
     const ok = confirm(
       '수강생 기록이 있는 강좌는 영구 삭제 시 시스템 오류가 발생할 수 있습니다.\n\n정말 DB에서 완전히 삭제할까요? (수강·주문 기록이 있으면 서버에서 거부됩니다.)',
@@ -3383,16 +3403,59 @@ window.hubConfirmCourseDelete = async function (hard) {
     if (!confirm('강좌를 휴지통으로 옮길까요? 기존 수강생은 내 강의실에서 계속 수강할 수 있습니다.')) return
   }
   const q = hard ? '?hard=true' : ''
-  const res = await apiRequest('DELETE', '/api/admin/courses/' + currentCourseId + q)
-  hubCloseCourseDeleteModal()
-  if (res.success) {
-    showToast(hard ? '영구 삭제되었습니다.' : '휴지통으로 옮겼습니다.', 'success')
-    closeCourseModal()
-    currentCourseId = null
-    courseModalLessons = []
-    await loadCourses()
-  } else {
-    showToast(res.error || '삭제 실패', 'error')
+  try {
+    const res = await apiRequest('DELETE', '/api/admin/courses/' + courseIdToDelete + q)
+    hubCloseCourseDeleteModal()
+    if (res.success) {
+      showToast('강좌가 삭제되었습니다.', 'success')
+      closeCourseModal()
+      currentCourseId = null
+      courseModalLessons = []
+      await loadCourses()
+    } else {
+      const err = res.error || res.message || '삭제를 완료할 수 없습니다.'
+      showToast(err, 'error')
+    }
+  } catch (e) {
+    console.error('[hubConfirmCourseDelete]', e)
+    showToast(e && e.message ? String(e.message) : '삭제 중 오류가 발생했습니다.', 'error')
+  }
+}
+
+function initHubCourseDeleteModal() {
+  const modal = document.getElementById('hubCourseDeleteModal')
+  if (!modal) return
+  const inner = modal.querySelector('.hub-course-delete-inner')
+  modal.addEventListener('click', function (e) {
+    if (e.target === modal) hubCloseCourseDeleteModal()
+  })
+  if (inner) {
+    inner.addEventListener('click', function (e) {
+      e.stopPropagation()
+    })
+  }
+  const soft = document.getElementById('hubCourseDeleteBtnSoft')
+  const hard = document.getElementById('hubCourseDeleteBtnHard')
+  const cancel = document.getElementById('hubCourseDeleteBtnCancel')
+  if (soft) {
+    soft.addEventListener('click', function (e) {
+      e.preventDefault()
+      e.stopPropagation()
+      void hubConfirmCourseDelete(false)
+    })
+  }
+  if (hard) {
+    hard.addEventListener('click', function (e) {
+      e.preventDefault()
+      e.stopPropagation()
+      void hubConfirmCourseDelete(true)
+    })
+  }
+  if (cancel) {
+    cancel.addEventListener('click', function (e) {
+      e.preventDefault()
+      hubCloseCourseDeleteModal()
+    })
   }
 }
 

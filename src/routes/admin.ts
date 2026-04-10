@@ -2186,7 +2186,22 @@ admin.delete('/courses/:id', requireAdmin, async (c) => {
     return c.json(successResponse({ message: '강좌가 영구 삭제되었습니다.' }))
   } catch (error) {
     console.error('Delete course error:', error)
-    return c.json(errorResponse('강좌 삭제 실패'), 500)
+    const msg = error instanceof Error ? error.message : String(error)
+    const lower = msg.toLowerCase()
+    if (
+      lower.includes('foreign key') ||
+      lower.includes('constraint') ||
+      lower.includes('sql constraint')
+    ) {
+      return c.json(
+        errorResponse(
+          '다른 데이터와 연결되어 있어 삭제할 수 없습니다. (데이터베이스 제약) 안전 삭제(휴지통)를 이용해 주세요.',
+        ),
+        400,
+      )
+    }
+    const short = msg.length > 160 ? msg.slice(0, 160) + '…' : msg
+    return c.json(errorResponse('강좌 삭제 실패: ' + short), 500)
   }
 })
 

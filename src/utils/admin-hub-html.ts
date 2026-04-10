@@ -1436,23 +1436,23 @@ export function adminHubPageHtml(): string {
     </div>
   </div>
 
-  <!-- 강좌 삭제 방식 선택 -->
-  <div id="hubCourseDeleteModal" class="fixed inset-0 z-[56] hidden items-center justify-center p-4 bg-black/50" role="dialog" aria-modal="true" aria-labelledby="hubCourseDeleteModalTitle" onclick="if (event.target === this) hubCloseCourseDeleteModal()">
-    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200" onclick="event.stopPropagation()">
+  <!-- 강좌 삭제 방식 선택 (z-index: 플로팅 차시 바·다른 모달보다 위 — 클릭 이벤트는 admin-hub.js에서 바인딩) -->
+  <div id="hubCourseDeleteModal" class="fixed inset-0 z-[10070] hidden items-center justify-center p-4 bg-black/50" role="dialog" aria-modal="true" aria-labelledby="hubCourseDeleteModalTitle" data-delete-course-id="">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200 hub-course-delete-inner">
       <h4 id="hubCourseDeleteModalTitle" class="text-lg font-bold text-slate-900">강좌 삭제</h4>
       <p class="text-sm text-slate-600 mt-2">삭제 방식을 선택하세요. 휴지통은 DB에 기록을 남깁니다.</p>
       <div class="mt-4 space-y-2">
-        <button type="button" class="w-full text-left rounded-lg border border-slate-200 px-4 py-3 text-sm font-medium text-slate-800 hover:bg-slate-50" onclick="hubConfirmCourseDelete(false)">
+        <button type="button" id="hubCourseDeleteBtnSoft" class="w-full text-left rounded-lg border border-slate-200 px-4 py-3 text-sm font-medium text-slate-800 hover:bg-slate-50">
           안전 삭제 (휴지통)
         </button>
-        <button type="button" class="w-full text-left rounded-lg border border-red-200 bg-red-50/80 px-4 py-3 text-sm font-medium text-red-900 hover:bg-red-100" onclick="hubConfirmCourseDelete(true)">
+        <button type="button" id="hubCourseDeleteBtnHard" class="w-full text-left rounded-lg border border-red-200 bg-red-50/80 px-4 py-3 text-sm font-medium text-red-900 hover:bg-red-100">
           영구 삭제 (DB에서 행 삭제)
         </button>
       </div>
       <p class="text-xs text-red-800 mt-3 leading-relaxed bg-red-50 border border-red-100 rounded-lg px-3 py-2">
         수강생 기록이 있는 강좌는 영구 삭제 시 시스템 오류가 발생할 수 있습니다. 테스트용 빈 강좌에만 사용하세요.
       </p>
-      <button type="button" class="mt-4 w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50" onclick="hubCloseCourseDeleteModal()">취소</button>
+      <button type="button" id="hubCourseDeleteBtnCancel" class="mt-4 w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">취소</button>
     </div>
   </div>
 
@@ -1518,7 +1518,7 @@ ${adminHubEntityDetailPanelHtml()}
   <script src="/static/js/admin-status-labels.js?v=20260402-course-status-3way"></script>
   <script src="/static/js/admin-hub-member-panel.js?v=20260330-members-page"></script>
   <script src="/static/js/admin-hub-entity-panel.js?v=20260330-hub-pillars"></script>
-  <script src="/static/js/admin-hub.js?v=20260410-lesson-num-title-edit"></script>
+  <script src="/static/js/admin-hub.js?v=20260410-course-delete-modal"></script>
   <script src="/static/js/admin-isbn.js"></script>
   <script src="/static/js/security.js${STATIC_JS_CACHE_QUERY}"></script>
 </body>
