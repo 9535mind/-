@@ -1280,6 +1280,119 @@ admin.get('/courses', requireAdmin, async (c) => {
   }
 })
 
+/**
+ * 영구 삭제: 수강·주문 없을 때만. FK 의존 행 정리 후 lessons·courses 행 삭제.
+ * 휴지통 비우기·단건 DELETE ?hard=true 에서 공통 사용.
+ */
+async function adminHardDeleteCourseById(
+  DB: D1Database,
+  courseId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const enrollments = await DB.prepare(`SELECT COUNT(*) as count FROM enrollments WHERE course_id = ?`)
+      .bind(courseId)
+      .first<{ count: number }>()
+    if (enrollments && enrollments.count > 0) {
+      return { ok: false, error: '수강 기록이 있어 영구 삭제할 수 없습니다.' }
+    }
+
+    let orderCount = 0
+    try {
+      const o = await DB.prepare(`SELECT COUNT(*) as count FROM orders WHERE course_id = ?`)
+        .bind(courseId)
+        .first<{ count: number }>()
+      orderCount = o?.count ?? 0
+    } catch {
+      orderCount = 0
+    }
+    if (orderCount > 0) {
+      return { ok: false, error: '주문 기록이 있어 영구 삭제할 수 없습니다.' }
+    }
+
+    const safeRun = async (label: string, sql: string) => {
+      try {
+        await DB.prepare(sql).bind(courseId).run()
+      } catch (e) {
+        console.warn(`[admin hard delete course ${courseId}] ${label}:`, e)
+      }
+    }
+    await safeRun(
+      'lesson_progress by lessons',
+      `DELETE FROM lesson_progress WHERE lesson_id IN (SELECT id FROM lessons WHERE course_id = ?)`,
+    )
+    await safeRun('exams', `DELETE FROM exams WHERE course_id = ?`)
+    await safeRun('digital_books null course_id', `UPDATE digital_books SET course_id = NULL WHERE course_id = ?`)
+    await safeRun('certification_courses', `DELETE FROM certification_courses WHERE course_id = ?`)
+
+    await DB.prepare(`DELETE FROM lessons WHERE course_id = ?`).bind(courseId).run()
+    const result = await DB.prepare(`DELETE FROM courses WHERE id = ?`).bind(courseId).run()
+
+    if (result.meta.changes === 0) {
+      return { ok: false, error: '강좌를 찾을 수 없습니다.' }
+    }
+
+    return { ok: true }
+  } catch (error) {
+    console.error('Hard delete course error:', courseId, error)
+    const msg = error instanceof Error ? error.message : String(error)
+    const lower = msg.toLowerCase()
+    if (
+      lower.includes('foreign key') ||
+      lower.includes('constraint') ||
+      lower.includes('sql constraint')
+    ) {
+      return {
+        ok: false,
+        error: '다른 데이터와 연결되어 있어 삭제할 수 없습니다. (데이터베이스 제약)',
+      }
+    }
+    const short = msg.length > 160 ? msg.slice(0, 160) + '…' : msg
+    return { ok: false, error: '강좌 삭제 실패: ' + short }
+  }
+}
+
+/**
+ * POST /api/admin/courses/trash/empty
+ * 휴지통(deleted_at 있음) 강좌를 일괄 영구 삭제. 수강·주문 있는 강좌는 건너뜀.
+ */
+admin.post('/courses/trash/empty', requireAdmin, async (c) => {
+  const { DB } = c.env
+  try {
+    const body = await readJsonBody(c)
+    const phrase = String(body.phrase ?? '').trim()
+    if (phrase !== '휴지통 비우기') {
+      return c.json(errorResponse('확인 문구를 정확히 입력해 주세요. (복사 없이 직접 입력: 휴지통 비우기)'), 400)
+    }
+    const understood = body.confirm_understand === true || body.confirmUnderstand === true
+    if (!understood) {
+      return c.json(errorResponse('하단 안내 확인에 체크해 주세요.'), 400)
+    }
+
+    const rows = await DB.prepare(
+      `SELECT id FROM courses WHERE deleted_at IS NOT NULL AND TRIM(COALESCE(deleted_at,'')) != '' ORDER BY id`,
+    ).all<{ id: number }>()
+    const ids = (rows.results || []).map((r) => r.id)
+    let deleted = 0
+    const skipped: { id: number; reason: string }[] = []
+    for (const id of ids) {
+      const r = await adminHardDeleteCourseById(DB, String(id))
+      if (r.ok) deleted++
+      else skipped.push({ id, reason: r.error })
+    }
+
+    return c.json(
+      successResponse({
+        deleted,
+        skipped,
+        total_in_trash: ids.length,
+      }),
+    )
+  } catch (error) {
+    console.error('Empty course trash error:', error)
+    return c.json(errorResponse('휴지통 비우기 처리 중 오류가 발생했습니다.'), 500)
+  }
+})
+
 // 강좌 생성
 admin.post('/courses', requireAdmin, async (c) => {
   const { DB } = c.env
@@ -2155,50 +2268,10 @@ admin.delete('/courses/:id', requireAdmin, async (c) => {
       return c.json(successResponse({ message: '강좌를 휴지통으로 옮겼습니다.' }))
     }
 
-    const enrollments = await DB.prepare(`SELECT COUNT(*) as count FROM enrollments WHERE course_id = ?`)
-      .bind(courseId)
-      .first<{ count: number }>()
-    if (enrollments && enrollments.count > 0) {
-      return c.json(
-        errorResponse('수강 기록이 있는 강좌는 영구 삭제할 수 없습니다. 휴지통(안전 삭제)을 이용해 주세요.'),
-        400,
-      )
-    }
-
-    let orderCount = 0
-    try {
-      const o = await DB.prepare(`SELECT COUNT(*) as count FROM orders WHERE course_id = ?`)
-        .bind(courseId)
-        .first<{ count: number }>()
-      orderCount = o?.count ?? 0
-    } catch {
-      orderCount = 0
-    }
-    if (orderCount > 0) {
-      return c.json(errorResponse('주문 기록이 있어 영구 삭제할 수 없습니다.'), 400)
-    }
-
-    /** 영구 삭제: FK로 막히지 않도록 의존 행 정리 (마이그레이션 전 스키마는 try/catch로 무시) */
-    const safeRun = async (label: string, sql: string) => {
-      try {
-        await DB.prepare(sql).bind(courseId).run()
-      } catch (e) {
-        console.warn(`[admin delete course ${courseId}] ${label}:`, e)
-      }
-    }
-    await safeRun(
-      'lesson_progress by lessons',
-      `DELETE FROM lesson_progress WHERE lesson_id IN (SELECT id FROM lessons WHERE course_id = ?)`,
-    )
-    await safeRun('exams', `DELETE FROM exams WHERE course_id = ?`)
-    await safeRun('digital_books null course_id', `UPDATE digital_books SET course_id = NULL WHERE course_id = ?`)
-    await safeRun('certification_courses', `DELETE FROM certification_courses WHERE course_id = ?`)
-
-    await DB.prepare(`DELETE FROM lessons WHERE course_id = ?`).bind(courseId).run()
-    const result = await DB.prepare(`DELETE FROM courses WHERE id = ?`).bind(courseId).run()
-
-    if (result.meta.changes === 0) {
-      return c.json(errorResponse('강좌를 찾을 수 없습니다'), 404)
+    const hardResult = await adminHardDeleteCourseById(DB, courseId)
+    if (!hardResult.ok) {
+      const status = hardResult.error.includes('찾을 수 없') ? 404 : 400
+      return c.json(errorResponse(hardResult.error), status)
     }
 
     return c.json(successResponse({ message: '강좌가 영구 삭제되었습니다.' }))

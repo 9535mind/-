@@ -59,6 +59,10 @@ let courseModalLessons = []
 let hubDescAiGen = 0
 let hubCourseTitleAiTimer = null
 let hubCourseFormOptions = null
+/** GET /api/admin/courses 마지막 응답 — 목록 필터·휴지통 배지용 */
+let hubLastCoursesList = []
+/** 'all' | 'active' | 'trash' */
+let hubCourseListFilter = 'all'
 
 function toIntOr(value, fallback = 0) {
   const n = parseInt(String(value ?? ''), 10)
@@ -985,6 +989,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initHubNoticesPanel()
   initHubPostsPanel()
   initHubCourseDeleteModal()
+  initHubCourseTrashEmptyModal()
 
   document.getElementById('userSearchBtn')?.addEventListener('click', () => {
     hubUserPage = 1
@@ -3279,18 +3284,48 @@ function courseIsPublic(status) {
   return status === 'published'
 }
 
-async function loadCourses() {
-  const res = await apiRequest('GET', '/api/admin/courses')
+function hubCourseTrashed(c) {
+  return c.deleted_at != null && String(c.deleted_at).trim() !== ''
+}
+
+function renderHubCourseTable() {
   const tbody = document.getElementById('courseTableBody')
   if (!tbody) return
-  if (!res.success || !res.data) {
-    tbody.innerHTML = '<tr><td colspan="4" class="p-4">목록을 불러올 수 없습니다.</td></tr>'
+  const list = Array.isArray(hubLastCoursesList) ? hubLastCoursesList : []
+  const trashCount = list.filter(hubCourseTrashed).length
+  const badge = document.getElementById('hubCourseTrashBadge')
+  if (badge) badge.textContent = String(trashCount)
+  const emptyBtn = document.getElementById('hubCourseTrashEmptyBtn')
+  if (emptyBtn) {
+    if (trashCount > 0) emptyBtn.classList.remove('hidden')
+    else emptyBtn.classList.add('hidden')
+  }
+
+  hubSyncCourseFilterTabStyles()
+
+  const filter = hubCourseListFilter || 'all'
+  const rows = list.filter((c) => {
+    const t = hubCourseTrashed(c)
+    if (filter === 'active') return !t
+    if (filter === 'trash') return t
+    return true
+  })
+
+  if (!rows.length) {
+    const emptyMsg =
+      filter === 'trash'
+        ? '휴지통에 보관된 강좌가 없습니다.'
+        : filter === 'active'
+          ? '운영 중인 강좌가 없습니다.'
+          : '등록된 강좌가 없습니다.'
+    tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-slate-500">' + emptyMsg + '</td></tr>'
     return
   }
-  tbody.innerHTML = res.data
+
+  tbody.innerHTML = rows
     .map((c) => {
       const pub = courseIsPublic(c.status)
-      const trashed = c.deleted_at != null && String(c.deleted_at).trim() !== ''
+      const trashed = hubCourseTrashed(c)
       return `
     <tr class="border-t border-slate-100${trashed ? ' bg-amber-50/40' : ''}">
       <td class="p-3">${escapeHtml(c.title)} <span class="text-xs text-slate-400">#${c.id}</span>
@@ -3298,8 +3333,8 @@ async function loadCourses() {
         <span class="inline-flex flex-wrap items-center gap-0.5 align-middle">${hubCourseLineBadgesHtml(c.category_group)}</span></td>
       <td class="p-3 text-xs">${escapeHtml(hubAdminStatusKo(c.status))}</td>
       <td class="p-3 text-center">
-        <label class="inline-flex items-center gap-2 cursor-pointer select-none">
-          <input type="checkbox" ${pub ? 'checked' : ''} onchange="toggleCoursePublic(${c.id}, this.checked)"
+        <label class="inline-flex items-center gap-2 cursor-pointer select-none${trashed ? ' opacity-60' : ''}">
+          <input type="checkbox" ${pub ? 'checked' : ''} ${trashed ? 'disabled' : ''} onchange="toggleCoursePublic(${c.id}, this.checked)"
             class="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-indigo-500">
           <span class="text-xs text-slate-600">${pub ? '공개' : '비공개'}</span>
         </label>
@@ -3310,6 +3345,40 @@ async function loadCourses() {
     </tr>`
     })
     .join('')
+}
+
+function hubSyncCourseFilterTabStyles() {
+  const tabs = {
+    all: document.getElementById('hubCourseFilterAll'),
+    active: document.getElementById('hubCourseFilterActive'),
+    trash: document.getElementById('hubCourseFilterTrash'),
+  }
+  const f = hubCourseListFilter || 'all'
+  const base = 'px-3 py-1.5 rounded-lg text-xs font-medium border transition'
+  const on = base + ' bg-indigo-600 text-white border-indigo-600'
+  const off = base + ' bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+  if (tabs.all) tabs.all.className = f === 'all' ? on : off
+  if (tabs.active) tabs.active.className = f === 'active' ? on : off
+  if (tabs.trash) tabs.trash.className = f === 'trash' ? on : off
+}
+
+window.hubSetCourseListFilter = function (next) {
+  if (next !== 'all' && next !== 'active' && next !== 'trash') return
+  hubCourseListFilter = next
+  renderHubCourseTable()
+}
+
+async function loadCourses() {
+  const res = await apiRequest('GET', '/api/admin/courses')
+  const tbody = document.getElementById('courseTableBody')
+  if (!tbody) return
+  if (!res.success || !res.data) {
+    hubLastCoursesList = []
+    tbody.innerHTML = '<tr><td colspan="4" class="p-4">목록을 불러올 수 없습니다.</td></tr>'
+    return
+  }
+  hubLastCoursesList = res.data
+  renderHubCourseTable()
 }
 
 window.toggleCoursePublic = async function (courseId, checked) {
@@ -3401,14 +3470,25 @@ window.hubConfirmCourseDelete = async function (hard) {
     )
     if (!ok) return
   } else {
-    if (!confirm('강좌를 휴지통으로 옮길까요? 기존 수강생은 내 강의실에서 계속 수강할 수 있습니다.')) return
+    if (
+      !confirm(
+        '강좌를 휴지통으로 옮길까요?\n\n카탈로그에서는 숨겨지며, 완전한 DB 삭제는 강좌 목록의 「휴지통 비우기」에서만 할 수 있습니다. 기존 수강생의 학습은 유지됩니다.',
+      )
+    ) {
+      return
+    }
   }
   const q = hard ? '?hard=true' : ''
   try {
     const res = await apiRequest('DELETE', '/api/admin/courses/' + courseIdToDelete + q)
     hubCloseCourseDeleteModal()
     if (res.success) {
-      showToast('강좌가 삭제되었습니다.', 'success')
+      if (hard) {
+        showToast('이 강좌가 데이터베이스에서 삭제되었습니다.', 'success')
+      } else {
+        showToast('휴지통으로 옮겼습니다. 목록의 「휴지통」탭에서 확인·「휴지통 비우기」로 영구 삭제할 수 있습니다.', 'success')
+        hubCourseListFilter = 'trash'
+      }
       closeCourseModal()
       currentCourseId = null
       courseModalLessons = []
@@ -3452,6 +3532,88 @@ function initHubCourseDeleteModal() {
     void hubConfirmCourseDelete(true)
   })
   bindDelBtn('hubCourseDeleteBtnCancel', hubCloseCourseDeleteModal)
+}
+
+window.hubCloseCourseTrashEmptyModal = function () {
+  const m = document.getElementById('hubCourseTrashEmptyModal')
+  if (m) {
+    m.classList.add('hidden')
+    m.classList.remove('flex')
+  }
+}
+
+window.hubOpenCourseTrashEmptyModal = function () {
+  const m = document.getElementById('hubCourseTrashEmptyModal')
+  const ph = document.getElementById('hubTrashEmptyPhrase')
+  const cb = document.getElementById('hubTrashEmptyUnderstand')
+  if (ph) ph.value = ''
+  if (cb) cb.checked = false
+  if (m) {
+    m.classList.remove('hidden')
+    m.classList.add('flex')
+    initHubCourseTrashEmptyModal()
+  }
+}
+
+window.hubSubmitCourseTrashEmpty = async function () {
+  const cb = document.getElementById('hubTrashEmptyUnderstand')
+  const ph = document.getElementById('hubTrashEmptyPhrase')
+  if (!cb || !cb.checked) {
+    showToast('하단 안내 확인에 체크해 주세요.', 'error')
+    return
+  }
+  if (String((ph && ph.value) || '').trim() !== '휴지통 비우기') {
+    showToast('확인 문구를 정확히 입력하세요. (휴지통 비우기)', 'error')
+    return
+  }
+  try {
+    const res = await apiRequest('POST', '/api/admin/courses/trash/empty', {
+      phrase: '휴지통 비우기',
+      confirm_understand: true,
+    })
+    hubCloseCourseTrashEmptyModal()
+    if (res.success && res.data) {
+      const d = res.data
+      const deleted = Number(d.deleted ?? 0)
+      const skipped = Array.isArray(d.skipped) ? d.skipped.length : 0
+      showToast(`휴지통 비우기 완료: DB에서 삭제 ${deleted}건, 건너뜀(수강·주문 등) ${skipped}건`, 'success')
+      hubCourseListFilter = 'trash'
+      await loadCourses()
+    } else {
+      showToast(res.error || res.message || '처리에 실패했습니다.', 'error')
+    }
+  } catch (e) {
+    console.error('[hubSubmitCourseTrashEmpty]', e)
+    showToast(e && e.message ? String(e.message) : '오류가 발생했습니다.', 'error')
+  }
+}
+
+function initHubCourseTrashEmptyModal() {
+  const modal = document.getElementById('hubCourseTrashEmptyModal')
+  if (!modal) return
+
+  if (!modal.dataset.hubBackdropBound) {
+    modal.dataset.hubBackdropBound = '1'
+    modal.addEventListener('click', function (e) {
+      if (e.target === modal) hubCloseCourseTrashEmptyModal()
+    })
+  }
+
+  function bind(id, handler) {
+    const el = document.getElementById(id)
+    if (!el || el.dataset.hubDelBound === '1') return
+    el.dataset.hubDelBound = '1'
+    el.addEventListener('click', function (e) {
+      e.preventDefault()
+      e.stopPropagation()
+      handler()
+    })
+  }
+
+  bind('hubTrashEmptyCancel', hubCloseCourseTrashEmptyModal)
+  bind('hubTrashEmptySubmit', function () {
+    void hubSubmitCourseTrashEmpty()
+  })
 }
 
 function hubCatalogLineTokensFromCsv(csv) {
@@ -3746,8 +3908,8 @@ window.openCourseModal = async function (courseId) {
           : ''
       }
       <div class="border-t border-slate-200 pt-4 mt-4 space-y-2">
-        <p class="text-xs text-slate-500">삭제 시 휴지통(안전 삭제) 또는 DB 영구 삭제를 선택합니다. 기존 수강생의 학습은 휴지통에서는 유지됩니다.</p>
-        <button type="button" onclick="hubOpenCourseDeleteModal()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium">삭제</button>
+        <p class="text-xs text-slate-500">삭제는 기본적으로 <strong class="text-slate-700">휴지통 보관</strong>입니다. 목록에서 「휴지통」·「휴지통 비우기」로만 DB 영구 삭제를 진행할 수 있습니다.</p>
+        <button type="button" onclick="hubOpenCourseDeleteModal()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium">휴지통으로 보내기</button>
       </div>
     </div>`
   } catch (err) {

@@ -810,6 +810,20 @@ export function adminHubPageHtml(): string {
           <i class="fas fa-plus mr-1"></i>새 강좌 등록
         </button>
       </div>
+      <div class="flex flex-wrap items-center gap-2 justify-between rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2.5">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-xs font-medium text-slate-500">목록</span>
+          <button type="button" id="hubCourseFilterAll" class="px-3 py-1.5 rounded-lg text-xs font-medium border transition bg-white text-slate-600 border-slate-200 hover:bg-slate-50" onclick="hubSetCourseListFilter('all')">전체</button>
+          <button type="button" id="hubCourseFilterActive" class="px-3 py-1.5 rounded-lg text-xs font-medium border transition bg-white text-slate-600 border-slate-200 hover:bg-slate-50" onclick="hubSetCourseListFilter('active')">운영 중</button>
+          <button type="button" id="hubCourseFilterTrash" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition bg-white text-slate-600 border-slate-200 hover:bg-slate-50" onclick="hubSetCourseListFilter('trash')">
+            휴지통
+            <span id="hubCourseTrashBadge" class="tabular-nums rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900">0</span>
+          </button>
+        </div>
+        <button type="button" id="hubCourseTrashEmptyBtn" class="hidden shrink-0 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-900 hover:bg-red-100" onclick="hubOpenCourseTrashEmptyModal()">
+          휴지통 비우기
+        </button>
+      </div>
       <div class="bg-white rounded-xl shadow border overflow-x-auto">
         <table class="w-full text-sm">
           <thead class="bg-slate-50 text-slate-600">
@@ -1436,23 +1450,49 @@ export function adminHubPageHtml(): string {
     </div>
   </div>
 
-  <!-- 강좌 삭제 방식 선택 (z-index: 플로팅 차시 바·다른 모달보다 위 — 클릭 이벤트는 admin-hub.js에서 바인딩) -->
+  <!-- 강좌 삭제 — 기본은 휴지통만 (영구 삭제는 접힌 고급 옵션) -->
   <div id="hubCourseDeleteModal" class="fixed inset-0 z-[99990] hidden items-center justify-center p-4 bg-black/50 pointer-events-auto" role="dialog" aria-modal="true" aria-labelledby="hubCourseDeleteModalTitle" data-delete-course-id="">
     <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200 hub-course-delete-inner pointer-events-auto relative z-10">
-      <h4 id="hubCourseDeleteModalTitle" class="text-lg font-bold text-slate-900">강좌 삭제</h4>
-      <p class="text-sm text-slate-600 mt-2">삭제 방식을 선택하세요. 휴지통은 DB에 기록을 남깁니다.</p>
+      <h4 id="hubCourseDeleteModalTitle" class="text-lg font-bold text-slate-900">강좌를 휴지통으로</h4>
+      <p class="text-sm text-slate-600 mt-2 leading-relaxed">기본 동작은 <strong class="text-slate-800">휴지통 보관</strong>입니다. 카탈로그에서 숨겨지며, 수강 중인 학습은 유지됩니다. DB에서 완전히 지우려면 목록의 <strong class="text-slate-800">「휴지통 비우기」</strong>에서만 일괄로 진행할 수 있습니다.</p>
       <div class="mt-4 space-y-2">
-        <button type="button" id="hubCourseDeleteBtnSoft" class="w-full text-left rounded-lg border border-slate-200 px-4 py-3 text-sm font-medium text-slate-800 hover:bg-slate-50">
-          안전 삭제 (휴지통)
+        <button type="button" id="hubCourseDeleteBtnSoft" class="w-full text-left rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-semibold text-indigo-900 hover:bg-indigo-100">
+          휴지통으로 이동 (권장)
         </button>
-        <button type="button" id="hubCourseDeleteBtnHard" class="w-full text-left rounded-lg border border-red-200 bg-red-50/80 px-4 py-3 text-sm font-medium text-red-900 hover:bg-red-100">
-          영구 삭제 (DB에서 행 삭제)
-        </button>
+        <details class="group rounded-lg border border-slate-200 bg-slate-50/80 open:bg-white">
+          <summary class="cursor-pointer list-none px-4 py-2.5 text-xs font-medium text-slate-600 marker:content-none [&::-webkit-details-marker]:hidden flex items-center justify-between">
+            <span>고급: 이 강좌만 DB에서 즉시 영구 삭제</span>
+            <span class="text-slate-400 group-open:rotate-180 transition">▼</span>
+          </summary>
+          <div class="border-t border-slate-100 px-4 pb-3 pt-1 space-y-2">
+            <p class="text-[11px] text-red-800 leading-relaxed bg-red-50 border border-red-100 rounded-lg px-2.5 py-2">
+              수강·주문 없는 빈 강좌에만 사용하세요. 복구할 수 없습니다.
+            </p>
+            <button type="button" id="hubCourseDeleteBtnHard" class="w-full text-left rounded-lg border border-red-200 bg-red-50/80 px-4 py-2.5 text-sm font-medium text-red-900 hover:bg-red-100">
+              이 강좌만 영구 삭제
+            </button>
+          </div>
+        </details>
       </div>
-      <p class="text-xs text-red-800 mt-3 leading-relaxed bg-red-50 border border-red-100 rounded-lg px-3 py-2">
-        수강생 기록이 있는 강좌는 영구 삭제 시 시스템 오류가 발생할 수 있습니다. 테스트용 빈 강좌에만 사용하세요.
-      </p>
-      <button type="button" id="hubCourseDeleteBtnCancel" class="mt-4 w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">취소</button>
+      <button type="button" id="hubCourseDeleteBtnCancel" class="mt-4 w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">닫기</button>
+    </div>
+  </div>
+
+  <!-- 휴지통 비우기 — 확인 문구 + 체크 (z-index 동일) -->
+  <div id="hubCourseTrashEmptyModal" class="fixed inset-0 z-[99991] hidden items-center justify-center p-4 bg-black/50 pointer-events-auto" role="dialog" aria-modal="true" aria-labelledby="hubCourseTrashEmptyTitle">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200 hub-trash-empty-inner pointer-events-auto relative z-10">
+      <h4 id="hubCourseTrashEmptyTitle" class="text-lg font-bold text-slate-900">휴지통 비우기</h4>
+      <p class="text-sm text-slate-600 mt-2 leading-relaxed">휴지통에 있는 강좌를 <strong class="text-red-800">데이터베이스에서 모두 삭제</strong>합니다. 수강·주문이 남아 있는 강좌는 건너뜁니다. 복구할 수 없습니다.</p>
+      <label class="mt-4 flex items-start gap-2 cursor-pointer text-sm text-slate-700">
+        <input type="checkbox" id="hubTrashEmptyUnderstand" class="mt-0.5 rounded border-slate-300 text-indigo-600">
+        <span>위 내용을 이해했으며, 되돌릴 수 없음을 확인했습니다.</span>
+      </label>
+      <label class="mt-3 block text-xs font-medium text-slate-600">아래 입력란에 <strong class="text-slate-900">휴지통 비우기</strong>를 정확히 입력하세요.</label>
+      <input type="text" id="hubTrashEmptyPhrase" autocomplete="off" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="휴지통 비우기">
+      <div class="mt-5 flex flex-wrap gap-2 justify-end">
+        <button type="button" id="hubTrashEmptyCancel" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">취소</button>
+        <button type="button" id="hubTrashEmptySubmit" class="rounded-lg border border-red-300 bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">휴지통 비우기 실행</button>
+      </div>
     </div>
   </div>
 
@@ -1518,7 +1558,7 @@ ${adminHubEntityDetailPanelHtml()}
   <script src="/static/js/admin-status-labels.js?v=20260402-course-status-3way"></script>
   <script src="/static/js/admin-hub-member-panel.js?v=20260330-members-page"></script>
   <script src="/static/js/admin-hub-entity-panel.js?v=20260330-hub-pillars"></script>
-  <script src="/static/js/admin-hub.js?v=20260410-course-delete-bind-fix"></script>
+  <script src="/static/js/admin-hub.js?v=20260410-course-trash-empty"></script>
   <script src="/static/js/admin-isbn.js"></script>
   <script src="/static/js/security.js${STATIC_JS_CACHE_QUERY}"></script>
 </body>
