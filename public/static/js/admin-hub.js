@@ -3376,6 +3376,7 @@ window.hubOpenCourseDeleteModal = function () {
     m.setAttribute('data-delete-course-id', String(currentCourseId))
     m.classList.remove('hidden')
     m.classList.add('flex')
+    initHubCourseDeleteModal()
   }
 }
 
@@ -3424,37 +3425,33 @@ window.hubConfirmCourseDelete = async function (hard) {
 
 function initHubCourseDeleteModal() {
   const modal = document.getElementById('hubCourseDeleteModal')
-  if (!modal || modal.dataset.hubDeleteBound === '1') return
-  modal.dataset.hubDeleteBound = '1'
-  modal.addEventListener(
-    'click',
-    function (e) {
-      if (e.target === modal) {
-        hubCloseCourseDeleteModal()
-        return
-      }
-      const btn = e.target && e.target.closest ? e.target.closest('button') : null
-      if (!btn || !modal.contains(btn)) return
-      const id = btn.id
-      if (id === 'hubCourseDeleteBtnSoft') {
-        e.preventDefault()
-        e.stopPropagation()
-        void hubConfirmCourseDelete(false)
-        return
-      }
-      if (id === 'hubCourseDeleteBtnHard') {
-        e.preventDefault()
-        e.stopPropagation()
-        void hubConfirmCourseDelete(true)
-        return
-      }
-      if (id === 'hubCourseDeleteBtnCancel') {
-        e.preventDefault()
-        hubCloseCourseDeleteModal()
-      }
-    },
-    true,
-  )
+  if (!modal) return
+
+  if (!modal.dataset.hubBackdropBound) {
+    modal.dataset.hubBackdropBound = '1'
+    modal.addEventListener('click', function (e) {
+      if (e.target === modal) hubCloseCourseDeleteModal()
+    })
+  }
+
+  function bindDelBtn(id, handler) {
+    const el = document.getElementById(id)
+    if (!el || el.dataset.hubDelBound === '1') return
+    el.dataset.hubDelBound = '1'
+    el.addEventListener('click', function (e) {
+      e.preventDefault()
+      e.stopPropagation()
+      handler()
+    })
+  }
+
+  bindDelBtn('hubCourseDeleteBtnSoft', function () {
+    void hubConfirmCourseDelete(false)
+  })
+  bindDelBtn('hubCourseDeleteBtnHard', function () {
+    void hubConfirmCourseDelete(true)
+  })
+  bindDelBtn('hubCourseDeleteBtnCancel', hubCloseCourseDeleteModal)
 }
 
 function hubCatalogLineTokensFromCsv(csv) {
