@@ -8,6 +8,12 @@ import { Hono } from 'hono'
 import type { Bindings } from '../types/database'
 import { getCurrentUser } from '../utils/helpers'
 
+function isForestAdminRole(role: unknown): boolean {
+  return String(role ?? '')
+    .trim()
+    .toLowerCase() === 'admin'
+}
+
 const forestGasReport = new Hono<{ Bindings: Bindings }>()
 
 forestGasReport.get('/', async (c) => {
@@ -29,7 +35,7 @@ forestGasReport.get('/', async (c) => {
   }
 
   const uid = Number(user.id)
-  const isAdmin = user.role === 'admin'
+  const isAdmin = isForestAdminRole((user as { role?: unknown }).role)
   const { DB } = c.env
 
   if (!isAdmin) {

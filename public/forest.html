@@ -2247,7 +2247,7 @@
         },
 
         /**
-         * 결과 보고서 첫 화면: 학급·집단 통계형 대시보드 (에너지 밀도 · 정규화 레이더 · KPI · 분포 · 집단 색채).
+         * 결과 보고서 첫 화면: 학급·집단 통계형 대시보드 (에너지 밀도 · 분포 · 집단 색채).
          * inst가 없거나 문항 미완료면 빈 문자열.
          */
         buildReportFirstScreenDashboardHtml(inst) {
@@ -2278,16 +2278,6 @@
             }
             const density = met && met.density ? met.density : percentByAxis;
             const densityBars = this.buildJttDensityBarsSvg(density);
-            const meanRadarBlock =
-                met && met.mean
-                    ? `<div class="flex flex-col items-center justify-start w-full min-h-[min(260px,80vw)]">
-                        <p class="text-[10px] font-black text-[#2D4A3E] tracking-[0.14em] mb-3 text-center">축별 정규화 평균 · 편차</p>
-                        <div class="w-full flex justify-center overflow-x-auto py-1">${this.buildJttNormMeanRadarSvg(met.mean)}</div>
-                    </div>`
-                    : `<div class="flex flex-col items-center justify-center min-h-[min(280px,85vw)] w-full">
-                        <p class="text-[10px] font-black text-[#2D4A3E] tracking-[0.14em] mb-3 text-center">우리 반 전체의 기질 에너지 분포 (%)</p>
-                        <div class="flex justify-center w-full [&_svg]:max-w-[min(100%,320px)] [&_svg]:h-auto">${this.buildRadarSvg(percentByAxis)}</div>
-                    </div>`;
             const maxO = Math.max(1, ...rankedTemperaments.map((r) => r.score));
             const rankRows = rankedTemperaments
                 .map(
@@ -2306,7 +2296,7 @@
             const atmosphere = MS.dominantInterpretationLineForCat(domCat);
             const ageLine = tg === 'elementary' ? '초등부 · 집단 응답 합산' : '유아·유치부 · 집단 응답 합산';
             return `
-                <section id="ms-report-inline-radar" class="mb-8 md:mb-10 text-left rounded-[1.85rem] border border-[#2D4A3E]/12 bg-gradient-to-b from-[#FDFBF7] via-white to-[rgba(45,74,62,0.03)] p-6 md:px-8 md:py-9 shadow-[0_14px_44px_rgba(45,74,62,0.09)] scroll-mt-4" aria-label="학급·집단 기질 프로필">
+                <section id="ms-report-inline-profile" class="mb-8 md:mb-10 text-left rounded-[1.85rem] border border-[#2D4A3E]/12 bg-gradient-to-b from-[#FDFBF7] via-white to-[rgba(45,74,62,0.03)] p-6 md:px-8 md:py-9 shadow-[0_14px_44px_rgba(45,74,62,0.09)] scroll-mt-4" aria-label="학급·집단 기질 프로필">
                     <header class="mb-6 md:mb-8 pb-5 border-b border-[rgba(45,74,62,0.1)]">
                         <p class="text-[11px] font-black text-[#D4A373] tracking-[0.2em] mb-2">학급 통계 지표</p>
                         <h3 class="text-lg md:text-xl font-black text-[#2D4A3E] leading-tight mb-2">학급·집단 기질 프로필</h3>
@@ -2318,9 +2308,6 @@
                         <div class="rounded-2xl border border-[rgba(45,74,62,0.1)] bg-white/85 p-4 md:p-5 shadow-sm w-full">
                             <p class="text-[10px] font-black text-[#2D4A3E] tracking-[0.16em] mb-4 text-center">에너지 밀도 (%)</p>
                             <div class="flex justify-center overflow-x-auto w-full">${densityBars}</div>
-                        </div>
-                        <div class="rounded-2xl border border-[rgba(45,74,62,0.1)] bg-white/85 p-4 md:p-5 shadow-sm w-full min-h-[220px]">
-                            ${meanRadarBlock}
                         </div>
                     </div>
                     <div class="grid grid-cols-1 gap-6 md:gap-8 mt-8 md:mt-10 pt-8 border-t border-[rgba(45,74,62,0.1)]">
@@ -2601,100 +2588,6 @@
             return s;
         },
 
-        /** JTT-Kinder 레이더(마름모꼴) SVG — 축 라벨은 temperamentRankLabel */
-        buildRadarSvg(scores) {
-            const cx = 110;
-            const cy = 105;
-            const maxR = 70;
-            const cats = SCHEMA.categories;
-            const polyPts = cats
-                .map((cat, i) => {
-                    const ang = -Math.PI / 2 + (i * Math.PI) / 2;
-                    const p = Math.min(100, Math.max(0, scores[cat] || 0)) / 100;
-                    const r = p * maxR;
-                    const x = cx + r * Math.cos(ang);
-                    const y = cy + r * Math.sin(ang);
-                    return `${x.toFixed(1)},${y.toFixed(1)}`;
-                })
-                .join(' ');
-            let grid = '';
-            for (let g = 1; g <= 3; g++) {
-                const rr = (g / 3) * maxR;
-                const gp = cats
-                    .map((_, i) => {
-                        const ang = -Math.PI / 2 + (i * Math.PI) / 2;
-                        return `${cx + rr * Math.cos(ang)},${cy + rr * Math.sin(ang)}`;
-                    })
-                    .join(' ');
-                grid += `<polygon fill="none" stroke="rgba(45,74,62,0.14)" stroke-width="1" points="${gp}" />`;
-            }
-            let axes = '';
-            cats.forEach((_, i) => {
-                const ang = -Math.PI / 2 + (i * Math.PI) / 2;
-                const x2 = cx + maxR * Math.cos(ang);
-                const y2 = cy + maxR * Math.sin(ang);
-                axes += `<line x1="${cx}" y1="${cy}" x2="${x2}" y2="${y2}" stroke="rgba(45,74,62,0.18)" stroke-width="1" />`;
-            });
-            const labelR = maxR + 26;
-            let labels = '';
-            cats.forEach((cat, i) => {
-                const ang = -Math.PI / 2 + (i * Math.PI) / 2;
-                const lx = cx + labelR * Math.cos(ang);
-                const ly = cy + labelR * Math.sin(ang);
-                const pct = scores[cat] || 0;
-                labels += `<text x="${lx}" y="${ly - 5}" text-anchor="middle" fill="#2D4A3E" font-size="12" font-weight="800" font-family="Noto Sans KR,sans-serif">${SCHEMA.temperamentRankLabel[cat] || cat}</text>`;
-                labels += `<text x="${lx}" y="${ly + 9}" text-anchor="middle" fill="#9ca3af" font-size="10" font-weight="600" font-family="Noto Sans KR,sans-serif">${pct}%</text>`;
-            });
-            return `<svg width="240" height="270" viewBox="-32 -40 304 270" xmlns="http://www.w3.org/2000/svg" class="mx-auto overflow-visible" style="max-width:100%;height:auto">${grid}${axes}<polygon fill="rgba(45,74,62,0.2)" stroke="#2D4A3E" stroke-width="2" points="${polyPts}" />${labels}</svg>`;
-        },
-
-        /** 기관 종합용 · 조금 더 큰 레이더 */
-        buildConsultingRadarSvg(scores) {
-            const cx = 140;
-            const cy = 125;
-            const maxR = 92;
-            const cats = SCHEMA.categories;
-            const polyPts = cats
-                .map((cat, i) => {
-                    const ang = -Math.PI / 2 + (i * Math.PI) / 2;
-                    const p = Math.min(100, Math.max(0, scores[cat] || 0)) / 100;
-                    const r = p * maxR;
-                    const x = cx + r * Math.cos(ang);
-                    const y = cy + r * Math.sin(ang);
-                    return `${x.toFixed(1)},${y.toFixed(1)}`;
-                })
-                .join(' ');
-            let grid = '';
-            for (let g = 1; g <= 3; g++) {
-                const rr = (g / 3) * maxR;
-                const gp = cats
-                    .map((_, i) => {
-                        const ang = -Math.PI / 2 + (i * Math.PI) / 2;
-                        return `${cx + rr * Math.cos(ang)},${cy + rr * Math.sin(ang)}`;
-                    })
-                    .join(' ');
-                grid += `<polygon fill="none" stroke="rgba(45,74,62,0.14)" stroke-width="1" points="${gp}" />`;
-            }
-            let axes = '';
-            cats.forEach((_, i) => {
-                const ang = -Math.PI / 2 + (i * Math.PI) / 2;
-                const x2 = cx + maxR * Math.cos(ang);
-                const y2 = cy + maxR * Math.sin(ang);
-                axes += `<line x1="${cx}" y1="${cy}" x2="${x2}" y2="${y2}" stroke="rgba(45,74,62,0.18)" stroke-width="1" />`;
-            });
-            const labelR = maxR + 30;
-            let labels = '';
-            cats.forEach((cat, i) => {
-                const ang = -Math.PI / 2 + (i * Math.PI) / 2;
-                const lx = cx + labelR * Math.cos(ang);
-                const ly = cy + labelR * Math.sin(ang);
-                const pct = scores[cat] || 0;
-                labels += `<text x="${lx}" y="${ly - 6}" text-anchor="middle" fill="#2D4A3E" font-size="13" font-weight="800" font-family="Noto Sans KR,sans-serif">${SCHEMA.temperamentRankLabel[cat] || cat}</text>`;
-                labels += `<text x="${lx}" y="${ly + 10}" text-anchor="middle" fill="#9ca3af" font-size="11" font-weight="600" font-family="Noto Sans KR,sans-serif">${pct}%</text>`;
-            });
-            return `<svg width="300" height="324" viewBox="0 -44 300 324" xmlns="http://www.w3.org/2000/svg" class="mx-auto max-w-full h-auto overflow-visible" style="max-width:100%">${grid}${axes}<polygon fill="rgba(45,74,62,0.18)" stroke="#2D4A3E" stroke-width="2.5" points="${polyPts}" />${labels}</svg>`;
-        },
-
         /** 사전(연한 녹)·사후(심산녹) 그룹 막대 */
         buildPrePostGroupedBarSvg(meanPre, meanPost) {
             const cats = SCHEMA.categories;
@@ -2728,108 +2621,6 @@
             const grid = `<line x1="${padL}" y1="${y50}" x2="${W - padR}" y2="${y50}" stroke="rgba(45,74,62,0.08)" stroke-dasharray="4 4" /><line x1="${padL}" y1="${y100}" x2="${W - padR}" y2="${y100}" stroke="rgba(45,74,62,0.06)" stroke-dasharray="4 4" />`;
             const leg = `<g transform="translate(${padL},10)"><rect x="0" y="0" width="12" height="12" rx="2" fill="rgba(168,201,184,0.92)"/><text x="18" y="11" fill="#2D4A3E" font-size="10" font-weight="700" font-family="Noto Sans KR,sans-serif">사전 대표 비율</text><rect x="112" y="0" width="12" height="12" rx="2" fill="#2D4A3E"/><text x="130" y="11" fill="#2D4A3E" font-size="10" font-weight="700" font-family="Noto Sans KR,sans-serif">사후 대표 비율</text></g>`;
             return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" class="mx-auto max-w-full h-auto" aria-label="사전 사후 막대 비교">${leg}${grid}${axis}${rects}</svg>`;
-        },
-
-        /** 사전·사후 레이더 겹침 (범위 시각화) */
-        buildDualPrePostRadarSvg(meanPre, meanPost) {
-            const cx = 140;
-            const cy = 125;
-            const maxR = 90;
-            const cats = SCHEMA.categories;
-            const pts = (mean) =>
-                cats
-                    .map((cat, i) => {
-                        const ang = -Math.PI / 2 + (i * Math.PI) / 2;
-                        const p = Math.min(100, Math.max(0, mean[cat] || 0)) / 100;
-                        const r = p * maxR;
-                        return `${(cx + r * Math.cos(ang)).toFixed(1)},${(cy + r * Math.sin(ang)).toFixed(1)}`;
-                    })
-                    .join(' ');
-            const polyPre = pts(meanPre);
-            const polyPost = pts(meanPost);
-            let grid = '';
-            for (let g = 1; g <= 3; g++) {
-                const rr = (g / 3) * maxR;
-                const gp = cats
-                    .map((_, i) => {
-                        const ang = -Math.PI / 2 + (i * Math.PI) / 2;
-                        return `${cx + rr * Math.cos(ang)},${cy + rr * Math.sin(ang)}`;
-                    })
-                    .join(' ');
-                grid += `<polygon fill="none" stroke="rgba(45,74,62,0.12)" stroke-width="1" points="${gp}" />`;
-            }
-            let axes = '';
-            cats.forEach((_, i) => {
-                const ang = -Math.PI / 2 + (i * Math.PI) / 2;
-                const x2 = cx + maxR * Math.cos(ang);
-                const y2 = cy + maxR * Math.sin(ang);
-                axes += `<line x1="${cx}" y1="${cy}" x2="${x2}" y2="${y2}" stroke="rgba(45,74,62,0.16)" stroke-width="1" />`;
-            });
-            const labelR = maxR + 22;
-            let labels = '';
-            cats.forEach((cat, i) => {
-                const ang = -Math.PI / 2 + (i * Math.PI) / 2;
-                const lx = cx + labelR * Math.cos(ang);
-                const ly = cy + labelR * Math.sin(ang);
-                labels += `<text x="${lx}" y="${ly + 4}" text-anchor="middle" fill="#2D4A3E" font-size="12" font-weight="800" font-family="Noto Sans KR,sans-serif">${SCHEMA.temperamentRankLabel[cat] || cat}</text>`;
-            });
-            const dual = `<polygon fill="rgba(168,201,184,0.38)" stroke="#6d9a82" stroke-width="2" stroke-dasharray="6 4" points="${polyPre}" /><polygon fill="rgba(45,74,62,0.15)" stroke="#2D4A3E" stroke-width="2.5" points="${polyPost}" />`;
-            const leg = `<g transform="translate(20,248)"><line x1="0" y1="6" x2="22" y2="6" stroke="#6d9a82" stroke-width="2" stroke-dasharray="6 4"/><text x="28" y="10" fill="#2D4A3E" font-size="10" font-weight="700" font-family="Noto Sans KR,sans-serif">사전 대표 비율</text><line x1="118" y1="6" x2="140" y2="6" stroke="#2D4A3E" stroke-width="2.5"/><text x="146" y="10" fill="#2D4A3E" font-size="10" font-weight="800" font-family="Noto Sans KR,sans-serif">사후 대표 비율</text></g>`;
-            return `<svg width="300" height="300" viewBox="0 -32 300 300" xmlns="http://www.w3.org/2000/svg" class="mx-auto max-w-full h-auto overflow-visible" style="max-width:100%">${grid}${axes}${dual}${labels}${leg}</svg>`;
-        },
-
-        /** 어린이집(연한 브라운) vs 유치원(심산녹) 평균 레이더 오버레이 */
-        buildInstitutionTypeCompareRadarSvg(meanDay, meanKg) {
-            const cx = 140;
-            const cy = 125;
-            const maxR = 90;
-            const cats = SCHEMA.categories;
-            const pts = (mean) =>
-                cats
-                    .map((cat, i) => {
-                        const ang = -Math.PI / 2 + (i * Math.PI) / 2;
-                        const p = Math.min(100, Math.max(0, mean[cat] || 0)) / 100;
-                        const r = p * maxR;
-                        return `${(cx + r * Math.cos(ang)).toFixed(1)},${(cy + r * Math.sin(ang)).toFixed(1)}`;
-                    })
-                    .join(' ');
-            const polyDay = pts(meanDay);
-            const polyKg = pts(meanKg);
-            let grid = '';
-            for (let g = 1; g <= 3; g++) {
-                const rr = (g / 3) * maxR;
-                const gp = cats
-                    .map((_, i) => {
-                        const ang = -Math.PI / 2 + (i * Math.PI) / 2;
-                        return `${cx + rr * Math.cos(ang)},${cy + rr * Math.sin(ang)}`;
-                    })
-                    .join(' ');
-                grid += `<polygon fill="none" stroke="rgba(45,74,62,0.1)" stroke-width="1" points="${gp}" />`;
-            }
-            let axes = '';
-            cats.forEach((_, i) => {
-                const ang = -Math.PI / 2 + (i * Math.PI) / 2;
-                const x2 = cx + maxR * Math.cos(ang);
-                const y2 = cy + maxR * Math.sin(ang);
-                axes += `<line x1="${cx}" y1="${cy}" x2="${x2}" y2="${y2}" stroke="rgba(45,74,62,0.14)" stroke-width="1" />`;
-            });
-            const labelR = maxR + 22;
-            let labels = '';
-            cats.forEach((cat, i) => {
-                const ang = -Math.PI / 2 + (i * Math.PI) / 2;
-                const lx = cx + labelR * Math.cos(ang);
-                const ly = cy + labelR * Math.sin(ang);
-                labels += `<text x="${lx}" y="${ly + 4}" text-anchor="middle" fill="#2D4A3E" font-size="12" font-weight="800" font-family="Noto Sans KR,sans-serif">${SCHEMA.temperamentRankLabel[cat] || cat}</text>`;
-            });
-            const dual =
-                `<polygon fill="rgba(184,150,120,0.42)" stroke="#8d6e54" stroke-width="2.2" stroke-dasharray="5 4" points="${polyDay}" />` +
-                `<polygon fill="rgba(45,74,62,0.2)" stroke="#2D4A3E" stroke-width="2.8" points="${polyKg}" />`;
-            const leg =
-                `<g transform="translate(16,248)"><line x1="0" y1="6" x2="24" y2="6" stroke="#8d6e54" stroke-width="2.2" stroke-dasharray="5 4"/>` +
-                `<text x="30" y="10" fill="#5c4a3a" font-size="10" font-weight="800" font-family="Noto Sans KR,sans-serif">어린이집 평균</text>` +
-                `<line x1="118" y1="6" x2="142" y2="6" stroke="#2D4A3E" stroke-width="2.8"/>` +
-                `<text x="148" y="10" fill="#2D4A3E" font-size="10" font-weight="800" font-family="Noto Sans KR,sans-serif">유치원 평균</text></g>`;
-            return `<svg width="300" height="300" viewBox="0 -32 300 300" xmlns="http://www.w3.org/2000/svg" class="mx-auto max-w-full h-auto overflow-visible" style="max-width:100%" aria-label="기관 유형별 레이더 비교">${grid}${axes}${dual}${labels}${leg}</svg>`;
         },
 
         /** 우세 기질 빈도 파이 (순수 SVG) */
@@ -2901,58 +2692,6 @@
             return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" class="mx-auto max-w-full" aria-label="에너지 밀도">${rects}</svg>`;
         },
 
-        /** 학술 지표 — 정규화 평균 레이더 (최대 눈금은 데이터에 맞춰 ≥5) */
-        buildJttNormMeanRadarSvg(mean) {
-            if (!mean || typeof mean !== 'object') {
-                return '<p class="text-center text-sm text-ms-muted py-8">평균 데이터가 없습니다.</p>';
-            }
-            const cats = SCHEMA.categories;
-            const maxV = Math.max(5, ...cats.map((c) => mean[c] || 0), 0.01);
-            const cx = 140;
-            const cy = 125;
-            const maxR = 88;
-            const polyPts = cats
-                .map((cat, i) => {
-                    const ang = -Math.PI / 2 + (i * Math.PI) / 2;
-                    const p = Math.min(1, Math.max(0, (mean[cat] || 0) / maxV));
-                    const r = p * maxR;
-                    return `${cx + r * Math.cos(ang)},${cy + r * Math.sin(ang)}`;
-                })
-                .join(' ');
-            let grid = '';
-            for (let g = 1; g <= 3; g++) {
-                const rr = (g / 3) * maxR;
-                const gp = cats
-                    .map((_, i) => {
-                        const ang = -Math.PI / 2 + (i * Math.PI) / 2;
-                        return `${cx + rr * Math.cos(ang)},${cy + rr * Math.sin(ang)}`;
-                    })
-                    .join(' ');
-                grid += `<polygon fill="none" stroke="rgba(45,74,62,0.12)" stroke-width="1" points="${gp}" />`;
-            }
-            let axes = '';
-            cats.forEach((_, i) => {
-                const ang = -Math.PI / 2 + (i * Math.PI) / 2;
-                const x2 = cx + maxR * Math.cos(ang);
-                const y2 = cy + maxR * Math.sin(ang);
-                axes += `<line x1="${cx}" y1="${cy}" x2="${x2}" y2="${y2}" stroke="rgba(45,74,62,0.16)" stroke-width="1" />`;
-            });
-            const labelR = maxR + 32;
-            let labels = '';
-            cats.forEach((cat, i) => {
-                const ang = -Math.PI / 2 + (i * Math.PI) / 2;
-                const lx = cx + labelR * Math.cos(ang);
-                const ly = cy + labelR * Math.sin(ang);
-                const v = mean[cat] || 0;
-                labels += `<text x="${lx}" y="${ly - 4}" text-anchor="middle" fill="#2D4A3E" font-size="11" font-weight="800" font-family="Noto Sans KR,sans-serif">${this.esc(
-                    SCHEMA.temperamentRankLabel[cat] || cat
-                )}</text>`;
-                labels += `<text x="${lx}" y="${ly + 10}" text-anchor="middle" fill="#9ca3af" font-size="10" font-weight="600" font-family="Noto Sans KR,sans-serif">${v}</text>`;
-            });
-            const cap = `<text x="${cx}" y="${cy + maxR + 48}" text-anchor="middle" fill="#9ca3af" font-size="9" font-weight="600" font-family="Noto Sans KR,sans-serif">최대 눈금 ${maxV.toFixed(2)} · 리커트 합일 때 1~5 해석</text>`;
-            return `<svg width="300" height="310" viewBox="0 -42 300 310" xmlns="http://www.w3.org/2000/svg" class="mx-auto max-w-full h-auto overflow-visible" style="max-width:100%">${grid}${axes}<polygon fill="rgba(212,163,115,0.22)" stroke="#D4A373" stroke-width="2.5" points="${polyPts}" />${labels}${cap}</svg>`;
-        },
-
         buildJttMetricsKpiHtml(metrics) {
             if (!metrics || !Number.isFinite(metrics.balance)) {
                 return '';
@@ -2997,7 +2736,7 @@
                 `\n\n이 기관은 전반적으로 ${SCHEMA.temperamentRankLabel[topP] || topP} 기질이 우세한 아이가 많아, 놀이와 이동을 설계할 때 이 결을 존중하면 현장의 안정감이 커집니다.`;
 
             const traits =
-                `**우리 기관의 기질적 특징**은 두 층으로 읽을 수 있어요. 첫째, **대표 기질 비중**(레이더)은 장기적인 교육 방향과 환경 설계에 쓰입니다. 둘째, **우세형 분포**(파이)는 “지금 이 반·이 연령에서 누가 앞장서기 쉬운가”를 보여 줍니다.\n\n` +
+                `**우리 기관의 기질적 특징**은 두 층으로 읽을 수 있어요. 첫째, **대표 기질 비중**(축별 평균)은 장기적인 교육 방향과 환경 설계에 쓰입니다. 둘째, **우세형 분포**(파이)는 “지금 이 반·이 연령에서 누가 앞장서기 쉬운가”를 보여 줍니다.\n\n` +
                 `현재 집단에서 ${SCHEMA.temperamentRankLabel[topM] || topM}이 대표로 확정된 비율이 상대적으로 높습니다. 이는 숲에서의 선택과 반응 속도가 그 방향으로 모일 가능성이 있다는 뜻이에요. ` +
                 `파이 차트에서는 ${SCHEMA.temperamentRankLabel[topP] || topP}형 아이가 ${nPie ? Math.round(((tally[topP] || 0) / nPie) * 100) : 0}%를 차지하여, 소그룹 활동을 짤 때 **페이스 메이커** 역할을 맡기기 좋은 기질이 드러납니다.\n\n` +
                 (nTotal > nWithData
@@ -3126,7 +2865,7 @@
                 `**집단 성숙도·발달 맥락 비교** 측면에서, 어린이집 표본은 전반적으로 **연령 중심이 낮은 구간**에 가까운 보육 환경의 특성을 띠는 경우가 많고, 유치원 표본은 **또래 집단 규범과 과업 지속**에 더 익숙한 발달 과제를 동시에 안고 있습니다. ` +
                 `발달심리학적으로 보면, **사회정서적 조절**과 **실행기능(주의 유지·순서 지키기)**의 요구 수준이 기관 유형에 따라 달라지며, 이는 관찰 점수의 패턴 차이로 번역될 수 있습니다. ` +
                 `본 보고서는 이러한 차이를 “우열”이 아니라 **각 유형 아이들이 숲에서 어떤 독특한 기질적 분포를 보이는가**에 초점을 맞춥니다.\n\n` +
-                `어린이집 평균은 SPRT·AUTT 축에서 따뜻한 정서적 안정감과 신중함이 읽히기 쉬운 구조이고, 유치원 평균은 SUMT·WINT 축에서 주도성·탐구·과업 마무리가 두드러질 여지가 있습니다—이는 가설이며, 실제 곡선은 아래 레이더와 표가 말해 줍니다.`;
+                `어린이집 평균은 SPRT·AUTT 축에서 따뜻한 정서적 안정감과 신중함이 읽히기 쉬운 구조이고, 유치원 평균은 SUMT·WINT 축에서 주도성·탐구·과업 마무리가 두드러질 여지가 있습니다—이는 가설이며, 실제 곡선은 아래 표가 말해 줍니다.`;
 
             const cardDay =
                 `(본 카드는 관찰 ${nDay}건의 산술 평균을 바탕으로 합니다.)\n\n` +
@@ -3160,7 +2899,7 @@
                     ? gapParts.join('\n\n')
                     : `네 축 모두에서 두 집단의 평균 차이가 10퍼센트포인트 미만으로, **기질적 분포가 서로 멀지 않게 겹치는** 구간입니다. ` +
                       `이는 표본 내 기관들이 비슷한 숲 운영 철학을 공유하거나, 관찰 시기·입력 패턴이 유사했을 수도 있습니다. ` +
-                      `그럼에도 미세한 차이는 레이더 형태로 읽히니, **반별·월별**로 데이터를 쌓을수록 거시 곡선이 선명해집니다.`;
+                      `그럼에도 미세한 차이는 축별 수치로 읽히니, **반별·월별**로 데이터를 쌓을수록 거시 곡선이 선명해집니다.`;
 
             const solDay =
                 `**어린이집 맞춤 · 안정적 애착을 강화하는 숲 산책법**\n\n` +
@@ -3747,7 +3486,6 @@
                 brandShort: brandInst
             });
             const pieHtml = this.buildGroupPieSvg(tally, nPie);
-            const radarHtml = this.buildConsultingRadarSvg(mean);
             const meanLine = SCHEMA.categories.map((c) => `${c} ${mean[c]}%`).join(' · ');
             let metricsPanelHtml = '';
             const scoresLen = metricsMc && Array.isArray(metricsMc.scoresList) ? metricsMc.scoresList.length : 0;
@@ -3766,15 +3504,9 @@
                             <div class="bg-white/75 rounded-2xl border border-[#2D4A3E]/12 p-5 md:p-6 mb-8 ms-print-avoid-break">
                                 <h3 class="text-sm font-black text-[#2D4A3E] mb-1 tracking-wide">학술 통계 지표</h3>
                                 <p class="text-[11px] text-ms-muted mb-4 leading-relaxed">${tgLabel} 동일 연령군 <strong class="text-[#2D4A3E]">${met.totalCount}</strong>명 · O·X 총점 합계 · Mean = Σ÷(인원×축별 문항수). 리커트(1~5) 합일 때 1.0~5.0 척도로 해석합니다.</p>
-                                <div class="grid md:grid-cols-2 gap-6">
-                                    <div>
-                                        <p class="text-[10px] font-black text-[#D4A373] tracking-widest mb-2">에너지 밀도 (%)</p>
-                                        ${this.buildJttDensityBarsSvg(met.density)}
-                                    </div>
-                                    <div>
-                                        <p class="text-[10px] font-black text-[#D4A373] tracking-widest mb-2">축별 정규화 평균</p>
-                                        <div class="flex justify-center">${this.buildJttNormMeanRadarSvg(met.mean)}</div>
-                                    </div>
+                                <div>
+                                    <p class="text-[10px] font-black text-[#D4A373] tracking-widest mb-2">에너지 밀도 (%)</p>
+                                    ${this.buildJttDensityBarsSvg(met.density)}
                                 </div>
                                 ${this.buildJttMetricsKpiHtml(met)}
                             </div>`;
@@ -3784,16 +3516,11 @@
             const canPrePostInst = !!prePostCmpInst;
             const instDetailBodyHtml =
                 `${metricsPanelHtml}
-                            <div class="grid md:grid-cols-2 gap-8 md:gap-10 ms-print-avoid-break mb-10">
+                            <div class="grid grid-cols-1 gap-8 md:gap-10 ms-print-avoid-break mb-10">
                                 <div class="bg-white/70 rounded-2xl border border-ms p-5 md:p-6 ms-print-avoid-break">
                                     <h3 class="text-center text-sm font-black text-[#2D4A3E] mb-4 tracking-wide">기질 분포도 (우세형)</h3>
                                     ${pieHtml}
                                     <p class="text-[11px] text-ms-muted text-center mt-3 leading-relaxed">각 아동의 가장 높은 축을 한 표로 모아 비율을 냈습니다.</p>
-                                </div>
-                                <div class="bg-white/70 rounded-2xl border border-ms p-5 md:p-6 ms-print-avoid-break">
-                                    <h3 class="text-center text-sm font-black text-[#2D4A3E] mb-4 tracking-wide">대표 기질 비중 레이더</h3>
-                                    <div class="flex justify-center pt-3 overflow-x-auto overflow-y-visible">${radarHtml}</div>
-                                    <p class="text-[11px] text-ms-muted text-center mt-3 leading-relaxed">각 축이 대표 기질로 확정된 아동 비율(%)을 한 눈에 비교합니다.</p>
                                 </div>
                             </div>
                             <div class="bg-white/80 rounded-2xl border border-[#2D4A3E]/12 p-6 md:p-8 ms-print-break-before">
@@ -3883,7 +3610,6 @@
                 brandShort: brandPp
             });
             const barHtml = this.buildPrePostGroupedBarSvg(meanPre, meanPost);
-            const dualRadarHtml = this.buildDualPrePostRadarSvg(meanPre, meanPost);
             const deltaRows = SCHEMA.categories
                 .map((c) => {
                     const d = growthIndex[c] || 0;
@@ -3916,10 +3642,6 @@
                                     <div class="bg-white/75 rounded-2xl border border-ms p-4 md:p-5 ms-print-avoid-break">
                                         <h3 class="text-center text-sm font-black text-[#2D4A3E] mb-3">${brandPp} · 사전/사후 막대 비교</h3>
                                         <div class="flex justify-center overflow-x-auto">${barHtml}</div>
-                                    </div>
-                                    <div class="bg-white/75 rounded-2xl border border-ms p-4 md:p-5 ms-print-avoid-break">
-                                        <h3 class="text-center text-sm font-black text-[#2D4A3E] mb-3">레이더 겹침 (범위)</h3>
-                                        <div class="flex justify-center overflow-x-auto">${dualRadarHtml}</div>
                                     </div>
                                 </div>
                                 <div class="mt-6 rounded-2xl border-2 border-[#2D4A3E]/15 overflow-hidden bg-white/85 ms-print-avoid-break">
@@ -3972,7 +3694,6 @@
                 variant === 'pe'
                     ? this.buildPreschoolElementaryMacroNarrative(macro)
                     : this.buildMacroTypeComparisonNarrative(macro, macroBrand);
-            const radarHtml = this.buildInstitutionTypeCompareRadarSvg(meanDay, meanKg);
             const tableRows = SCHEMA.categories
                 .map((c) => {
                     const sd = signedDiff[c] || 0;
@@ -3993,10 +3714,6 @@
                 variant === 'pe'
                     ? `로컬 저장소 전체 기준 · 유아부 관찰 <strong class="text-[#5c4a3a]">${nDay}건</strong> · 초등부 관찰 <strong class="text-[#2D4A3E]">${nKg}건</strong> 평균 비교 · Δ = 초등 − 유아`
                     : `로컬 저장소 전체 기준 · 어린이집 관찰 <strong class="text-[#5c4a3a]">${nDay}건</strong> · 유치원 관찰 <strong class="text-[#2D4A3E]">${nKg}건</strong> 평균 비교 · Δ = 유치원 − 어린이집`;
-            const radarCap =
-                variant === 'pe'
-                    ? '브라운 점선 = 유아부 평균 · 심산녹 실선 = 초등부 평균'
-                    : '브라운 점선 = 어린이집 평균 · 심산녹 실선 = 유치원 평균';
             const thA = variant === 'pe' ? '유아부' : '어린이집';
             const thB = variant === 'pe' ? '초등부' : '유치원';
             const cardA = variant === 'pe' ? '집단 요약 — 유아부' : '유형별 특징 요약 — 어린이집';
@@ -4026,27 +3743,20 @@
                                 ${subLine}
                             </p>
                             <div class="mb-8 ms-print-avoid-break">${this.consultingSectionHtml('상대적 강점 지표 (RSI)', nar.rsiLine, 'lg')}</div>
-                            <div class="grid md:grid-cols-2 gap-6 mb-10 ms-print-avoid-break">
-                                <div class="rounded-2xl border-2 border-[rgba(139,110,84,0.2)] bg-[rgba(255,250,245,0.9)] p-5 md:p-6 ms-print-avoid-break">
-                                    <h3 class="text-sm font-black text-[#5c4a3a] mb-3 tracking-wide">듀얼 레이더 (오버레이)</h3>
-                                    <div class="flex justify-center mb-4 overflow-x-auto overflow-y-visible pt-2">${radarHtml}</div>
-                                    <p class="text-[11px] text-ms-muted text-center leading-relaxed">${this.esc(radarCap)}</p>
-                                </div>
-                                <div class="rounded-2xl border-2 border-[rgba(45,74,62,0.15)] bg-white/85 p-5 md:p-6 ms-print-avoid-break">
-                                    <h3 class="text-sm font-black text-[#2D4A3E] mb-3 tracking-wide">축별 평균 &amp; 편차</h3>
-                                    <div class="rounded-xl border border-ms overflow-hidden">
-                                        <table class="w-full text-sm">
-                                            <thead class="bg-[rgba(45,74,62,0.06)] text-[10px] font-black text-[#2D4A3E]">
-                                                <tr>
-                                                    <th class="text-left py-2.5 px-3">기질</th>
-                                                    <th class="text-center py-2.5">${this.esc(thA)}</th>
-                                                    <th class="text-center py-2.5">${this.esc(thB)}</th>
-                                                    <th class="text-right py-2.5 px-3">Δ</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>${tableRows}</tbody>
-                                        </table>
-                                    </div>
+                            <div class="rounded-2xl border-2 border-[rgba(45,74,62,0.15)] bg-white/85 p-5 md:p-6 mb-10 ms-print-avoid-break">
+                                <h3 class="text-sm font-black text-[#2D4A3E] mb-3 tracking-wide">축별 평균 &amp; 편차</h3>
+                                <div class="rounded-xl border border-ms overflow-hidden">
+                                    <table class="w-full text-sm">
+                                        <thead class="bg-[rgba(45,74,62,0.06)] text-[10px] font-black text-[#2D4A3E]">
+                                            <tr>
+                                                <th class="text-left py-2.5 px-3">기질</th>
+                                                <th class="text-center py-2.5">${this.esc(thA)}</th>
+                                                <th class="text-center py-2.5">${this.esc(thB)}</th>
+                                                <th class="text-right py-2.5 px-3">Δ</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>${tableRows}</tbody>
+                                    </table>
                                 </div>
                             </div>
                             <div class="bg-white/88 rounded-2xl border border-[#2D4A3E]/10 p-6 md:p-8 space-y-2">
@@ -4372,9 +4082,6 @@
                     : '<span class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-black tracking-wide border border-emerald-400/35 bg-emerald-50/95 text-emerald-950 shadow-sm">🌿 유아용</span>';
             const reportQuickPillsHtml = `
                 <div class="flex flex-nowrap gap-2 overflow-x-auto pb-0.5 pt-0.5 justify-start sm:justify-center [-webkit-overflow-scrolling:touch] w-full max-w-full">
-                    <button type="button" id="ms-report-btn-radar-scroll"
-                        class="shrink-0 rounded-full font-black py-2.5 px-3.5 text-xs sm:text-[12px] border-2 border-[#2D4A3E]/22 text-[#2D4A3E] bg-white shadow-md hover:bg-[rgba(45,74,62,0.05)] active:scale-[0.98] transition-all"
-                        onclick="MS.scrollToReportInlineRadar()" aria-label="본문 레이더 위치로 이동">📊 레이더로 이동</button>
                     <button type="button" id="ms-report-btn-spectrum"
                         class="shrink-0 rounded-full font-black py-2.5 px-3.5 text-xs sm:text-[12px] border-2 border-emerald-500/35 text-white shadow-md shadow-emerald-900/15 bg-gradient-to-b from-[#03C75A] via-[#02a848] to-[#1a5c40] hover:brightness-105 active:scale-[0.98] transition-all"
                         onclick="MS.openSpectrumModal()" aria-label="스펙트럼 전체 화면">🔍 크게 보기</button>
@@ -6355,6 +6062,26 @@
             return false;
         },
 
+        /** 세션 사용자( role 포함 ) — 보고서 권한 메시지 분기용 */
+        async fetchForestAuthMe() {
+            try {
+                const r = await fetch('/api/auth/me', { credentials: 'same-origin', cache: 'no-store' });
+                const j = await r.json().catch(function () {
+                    return null;
+                });
+                if (r.ok && j && j.success && j.data) return j.data;
+            } catch (_) {
+                /* ignore */
+            }
+            return null;
+        },
+
+        forestIsAdminRole(role) {
+            return String(role || '')
+                .trim()
+                .toLowerCase() === 'admin';
+        },
+
         /**
          * 동일 출처 Worker 프록시(/api/forest-gas-report) → GAS doGet.
          * 본인 소유·관리자만 서버가 프록시(브라우저에서 GAS 직접 호출은 하지 않음).
@@ -6416,6 +6143,8 @@
                 }
                 const loggedIn = await MS.ensureForestLoggedInForReport();
                 if (!loggedIn) return false;
+                const me = await MS.fetchForestAuthMe();
+                const isAdmin = MS.forestIsAdminRole(me && me.role);
                 let snap = null;
                 try {
                     const raw = localStorage.getItem(LS_FOREST_REPORT_PREFIX + rid);
@@ -6428,7 +6157,16 @@
                     if (out && out.error === 'login_required') return false;
                     if (out && out.error === 'forbidden') {
                         try {
-                            alert('본인이 진행한 검사 보고서만 열람할 수 있습니다.');
+                            if (isAdmin) {
+                                alert(
+                                    '관리자 계정으로 보고서를 열 권한이 서버에서 허용되지 않았습니다.\n\n' +
+                                        '로그인 계정의 role이 admin인지 확인하거나, 잠시 후 다시 시도해 주세요.\n\n' +
+                                        'requestId: ' +
+                                        rid
+                                );
+                            } else {
+                                alert('본인이 진행한 검사 보고서만 열람할 수 있습니다.');
+                            }
                         } catch (_) {
                             /* ignore */
                         }
@@ -6956,20 +6694,6 @@
                 if (panel) panel.setAttribute('aria-hidden', 'false');
             }
             const node = document.getElementById('ms-report-rank-section');
-            if (!node) return;
-            try {
-                node.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            } catch (_) {
-                try {
-                    node.scrollIntoView(true);
-                } catch (_) {
-                    /* ignore */
-                }
-            }
-        },
-
-        scrollToReportInlineRadar() {
-            const node = document.getElementById('ms-report-inline-radar');
             if (!node) return;
             try {
                 node.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -9060,7 +8784,7 @@
         },
         triggerImport: () => UI.triggerImport(),
 
-        /** 방사형 기질 스펙트럼(레이더) 모달 — openForestMapModal 과 동일 */
+        /** 기질 해설 모달 — openForestMapModal 과 동일 */
         openSpectrumModal() {
             return MS.openForestMapModal();
         },
@@ -9073,16 +8797,14 @@
             const root = document.getElementById('ms-modal-root');
             if (!root) return;
             const summary = UI.buildHarmonySummary(scores, getAppBrandShortForGroup(tg));
-            const svg = UI.buildRadarSvg(scores);
             root.className =
                 'print-hidden fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4';
             root.innerHTML = `
                 <div class="absolute inset-0 bg-black/45" onclick="MS.closeForestMapModal()" aria-hidden="true"></div>
                 <div class="relative w-full max-w-md rounded-t-[1.75rem] sm:rounded-[2rem] bg-[#FDFBF7] shadow-2xl border border-[#2D4A3E]/12 p-6 md:p-8 max-h-[88vh] overflow-y-auto pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] sm:pb-8" onclick="event.stopPropagation()">
                     <h3 id="ms-modal-title" class="text-lg md:text-xl font-black text-[#2D4A3E] text-center mb-1 leading-tight">우리 아이의 마음 숲 지도</h3>
-                    <p class="text-center text-[10px] text-gray-400 mb-4">${getAppBrandShortForGroup(tg)} 비교 · 레이더</p>
-                    <div class="flex justify-center overflow-x-auto overflow-y-visible pt-2 sm:pt-3 pb-1 min-h-[min(280px,70vw)]">${svg}</div>
-                    <p class="text-sm text-ms-body leading-relaxed mt-4 mb-6 text-left">${UI.esc(summary)}</p>
+                    <p class="text-center text-[10px] text-gray-400 mb-4">${getAppBrandShortForGroup(tg)} · 네 축 기질 해설</p>
+                    <p class="text-sm text-ms-body leading-relaxed mt-2 mb-6 text-left">${UI.esc(summary)}</p>
                     <button type="button" class="w-full rounded-full border-2 border-[#2D4A3E] bg-transparent text-[#2D4A3E] font-bold py-3 text-sm mb-2 hover:bg-[rgba(45,74,62,0.06)]" onclick="MS.goHomeToDashboard()">🏠 홈으로 — 대시보드</button>
                     <button type="button" class="w-full rounded-full bg-[#2D4A3E] text-white font-bold py-3.5 text-sm shadow-md hover:brightness-95" onclick="MS.closeForestMapModal()">닫기</button>
                 </div>

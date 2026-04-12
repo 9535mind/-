@@ -12,6 +12,12 @@ import { requireAuth } from '../middleware/auth'
 const MAX_SCORES_BYTES = 512 * 1024
 const MAX_REQUEST_ID_LEN = 200
 
+function isForestAdminRole(role: unknown): boolean {
+  return String(role ?? '')
+    .trim()
+    .toLowerCase() === 'admin'
+}
+
 const forestResults = new Hono<{ Bindings: Bindings }>()
 
 forestResults.post('/', requireAuth, async (c) => {
@@ -147,7 +153,7 @@ forestResults.get('/:id', requireAuth, async (c) => {
 
   const uid = Number(user.id)
   const ownerId = row.user_id != null ? Number(row.user_id) : NaN
-  const isAdmin = user.role === 'admin'
+  const isAdmin = isForestAdminRole(user.role)
   if (!isAdmin && (Number.isNaN(ownerId) || ownerId !== uid)) {
     return c.json({ success: false, error: 'forbidden', message: '본인 검사 결과만 열람할 수 있습니다.' }, 403)
   }
