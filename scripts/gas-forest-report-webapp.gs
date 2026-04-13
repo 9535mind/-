@@ -2,6 +2,12 @@
  * JTT 숲 시트 웹앱 — doPost(append) + doGet(requestId → 보고서 JSON)
  * appendForest2026Row_: 정확히 41요소 A~AO — E=reportUrl, F~AC=Q1~12, AD~AG=4축, AN=requestId, AO=JSON
  * Apps Script: 이 파일 전체를 한 번에 붙여 넣으면 됩니다(별도 common 파일 불필요).
+ *
+ * 시트 탭 이름(doPost와 동일해야 append·조회가 같은 곳을 봄):
+ *   - 유아: '2026'
+ *   - 초등: '2026초등'
+ * 스프레드시트 파일 제목이 "JTT-Kinder 통합 데이터"여도, 위 탭 이름이 다르면 getSheetByName 이 실패합니다.
+ * 보고서 GET(doGet)은 ForestReports 인덱스 시트가 없어도, 메인 시트 2026/2026초등에서 E열(URL)·AN열(requestId)로 조회합니다.
  */
 
 function doGet(e) {
@@ -88,47 +94,91 @@ function getOrCreateForestReportsSheet_(ss) {
   return s;
 }
 
+/** E열(인덱스4) 리포트 URL 또는 AN열(39) requestId 로 행 매칭 — appendForest2026Row_ 와 열 위치 동일 */
+function forestRowMatchesRequestId_(row, id) {
+  if (!row || !id) return false;
+  if (String(row[39] || '').trim() === id) return true;
+  var cellE = String(row[4] || '');
+  if (!cellE) return false;
+  if (cellE.indexOf(id) !== -1) return true;
+  var m = cellE.match(/[?&]id=([^&]+)/);
+  if (m) {
+    try {
+      if (decodeURIComponent(String(m[1]).replace(/\+/g, ' ')) === id) return true;
+    } catch (e) {
+      if (String(m[1]) === id) return true;
+    }
+  }
+  return false;
+}
+
+/** 메인 시트(2026 / 2026초등) 41열 행에서 스냅샷 — A=입력시간, E=리포트 링크, AN=requestId, AO=JSON */
+function findReportSnapshotInMainSheets_(ss, id) {
+  var names = ['2026', '2026초등'];
+  var ni;
+  for (ni = 0; ni < names.length; ni++) {
+    var sheet = ss.getSheetByName(names[ni]);
+    if (!sheet) continue;
+    var data = sheet.getDataRange().getValues();
+    var i;
+    for (i = 1; i < data.length; i++) {
+      var row = data[i];
+      if (!forestRowMatchesRequestId_(row, id)) continue;
+      if (!row || row.length < 41) continue;
+      try {
+        var payload = JSON.parse(String(row[40] || '{}'));
+        var savedAt = row[38] != null ? String(row[38]) : '';
+        return { version: 1, requestId: id, savedAt: savedAt, sheetPayload: payload };
+      } catch (e2) {
+        continue;
+      }
+    }
+  }
+  return null;
+}
+
 /** 신규 41열: AN=인덱스39 requestId, AO=40 JSON, AM=38 시간 */
 function getReportSnapshotByRequestId_(id) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName('ForestReports');
-  if (!sh) return null;
-  var data = sh.getDataRange().getValues();
-  var i;
-  for (i = 1; i < data.length; i++) {
-    var row = data[i];
-    if (!row || row.length === 0) continue;
-    var payload = null;
-    var savedAt = '';
-    if (String(row[0] || '').trim() === id && row.length <= 4) {
-      try {
-        payload = JSON.parse(String(row[1] || '{}'));
-      } catch (e) {
-        continue;
+  if (sh) {
+    var data = sh.getDataRange().getValues();
+    var i;
+    for (i = 1; i < data.length; i++) {
+      var row = data[i];
+      if (!row || row.length === 0) continue;
+      var payload = null;
+      var savedAt = '';
+      if (String(row[0] || '').trim() === id && row.length <= 4) {
+        try {
+          payload = JSON.parse(String(row[1] || '{}'));
+        } catch (e) {
+          continue;
+        }
+        savedAt = row[2] ? String(row[2]) : '';
+        return { version: 1, requestId: id, savedAt: savedAt, sheetPayload: payload };
       }
-      savedAt = row[2] ? String(row[2]) : '';
-      return { version: 1, requestId: id, savedAt: savedAt, sheetPayload: payload };
-    }
-    if (row.length >= 41 && String(row[39] || '').trim() === id) {
-      try {
-        payload = JSON.parse(String(row[40] || '{}'));
-      } catch (e2) {
-        continue;
+      if (row.length >= 41 && String(row[39] || '').trim() === id) {
+        try {
+          payload = JSON.parse(String(row[40] || '{}'));
+        } catch (e2) {
+          continue;
+        }
+        savedAt = row[38] != null ? String(row[38]) : '';
+        return { version: 1, requestId: id, savedAt: savedAt, sheetPayload: payload };
       }
-      savedAt = row[38] != null ? String(row[38]) : '';
-      return { version: 1, requestId: id, savedAt: savedAt, sheetPayload: payload };
-    }
-    if (String(row[13] || '').trim() === id) {
-      try {
-        payload = JSON.parse(String(row[row.length - 1] || '{}'));
-      } catch (e3) {
-        continue;
+      if (String(row[13] || '').trim() === id) {
+        try {
+          payload = JSON.parse(String(row[row.length - 1] || '{}'));
+        } catch (e3) {
+          continue;
+        }
+        savedAt = row[row.length - 2] != null ? String(row[row.length - 2]) : '';
+        return { version: 1, requestId: id, savedAt: savedAt, sheetPayload: payload };
       }
-      savedAt = row[row.length - 2] != null ? String(row[row.length - 2]) : '';
-      return { version: 1, requestId: id, savedAt: savedAt, sheetPayload: payload };
     }
   }
-  return null;
+  return findReportSnapshotInMainSheets_(ss, id);
 }
 
 function axisScoresFromPayload_(data) {

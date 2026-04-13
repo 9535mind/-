@@ -73,6 +73,12 @@
             color: rgba(45, 74, 62, 0.92);
         }
 
+        @media (max-width: 768px) {
+            html {
+                font-size: 112.5%;
+            }
+        }
+
         .text-ms-muted { color: rgba(45, 74, 62, 0.5); }
         .text-ms-body { color: rgba(45, 74, 62, 0.78); }
         .bg-ms-soft { background: rgba(45, 74, 62, 0.06); }
@@ -257,6 +263,70 @@
             font-family: 'Noto Sans KR', system-ui, sans-serif;
             letter-spacing: -0.02em;
             font-feature-settings: 'kern' 1;
+        }
+        /* PDF 생성 직전: A4 폭(794px≈210mm@96dpi) 고정·스크롤 제거·도표 전체 노출 */
+        body.ms-report-pdf-generating #app,
+        body.ms-report-pdf-generating #view-content {
+            overflow: visible !important;
+            max-height: none !important;
+        }
+        #ms-report-capture-root.ms-report-pdf-mode {
+            width: 794px !important;
+            max-width: 794px !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
+            overflow: visible !important;
+            max-height: none !important;
+            box-sizing: border-box !important;
+        }
+        #ms-report-capture-root.ms-report-pdf-mode .ms-density-chart-svg,
+        #ms-report-capture-root.ms-report-pdf-mode svg {
+            max-width: 100% !important;
+            width: 100% !important;
+            height: auto !important;
+        }
+        #ms-report-capture-root.ms-report-pdf-mode .ms-report-temperament-detail-shell {
+            max-height: none !important;
+            opacity: 1 !important;
+            overflow: visible !important;
+        }
+        /* html2pdf 페이지 나눔: 카드·도표·그래프가 중간에서 잘리지 않도록 */
+        #ms-report-capture-root.ms-report-pdf-mode .ms-card,
+        #ms-report-capture-root.ms-report-pdf-mode .ms-report-dominant-card,
+        #ms-report-capture-root.ms-report-pdf-mode .ms-report-academic-intro,
+        #ms-report-capture-root.ms-report-pdf-mode .ms-density-chart-svg,
+        #ms-report-capture-root.ms-report-pdf-mode .ms-report-temperament-detail-shell,
+        #ms-report-capture-root.ms-report-pdf-mode table,
+        #ms-report-capture-root.ms-report-pdf-mode svg,
+        #ms-report-capture-root.ms-report-pdf-mode canvas,
+        #ms-report-capture-root.ms-report-pdf-mode img {
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+        #ms-pdf-preview-overlay {
+            font-family: 'Noto Sans KR', system-ui, sans-serif;
+        }
+        /* 결과 화면 — JSON 데이터 관리 토글 (그리드 0fr→1fr) */
+        .ms-report-json-menu-grid {
+            display: grid;
+            grid-template-rows: 0fr;
+            transition: grid-template-rows 0.22s ease-out;
+            pointer-events: none;
+        }
+        #ms-report-data-management.ms-json-menu-open .ms-report-json-menu-grid {
+            grid-template-rows: 1fr;
+            pointer-events: auto;
+        }
+        .ms-report-json-menu-inner {
+            min-height: 0;
+            overflow: hidden;
+            opacity: 0;
+            transform: translateY(-4px);
+            transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+        }
+        #ms-report-data-management.ms-json-menu-open .ms-report-json-menu-inner {
+            opacity: 1;
+            transform: translateY(0);
         }
         .ms-report-dominant-card {
             background: linear-gradient(145deg, rgba(255, 255, 255, 0.98) 0%, rgba(253, 251, 247, 0.99) 45%, rgba(45, 74, 62, 0.04) 100%);
@@ -596,10 +666,160 @@
             line-height: 1;
         }
 
+        /* 인쇄 전용 고정 헤더·푸터 — 화면에서는 숨김 */
+        .ms-report-print-fixed-header,
+        .ms-report-print-fixed-footer {
+            display: none !important;
+        }
+        .ms-report-print-seal-area {
+            display: none !important;
+        }
+
         @media print {
+            /* A4 · 여백 — 서류형 가독성 (엔진이 지원하면 하단에 페이지 번호 표시) */
             @page {
                 size: A4 portrait;
-                margin: 10mm 12mm 12mm 12mm;
+                /* 하단 여백: 고정 푸터(저작권·발행일) + 엔진이 지원하면 우측에 페이지 번호 */
+                margin: 22mm 18mm 26mm 18mm;
+                @bottom-right {
+                    content: counter(page) ' / ' counter(pages);
+                    font-family: 'Noto Sans KR', 'Noto Sans CJK KR', system-ui, sans-serif;
+                    font-size: 8pt;
+                    color: #555;
+                    vertical-align: top;
+                    padding-top: 1mm;
+                }
+            }
+
+            /* 공식 리포트: 고정 헤더·푸터 (인쇄 시 각 페이지에 반복) */
+            .ms-report-print-fixed-header {
+                display: flex !important;
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                z-index: 9998;
+                align-items: center;
+                justify-content: space-between;
+                gap: 4mm;
+                padding: 3.5mm 12mm 3mm 12mm;
+                background: #fff;
+                border-bottom: 0.35mm solid rgba(45, 74, 62, 0.14);
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            .ms-report-print-header-logo {
+                flex-shrink: 0;
+            }
+            .ms-report-print-fixed-footer {
+                display: flex !important;
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                z-index: 9998;
+                align-items: center;
+                justify-content: space-between;
+                gap: 4mm;
+                padding: 3mm 12mm 3.5mm 12mm;
+                background: linear-gradient(180deg, rgba(253, 251, 247, 0.98) 0%, #fff 100%);
+                border-top: 0.35mm solid rgba(45, 74, 62, 0.1);
+                font-size: 8.5pt;
+                line-height: 1.35;
+                color: rgba(45, 74, 62, 0.78);
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            /* 본문이 헤더·푸터에 가리지 않도록 */
+            #ms-report-capture-root {
+                padding-top: 13mm;
+                padding-bottom: 14mm;
+                padding-left: 2mm !important;
+                padding-right: 2mm !important;
+                font-size: 10.5pt !important;
+                line-height: 1.5 !important;
+                color: #1f2937 !important;
+            }
+            #ms-report-capture-root h2 {
+                font-size: 17pt !important;
+            }
+            #ms-report-capture-root h3 {
+                font-size: 13pt !important;
+            }
+            #ms-report-capture-root h4 {
+                font-size: 10.5pt !important;
+            }
+            #ms-report-capture-root p,
+            #ms-report-capture-root li {
+                font-size: 10pt !important;
+            }
+
+            /* 기관장 직인 — 인쇄 시에만 표시 */
+            .ms-report-print-seal-inner {
+                margin-top: 10mm;
+                padding: 5mm 5mm 6mm;
+                border-radius: 3mm;
+                border: 0.35mm dashed rgba(45, 74, 62, 0.28);
+                background: linear-gradient(180deg, rgba(253, 251, 247, 0.55) 0%, rgba(255, 255, 255, 0.92) 100%);
+                page-break-inside: avoid;
+                break-inside: avoid;
+            }
+            .ms-report-print-seal-label {
+                margin: 0 0 1.5mm;
+                text-align: center;
+                font-size: 9pt;
+                font-weight: 800;
+                letter-spacing: 0.12em;
+                color: #2d4a3e;
+            }
+            .ms-report-print-seal-hint {
+                margin: 0 0 4mm;
+                text-align: center;
+                font-size: 7.5pt;
+                color: #6b7280;
+                line-height: 1.45;
+            }
+            .ms-report-print-seal-box {
+                margin: 0 auto;
+                width: 32mm;
+                height: 32mm;
+                border-radius: 2mm;
+                border: 0.25mm solid rgba(45, 74, 62, 0.12);
+                background: rgba(255, 255, 255, 0.65);
+            }
+            .ms-report-print-seal-area {
+                display: block !important;
+                margin-top: 8mm;
+                page-break-before: auto;
+                page-break-inside: avoid;
+                break-inside: avoid;
+            }
+
+            /* A4 시트 단위 (긴 본문은 브라우저가 페이지 나눔) */
+            .ms-report-a4-sheet {
+                break-inside: auto;
+                page-break-inside: auto;
+            }
+            .ms-report-a4-sheet--break {
+                break-before: page;
+                page-break-before: always;
+            }
+            .ms-report-a4-sheet--finale {
+                break-before: page;
+                page-break-before: always;
+            }
+
+            /* 표지·요약·차트 1페이지 */
+            .ms-report-print-page-1 {
+                break-after: page;
+                page-break-after: always;
+            }
+
+            .ms-density-chart-svg {
+                width: 100% !important;
+                max-width: 175mm !important;
+                height: auto !important;
             }
 
             .ms-prepost-chart-grid {
@@ -668,11 +888,21 @@
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
             }
+            /* 긴 보고서는 카드 단위로 잘리도록(전역 avoid는 한 페이지를 비현실적으로 밀어냄) */
+            #ms-report-capture-root.ms-card,
+            #ms-report-capture-root .ms-card {
+                break-inside: auto !important;
+                page-break-inside: auto !important;
+            }
             .ms-card {
                 box-shadow: none !important;
                 border-radius: 1rem !important;
                 break-inside: avoid;
                 page-break-inside: avoid;
+            }
+            #ms-report-capture-root .ms-print-avoid-break {
+                break-inside: avoid !important;
+                page-break-inside: avoid !important;
             }
             .ms-watermark-4stt {
                 color: rgba(45, 74, 62, 0.07);
@@ -753,12 +983,15 @@
     /** 진행 장소(숲/실내) — 검사 설정 모달과 동기 */
     const LS_OBS_LOCATION = 'ms_forest_obs_location';
     /**
-     * GAS 웹앱 /exec URL — Worker 환경변수 FOREST_GAS_WEBHOOK_URL 과 동일하게 유지 (보고서 GET 폴백·운영 점검용).
-     * 시트 POST 는 브라우저→script.google.com 직접 호출 대신 동일 출처 POST /api/forest-gas-webhook → Worker→GAS 로 전달합니다.
+     * GAS 웹앱 /exec URL — 로컬·디버그용. 운영 POST 는 Worker 의 FOREST_GAS_WEBHOOK_URL(wrangler.jsonc vars 또는 Pages Secrets)을 씁니다.
+     * 시트 POST 는 동일 출처 POST /api/forest-gas-webhook → Worker→GAS (클라이언트가 이 상수를 직접 호출하지 않음).
      * GAS doPost: JSON.parse(e.postData.contents), 응답은 JSON MIME 권장. 배포 액세스: 모든 사용자.
      */
     const FOREST_SHEETS_WEBHOOK_URL =
-        'https://script.google.com/macros/s/AKfycby8NYv9wk6AcMOc-fIwD354TKRcNEgGOxWqs0chdwj2LUfouue2CyRBfI2f0v0hh6Q/exec';
+        'https://script.google.com/macros/s/AKfycbwD4vtRsnmQQyMoTb5TLyapdeBAX9Gwicekvwk0v7bQhKln_NvqrFfdhHza34BFcMWV/exec';
+
+    /** ?forest_auth_debug=1 또는 localStorage ms_forest_auth_debug=1 — fetchForestAuthMe() 결과(role·id) 콘솔 로깅 */
+    /** ?forest_report_debug=1 또는 ms_forest_report_debug=1 — /api/forest-gas-report 응답 상태·본문 앞부분 로깅 */
 
     /** ?forest_gas_debug=1 또는 localStorage ms_forest_gas_debug=1 일 때 POST 응답 본문을 콘솔에 상세 로깅 */
     function isForestGasDebugEnabled() {
@@ -790,6 +1023,9 @@
             p.report_url = ru;
             p.reportUrl = ru;
             if (rid) p.requestId = rid;
+            if (!String(p.requestId || '').trim()) {
+                p.requestId = Date.now() + '-' + Math.random().toString(36).slice(2, 11);
+            }
             const ag = String(p.age_group || '').trim();
             const isEl =
                 p.isElementary === true ||
@@ -811,13 +1047,68 @@
         }
     }
 
+    /** jsPDF 문서에 헤더 라인·푸터(저작권·페이지) 오버레이 */
+    function applyForestReportPdfHeaderFooter(pdf) {
+        try {
+            const total = pdf.internal.getNumberOfPages();
+            const pageW = pdf.internal.pageSize.getWidth();
+            const pageH = pdf.internal.pageSize.getHeight();
+            const mx = 14;
+            let i;
+            for (i = 1; i <= total; i++) {
+                pdf.setPage(i);
+                pdf.setFont('helvetica', 'normal');
+                pdf.setDrawColor(218, 218, 218);
+                pdf.setLineWidth(0.3);
+                pdf.line(mx, 17, pageW - mx, 17);
+                pdf.setFontSize(7.5);
+                pdf.setTextColor(45, 74, 62);
+                pdf.text('MINDSTORY · Temperament Report', pageW / 2, 11, { align: 'center' });
+                pdf.setFontSize(7);
+                pdf.setTextColor(115, 115, 115);
+                pdf.text('\u00A9 MINDSTORY All rights reserved', mx, pageH - 7);
+                pdf.text(String(i) + ' / ' + String(total), pageW - mx, pageH - 7, { align: 'right' });
+            }
+        } catch (e) {
+            try {
+                console.error('[forest] PDF footer overlay', e);
+            } catch (_) {
+                /* ignore */
+            }
+        }
+    }
+
     /**
-     * GAS 시트 웹훅 POST. 기본은 no-cors(응답 불가). 디버그 시 cors + 콘솔 상세 로그.
+     * GAS 시트 웹훅 POST — 동일 출처 /api/forest-gas-webhook → Worker → GAS (모바일·CORS 안정).
+     * 디버그 시에만 직접 script.google.com URL 로 CORS 확인.
      * @returns {Promise<void>} 네트워크 실패 시 reject
      */
     function postForestGasSheetFetch(payloadObj) {
-        const url = String(FOREST_SHEETS_WEBHOOK_URL || '').trim();
-        if (!url) {
+        const directUrl = String(FOREST_SHEETS_WEBHOOK_URL || '').trim();
+        let canon = canonicalizeForestGasSheetPayload(payloadObj);
+        if (!String(canon.requestId || '').trim()) {
+            try {
+                canon.requestId =
+                    typeof MS !== 'undefined' && MS.generateForestRequestId
+                        ? MS.generateForestRequestId()
+                        : Date.now() + '-' + Math.random().toString(36).slice(2, 10);
+            } catch (_) {
+                canon.requestId = Date.now() + '-' + Math.random().toString(36).slice(2, 10);
+            }
+        }
+        const body = JSON.stringify(canon);
+        const debug = isForestGasDebugEnabled();
+        try {
+            var o =
+                typeof location !== 'undefined' &&
+                location.origin &&
+                location.origin !== 'null' &&
+                (location.protocol === 'http:' || location.protocol === 'https:');
+            var proxyUrl = o ? location.origin + '/api/forest-gas-webhook' : '';
+        } catch (_) {
+            proxyUrl = '';
+        }
+        if (!directUrl && !proxyUrl) {
             try {
                 console.error('[forest GAS] FOREST_SHEETS_WEBHOOK_URL 이 비어 있습니다. forest.html 상단 URL을 최신 웹앱 /exec 로 맞추세요.');
             } catch (_) {
@@ -825,18 +1116,19 @@
             }
             return Promise.reject(new Error('FOREST_SHEETS_WEBHOOK_URL empty'));
         }
-        const body = JSON.stringify(canonicalizeForestGasSheetPayload(payloadObj));
-        const debug = isForestGasDebugEnabled();
         try {
-            console.log('[forest GAS] POST 준비', { url, bodyBytes: body.length, mode: debug ? 'cors(debug)' : 'no-cors' });
+            console.log('[forest GAS] POST', {
+                target: proxyUrl && !debug ? 'same-origin-proxy' : 'direct-or-debug',
+                bodyBytes: body.length
+            });
         } catch (_) {
             /* ignore */
         }
-        if (debug) {
-            return fetch(url, {
+        if (debug && directUrl) {
+            return fetch(directUrl, {
                 method: 'POST',
                 mode: 'cors',
-                cache: 'no-cache',
+                cache: 'no-store',
                 credentials: 'omit',
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: body
@@ -877,41 +1169,74 @@
                 }
             });
         }
-        return fetch(url, {
+        if (proxyUrl && !debug) {
+            return fetch(proxyUrl, {
+                method: 'POST',
+                mode: 'same-origin',
+                cache: 'no-store',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json;charset=utf-8' },
+                body: body
+            })
+                .then(async function (r) {
+                    const raw = await r.text();
+                    let parsed = null;
+                    try {
+                        parsed = raw ? JSON.parse(raw) : null;
+                    } catch (_) {
+                        parsed = null;
+                    }
+                    if (!r.ok) {
+                        try {
+                            console.error('[forest GAS] proxy HTTP', r.status, raw.slice(0, 400));
+                        } catch (_) {
+                            /* ignore */
+                        }
+                        throw new Error('GAS proxy HTTP ' + r.status);
+                    }
+                    if (parsed && typeof parsed === 'object' && parsed.success === false) {
+                        throw new Error(String(parsed.message || parsed.error || 'GAS success:false'));
+                    }
+                    if (parsed && typeof parsed === 'object' && parsed.error != null && String(parsed.error).trim() !== '') {
+                        throw new Error(String(parsed.error));
+                    }
+                    return r;
+                })
+                .catch(function (err) {
+                    try {
+                        console.error('[forest GAS] fetch 실패', err);
+                    } catch (_) {
+                        /* ignore */
+                    }
+                    throw err;
+                });
+        }
+        return fetch(directUrl, {
             method: 'POST',
             mode: 'no-cors',
-            cache: 'no-cache',
+            cache: 'no-store',
             credentials: 'omit',
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: body
-        })
-            .then(function (r) {
-                try {
-                    console.log('[forest GAS] Response (no-cors)', {
-                        type: r.type,
-                        ok: r.ok,
-                        status: r.status,
-                        statusText: r.statusText,
-                        redirected: r.redirected
-                    });
-                    if (r.type === 'opaque') {
-                        console.info(
-                            '[forest GAS] opaque 응답: 브라우저는 HTTP 상태·JSON 본문을 읽을 수 없습니다. GAS JSON·에러 확인은 URL에 ?forest_gas_debug=1 또는 localStorage ms_forest_gas_debug=1 (GAS에서 CORS 허용 필요).'
-                        );
-                    }
-                } catch (_) {
-                    /* ignore */
+        }).then(function (r) {
+            try {
+                console.log('[forest GAS] Response (no-cors)', {
+                    type: r.type,
+                    ok: r.ok,
+                    status: r.status,
+                    statusText: r.statusText,
+                    redirected: r.redirected
+                });
+                if (r.type === 'opaque') {
+                    console.info(
+                        '[forest GAS] opaque 응답: 로컬 파일 등에서는 Worker 프록시를 쓸 수 없습니다. https 로 열어 주세요.'
+                    );
                 }
-                return r;
-            })
-            .catch(function (err) {
-                try {
-                    console.error('[forest GAS] fetch 실패(네트워크·CORS 등)', err);
-                } catch (_) {
-                    /* ignore */
-                }
-                throw err;
-            });
+            } catch (_) {
+                /* ignore */
+            }
+            return r;
+        });
     }
 
     /** 연령 탭(대상): 연한 파스텔 — 기관 유형보다 한 단계 약하게 */
@@ -2035,7 +2360,12 @@
                     if (o.dashboardBuilderMode === 'single' || o.dashboardBuilderMode === 'prepost' || o.dashboardBuilderMode === 'group') {
                         this.dashboardBuilderMode = o.dashboardBuilderMode;
                     }
-                    this.institutions.forEach((i) => this.ensureCounts(i));
+                    this.institutions.forEach((i) => {
+                        this.ensureCounts(i);
+                        if (typeof MS !== 'undefined' && MS.ensurePendingForestRequestId) {
+                            MS.ensurePendingForestRequestId(i);
+                        }
+                    });
                     if (fromKey !== STORAGE_KEY) {
                         try { localStorage.removeItem(fromKey); } catch (_) {}
                         this.persist();
@@ -2085,6 +2415,9 @@
             this.institutions.push(inst);
             this.selectedId = id;
             this.persist();
+            if (typeof MS !== 'undefined' && MS.ensurePendingForestRequestId) {
+                MS.ensurePendingForestRequestId(inst);
+            }
             return inst;
         },
 
@@ -2208,7 +2541,7 @@
                             </h3>
                             <div class="space-y-3.5 md:space-y-4">${pHtml}</div>
                             <div class="mt-6 pt-5 border-t border-[rgba(45,74,62,0.12)] ms-print-avoid-break">
-                                <h4 class="text-[10px] font-black text-[#2D4A3E] tracking-[0.12em] mb-2.5">${this.esc('📚 참고문헌 (APA 스타일)')}</h4>
+                                <h4 class="text-[12px] font-black text-[#2D4A3E] tracking-[0.12em] mb-2.5">${this.esc('📚 참고문헌 (APA 스타일)')}</h4>
                                 <ul class="ms-report-intro-ref-list list-none space-y-2 m-0 p-0">${rHtml}</ul>
                             </div>
                         </section>
@@ -2235,14 +2568,14 @@
         buildQuickActionsCardHtml() {
             return `
                 <div class="rounded-2xl border border-[#2D4A3E]/12 bg-white/90 p-4 md:p-5 mb-4 shadow-sm print-hidden">
-                    <p class="text-[10px] font-black text-[#2D4A3E] tracking-[0.15em] mb-3 pb-2 border-b border-[rgba(45,74,62,0.08)] text-center">현장 관리 (Quick Actions)</p>
+                    <p class="text-[12px] font-black text-[#2D4A3E] tracking-[0.15em] mb-3 pb-2 border-b border-[rgba(45,74,62,0.08)] text-center">현장 관리 (Quick Actions)</p>
                     <div class="flex flex-col gap-2.5">
                         <button type="button" class="ms-btn w-full rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black py-3.5 text-xs md:text-sm shadow-md border-0"
                             onclick="MS.forceSyncGasBackups()">동기화 실행하기</button>
                         <button type="button" class="ms-btn w-full rounded-xl border-2 border-gray-300 bg-white text-gray-700 font-bold py-3.5 text-xs md:text-sm hover:bg-gray-50"
                             onclick="MS.openLastCompletedExamResult()">결과 보고서 열기</button>
                     </div>
-                    <p class="text-[9px] text-ms-muted mt-3 leading-relaxed text-center" style="display: none;" aria-hidden="true">대기열: <code class="text-[#2D4A3E]">ms_forest_gas_backup</code> · 직전 완료: <code class="text-[#2D4A3E]">ms_forest_last_result_ref</code></p>
+                    <p class="text-[11px] text-ms-muted mt-3 leading-relaxed text-center" style="display: none;" aria-hidden="true">대기열: <code class="text-[#2D4A3E]">ms_forest_gas_backup</code> · 직전 완료: <code class="text-[#2D4A3E]">ms_forest_last_result_ref</code></p>
                 </div>`;
         },
 
@@ -2277,15 +2610,15 @@
                 }
             }
             const density = met && met.density ? met.density : percentByAxis;
-            const densityBars = this.buildJttDensityBarsSvg(density);
+            const densityBars = this.buildJttDensityBarsSvg(density, { large: true });
             const maxO = Math.max(1, ...rankedTemperaments.map((r) => r.score));
             const rankRows = rankedTemperaments
                 .map(
                     (r) => `
                 <li class="rounded-xl border border-[rgba(45,74,62,0.08)] bg-white/90 px-3.5 py-3">
                     <div class="flex justify-between items-start gap-2 mb-2">
-                        <span class="text-[11px] md:text-xs font-black text-[#2D4A3E] leading-snug text-left">${r.rank}위 · ${this.esc(SCHEMA.temperamentRankLabel[r.cat] || r.cat)}</span>
-                        <span class="text-[11px] font-bold text-[#2D4A3E] tabular-nums shrink-0">${r.density_pct}%</span>
+                        <span class="text-[13px] md:text-xs font-black text-[#2D4A3E] leading-snug text-left">${r.rank}위 · ${this.esc(SCHEMA.temperamentRankLabel[r.cat] || r.cat)}</span>
+                        <span class="text-[13px] font-bold text-[#2D4A3E] tabular-nums shrink-0">${r.density_pct}%</span>
                     </div>
                     <div class="w-full h-2 rounded-full overflow-hidden bg-ms-soft" aria-hidden="true">
                         <div class="h-full rounded-full transition-all duration-700" style="width:${Math.round((r.score / maxO) * 100)}%;${SCHEMA.barStyle(r.cat)}"></div>
@@ -2298,47 +2631,86 @@
             return `
                 <section id="ms-report-inline-profile" class="mb-8 md:mb-10 text-left rounded-[1.85rem] border border-[#2D4A3E]/12 bg-gradient-to-b from-[#FDFBF7] via-white to-[rgba(45,74,62,0.03)] p-6 md:px-8 md:py-9 shadow-[0_14px_44px_rgba(45,74,62,0.09)] scroll-mt-4" aria-label="학급·집단 기질 프로필">
                     <header class="mb-6 md:mb-8 pb-5 border-b border-[rgba(45,74,62,0.1)]">
-                        <p class="text-[11px] font-black text-[#D4A373] tracking-[0.2em] mb-2">학급 통계 지표</p>
+                        <p class="text-[13px] font-black text-[#D4A373] tracking-[0.2em] mb-2">학급 통계 지표</p>
                         <h3 class="text-lg md:text-xl font-black text-[#2D4A3E] leading-tight mb-2">학급·집단 기질 프로필</h3>
-                        <p class="text-[11px] md:text-xs text-ms-muted leading-relaxed">
+                        <p class="text-[13px] md:text-xs text-ms-muted leading-relaxed">
                             검사 인원 <strong class="text-[#2D4A3E]">${nQ1}</strong>명 (Q1 △+□) · ${this.esc(ageLine)} · 네 축의 <strong class="text-[#2D4A3E]">에너지 밀도</strong>와 <strong class="text-[#2D4A3E]">대표 성향</strong>을 한 번에 봅니다.
                         </p>
                     </header>
                     <div class="grid grid-cols-1 gap-6 md:gap-8 items-stretch">
-                        <div class="rounded-2xl border border-[rgba(45,74,62,0.1)] bg-white/85 p-4 md:p-5 shadow-sm w-full">
-                            <p class="text-[10px] font-black text-[#2D4A3E] tracking-[0.16em] mb-4 text-center">에너지 밀도 (%)</p>
-                            <div class="flex justify-center overflow-x-auto w-full">${densityBars}</div>
+                        <div class="rounded-2xl border border-[rgba(45,74,62,0.1)] bg-white/85 p-4 md:p-6 shadow-sm w-full">
+                            <p class="text-[12px] md:text-[13px] font-black text-[#2D4A3E] tracking-[0.16em] mb-4 text-center">에너지 밀도 (%)</p>
+                            <div class="ms-density-chart-wrap flex justify-center overflow-x-auto w-full">${densityBars}</div>
                         </div>
                     </div>
                     <div class="grid grid-cols-1 gap-6 md:gap-8 mt-8 md:mt-10 pt-8 border-t border-[rgba(45,74,62,0.1)]">
                         <div class="rounded-2xl border border-[rgba(45,74,62,0.12)] bg-white/90 p-5 md:p-6 shadow-sm w-full">
-                            <h4 class="text-xs font-black text-[#2D4A3E] text-center mb-1 tracking-wide">기질 분포도 (축별 비중)</h4>
-                            <p class="text-[10px] text-ms-muted text-center mb-4 leading-relaxed">우세 순위 · 응답이 모인 계절 축</p>
+                            <h4 class="text-xs font-black text-[#2D4A3E] text-center mb-1 tracking-wide">기질 분포 분석표 (축별 비중)</h4>
+                            <p class="text-[12px] text-ms-muted text-center mb-4 leading-relaxed">우세 순위 · 응답이 모인 계절 축</p>
                             <ol class="list-none m-0 p-0 space-y-2.5">${rankRows}</ol>
                         </div>
                     </div>
                     <div class="mt-8 rounded-2xl border border-[#2D4A3E]/14 bg-gradient-to-br from-[rgba(253,251,247,0.98)] via-white to-[rgba(45,74,62,0.025)] p-6 md:p-7 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
-                        <h4 class="text-[11px] font-black text-[#2D4A3E] tracking-[0.14em] mb-3 text-center">집단 에너지 색채 (Center Atmosphere)</h4>
+                        <h4 class="text-[13px] font-black text-[#2D4A3E] tracking-[0.14em] mb-3 text-center">집단 에너지 색채 (Center Atmosphere)</h4>
                         <p class="text-sm md:text-[15px] text-[#2D4A3E] leading-relaxed text-center md:text-left font-medium">${this.esc(atmosphere)}</p>
                     </div>
                     <div class="text-center mt-6 print-hidden ms-report-pdf-exclude">
-                        <button type="button" class="text-[11px] font-bold text-[#2D4A3E]/85 underline underline-offset-[3px] decoration-[#2D4A3E]/25 hover:text-[#2D4A3E]" onclick="MS.openSpectrumModal()">전체 화면으로 크게 보기</button>
+                        <button type="button" class="text-[13px] font-bold text-[#2D4A3E]/85 underline underline-offset-[3px] decoration-[#2D4A3E]/25 hover:text-[#2D4A3E]" onclick="MS.openSpectrumModal()">전체 화면으로 크게 보기</button>
                     </div>
                 </section>`;
         },
 
+        /** 결과 보고서: 전문가 종합 소견 (D1 연동 — 마운트 후 MS.initForestExpertCommentaryAfterRender) */
+        /** 결과 보고서 마지막: 기관장 직인 날인 공간(인쇄 전용) */
+        buildReportInstitutionSealPlaceholderHtml() {
+            return `<div class="ms-report-print-seal-area" aria-hidden="true">
+                <div class="ms-report-print-seal-inner">
+                    <p class="ms-report-print-seal-label">기관장 직인</p>
+                    <p class="ms-report-print-seal-hint">날인·직인 이미지를 붙이거나 스캔한 인장을 배치할 수 있는 공간입니다.</p>
+                    <div class="ms-report-print-seal-box"></div>
+                </div>
+            </div>`;
+        },
+
+        buildReportExpertCommentarySectionHtml() {
+            return `<section id="ms-report-expert-commentary-root" class="ms-report-expert-finale ms-report-a4-sheet--finale ms-print-avoid-break mt-10 text-left rounded-[2rem] border-2 border-[#D4A373]/45 bg-gradient-to-br from-[#fffefb] via-[#FDFBF7] to-[rgba(212,163,115,0.08)] p-7 md:p-9 shadow-[0_16px_48px_rgba(45,74,62,0.1)] ring-1 ring-[rgba(45,74,62,0.06)]" role="region" aria-label="전문가 종합 소견">
+                <div class="flex flex-col items-center text-center mb-6 pb-5 border-b border-[rgba(45,74,62,0.1)]">
+                    <p class="text-[13px] font-black text-[#D4A373] tracking-[0.35em] mb-2">FINALE · EXPERT NOTE</p>
+                    <h3 class="text-xl md:text-2xl font-black text-[#2D4A3E] mb-2 leading-tight">선생님 · 원장님 종합 소견</h3>
+                    <p class="text-[13px] md:text-xs text-ms-muted max-w-md leading-relaxed">리포트의 마지막은 사람의 언어로 마무리됩니다. 데이터 해석을 바탕으로 가정·현장에서의 돌봄 방향을 한마디로 정리해 주세요. <span class="text-[#2D4A3E]/90 font-semibold">편집·저장은 관리자 계정만 가능합니다.</span></p>
+                </div>
+                <div id="ms-report-expert-commentary-mount" class="min-h-[3rem] text-left">
+                    <p class="text-sm text-ms-muted py-1">불러오는 중...</p>
+                </div>
+            </section>`;
+        },
+
         /** 결과 보고서 하단: JSON 가져오기·내보내기 (홈에서 이전됨) */
         buildReportDataManagementSectionHtml() {
-            return `<div id="ms-report-data-management" class="ms-report-pdf-exclude print-hidden rounded-[1.75rem] border-2 border-slate-300/90 bg-white p-3.5 md:p-4 text-left mt-6 mb-1 scroll-mt-4" role="region" aria-label="데이터 관리">
-                <p class="text-[10px] font-black text-[#2D4A3E] tracking-[0.15em] mb-0.5">데이터 관리</p>
-                <p class="text-[10px] text-ms-muted mb-2.5 leading-relaxed">다른 기기에서 보낸 JSON을 합치거나, 이 기기 백업을 파일로 내보냅니다. 숫자를 고치려면 아래를 눌러 입력 화면으로 돌아갑니다.</p>
-                <div class="flex flex-col gap-1.5">
-                    <button type="button" class="ms-btn w-full rounded-full bg-slate-700 hover:bg-slate-800 text-white font-black py-2.5 text-xs md:text-sm shadow-sm border-0"
-                        onclick="MS.triggerImport()">JSON 불러오기 (합치기)</button>
-                    <button type="button" class="ms-btn w-full rounded-full border-2 border-slate-300 bg-white text-slate-800 font-bold py-2.5 text-xs md:text-sm hover:bg-slate-50"
-                        onclick="void MS.exportBackup()">JSON 보내기 (저장·공유)</button>
-                    <button type="button" class="ms-btn w-full rounded-full border-2 border-[#2D4A3E]/25 bg-[#FDFBF7] text-[#2D4A3E] font-bold py-2.5 text-xs md:text-sm hover:bg-[rgba(45,74,62,0.06)] active:scale-[0.99] transition-all"
-                        onclick="MS.backToInput()">데이터 고치기 (입력으로)</button>
+            return `<div id="ms-report-data-management" class="ms-report-pdf-exclude print-hidden relative rounded-[1.75rem] border-2 border-slate-300/90 bg-white p-3.5 md:p-4 text-left mt-6 mb-1 scroll-mt-4" role="region" aria-label="데이터 관리">
+                <div class="min-w-0 pr-1">
+                    <p class="text-[12px] font-black text-[#2D4A3E] tracking-[0.15em] mb-0.5">데이터 관리</p>
+                    <p class="text-[12px] text-ms-muted leading-relaxed">백업·가져오기·입력 수정은 하단 <span class="text-[#2D4A3E]/85 font-semibold">JSON 데이터 관리</span>를 눌러 주세요.</p>
+                </div>
+                <div class="mt-3 flex justify-end">
+                    <button type="button" id="ms-report-json-toggle" class="shrink-0 rounded-full border border-slate-300/90 bg-slate-100/95 px-3 py-1.5 text-[10px] sm:text-[11px] font-black tracking-wide text-slate-600 shadow-sm transition-all hover:bg-slate-200/90 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/50 max-w-[min(100%,14rem)]"
+                        aria-expanded="false" aria-controls="ms-report-json-panel" title="JSON 보내기·불러오기·데이터 고치기"
+                        onclick="MS.toggleReportJsonDataMenu(event)"><span class="sm:hidden">JSON</span><span class="hidden sm:inline">JSON 데이터 관리</span></button>
+                </div>
+                <div class="ms-report-json-menu-grid" aria-hidden="true">
+                    <div class="ms-report-json-menu-inner">
+                        <div id="ms-report-json-panel" class="mt-3 rounded-2xl border border-slate-200/90 bg-gradient-to-b from-slate-50/80 to-white p-2.5 shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
+                            <p class="text-[11px] text-ms-muted mb-2 px-0.5 leading-snug">합치기·저장·입력 화면으로 이동합니다.</p>
+                            <div class="flex flex-col gap-1.5">
+                                <button type="button" class="ms-btn w-full rounded-xl bg-slate-700 hover:bg-slate-800 text-white font-black py-2.5 text-xs md:text-sm shadow-sm border-0"
+                                    onclick="MS.triggerImport()">JSON 불러오기 (합치기)</button>
+                                <button type="button" class="ms-btn w-full rounded-xl border-2 border-slate-300 bg-white text-slate-800 font-bold py-2.5 text-xs md:text-sm hover:bg-slate-50"
+                                    onclick="void MS.exportBackup()">JSON 보내기 (저장·공유)</button>
+                                <button type="button" class="ms-btn w-full rounded-xl border-2 border-[#2D4A3E]/25 bg-[#FDFBF7] text-[#2D4A3E] font-bold py-2.5 text-xs md:text-sm hover:bg-[rgba(45,74,62,0.06)] active:scale-[0.99] transition-all"
+                                    onclick="MS.backToInput()">데이터 고치기 (입력으로)</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>`;
         },
@@ -2363,12 +2735,12 @@
             }
             const macroBtn = `<button type="button" class="ms-report-toggle-pill ms-report-toggle-pill--stretch" onclick="MS.openInstitutionTypeMacroReport()">🌐 기관별 거시 비교 분석</button>`;
             const groupLink = showGroupLink
-                ? `<p class="mb-3 text-center sm:text-left"><button type="button" class="text-[11px] font-bold text-[#D4A373] underline underline-offset-2 decoration-[#D4A373]/50 hover:text-[#2D4A3E] bg-transparent border-0 p-0 cursor-pointer" onclick="MS.openInstitutionReportFromResult()">🏢 기관 전체 성향 보고서 열기 →</button></p>`
+                ? `<p class="mb-3 text-center sm:text-left"><button type="button" class="text-[13px] font-bold text-[#D4A373] underline underline-offset-2 decoration-[#D4A373]/50 hover:text-[#2D4A3E] bg-transparent border-0 p-0 cursor-pointer" onclick="MS.openInstitutionReportFromResult()">🏢 기관 전체 성향 보고서 열기 →</button></p>`
                 : '';
             return `
                 <div id="ms-report-advanced-analytics" class="ms-report-pdf-exclude print-hidden rounded-2xl border border-[rgba(45,74,62,0.12)] bg-gradient-to-b from-[rgba(253,251,247,0.9)] to-white/80 p-4 md:p-5 mt-8 text-left shadow-sm" role="region" aria-label="비교 및 통계 분석">
-                    <p class="text-[10px] font-black text-[#2D4A3E] tracking-[0.15em] mb-1">비교 및 통계 분석</p>
-                    <p class="text-[10px] text-ms-muted mb-4 leading-relaxed">학급·집단 프로필을 확인한 뒤, 시계열·거시 비교로 이어가실 수 있습니다.</p>
+                    <p class="text-[12px] font-black text-[#2D4A3E] tracking-[0.15em] mb-1">비교 및 통계 분석</p>
+                    <p class="text-[12px] text-ms-muted mb-4 leading-relaxed">학급·집단 프로필을 확인한 뒤, 시계열·거시 비교로 이어가실 수 있습니다.</p>
                     ${groupLink}
                     <div class="flex flex-col items-stretch gap-2.5">
                         ${preBtn}
@@ -2653,7 +3025,7 @@
                 paths += `<path d="M ${cx} ${cy} L ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} Z" fill="${colors[cat]}" stroke="#FDFBF7" stroke-width="2" />`;
                 a += slice;
             });
-            const svg = `<svg width="240" height="240" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" aria-label="기질 분포">${paths}</svg>`;
+            const svg = `<svg width="240" height="240" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" aria-label="기질 분포 분석표">${paths}</svg>`;
             const legend = cats
                 .map((cat) => {
                     const cnt = tally[cat] || 0;
@@ -2667,29 +3039,35 @@
             return `<div class="flex flex-col items-center">${svg}<div class="w-full max-w-xs mt-4">${legend}</div></div>`;
         },
 
-        /** 학술 지표 — 에너지 밀도(%) 막대 */
-        buildJttDensityBarsSvg(density) {
+        /** 학술 지표 — 에너지 밀도(%) 막대 (large: 인쇄·PDF용 고해상도) */
+        buildJttDensityBarsSvg(density, opts) {
             if (!density || typeof density !== 'object') {
                 return '<p class="text-center text-sm text-ms-muted py-8">밀도 데이터가 없습니다.</p>';
             }
+            const large = opts && opts.large;
             const cats = SCHEMA.categories;
             const colors = { SPRT: '#D4A373', SUMT: '#2D4A3E', AUTT: '#5f7f6f', WINT: '#7d6b5a' };
-            const W = 320;
-            const rowH = 36;
+            const W = large ? 440 : 320;
+            const rowH = large ? 46 : 36;
+            const barH = large ? 22 : 18;
+            const labelFs = large ? 13 : 11;
+            const pctFs = large ? 12 : 11;
+            const labelY = large ? 28 : 22;
+            const pctY = large ? 26 : 20;
             const H = rowH * cats.length + 8;
             let y = 6;
             let rects = '';
             cats.forEach((cat) => {
                 const pct = Math.min(100, Math.max(0, density[cat] || 0));
-                const bw = ((W - 120) * pct) / 100;
-                rects += `<text x="0" y="${y + 22}" fill="#2D4A3E" font-size="11" font-weight="800" font-family="Noto Sans KR,sans-serif">${this.esc(
+                const bw = ((W - 128) * pct) / 100;
+                rects += `<text x="0" y="${y + labelY}" fill="#2D4A3E" font-size="${labelFs}" font-weight="800" font-family="Noto Sans KR,sans-serif">${this.esc(
                     SCHEMA.temperamentRankLabel[cat] || cat
                 )}</text>`;
-                rects += `<rect x="118" y="${y + 6}" width="${Math.max(0, bw)}" height="18" rx="6" fill="${colors[cat]}" opacity="0.92" />`;
-                rects += `<text x="${W - 4}" y="${y + 20}" text-anchor="end" fill="#6b7280" font-size="11" font-weight="700" font-family="Noto Sans KR,sans-serif">${pct}%</text>`;
+                rects += `<rect x="126" y="${y + 6}" width="${Math.max(0, bw)}" height="${barH}" rx="6" fill="${colors[cat]}" opacity="0.92" />`;
+                rects += `<text x="${W - 4}" y="${y + pctY}" text-anchor="end" fill="#6b7280" font-size="${pctFs}" font-weight="700" font-family="Noto Sans KR,sans-serif">${pct}%</text>`;
                 y += rowH;
             });
-            return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" class="mx-auto max-w-full" aria-label="에너지 밀도">${rects}</svg>`;
+            return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" class="ms-density-chart-svg mx-auto max-w-full" aria-label="에너지 밀도">${rects}</svg>`;
         },
 
         buildJttMetricsKpiHtml(metrics) {
@@ -2699,14 +3077,14 @@
             return `
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6 pt-6 border-t border-[rgba(45,74,62,0.1)]">
                     <div class="rounded-2xl bg-[rgba(45,74,62,0.06)] border border-ms px-4 py-4 text-center">
-                        <p class="text-[10px] font-black text-[#D4A373] tracking-widest mb-1">Balance (σ)</p>
+                        <p class="text-[12px] font-black text-[#D4A373] tracking-widest mb-1">Balance (σ)</p>
                         <p class="text-2xl md:text-3xl font-black text-[#2D4A3E]">${metrics.balance}</p>
-                        <p class="text-[10px] text-ms-muted mt-1">네 축 정규화 평균의 표준편차 · 낮을수록 균형</p>
+                        <p class="text-[12px] text-ms-muted mt-1">네 축 정규화 평균의 표준편차 · 낮을수록 균형</p>
                     </div>
                     <div class="rounded-2xl bg-[rgba(212,163,115,0.12)] border border-[#D4A373]/30 px-4 py-4 text-center">
-                        <p class="text-[10px] font-black text-[#2D4A3E] tracking-widest mb-1">적응 지수</p>
+                        <p class="text-[12px] font-black text-[#2D4A3E] tracking-widest mb-1">적응 지수</p>
                         <p class="text-2xl md:text-3xl font-black text-[#2D4A3E]">${metrics.adaptive}</p>
-                        <p class="text-[10px] text-ms-muted mt-1">(봄·겨울 평균) / SPRT+WINT 에너지</p>
+                        <p class="text-[12px] text-ms-muted mt-1">(봄·겨울 평균) / SPRT+WINT 에너지</p>
                     </div>
                 </div>`;
         },
@@ -3054,7 +3432,7 @@
                         class="w-full text-left rounded-2xl border border-[rgba(45,74,62,0.1)] bg-white/85 hover:bg-white hover:border-[#2D4A3E]/25 px-4 py-3.5 transition-colors flex flex-wrap items-baseline justify-between gap-2 group"
                         onclick="MS.openHistoryToReport('${safeEnc}')">
                         <span class="font-black text-[#2D4A3E] text-sm group-hover:underline decoration-[#D4A373] underline-offset-4">${this.esc(k)}</span>
-                        <span class="text-[10px] font-bold text-ms-muted shrink-0">${this.esc(d)} · 아동(기록) ${n}명</span>
+                        <span class="text-[12px] font-bold text-ms-muted shrink-0">${this.esc(d)} · 아동(기록) ${n}명</span>
                     </button>
                 `;
             }).join('');
@@ -3064,7 +3442,7 @@
                         <span class="text-lg leading-none" aria-hidden="true">🔐</span>
                         <h3 class="text-xs font-black text-[#2D4A3E] tracking-[0.18em]">최근 검사 기록</h3>
                     </div>
-                    <p class="text-[10px] text-ms-muted mb-4 leading-relaxed">한 줄을 누르면 가장 최근 기록 기준으로 <strong class="text-[#2D4A3E]">분석 보고서</strong>가 바로 열려요. (기기 금고에만 저장됨)</p>
+                    <p class="text-[12px] text-ms-muted mb-4 leading-relaxed">한 줄을 누르면 가장 최근 기록 기준으로 <strong class="text-[#2D4A3E]">분석 보고서</strong>가 바로 열려요. (기기 금고에만 저장됨)</p>
                     <div class="space-y-2 max-h-[min(40vh,16rem)] overflow-y-auto custom-scrollbar pr-1">${rows}</div>
                 </div>
             `;
@@ -3100,18 +3478,18 @@
             }
             foot.innerHTML = `
                 <div class="ms-footer-tools border-t border-gray-200/50 pt-3 pb-1">
-                    <p class="text-[9px] text-gray-400 text-center leading-snug px-2 mb-2 max-w-sm mx-auto">
+                    <p class="text-[11px] text-gray-400 text-center leading-snug px-2 mb-2 max-w-sm mx-auto">
                         숲에서 입력 후 노트북으로 모으려면 <span class="text-gray-500 font-semibold">데이터보내기</span> → 카카오톡·메일로 보내고, 본부에서 <span class="text-gray-500 font-semibold">불러오기</span>로 합치세요.
                     </p>
                     <div class="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
-                        <button type="button" class="rounded-full px-2.5 py-1 min-h-[32px] text-[10px] font-semibold text-gray-400 hover:text-[#2D4A3E] transition-colors"
+                        <button type="button" class="rounded-full px-2.5 py-1 min-h-[32px] text-[12px] font-semibold text-gray-400 hover:text-[#2D4A3E] transition-colors"
                             onclick="void MS.exportBackup()" title="JSON 저장·공유">보내기</button>
-                        <span class="text-gray-200 text-[9px]" aria-hidden="true">|</span>
-                        <button type="button" class="rounded-full px-2.5 py-1 min-h-[32px] text-[10px] font-semibold text-gray-400 hover:text-[#2D4A3E] transition-colors"
+                        <span class="text-gray-200 text-[11px]" aria-hidden="true">|</span>
+                        <button type="button" class="rounded-full px-2.5 py-1 min-h-[32px] text-[12px] font-semibold text-gray-400 hover:text-[#2D4A3E] transition-colors"
                             onclick="MS.triggerImport()" title="백업 합치기">불러오기</button>
                     </div>
-                    <span class="block text-[8px] text-gray-300 text-center mt-1.5 tracking-wide">로컬 전용 · ms_forest_v1</span>
-                    <p class="text-[9px] text-gray-400 text-center mt-2 px-3 leading-relaxed max-w-md mx-auto">
+                    <span class="block text-[10px] text-gray-300 text-center mt-1.5 tracking-wide">로컬 전용 · ms_forest_v1</span>
+                    <p class="text-[11px] text-gray-400 text-center mt-2 px-3 leading-relaxed max-w-md mx-auto">
                         본 시스템은 <span class="text-gray-500 font-semibold">폐쇄형 저장</span> 방식을 사용합니다. 모든 데이터는 <span class="text-gray-500 font-semibold">현재 기기</span>에만 안전하게 보관됩니다.
                     </p>
                 </div>
@@ -3160,7 +3538,7 @@
                     ? ''
                     : `<div class="ms-card p-4 md:p-5 shadow-[0_8px_28px_rgba(45,74,62,0.08)] border-2 border-[rgba(45,74,62,0.08)] print:hidden">
                             <p class="text-xs font-black text-[#2D4A3E] mb-1">완료한 검사 다시 보기</p>
-                            <p class="text-[10px] text-ms-muted mb-3 leading-relaxed">이 휴대폰(브라우저)에 저장된 검사입니다. 누르면 결과 화면으로 이동하며, 거기서 PDF·공유를 이용할 수 있어요.</p>
+                            <p class="text-[12px] text-ms-muted mb-3 leading-relaxed">이 휴대폰(브라우저)에 저장된 검사입니다. 누르면 결과 화면으로 이동하며, 거기서 PDF·공유를 이용할 수 있어요.</p>
                             <div class="flex flex-col gap-2 max-h-[min(40vh,320px)] overflow-y-auto custom-scrollbar pr-0.5">
                                 ${completedDashSlice
                                     .map((inst) => {
@@ -3184,7 +3562,7 @@
                                             class="ms-btn w-full text-left rounded-2xl border border-[#2D4A3E]/20 bg-white px-3 py-2.5 hover:bg-[rgba(45,74,62,0.04)] active:scale-[0.99] transition-all"
                                             onclick="MS.openCompletedExamResultById(${JSON.stringify(inst.id)})">
                                             <span class="block text-sm font-black text-[#2D4A3E] leading-snug">${this.esc(line)}</span>
-                                            <span class="block text-[10px] text-ms-muted mt-0.5">${this.esc(when)}</span>
+                                            <span class="block text-[12px] text-ms-muted mt-0.5">${this.esc(when)}</span>
                                         </button>`;
                                     })
                                     .join('')}
@@ -3234,10 +3612,10 @@
                                 <button type="button"
                                     class="ms-btn w-full !rounded-xl bg-[#5D4037] text-white font-black py-4 text-sm md:text-base shadow-[0_5px_16px_rgba(0,0,0,0.18)] hover:bg-[#4E342E] active:bg-[#4E342E] transition-colors duration-200"
                                     onclick="MS.navigateToLatestResult()">방금 완료한 검사 바로가기</button>
-                                <p class="text-[10px] text-[#5D4037]/65 text-center mt-2 leading-relaxed">가장 최근에 저장된 관찰 기록(숫자 입력 완료)의 분석 보고서로 이동합니다.</p>
+                                <p class="text-[12px] text-[#5D4037]/65 text-center mt-2 leading-relaxed">가장 최근에 저장된 관찰 기록(숫자 입력 완료)의 분석 보고서로 이동합니다.</p>
                                 <div class="mt-5 pt-4 border-t border-[#5D4037]/15">
-                                    <p class="text-[10px] font-black text-[#5D4037] tracking-[0.12em] mb-3 uppercase text-center">대문 비주얼 (숏츠)</p>
-                                    <p class="text-[10px] text-[#5D4037]/65 text-center mb-3 leading-relaxed">기본 영상: <code class="text-[#5D4037] font-bold">/assets/forest_test.mp4</code> (빌드 시 <code class="text-[#5D4037] font-bold">public/assets/</code>에서 복사) · 서버에 파일이 없으면 포스터 사진만 보입니다.</p>
+                                    <p class="text-[12px] font-black text-[#5D4037] tracking-[0.12em] mb-3 uppercase text-center">대문 비주얼 (숏츠)</p>
+                                    <p class="text-[12px] text-[#5D4037]/65 text-center mb-3 leading-relaxed">기본 영상: <code class="text-[#5D4037] font-bold">/assets/forest_test.mp4</code> (빌드 시 <code class="text-[#5D4037] font-bold">public/assets/</code>에서 복사) · 서버에 파일이 없으면 포스터 사진만 보입니다.</p>
                                     <label for="ms-admin-dash-video-url" class="block text-xs font-bold text-[#5D4037] mb-1.5">영상 URL (MP4, 무음 권장)</label>
                                     <input id="ms-admin-dash-video-url" type="text" inputmode="url" autocomplete="off" placeholder="${this.esc(DEFAULT_FOREST_DASH_VIDEO)}"
                                         class="w-full min-h-[44px] rounded-xl border-2 border-[#5D4037]/30 bg-white px-3 py-2 text-xs font-semibold text-[#5D4037] shadow-sm mb-3"
@@ -3254,7 +3632,7 @@
                                     </div>
                                 </div>
                                 <div class="mt-5 pt-4 border-t border-[#5D4037]/15">
-                                    <p class="text-[10px] font-black text-[#5D4037] tracking-[0.18em] mb-3 uppercase text-center">맞춤 보고서 빌더 · v${SCHEMA.version}</p>
+                                    <p class="text-[12px] font-black text-[#5D4037] tracking-[0.18em] mb-3 uppercase text-center">맞춤 보고서 빌더 · v${SCHEMA.version}</p>
                                     <div class="space-y-4">
                                         <div>
                                             <label for="ms-db-inst" class="block text-xs font-bold text-[#5D4037] mb-2">기관 선택</label>
@@ -3270,7 +3648,7 @@
                                                 onchange="MS.setDashboardBuilderType(this.value)">
                                                 ${typeOptsHtml}
                                             </select>
-                                            <p class="text-[10px] text-[#5D4037]/55 mt-1.5 leading-snug">${bm === 'group' ? '집단 간 비교: 로컬 전체 표본으로 두 축을 나란히 봅니다.' : '유아부: 어린이집·유치원·기타 · 초등부: 지역아동센터·방과후 등'}</p>
+                                            <p class="text-[12px] text-[#5D4037]/55 mt-1.5 leading-snug">${bm === 'group' ? '집단 간 비교: 로컬 전체 표본으로 두 축을 나란히 봅니다.' : '유아부: 어린이집·유치원·기타 · 초등부: 지역아동센터·방과후 등'}</p>
                                         </div>
                                         <div>
                                             <label for="ms-db-mode" class="block text-xs font-bold text-[#5D4037] mb-2">분석 방법</label>
@@ -3328,7 +3706,7 @@
                                         class="ms-btn flex-1 min-h-[52px] !rounded-2xl px-3 py-3 text-sm font-black transition-all ${tgDash === 'elementary' ? tabElAct : tabElIdle}"
                                         onclick="MS.setTargetGroup('elementary')">초등부</button>
                                 </div>
-                                <p class="text-[10px] text-ms-muted text-center mt-2.5 leading-relaxed">선택한 모드는 「새 검사 시작」 기본값으로 적용됩니다.</p>
+                                <p class="text-[12px] text-ms-muted text-center mt-2.5 leading-relaxed">선택한 모드는 「새 검사 시작」 기본값으로 적용됩니다.</p>
                             </div>
 
                             <div id="ms-dashboard-home" class="ms-card p-4 md:p-5 shadow-[0_12px_40px_rgba(45,74,62,0.1)] border-2 border-[rgba(45,74,62,0.1)] print:hidden">
@@ -3346,14 +3724,14 @@
                         </div>
                     </div>
                     <div class="mt-auto shrink-0 print-hidden select-none text-center pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-2">
-                        <p class="inline-flex flex-wrap items-center justify-center gap-x-1 gap-y-0.5 text-[10px] text-gray-300 font-normal tracking-[0.03em] opacity-90">
+                        <p class="inline-flex flex-wrap items-center justify-center gap-x-1 gap-y-0.5 text-[12px] text-gray-300 font-normal tracking-[0.03em] opacity-90">
                             <span aria-hidden="true">[</span>
                             <button type="button"
-                                class="bg-transparent border-0 p-0 cursor-pointer text-[10px] text-gray-300 hover:text-gray-400/95 transition-colors"
+                                class="bg-transparent border-0 p-0 cursor-pointer text-[12px] text-gray-300 hover:text-gray-400/95 transition-colors"
                                 onclick="MS.onFooterAdminDashboardClick()">관리 대시보드 ${dashChevron}</button>
                             <span class="mx-0.5 opacity-75" aria-hidden="true">|</span>
                             <button type="button"
-                                class="bg-transparent border-0 p-0 cursor-pointer text-[10px] text-gray-300 hover:text-gray-400/95 transition-colors"
+                                class="bg-transparent border-0 p-0 cursor-pointer text-[12px] text-gray-300 hover:text-gray-400/95 transition-colors"
                                 onclick="MS.clearVaultEntirely()">이전기록 삭제</button>
                             <span aria-hidden="true">]</span>
                         </p>
@@ -3396,10 +3774,10 @@
                             <td class="py-3 pr-2">
                                 <span class="inline-block w-2 h-2 rounded-full ${dot} mr-2 align-middle"></span>
                                 <span class="font-bold text-[#2D4A3E]">${label}</span>
-                                <span class="text-[10px] text-ms-muted ml-2">${when}</span>
+                                <span class="text-[12px] text-ms-muted ml-2">${when}</span>
                             </td>
                             <td class="py-3 px-1">
-                                <select class="w-full min-w-[5.5rem] text-[11px] font-bold rounded-xl border-2 border-ms bg-white/90 text-[#2D4A3E] py-2 px-2"
+                                <select class="w-full min-w-[5.5rem] text-[13px] font-bold rounded-xl border-2 border-ms bg-white/90 text-[#2D4A3E] py-2 px-2"
                                     aria-label="관찰 단계"
                                     onchange="MS.setInstObsPhase('${safeId}',this.value)">
                                     <option value="" ${ph === '' ? 'selected' : ''}>미지정</option>
@@ -3421,7 +3799,7 @@
                     <button type="button" class="ms-btn text-xs font-bold text-ms-muted hover:text-[#2D4A3E]"
                         onclick="MS.leaveInstitutionHub()">← 대시보드</button>
                     <div class="ms-card p-8 md:p-10 border-2 border-[rgba(45,74,62,0.12)]">
-                        <p class="text-[10px] font-black text-[#D4A373] tracking-widest mb-2">INSTITUTION HUB</p>
+                        <p class="text-[12px] font-black text-[#D4A373] tracking-widest mb-2">INSTITUTION HUB</p>
                         <h2 class="text-xl md:text-2xl font-black text-[#2D4A3E] mb-1">${this.esc(name)}</h2>
                         <p class="text-sm text-ms-muted mb-6">[${this.esc(type0)}] · 등록된 관찰 기록 ${members.length}건</p>
                         <button type="button" class="ms-btn w-full bg-[#2D4A3E] text-white font-black py-5 text-base shadow-xl mb-3 hover:brightness-95 ${canReport ? '' : 'opacity-50 cursor-not-allowed'}"
@@ -3433,17 +3811,17 @@
                             사전·사후 성과 비교 보고서
                         </button>
                         ${canReport ? '' : '<p class="text-xs text-ms-muted text-center mb-2">숫자가 입력된 관찰이 있어야 종합 보고서를 만들 수 있어요.</p>'}
-                        ${canPrePost ? '' : '<p class="text-[11px] text-ms-muted text-center mb-4 leading-relaxed">비교 보고서는 명단에서 <strong class="text-[#2D4A3E]">사전·사후</strong>가 각각 한 건 이상(숫자 입력 완료)일 때 열립니다.</p>'}
+                        ${canPrePost ? '' : '<p class="text-[13px] text-ms-muted text-center mb-4 leading-relaxed">비교 보고서는 명단에서 <strong class="text-[#2D4A3E]">사전·사후</strong>가 각각 한 건 이상(숫자 입력 완료)일 때 열립니다.</p>'}
                         <h3 class="text-xs font-black text-[#2D4A3E] tracking-widest mb-3">개별 관찰 명단</h3>
                         <div class="rounded-2xl border border-ms overflow-hidden bg-ms-soft/30 overflow-x-auto">
                             <table class="w-full text-left text-sm min-w-[280px]">
-                                <thead class="text-[10px] font-black text-ms-muted uppercase tracking-wider border-b border-ms bg-white/50">
+                                <thead class="text-[12px] font-black text-ms-muted uppercase tracking-wider border-b border-ms bg-white/50">
                                     <tr><th class="py-2 px-2 pl-3">기록</th><th class="py-2 px-1">단계</th><th class="py-2 pr-3 text-right">입력</th></tr>
                                 </thead>
                                 <tbody>${listRows}</tbody>
                             </table>
                         </div>
-                        <p class="text-[10px] text-ms-muted mt-4 leading-relaxed">각 행의 <strong class="text-[#2D4A3E]">단계</strong>에서 사전·사후를 지정해 주세요. 새 관찰을 시작할 때도 설정 화면에서 같은 항목을 고를 수 있어요.</p>
+                        <p class="text-[12px] text-ms-muted mt-4 leading-relaxed">각 행의 <strong class="text-[#2D4A3E]">단계</strong>에서 사전·사후를 지정해 주세요. 새 관찰을 시작할 때도 설정 화면에서 같은 항목을 고를 수 있어요.</p>
                     </div>
                 </div>
             `;
@@ -3503,9 +3881,9 @@
                     metricsPanelHtml = `
                             <div class="bg-white/75 rounded-2xl border border-[#2D4A3E]/12 p-5 md:p-6 mb-8 ms-print-avoid-break">
                                 <h3 class="text-sm font-black text-[#2D4A3E] mb-1 tracking-wide">학술 통계 지표</h3>
-                                <p class="text-[11px] text-ms-muted mb-4 leading-relaxed">${tgLabel} 동일 연령군 <strong class="text-[#2D4A3E]">${met.totalCount}</strong>명 · O·X 총점 합계 · Mean = Σ÷(인원×축별 문항수). 리커트(1~5) 합일 때 1.0~5.0 척도로 해석합니다.</p>
+                                <p class="text-[13px] text-ms-muted mb-4 leading-relaxed">${tgLabel} 동일 연령군 <strong class="text-[#2D4A3E]">${met.totalCount}</strong>명 · O·X 총점 합계 · Mean = Σ÷(인원×축별 문항수). 리커트(1~5) 합일 때 1.0~5.0 척도로 해석합니다.</p>
                                 <div>
-                                    <p class="text-[10px] font-black text-[#D4A373] tracking-widest mb-2">에너지 밀도 (%)</p>
+                                    <p class="text-[12px] font-black text-[#D4A373] tracking-widest mb-2">에너지 밀도 (%)</p>
                                     ${this.buildJttDensityBarsSvg(met.density)}
                                 </div>
                                 ${this.buildJttMetricsKpiHtml(met)}
@@ -3518,9 +3896,9 @@
                 `${metricsPanelHtml}
                             <div class="grid grid-cols-1 gap-8 md:gap-10 ms-print-avoid-break mb-10">
                                 <div class="bg-white/70 rounded-2xl border border-ms p-5 md:p-6 ms-print-avoid-break">
-                                    <h3 class="text-center text-sm font-black text-[#2D4A3E] mb-4 tracking-wide">기질 분포도 (우세형)</h3>
+                                    <h3 class="text-center text-sm font-black text-[#2D4A3E] mb-4 tracking-wide">기질 분포 분석표 (우세형)</h3>
                                     ${pieHtml}
-                                    <p class="text-[11px] text-ms-muted text-center mt-3 leading-relaxed">각 아동의 가장 높은 축을 한 표로 모아 비율을 냈습니다.</p>
+                                    <p class="text-[13px] text-ms-muted text-center mt-3 leading-relaxed">각 아동의 가장 높은 축을 한 표로 모아 비율을 냈습니다.</p>
                                 </div>
                             </div>
                             <div class="bg-white/80 rounded-2xl border border-[#2D4A3E]/12 p-6 md:p-8 ms-print-break-before">
@@ -3539,7 +3917,7 @@
                         <div class="ms-consulting-inner p-6 md:p-10 lg:p-12">
                             <button type="button" class="print-hidden ms-btn text-xs font-bold text-ms-muted hover:text-[#2D4A3E] mb-6"
                                 onclick="MS.backFromInstitutionReport()">← 기관 허브</button>
-                            <p class="text-[10px] font-black text-[#D4A373] tracking-[0.2em] mb-2">MINDSTORY · GROUP PROFILE</p>
+                            <p class="text-[12px] font-black text-[#D4A373] tracking-[0.2em] mb-2">MINDSTORY · GROUP PROFILE</p>
                             <p class="text-[clamp(0.8rem,2.6vw,1rem)] sm:text-sm font-black text-[#2D4A3E] mb-2 leading-snug text-balance">${instTitleDe}</p>
                             <h2 class="text-2xl md:text-3xl font-black text-[#2D4A3E] mb-2 leading-tight">기관 종합 분석 보고서</h2>
                             <p class="text-lg font-bold text-[#2D4A3E] mb-1">${this.esc(displayName)}</p>
@@ -3631,7 +4009,7 @@
                         <div class="ms-consulting-inner p-6 md:p-10 lg:p-12">
                             <button type="button" class="print-hidden ms-btn text-xs font-bold text-ms-muted hover:text-[#2D4A3E] mb-6"
                                 onclick="MS.backFromInstitutionPrePostReport()">← 기관 허브</button>
-                            <p class="text-[10px] font-black text-[#D4A373] tracking-[0.2em] mb-2">MINDSTORY · PRE–POST OUTCOMES</p>
+                            <p class="text-[12px] font-black text-[#D4A373] tracking-[0.2em] mb-2">MINDSTORY · PRE–POST OUTCOMES</p>
                             <h2 class="text-[clamp(0.85rem,2.8vw,1.35rem)] md:text-2xl lg:text-3xl font-black text-[#2D4A3E] mb-3 leading-tight pr-16 text-balance">
                                 ${ppTitleDe}<br class="hidden sm:block" /><span class="block text-base md:text-lg font-bold text-ms-muted mt-1">계절별 기질 관찰 · 성과 보고서 (사전/사후 비교)</span>
                             </h2>
@@ -3646,7 +4024,7 @@
                                 </div>
                                 <div class="mt-6 rounded-2xl border-2 border-[#2D4A3E]/15 overflow-hidden bg-white/85 ms-print-avoid-break">
                                     <table class="w-full text-sm">
-                                        <thead class="bg-[rgba(45,74,62,0.06)] text-[11px] font-black text-[#2D4A3E]">
+                                        <thead class="bg-[rgba(45,74,62,0.06)] text-[13px] font-black text-[#2D4A3E]">
                                             <tr>
                                                 <th class="text-left py-3 px-4">기질</th>
                                                 <th class="text-center py-3">사전 평균</th>
@@ -3708,8 +4086,8 @@
                 .join('');
             const titleMain =
                 variant === 'pe'
-                    ? `${getAppTitleDe()} · 유아부 vs 초등부 기질 분포 비교 보고서`
-                    : `${getAppTitleDe()} · 기관 유형별 유아 기질 분포 비교 보고서`;
+                    ? `${getAppTitleDe()} · 유아부 vs 초등부 기질 분포 분석표 비교 보고서`
+                    : `${getAppTitleDe()} · 기관 유형별 유아 기질 분포 분석표 비교 보고서`;
             const subLine =
                 variant === 'pe'
                     ? `로컬 저장소 전체 기준 · 유아부 관찰 <strong class="text-[#5c4a3a]">${nDay}건</strong> · 초등부 관찰 <strong class="text-[#2D4A3E]">${nKg}건</strong> 평균 비교 · Δ = 초등 − 유아`
@@ -3735,7 +4113,7 @@
                         <div class="ms-consulting-inner p-6 md:p-10 lg:p-12">
                             <button type="button" class="print-hidden ms-btn text-xs font-bold text-ms-muted hover:text-[#2D4A3E] mb-6"
                                 onclick="MS.backFromInstitutionTypeMacroReport()">← 대시보드</button>
-                            <p class="text-[10px] font-black text-[#D4A373] tracking-[0.22em] mb-2">MINDSTORY · MACRO INSIGHT</p>
+                            <p class="text-[12px] font-black text-[#D4A373] tracking-[0.22em] mb-2">MINDSTORY · MACRO INSIGHT</p>
                             <h2 class="text-[clamp(0.85rem,2.6vw,1.35rem)] md:text-2xl lg:text-3xl font-black text-[#2D4A3E] mb-3 leading-tight pr-16 text-balance">
                                 ${this.esc(titleMain)}
                             </h2>
@@ -3747,7 +4125,7 @@
                                 <h3 class="text-sm font-black text-[#2D4A3E] mb-3 tracking-wide">축별 평균 &amp; 편차</h3>
                                 <div class="rounded-xl border border-ms overflow-hidden">
                                     <table class="w-full text-sm">
-                                        <thead class="bg-[rgba(45,74,62,0.06)] text-[10px] font-black text-[#2D4A3E]">
+                                        <thead class="bg-[rgba(45,74,62,0.06)] text-[12px] font-black text-[#2D4A3E]">
                                             <tr>
                                                 <th class="text-left py-2.5 px-3">기질</th>
                                                 <th class="text-center py-2.5">${this.esc(thA)}</th>
@@ -3790,6 +4168,9 @@
 
         renderSetup(el) {
             const sel = STATE.selected();
+            if (sel && typeof MS !== 'undefined' && MS.ensurePendingForestRequestId) {
+                MS.ensurePendingForestRequestId(sel);
+            }
             const nameVal = STATE.searchTerm || (sel ? sel.name : '');
             const type = sel ? sel.type : STATE.setupTypeOverride || STATE.guessType(nameVal);
             const tgSetup = STATE.targetGroup === 'elementary' ? 'elementary' : 'preschool';
@@ -3848,7 +4229,7 @@
                             <button type="button" class="ms-btn flex-1 min-w-[120px] min-h-[52px] py-3 font-bold border-2 text-sm ${STATE.observationStage === 'post' ? obsPostOn : obsPostOff}"
                                 onclick="MS.setObservationStage('post')">사후</button>
                         </div>
-                        <p class="text-[11px] text-ms-muted mb-5 text-center leading-relaxed">사전·사후로 나누어 저장하면 기관 허브에서 <strong class="text-[#2D4A3E]">성과 비교 보고서</strong>를 열 수 있어요. 선택은 이 기기에 저장되어 새 검사마다 그대로 적용됩니다.</p>
+                        <p class="text-[13px] text-ms-muted mb-5 text-center leading-relaxed">사전·사후로 나누어 저장하면 기관 허브에서 <strong class="text-[#2D4A3E]">성과 비교 보고서</strong>를 열 수 있어요. 선택은 이 기기에 저장되어 새 검사마다 그대로 적용됩니다.</p>
                         <div class="relative z-30 mb-5">
                             <label for="inst-name" class="block text-xs font-bold text-ms-muted mb-2 ml-1 tracking-widest">기관명 검색</label>
                             <div class="relative">
@@ -3896,7 +4277,7 @@
                                 value="${sel && sel.participantTargetCount != null && String(sel.participantTargetCount).trim() !== '' ? this.esc(String(sel.participantTargetCount)) : ''}"
                                 autocomplete="off"
                                 aria-label="참여 아동 수" />
-                            <p class="text-[11px] text-ms-muted mt-2 text-center leading-relaxed">숫자를 넣으면 각 문항에서 △만 입력해도 □가 자동으로 맞춰집니다.</p>
+                            <p class="text-[13px] text-ms-muted mt-2 text-center leading-relaxed">숫자를 넣으면 각 문항에서 △만 입력해도 □가 자동으로 맞춰집니다.</p>
                         </div>
                         <span class="block text-xs font-bold text-ms-muted mb-2 ml-1 tracking-widest">기관 유형</span>
                         ${typeBlock}
@@ -3938,6 +4319,9 @@
                     : SCHEMA.getTargetGroup(inst);
             STATE.targetGroup = tg;
             inst.targetGroup = tg;
+            if (typeof MS !== 'undefined' && MS.ensurePendingForestRequestId) {
+                MS.ensurePendingForestRequestId(inst);
+            }
             const name = this.esc(inst.name);
             const gn = String(inst.groupName || '').trim();
             const groupPart = gn ? ` · ${this.esc(gn)}` : '';
@@ -3950,18 +4334,18 @@
 
             el.innerHTML = `
                 <div class="max-w-lg mx-auto pt-1 flex flex-col min-h-0">
-                    <div class="mb-3 flex items-center justify-between gap-2 print-hidden">
-                        <div class="flex items-center gap-1 sm:gap-2 min-w-0 shrink">
-                            <button type="button" class="text-sm font-bold text-[#2D4A3E] hover:underline py-1.5 px-2 -ml-2 rounded-xl bg-transparent border-0 cursor-pointer"
+                    <div class="mb-3 flex flex-wrap items-center justify-between gap-x-2 gap-y-2 print-hidden">
+                        <div class="flex flex-wrap items-center gap-2 min-w-0">
+                            <button type="button" class="inline-flex shrink-0 text-sm font-bold text-[#2D4A3E] hover:underline py-1.5 px-2 -ml-2 rounded-xl bg-transparent border-0 cursor-pointer"
                                 onclick="MS.goSetup()">← 뒤로</button>
-                            <button type="button" class="text-xs sm:text-sm font-bold text-[#B45309] hover:text-[#92400E] hover:underline py-1.5 px-2 rounded-xl bg-transparent border border-[#D4A373]/45 cursor-pointer whitespace-nowrap"
+                            <button type="button" class="inline-flex shrink-0 text-sm font-bold text-[#B45309] hover:text-[#92400E] hover:underline py-1.5 px-3 rounded-xl bg-transparent border-2 border-[#D4A373]/55 cursor-pointer"
                                 onclick="MS.resetForestTallyInputs()" aria-label="모든 문항 인원 입력 초기화">리셋</button>
                         </div>
-                        <button type="button" class="text-[11px] text-ms-muted underline ms-btn px-2 py-1.5 shrink-0" onclick="MS.goDashboard()">대시보드</button>
+                        <button type="button" class="inline-flex shrink-0 text-[13px] text-ms-muted underline ms-btn px-2 py-1.5" onclick="MS.goDashboard()">대시보드</button>
                     </div>
                     <div class="mb-3 text-center px-1 print-hidden shrink-0">
                         <p class="text-sm font-black text-[#2D4A3E] leading-snug">📍 ${name}${groupPart}</p>
-                        <p class="text-[11px] text-ms-muted mt-1">${ageLine}</p>
+                        <p class="text-[13px] text-ms-muted mt-1">${ageLine}</p>
                     </div>
                     ${
                         qs.length === 0
@@ -3977,7 +4361,7 @@
                                     <p class="font-bold text-ms-body flex-1 text-lg md:text-xl leading-tight m-0">
                                         <span class="text-[#D4A373] mr-2">Q${idx + 1}.</span>${this.esc(q.text)}${
                                     q.isReverse
-                                        ? ' <span class="text-[11px] md:text-xs font-black text-[#D4A373] align-middle">(역채점)</span>'
+                                        ? ' <span class="text-[13px] md:text-xs font-black text-[#D4A373] align-middle">(역채점)</span>'
                                         : ''
                                 }
                                     </p>
@@ -4012,7 +4396,7 @@
                                 </div>
                                 ${
                                     idx >= 1
-                                        ? `<p id="ms-q-participant-warn-${q.id}" class="text-[12px] font-bold text-red-600 mt-1.5 min-h-[1.25rem] hidden" role="alert" aria-live="polite"></p>`
+                                        ? `<p id="ms-q-participant-warn-${q.id}" class="text-[14px] font-bold text-red-600 mt-1.5 min-h-[1.25rem] hidden" role="alert" aria-live="polite"></p>`
                                         : ''
                                 }
                             </div>
@@ -4042,6 +4426,9 @@
                 return;
             }
             STATE.ensureCounts(inst);
+            if (typeof MS !== 'undefined' && MS.ensurePendingForestRequestId) {
+                MS.ensurePendingForestRequestId(inst);
+            }
             const tgRes = SCHEMA.getTargetGroup(inst);
             if (!STATE.isPreviewSample && !this.allInputQuestionsFilled(inst)) {
                 el.innerHTML = `
@@ -4078,14 +4465,19 @@
             const maxO = Math.max(1, ...rankedTemperaments.map((r) => r.score));
             const reportModeChipHtml =
                 tgRes === 'elementary'
-                    ? '<span class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-black tracking-wide border border-sky-400/35 bg-sky-50 text-sky-950 shadow-sm">🎒 초등용</span>'
-                    : '<span class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-black tracking-wide border border-emerald-400/35 bg-emerald-50/95 text-emerald-950 shadow-sm">🌿 유아용</span>';
+                    ? '<span class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-black tracking-wide border border-sky-400/35 bg-sky-50 text-sky-950 shadow-sm">🎒 초등용</span>'
+                    : '<span class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-black tracking-wide border border-emerald-400/35 bg-emerald-50/95 text-emerald-950 shadow-sm">🌿 유아용</span>';
             const reportQuickPillsHtml = `
                 <div class="flex flex-nowrap gap-2 overflow-x-auto pb-0.5 pt-0.5 justify-start sm:justify-center [-webkit-overflow-scrolling:touch] w-full max-w-full">
                     <button type="button" id="ms-report-btn-spectrum"
-                        class="shrink-0 rounded-full font-black py-2.5 px-3.5 text-xs sm:text-[12px] border-2 border-emerald-500/35 text-white shadow-md shadow-emerald-900/15 bg-gradient-to-b from-[#03C75A] via-[#02a848] to-[#1a5c40] hover:brightness-105 active:scale-[0.98] transition-all"
+                        class="shrink-0 rounded-full font-black py-2.5 px-3.5 text-xs sm:text-[14px] border-2 border-emerald-500/35 text-white shadow-md shadow-emerald-900/15 bg-gradient-to-b from-[#03C75A] via-[#02a848] to-[#1a5c40] hover:brightness-105 active:scale-[0.98] transition-all"
                         onclick="MS.openSpectrumModal()" aria-label="스펙트럼 전체 화면">🔍 크게 보기</button>
                     <button type="button" class="shrink-0 rounded-full bg-white border-2 border-[#2D4A3E]/20 text-[#2D4A3E] font-black py-2.5 px-3 text-xs shadow-sm hover:bg-[rgba(45,74,62,0.06)] active:scale-[0.98] transition-all" onclick="MS.forceSyncGasBackups()">🔄 동기화</button>
+                </div>`;
+            const reportPrintStripHtml = `
+                <div id="ms-report-print-strip" class="print-hidden mb-3 w-full max-w-lg mx-auto px-0.5">
+                    <button type="button" class="ms-btn w-full rounded-full bg-[#2D4A3E] hover:brightness-95 text-white font-black py-3.5 text-sm shadow-[0_8px_24px_rgba(45,74,62,0.22)] border-0"
+                        onclick="window.print()" aria-label="인쇄 또는 PDF로 저장">인쇄하기 · PDF 저장</button>
                 </div>`;
             const reportQuickActionsStripHtml = `
                 <div id="ms-report-quick-actions" class="sticky top-0 z-[70] print-hidden ms-report-pdf-exclude -mx-2 sm:-mx-3 px-2 sm:px-3 pt-2 pb-2 mb-1 rounded-b-2xl bg-[#FDFBF7]/92 backdrop-blur-md border-b border-[#2D4A3E]/10 shadow-[0_4px_18px_rgba(45,74,62,0.08)]" role="toolbar" aria-label="결과 보고서 빠른 작업">
@@ -4114,7 +4506,7 @@
                 if (!inner) return '';
                 return `
                     <div class="mb-7 last:mb-0">
-                        <h4 class="text-[11px] font-black text-[#2D4A3E] tracking-[0.12em] mb-3 pb-2 border-b border-[rgba(45,74,62,0.12)]">${this.esc(label)}</h4>
+                        <h4 class="text-[13px] font-black text-[#2D4A3E] tracking-[0.12em] mb-3 pb-2 border-b border-[rgba(45,74,62,0.12)]">${this.esc(label)}</h4>
                         <div class="space-y-3">${inner}</div>
                     </div>
                 `;
@@ -4130,7 +4522,7 @@
                 .map(
                     (cat) => `
                     <button type="button" role="tab" id="ms-temperament-pill-${cat}"
-                        class="ms-report-toggle-pill ms-report-toggle-pill--stretch text-[11px] sm:text-xs"
+                        class="ms-report-toggle-pill ms-report-toggle-pill--stretch text-[13px] sm:text-xs"
                         onclick="MS.toggleReportTemperamentDetail('${cat}')" aria-expanded="false" aria-controls="ms-report-detail-wrap-${cat}">
                         ${this.esc(temperamentPillLabel[cat] || cat)}
                     </button>`
@@ -4150,13 +4542,13 @@
                     <div id="ms-report-detail-${cat}" class="ms-card p-6 md:p-8 text-left mb-0 shadow-md border border-[rgba(45,74,62,0.1)] scroll-mt-4">
                         <div class="flex flex-wrap items-center gap-2 mb-3">
                             <span class="text-sm font-black text-[#2D4A3E]">${this.esc(cat)} · ${pct}%</span>
-                            <span class="text-[10px] font-bold px-3 py-1.5 rounded-full ${badgeBg}">${this.esc(seg.badge)}</span>
+                            <span class="text-[12px] font-bold px-3 py-1.5 rounded-full ${badgeBg}">${this.esc(seg.badge)}</span>
                         </div>
                         <div class="w-full h-2.5 rounded-full overflow-hidden mb-6 bg-ms-soft">
                             <div class="h-full transition-all duration-700 rounded-full" style="width:${pct}%;${SCHEMA.barStyle(cat)}"></div>
                         </div>
                         <h3 class="text-lg font-black text-[#2D4A3E] mb-1 leading-snug">${this.esc(seg.headline)}</h3>
-                        <p class="text-[11px] text-ms-muted font-semibold mb-5">이번 관찰 구간에 맞춘 ${brandShort} 해석입니다.</p>
+                        <p class="text-[13px] text-ms-muted font-semibold mb-5">이번 관찰 구간에 맞춘 ${brandShort} 해석입니다.</p>
                         ${quoteHtml}
                         ${narrativeHtml ? `<div class="space-y-3 mb-7">${narrativeHtml}</div>` : ''}
                         ${reportSection('심층 심리 해석', seg.psychDeep)}
@@ -4164,7 +4556,7 @@
                         ${reportSection('부모님을 위한 마음 처방', seg.parentHeart)}
                         ${reportSection('구체적 액션 가이드', seg.actionGuide)}
                         <div class="mt-5 pt-4 border-t border-[rgba(45,74,62,0.08)] flex justify-end print-hidden ms-report-pdf-exclude">
-                            <button type="button" class="text-[11px] font-bold text-[#2D4A3E] rounded-full px-3 py-1.5 border border-ms bg-white/90 hover:bg-ms-soft active:scale-[0.99] transition-colors" onclick="MS.scrollToReportDataAggregationSection()">⬆️ 데이터 집계로</button>
+                            <button type="button" class="text-[13px] font-bold text-[#2D4A3E] rounded-full px-3 py-1.5 border border-ms bg-white/90 hover:bg-ms-soft active:scale-[0.99] transition-colors" onclick="MS.scrollToReportDataAggregationSection()">⬆️ 데이터 집계로</button>
                         </div>
                     </div>`;
                 return `
@@ -4174,7 +4566,7 @@
             }).join('');
             const temperamentAccordionHtml = `
                 <div id="ms-report-temperament-accordion-root" class="w-full max-w-none text-left mb-6 md:mb-7">
-                    <p class="text-[10px] font-black text-[#2D4A3E] tracking-[0.14em] mb-3 text-center">기질별 상세 해석</p>
+                    <p class="text-[12px] font-black text-[#2D4A3E] tracking-[0.14em] mb-3 text-center">기질별 상세 해석</p>
                     <div id="ms-report-temperament-pill-grid" class="grid grid-cols-2 gap-2 mb-3 ms-report-pdf-exclude print-hidden" role="tablist" aria-label="봄·여름·가을·겨울 기질 상세">
                         ${temperamentPillsHtml}
                     </div>
@@ -4196,32 +4588,32 @@
                     <h3 id="ms-report-rank-section-title" class="text-sm font-black text-[#2D4A3E] tracking-[0.12em] mb-1">기질별 순위 (${
                         tgRes === 'preschool' || tgRes === 'elementary' ? '△ 집계 축 총점' : 'O·X 라우팅 축 총점'
                     } · SPRT·SUMT·AUTT·WINT)</h3>
-                    <p class="text-[11px] font-bold text-[#2D4A3E] mb-2 tabular-nums">
+                    <p class="text-[13px] font-bold text-[#2D4A3E] mb-2 tabular-nums">
                         축별 명수 · SPRT ${totalsO.SPRT || 0} · SUMT ${totalsO.SUMT || 0} · AUTT ${totalsO.AUTT || 0} · WINT ${totalsO.WINT || 0}
                     </p>
                     ${
                         hasRev
-                            ? `<p class="text-[11px] text-[#D4A373] mb-2 leading-relaxed"><strong>역채점</strong> 문항은 집계 시 해당 문항의 예·아니오가 아래 규칙과 <strong>반대로</strong> 합산됩니다. (초등 Q7·Q11 등)</p>`
+                            ? `<p class="text-[13px] text-[#D4A373] mb-2 leading-relaxed"><strong>역채점</strong> 문항은 집계 시 해당 문항의 예·아니오가 아래 규칙과 <strong>반대로</strong> 합산됩니다. (초등 Q7·Q11 등)</p>`
                             : ''
                     }
                     ${
                         tgRes === 'preschool'
-                            ? `<p class="text-[11px] text-ms-muted mb-2 leading-relaxed">
+                            ? `<p class="text-[13px] text-ms-muted mb-2 leading-relaxed">
                         유아부 축 점수는 문항별 <strong class="text-[#2D4A3E]">△ 인원</strong>과 <strong class="text-[#2D4A3E]">□ 인원</strong>을 아래 공식으로 합산합니다(각 축 △2·□2 황금 밸런스). 봄(SPRT)=Q1△+Q2△+Q4□+Q7□ · 여름(SUMT)=Q3△+Q4△+Q1□+Q5□ · 가을(AUTT)=Q5△+Q6△+Q3□+Q8□ · 겨울(WINT)=Q7△+Q8△+Q2□+Q6□.
                         <strong class="text-[#2D4A3E]">참가 인원</strong>(시트·전송) <strong class="text-[#2D4A3E]">${participantCountSheet}</strong>명은 <strong class="text-[#2D4A3E]">Q1의 △+□</strong> 합입니다. 전 문항 △+□ 합계 <strong class="text-[#2D4A3E]">${totalOXSlots}</strong>명은 축 점수 해석용 슬롯 수입니다.
                     </p>`
                             : tgRes === 'elementary'
-                              ? `<p class="text-[11px] text-ms-muted mb-2 leading-relaxed">
+                              ? `<p class="text-[13px] text-ms-muted mb-2 leading-relaxed">
                         초등부 축 점수는 문항별 <strong class="text-[#2D4A3E]">△ 인원</strong>과 <strong class="text-[#2D4A3E]">□ 인원</strong>을 아래 공식으로 합산합니다(각 축 △3·□3 황금 밸런스, 축당 최대 6점). 봄(SPRT)=Q1△+Q2△+Q3△+Q10□+Q11□+Q12□ · 여름(SUMT)=Q4△+Q5△+Q6△+Q2□+Q7□+Q9□ · 가을(AUTT)=Q7△+Q8△+Q9△+Q4□+Q5□+Q6□ · 겨울(WINT)=Q10△+Q11△+Q12△+Q1□+Q3□+Q8□.
                         <strong class="text-[#2D4A3E]">참가 인원</strong>(시트·전송) <strong class="text-[#2D4A3E]">${participantCountSheet}</strong>명은 <strong class="text-[#2D4A3E]">Q1의 △+□</strong> 합입니다. 전 문항 △+□ 합계 <strong class="text-[#2D4A3E]">${totalOXSlots}</strong>명은 축 점수 해석용 슬롯 수입니다.
                     </p>`
-                              : `<p class="text-[11px] text-ms-muted mb-2 leading-relaxed">
+                              : `<p class="text-[13px] text-ms-muted mb-2 leading-relaxed">
                         각 문항마다 <strong class="text-[#2D4A3E]">O(예)</strong>는 해당 문항 기질에,
                         <strong class="text-[#2D4A3E]">X(아니오)</strong>는 대안 발현 기질(예: WINT 문항의 X → AUTT)에 더합니다.
                         관찰 슬롯 합계 <strong class="text-[#2D4A3E]">${totalOXSlots}</strong>명(O+X 전 합)이 전체 모수입니다.
                     </p>`
                     }
-                    <p class="text-[11px] text-ms-muted mb-5 leading-relaxed">
+                    <p class="text-[13px] text-ms-muted mb-5 leading-relaxed">
                         동점이면 <strong class="text-[#2D4A3E]">S→M→A→W</strong>(봄·여름·가을·겨울 / SPRT·SUMT·AUTT·WINT) 순으로 앞선 유형이 위 순위입니다.
                     </p>
                     <ol class="space-y-4 list-none p-0 m-0">
@@ -4231,7 +4623,7 @@
                         <li class="rounded-2xl border border-ms bg-white/85 px-4 py-3.5 shadow-sm">
                             <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
                                 <span class="text-sm font-black text-[#2D4A3E] leading-snug min-w-0 flex-1 text-left">[${r.rank}순위] ${this.esc(r.label)}: ${r.score}명 · 전체의 ${r.density_pct}%</span>
-                                <button type="button" class="ms-report-pdf-exclude print-hidden shrink-0 rounded-full border border-[rgba(45,74,62,0.2)] bg-[rgba(45,74,62,0.06)] px-2.5 py-1 text-[10px] font-black text-[#2D4A3E] hover:bg-[rgba(45,74,62,0.11)] active:scale-[0.98] transition-all" onclick="MS.scrollToReportDetailBlock('${r.cat}')">🔍 상세 보기</button>
+                                <button type="button" class="ms-report-pdf-exclude print-hidden shrink-0 rounded-full border border-[rgba(45,74,62,0.2)] bg-[rgba(45,74,62,0.06)] px-2.5 py-1 text-[12px] font-black text-[#2D4A3E] hover:bg-[rgba(45,74,62,0.11)] active:scale-[0.98] transition-all" onclick="MS.scrollToReportDetailBlock('${r.cat}')">🔍 상세 보기</button>
                             </div>
                             <div class="w-full h-2.5 rounded-full overflow-hidden bg-ms-soft" aria-hidden="true">
                                 <div class="h-full rounded-full transition-all duration-700" style="width:${Math.round((r.score / maxO) * 100)}%;${SCHEMA.barStyle(r.cat)}"></div>
@@ -4247,33 +4639,73 @@
                 </div>
             `;
 
+            const reportPrintChromeHtml = `
+                <div class="ms-report-print-fixed-header" aria-hidden="true">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                        <span class="ms-report-print-header-logo inline-flex shrink-0 items-center justify-center w-9 h-9 rounded-full border-[2.5px] border-[#c9a66a] bg-gradient-to-br from-white to-[#f3e6d3]/90 text-[#6b4f2a] text-[11px] font-black leading-[1.1] text-center shadow-sm">MS</span>
+                        <span class="h-3 w-px bg-[#2D4A3E]/20 shrink-0" aria-hidden="true"></span>
+                        <span class="text-[12px] sm:text-[13px] font-black tracking-[0.04em] text-[#2D4A3E] leading-snug">마인드스토리 기질 분석 리포트</span>
+                    </div>
+                    <span class="text-[10.5px] font-semibold text-[#6b7280] tracking-wide whitespace-nowrap shrink-0">JTT · 공식</span>
+                </div>
+                <div class="ms-report-print-fixed-footer" aria-hidden="true">
+                    <span class="text-[11px] font-medium text-[#2D4A3E]/90 leading-snug">ⓒ MINDSTORY All rights reserved</span>
+                    <span id="ms-report-print-issue-date" class="tabular-nums text-[11px] text-[#2D4A3E]/85 font-medium text-center flex-1 min-w-0">발행일 —</span>
+                    <span class="ms-report-print-footer-pages text-[11px] text-[#6b7280] font-medium tabular-nums whitespace-nowrap" aria-hidden="true">&nbsp;</span>
+                </div>`;
+
+            const reportOfficialCoverHtml = `
+                    <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-5 mb-8">
+                        <div>
+                            <p class="text-[12px] font-black tracking-[0.32em] text-[#D4A373] mb-2">OFFICIAL · TEMPERAMENT REPORT</p>
+                            <p class="text-3xl sm:text-4xl font-black tracking-[0.14em] text-[#2D4A3E] leading-none">MINDSTORY</p>
+                            <p class="text-sm sm:text-base font-bold text-[#2D4A3E]/88 mt-3">계절별 기질 관찰 · 공식 보고서</p>
+                        </div>
+                        <div class="flex items-center gap-3 shrink-0">
+                            <span class="inline-flex items-center justify-center w-16 h-16 rounded-full border-[3px] border-[#c9a66a] bg-gradient-to-br from-white to-[#f3e6d3]/90 text-[#6b4f2a] text-[13px] font-black leading-tight text-center shadow-md">MS<br/>LAB</span>
+                            <div class="text-[12px] text-[#5c4a3a] leading-snug text-left">
+                                <p class="font-black text-[#2D4A3E] text-xs">검증 관찰 도구</p>
+                                <p>JTT-Kinder / Elementary</p>
+                            </div>
+                        </div>
+                    </div>`;
+
             el.innerHTML = `
                 <div class="max-w-lg mx-auto">
+                    ${reportPrintStripHtml}
                     ${reportQuickActionsStripHtml}
-                    <div id="ms-report-capture-root" class="ms-report-capture ms-card px-5 py-8 sm:px-6 sm:py-9 md:px-9 md:py-10 text-center border-t-[10px] border-[#2D4A3E] fade-in">
+                    <div id="ms-report-capture-root" class="ms-report-document ms-report-capture ms-card px-5 py-8 sm:px-6 sm:py-9 md:px-9 md:py-10 text-center border-t-[10px] border-[#2D4A3E] fade-in">
+                        ${reportPrintChromeHtml}
+                        <div class="ms-report-print-page-1 text-left">
+                        ${reportOfficialCoverHtml}
                         ${preview}
                         ${reportLinkBanner}
                         <div class="flex flex-col items-center gap-2 mb-3 px-1">${reportModeChipHtml}</div>
                         <p class="text-[clamp(0.8rem,3vw,1rem)] sm:text-base md:text-lg font-black text-[#2D4A3E] mb-2 leading-snug text-balance px-1">${titleDe}</p>
                         <h2 class="ms-report-hero-title text-2xl font-black text-[#2D4A3E] mb-1">${name}</h2>
-                        <p class="text-ms-muted text-[10px] sm:text-xs mb-6 md:mb-7 leading-relaxed text-balance px-0.5">${titleDe} · 계절별 기질 관찰 기록 · ${tgRes === 'elementary' ? '초등부' : '유아·유치부'} · 스키마 v9.2 · 보고서 v2.0</p>
+                        <p class="text-ms-muted text-[12px] sm:text-xs mb-6 md:mb-7 leading-relaxed text-balance px-0.5">${titleDe} · 계절별 기질 관찰 기록 · ${tgRes === 'elementary' ? '초등부' : '유아·유치부'} · 스키마 v9.2 · 보고서 v2.0</p>
                         ${reportFirstScreenHtml}
-                        <div class="text-left">${temperamentAccordionHtml}</div>
+                        </div>
+                        <div class="ms-report-a4-sheet ms-report-a4-sheet--break text-left">${temperamentAccordionHtml}</div>
+                        <div class="ms-report-a4-sheet ms-report-a4-sheet--break text-left">
                         ${this.buildReportAcademicIntroSectionHtml(tgRes)}
                         ${rankSectionHtml}
                         ${dominantInterpretationHtml}
-                        ${elementaryReportAutoHtml}
+                        </div>
+                        <div class="ms-report-a4-sheet ms-report-a4-sheet--break text-left">${elementaryReportAutoHtml}</div>
                         ${this.buildReportAdvancedAnalyticsSectionHtml({
                             mode: 'result',
                             canPrePost: canOpenPrePostFromResult,
                             canGroup: canOpenGroupReport
                         })}
+                        ${this.buildReportExpertCommentarySectionHtml()}
+                        ${this.buildReportInstitutionSealPlaceholderHtml()}
                         ${this.buildReportDataManagementSectionHtml()}
                     </div>
                     <div class="ms-result-footer print-hidden px-0.5 mt-1.5 mb-1.5 space-y-2">
                         <section class="rounded-[1.75rem] border border-[#2D4A3E]/14 bg-[#FDFBF7]/95 p-3 shadow-[0_6px_20px_rgba(45,74,62,0.06)]" aria-label="보고서 저장 및 공유">
-                            <p class="text-[10px] font-black text-[#2D4A3E] tracking-[0.12em] mb-2">보고서 저장 및 공유</p>
-                            <button type="button" class="ms-btn ms-btn-report-primary w-full rounded-full text-white font-black py-3 text-sm shadow-lg"
+                            <p class="text-[12px] font-black text-[#2D4A3E] tracking-[0.12em] mb-2">보고서 저장 및 공유</p>
+                            <button type="button" id="ms-report-pdf-download-btn" class="ms-btn ms-btn-report-primary w-full rounded-full text-white font-black py-3 text-sm shadow-lg"
                                 onclick="MS.downloadReportPdf()">💾 PDF 보고서 저장</button>
                             <div class="grid grid-cols-2 gap-2 mt-2">
                                 <button type="button" class="ms-btn ms-btn-report-secondary rounded-full border-ms text-[#2D4A3E] font-bold py-2.5 text-xs min-h-[44px]"
@@ -4295,6 +4727,9 @@
             requestAnimationFrame(() => {
                 if (typeof MS !== 'undefined' && MS.setupResultScrollTopFab) {
                     MS.setupResultScrollTopFab();
+                }
+                if (typeof MS !== 'undefined' && MS.initForestExpertCommentaryAfterRender) {
+                    MS.initForestExpertCommentaryAfterRender();
                 }
             });
         },
@@ -4620,8 +5055,8 @@
                 const defBlock =
                     defStr.length > 0
                         ? `<div class="mt-2 border-t border-dashed border-[#5D4037]/15 pt-2">
-                    <p class="text-[10px] font-black text-[#5D4037]/45 mb-1 tracking-wide">지표 정의</p>
-                    <p class="text-[11px] sm:text-xs font-medium leading-relaxed text-[#5D4037]/85">${e(it.def)}</p>
+                    <p class="text-[12px] font-black text-[#5D4037]/45 mb-1 tracking-wide">지표 정의</p>
+                    <p class="text-[13px] sm:text-xs font-medium leading-relaxed text-[#5D4037]/85">${e(it.def)}</p>
                 </div>`
                         : '';
                 html += `<article class="ms-manual-item-card px-3 py-2.5 sm:px-3.5 sm:py-3 mb-2.5 sm:mb-3 last:mb-0 ms-print-avoid-break">
@@ -4630,7 +5065,7 @@
                         <p class="flex-1 min-w-0 text-sm sm:text-[15px] font-black text-[#2D4A3E] leading-snug">${e(qBody)}</p>
                     </div>
                     <div class="mt-2 border-t border-[#5D4037]/10 pt-2">
-                        <p class="text-[11px] sm:text-sm leading-relaxed text-[#5D4037]/78">
+                        <p class="text-[13px] sm:text-sm leading-relaxed text-[#5D4037]/78">
                             <span class="font-black text-[#2D4A3E]/35 mr-1 select-none">A.</span>${e(it.bu)}</p>
                     </div>
                     ${defBlock}
@@ -5138,24 +5573,24 @@
             const typeRowHtml =
                 tgSetup === 'elementary'
                     ? `<div class="flex flex-wrap gap-1.5">
-                            <button type="button" class="ms-btn flex-1 min-w-0 min-h-[36px] py-1.5 px-1 font-black border-2 text-[10px] sm:text-[11px] leading-tight rounded-full transition-all ${typeForUi === '지역아동센터' ? typeOnEl : typeOffEl}"
+                            <button type="button" class="ms-btn flex-1 min-w-0 min-h-[36px] py-1.5 px-1 font-black border-2 text-[12px] sm:text-[13px] leading-tight rounded-full transition-all ${typeForUi === '지역아동센터' ? typeOnEl : typeOffEl}"
                                 onmousedown="event.preventDefault()"
                                 onclick="MS.setPrepModalType('지역아동센터')">지역아동센터</button>
-                            <button type="button" class="ms-btn flex-1 min-w-0 min-h-[36px] py-1.5 px-1 font-black border-2 text-[10px] sm:text-[11px] leading-tight rounded-full transition-all ${typeForUi === '방과후교실' ? typeOnEl : typeOffEl}"
+                            <button type="button" class="ms-btn flex-1 min-w-0 min-h-[36px] py-1.5 px-1 font-black border-2 text-[12px] sm:text-[13px] leading-tight rounded-full transition-all ${typeForUi === '방과후교실' ? typeOnEl : typeOffEl}"
                                 onmousedown="event.preventDefault()"
                                 onclick="MS.setPrepModalType('방과후교실')">방과후교실</button>
-                            <button type="button" class="ms-btn flex-1 min-w-0 min-h-[36px] py-1.5 px-1 font-black border-2 text-[10px] sm:text-[11px] leading-tight rounded-full transition-all ${typeForUi === '초등학교' ? typeOnEl : typeOffEl}"
+                            <button type="button" class="ms-btn flex-1 min-w-0 min-h-[36px] py-1.5 px-1 font-black border-2 text-[12px] sm:text-[13px] leading-tight rounded-full transition-all ${typeForUi === '초등학교' ? typeOnEl : typeOffEl}"
                                 onmousedown="event.preventDefault()"
                                 onclick="MS.setPrepModalType('초등학교')">초등학교</button>
                         </div>`
                     : `<div class="flex flex-wrap gap-1.5">
-                            <button type="button" class="ms-btn flex-1 min-w-[80px] min-h-[34px] py-1 font-black border-2 text-[11px] rounded-full transition-all ${typeForUi === '어린이집' ? typeOnPs : typeOffPs}"
+                            <button type="button" class="ms-btn flex-1 min-w-[80px] min-h-[34px] py-1 font-black border-2 text-[13px] rounded-full transition-all ${typeForUi === '어린이집' ? typeOnPs : typeOffPs}"
                                 onmousedown="event.preventDefault()"
                                 onclick="MS.setPrepModalType('어린이집')">어린이집</button>
-                            <button type="button" class="ms-btn flex-1 min-w-[80px] min-h-[34px] py-1 font-black border-2 text-[11px] rounded-full transition-all ${typeForUi === '유치원' ? typeOnPs : typeOffPs}"
+                            <button type="button" class="ms-btn flex-1 min-w-[80px] min-h-[34px] py-1 font-black border-2 text-[13px] rounded-full transition-all ${typeForUi === '유치원' ? typeOnPs : typeOffPs}"
                                 onmousedown="event.preventDefault()"
                                 onclick="MS.setPrepModalType('유치원')">유치원</button>
-                            <button type="button" class="ms-btn flex-1 min-w-[80px] min-h-[34px] py-1 font-black border-2 text-[11px] rounded-full transition-all ${typeForUi === '기타' ? typeOnPs : typeOffPs}"
+                            <button type="button" class="ms-btn flex-1 min-w-[80px] min-h-[34px] py-1 font-black border-2 text-[13px] rounded-full transition-all ${typeForUi === '기타' ? typeOnPs : typeOffPs}"
                                 onmousedown="event.preventDefault()"
                                 onclick="MS.setPrepModalType('기타')">기타</button>
                         </div>`;
@@ -5171,18 +5606,18 @@
                             <h3 class="sr-only">1열: 사전·사후, 숲·실내</h3>
                             <div class="flex w-full min-w-0 flex-nowrap flex-row items-stretch gap-0">
                                 <div class="flex min-w-0 flex-1 flex-nowrap gap-1" role="group" aria-label="관찰 단계: 사전 또는 사후">
-                                    <button type="button" class="ms-btn flex-1 min-h-[30px] min-w-0 shrink py-1 px-1.5 rounded-full text-[11px] font-black border-2 leading-none transition-colors ${obsPreCls}"
+                                    <button type="button" class="ms-btn flex-1 min-h-[30px] min-w-0 shrink py-1 px-1.5 rounded-full text-[13px] font-black border-2 leading-none transition-colors ${obsPreCls}"
                                         onmousedown="event.preventDefault()"
                                         onclick="MS.setObservationStage('pre')">사전</button>
-                                    <button type="button" class="ms-btn flex-1 min-h-[30px] min-w-0 shrink py-1 px-1.5 rounded-full text-[11px] font-black border-2 leading-none transition-colors ${obsPostCls}"
+                                    <button type="button" class="ms-btn flex-1 min-h-[30px] min-w-0 shrink py-1 px-1.5 rounded-full text-[13px] font-black border-2 leading-none transition-colors ${obsPostCls}"
                                         onmousedown="event.preventDefault()"
                                         onclick="MS.setObservationStage('post')">사후</button>
                                 </div>
                                 <div class="flex min-w-0 flex-1 flex-nowrap gap-1 border-l-2 border-[rgba(45,74,62,0.14)] pl-3 sm:pl-4" role="group" aria-label="진행 장소: 숲 또는 실내">
-                                    <button type="button" class="ms-btn flex-1 min-h-[30px] min-w-0 shrink py-1 px-1.5 rounded-full text-[11px] font-black border-2 leading-none transition-colors ${locForestCls}"
+                                    <button type="button" class="ms-btn flex-1 min-h-[30px] min-w-0 shrink py-1 px-1.5 rounded-full text-[13px] font-black border-2 leading-none transition-colors ${locForestCls}"
                                         onmousedown="event.preventDefault()"
                                         onclick="MS.setPrepModalObsLocation('forest')">숲</button>
-                                    <button type="button" class="ms-btn flex-1 min-h-[30px] min-w-0 shrink py-1 px-1.5 rounded-full text-[11px] font-black border-2 leading-none transition-colors ${locIndoorCls}"
+                                    <button type="button" class="ms-btn flex-1 min-h-[30px] min-w-0 shrink py-1 px-1.5 rounded-full text-[13px] font-black border-2 leading-none transition-colors ${locIndoorCls}"
                                         onmousedown="event.preventDefault()"
                                         onclick="MS.setPrepModalObsLocation('indoor')">실내</button>
                                 </div>
@@ -5235,7 +5670,7 @@
                         <div class="space-y-1">
                         <section aria-labelledby="ms-modal-examiner-lbl">
                             <div class="flex min-w-0 flex-nowrap flex-row items-center gap-2">
-                                <label id="ms-modal-examiner-lbl" for="ms-examiner-name-modal" class="w-20 shrink-0 self-center text-left text-[10px] font-semibold leading-tight text-[#5D4037]/55">성함</label>
+                                <label id="ms-modal-examiner-lbl" for="ms-examiner-name-modal" class="w-20 shrink-0 self-center text-left text-[12px] font-semibold leading-tight text-[#5D4037]/55">성함</label>
                                 <input id="ms-examiner-name-modal" type="text" maxlength="40" autocomplete="name" placeholder="필수"
                                     class="ms-input min-w-0 flex-1 border border-[rgba(45,74,62,0.18)] px-2 py-1 text-left text-sm font-bold leading-tight text-[#2D4A3E] rounded-xl"
                                     value="${UI.esc(examinerName)}"
@@ -5244,7 +5679,7 @@
                         </section>
                         <section aria-labelledby="ms-modal-group-lbl">
                             <div class="flex min-w-0 flex-nowrap flex-row items-center gap-2">
-                                <label id="ms-modal-group-lbl" for="ms-unified-group-name" class="w-20 shrink-0 self-center text-left text-[10px] font-semibold leading-tight text-[#5D4037]/55">반명</label>
+                                <label id="ms-modal-group-lbl" for="ms-unified-group-name" class="w-20 shrink-0 self-center text-left text-[12px] font-semibold leading-tight text-[#5D4037]/55">반명</label>
                                 <input id="ms-unified-group-name" type="text" placeholder="예: 새싹반"
                                     class="ms-input min-w-0 flex-1 border border-ms px-2 py-1 text-left text-sm font-bold leading-tight text-[#2D4A3E] rounded-xl"
                                     value="${UI.esc(groupDraft)}"
@@ -5255,14 +5690,14 @@
                         </section>
                         <section aria-labelledby="ms-modal-participant-lbl">
                             <div class="flex min-w-0 flex-nowrap flex-row items-start gap-2">
-                                <label id="ms-modal-participant-lbl" for="ms-unified-participant-count" class="w-20 shrink-0 pt-1.5 text-left text-[10px] font-semibold leading-tight text-[#5D4037]/55">참여 아동</label>
+                                <label id="ms-modal-participant-lbl" for="ms-unified-participant-count" class="w-20 shrink-0 pt-1.5 text-left text-[12px] font-semibold leading-tight text-[#5D4037]/55">참여 아동</label>
                                 <div class="min-w-0 flex-1 space-y-1">
                                     <input id="ms-unified-participant-count" type="number" inputmode="numeric" min="1" max="999" placeholder="선택 (명)"
                                         class="ms-input w-full border border-[rgba(45,74,62,0.18)] px-2 py-1 text-left text-sm font-bold leading-tight text-[#2D4A3E] rounded-xl"
                                         value="${UI.esc(participantDraft)}"
                                         autocomplete="off"
                                         aria-label="참여 아동 수" />
-                                    <p class="text-[9px] text-[#5D4037]/50 leading-snug pl-0.5">입력하면 문항에서 △만 넣어도 □가 자동으로 맞춰집니다. 비워 두면 Q1을 모두 입력한 뒤 Q2부터 자동입니다.</p>
+                                    <p class="text-[11px] text-[#5D4037]/50 leading-snug pl-0.5">입력하면 문항에서 △만 넣어도 □가 자동으로 맞춰집니다. 비워 두면 Q1을 모두 입력한 뒤 Q2부터 자동입니다.</p>
                                 </div>
                             </div>
                         </section>
@@ -5748,16 +6183,16 @@
                     }
                     ${
                         q.isReverse
-                            ? `<p class="text-[11px] font-bold text-[#D4A373] mb-3 leading-relaxed rounded-xl border border-[#D4A373]/40 bg-[rgba(212,163,115,0.12)] px-3 py-2">이 문항은 <strong>역채점</strong>입니다. 「아니다」에 가산되는 인원이 ${
+                            ? `<p class="text-[13px] font-bold text-[#D4A373] mb-3 leading-relaxed rounded-xl border border-[#D4A373]/40 bg-[rgba(212,163,115,0.12)] px-3 py-2">이 문항은 <strong>역채점</strong>입니다. 「아니다」에 가산되는 인원이 ${
                                   q.cat === 'AUTT'
                                       ? '신중·안전(AUTT)'
                                       : '공감·배려(SPRT)'
                               } 쪽으로 집계됩니다.</p>`
                             : ''
                     }
-                    <p class="text-[10px] font-black text-[#D4A373] tracking-[0.15em] mb-1">부연</p>
+                    <p class="text-[12px] font-black text-[#D4A373] tracking-[0.15em] mb-1">부연</p>
                     <p class="text-sm text-ms-body leading-relaxed mb-5">${UI.esc(q.sub || '')}</p>
-                    <p class="text-[10px] font-black text-[#2D4A3E] tracking-[0.12em] mb-1">설명</p>
+                    <p class="text-[12px] font-black text-[#2D4A3E] tracking-[0.12em] mb-1">설명</p>
                     <p class="text-sm text-ms-body leading-relaxed mb-6">${UI.esc(q.desc || '')}</p>
                     <button type="button" class="w-full rounded-full bg-[#2D4A3E] text-white font-bold py-3.5 text-sm shadow-md hover:brightness-95" onclick="MS.closeQuestionHelpModal()">닫기</button>
                 </div>
@@ -5908,9 +6343,66 @@
             return out;
         },
 
-        /** 전송·보고서 링크용 고유 ID (시트 requestId 열과 동일 문자열) */
+        /** 전송·보고서 링크용 고유 ID (시트 requestId 열과 동일 문자열) — Date.now + 랜덤 */
         generateForestRequestId() {
-            return Date.now() + '-' + Math.random().toString(36).slice(2, 10);
+            return (
+                String(Date.now()) +
+                '-' +
+                Math.random().toString(36).slice(2, 11) +
+                Math.random().toString(36).slice(2, 7)
+            );
+        },
+
+        /** 검사 입력 진입 시 한 번 발급해 두었다가 submit·GAS·D1 에 동일 ID 사용 */
+        ensurePendingForestRequestId(inst) {
+            if (!inst) return;
+            try {
+                const r = String(inst.pendingForestRequestId || '').trim();
+                if (!r) {
+                    inst.pendingForestRequestId = MS.generateForestRequestId();
+                    STATE.persist();
+                }
+            } catch (_) {
+                /* ignore */
+            }
+        },
+
+        /** D1·GAS 전송 직전: requestId 누락·undefined(JSON.stringify 제거) 방지 */
+        syncForestTransmitRequestIds(inst, sheetPayload, payload) {
+            if (!inst || !sheetPayload || !payload) return '';
+            MS.ensurePendingForestRequestId(inst);
+            let rid = String(
+                inst.pendingForestRequestId ||
+                    sheetPayload.requestId ||
+                    payload.request_id ||
+                    payload.requestId ||
+                    ''
+            ).trim();
+            if (!rid) rid = MS.generateForestRequestId();
+            inst.pendingForestRequestId = rid;
+            sheetPayload.requestId = rid;
+            let ru = String(sheetPayload.report_url || sheetPayload.reportUrl || '').trim();
+            if (!ru) {
+                try {
+                    const u = new URL(location.href);
+                    ru = u.origin + u.pathname + '?view=report&id=' + encodeURIComponent(rid);
+                } catch (_) {
+                    ru = '';
+                }
+            }
+            if (!ru) {
+                ru = 'https://mindstory.kr/forest.html?view=report&id=' + encodeURIComponent(rid);
+            }
+            sheetPayload.report_url = ru;
+            sheetPayload.reportUrl = ru;
+            payload.request_id = rid;
+            payload.requestId = rid;
+            try {
+                STATE.persist();
+            } catch (_) {
+                /* ignore */
+            }
+            return rid;
         },
 
         saveForestReportSnapshot(requestId, sheetPayload, inst, tg) {
@@ -5979,7 +6471,8 @@
                 groupName: groupName,
                 obsLocation: obsLocation,
                 counts: counts,
-                updatedAt: new Date().toISOString()
+                updatedAt: new Date().toISOString(),
+                lastReportRequestId: rid || undefined
             };
             STATE.ensureCounts(inst);
             return inst;
@@ -6001,7 +6494,8 @@
                         groupName: String(s.inst.groupName || '').trim(),
                         obsLocation: s.inst.obsLocation === 'indoor' ? 'indoor' : 'forest',
                         counts: JSON.parse(JSON.stringify(s.inst.counts)),
-                        updatedAt: s.savedAt || new Date().toISOString()
+                        updatedAt: s.savedAt || new Date().toISOString(),
+                        lastReportRequestId: rid || undefined
                     };
                     STATE.ensureCounts(inst);
                 } else if (s.sheetPayload && typeof s.sheetPayload === 'object') {
@@ -6069,7 +6563,25 @@
                 const j = await r.json().catch(function () {
                     return null;
                 });
-                if (r.ok && j && j.success && j.data) return j.data;
+                const data = r.ok && j && j.success && j.data ? j.data : null;
+                try {
+                    var dbg =
+                        (typeof location !== 'undefined' && /\bforest_auth_debug=1\b/.test(String(location.search || ''))) ||
+                        (typeof localStorage !== 'undefined' && localStorage.getItem('ms_forest_auth_debug') === '1');
+                    if (dbg) {
+                        console.info('[forest][auth/me] response', {
+                            httpOk: r.ok,
+                            success: !!(j && j.success),
+                            hasData: !!data,
+                            id: data && data.id,
+                            role: data && data.role,
+                            email: data && data.email
+                        });
+                    }
+                } catch (_) {
+                    /* ignore */
+                }
+                if (data) return data;
             } catch (_) {
                 /* ignore */
             }
@@ -6077,9 +6589,13 @@
         },
 
         forestIsAdminRole(role) {
-            return String(role || '')
+            var r = String(role || '')
                 .trim()
-                .toLowerCase() === 'admin';
+                .toLowerCase();
+            if (!r) return false;
+            if (r === 'admin' || r === 'administrator' || r === 'superadmin') return true;
+            if (r === '관리자') return true;
+            return false;
         },
 
         /**
@@ -6101,9 +6617,27 @@
             }
 
             const proxyUrl = '/api/forest-gas-report?id=' + encodeURIComponent(id);
-            return fetch(proxyUrl, { method: 'GET', mode: 'same-origin', cache: 'no-cache', credentials: 'same-origin' })
+            return fetch(proxyUrl, { method: 'GET', mode: 'same-origin', cache: 'no-store', credentials: 'same-origin' })
                 .then(function (r) {
                     return r.text().then(function (raw) {
+                        try {
+                            var dbgR =
+                                (typeof location !== 'undefined' &&
+                                    /\bforest_report_debug=1\b/.test(String(location.search || ''))) ||
+                                (typeof localStorage !== 'undefined' &&
+                                    localStorage.getItem('ms_forest_report_debug') === '1');
+                            if (dbgR) {
+                                console.info('[forest][forest-gas-report]', {
+                                    id: id,
+                                    status: r.status,
+                                    ok: r.ok,
+                                    rawLen: raw ? raw.length : 0,
+                                    rawHead: raw ? String(raw).slice(0, 400) : ''
+                                });
+                            }
+                        } catch (_) {
+                            /* ignore */
+                        }
                         if (r.status === 401) {
                             try {
                                 const back = encodeURIComponent(location.pathname + location.search + (location.hash || ''));
@@ -6242,11 +6776,11 @@
                     : '';
             return `
                     <div class="ms-card p-5 md:p-6 text-left mb-6 border border-[rgba(45,74,62,0.12)] bg-[rgba(253,251,247,0.98)] scroll-mt-4" role="region" aria-label="기관 운영 요약">
-                        <p class="text-[10px] font-black text-[#2D4A3E] tracking-[0.15em] mb-2">기관·운영 요약</p>
-                        <p class="text-[11px] font-bold text-[#2D4A3E] mb-3 tabular-nums">${UI.esc(
+                        <p class="text-[12px] font-black text-[#2D4A3E] tracking-[0.15em] mb-2">기관·운영 요약</p>
+                        <p class="text-[13px] font-bold text-[#2D4A3E] mb-3 tabular-nums">${UI.esc(
                             (SCHEMA.temperamentRankLabel[dom] || dom) + ' 주도 · 밀도 ' + pct + '%'
                         )}</p>
-                        <p class="text-[11px] text-ms-muted font-semibold mb-3 leading-relaxed">${UI.esc(rows)}</p>
+                        <p class="text-[13px] text-ms-muted font-semibold mb-3 leading-relaxed">${UI.esc(rows)}</p>
                         <p class="text-sm text-ms-body leading-relaxed">${UI.esc(body)}</p>
                     </div>`;
         },
@@ -6261,9 +6795,9 @@
             const items = tips.map((t) => `<li class="text-sm text-ms-body leading-relaxed pl-1">${UI.esc(t)}</li>`).join('');
             return `
                     <div class="ms-card p-5 md:p-6 text-left mb-6 border border-[#D4A373]/30 bg-[rgba(212,163,115,0.08)] scroll-mt-4" role="region" aria-label="현장 지도사 가이드">
-                        <p class="text-[10px] font-black text-[#2D4A3E] tracking-[0.15em] mb-2">현장 지도사 가이드</p>
-                        <p class="text-[11px] text-ms-muted font-semibold mb-2">${UI.esc(pctSnap)}</p>
-                        <p class="text-[11px] text-ms-muted font-semibold mb-3">주 기질(<strong class="text-[#2D4A3E]">${UI.esc(
+                        <p class="text-[12px] font-black text-[#2D4A3E] tracking-[0.15em] mb-2">현장 지도사 가이드</p>
+                        <p class="text-[13px] text-ms-muted font-semibold mb-2">${UI.esc(pctSnap)}</p>
+                        <p class="text-[13px] text-ms-muted font-semibold mb-3">주 기질(<strong class="text-[#2D4A3E]">${UI.esc(
                             SCHEMA.temperamentRankLabel[dom] || dom
                         )}</strong>)에 맞춘 실천 팁입니다.</p>
                         <ul class="list-disc list-inside space-y-2 m-0 p-0">${items}</ul>
@@ -6336,7 +6870,8 @@
             MS._html2pdfLoadPromise = new Promise(function (resolve, reject) {
                 const s = document.createElement('script');
                 s.async = true;
-                s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+                s.src =
+                    'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js?v=forest20260413';
                 s.crossOrigin = 'anonymous';
                 s.onload = function () {
                     if (typeof window.html2pdf !== 'undefined') resolve(window.html2pdf);
@@ -6445,8 +6980,218 @@
             if (panel) panel.setAttribute('aria-hidden', open ? 'false' : 'true');
         },
 
+        touchReportPrintDate() {
+            const el = document.getElementById('ms-report-print-issue-date');
+            if (!el) return;
+            try {
+                const d = new Date();
+                el.textContent =
+                    '발행 ' +
+                    d.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+            } catch (_) {
+                el.textContent = '발행일 ' + new Date().toISOString().slice(0, 10);
+            }
+        },
+
+        showForestToast(msg, durationMs) {
+            const d = durationMs || 3200;
+            STATE.toastMessage = String(msg || '');
+            if (STATE._toastTimer) clearTimeout(STATE._toastTimer);
+            UI.render();
+            STATE._toastTimer = setTimeout(function () {
+                STATE.toastMessage = null;
+                UI.render();
+            }, d);
+        },
+
+        closePdfPreviewModal() {
+            const ov = document.getElementById('ms-pdf-preview-overlay');
+            if (ov && ov.parentNode) ov.parentNode.removeChild(ov);
+            if (MS._pdfPreviewBlobUrl) {
+                try {
+                    URL.revokeObjectURL(MS._pdfPreviewBlobUrl);
+                } catch (_) {
+                    /* ignore */
+                }
+                MS._pdfPreviewBlobUrl = null;
+            }
+            MS._pdfPreviewBlob = null;
+            MS._pdfPreviewFilename = null;
+            if (MS._pdfPreviewEscapeHandler) {
+                document.removeEventListener('keydown', MS._pdfPreviewEscapeHandler);
+                MS._pdfPreviewEscapeHandler = null;
+            }
+            try {
+                document.body.style.overflow = '';
+            } catch (_) {
+                /* ignore */
+            }
+        },
+
+        async confirmPdfDownloadFromPreview() {
+            const filename = MS._pdfPreviewFilename;
+            const blob = MS._pdfPreviewBlob;
+            if (!blob || !filename) return;
+
+            const file = new File([blob], filename, { type: 'application/pdf' });
+            const isMobile =
+                typeof navigator !== 'undefined' &&
+                (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent || '') ||
+                    (typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 768px)').matches));
+            const shareOk =
+                isMobile &&
+                typeof navigator !== 'undefined' &&
+                typeof navigator.share === 'function' &&
+                typeof navigator.canShare === 'function';
+
+            if (shareOk) {
+                try {
+                    if (navigator.canShare({ files: [file] })) {
+                        await navigator.share({
+                            files: [file],
+                            title: '유아숲 결과보고서',
+                            text: filename
+                        });
+                        MS.showForestToast(
+                            '공유 시트에서 파일에 저장·다른 앱으로 보내기 등을 선택할 수 있습니다.',
+                            4200
+                        );
+                        return;
+                    }
+                } catch (e) {
+                    if (e && e.name === 'AbortError') return;
+                    /* fall through to anchor download */
+                }
+            }
+
+            try {
+                const url = MS._pdfPreviewBlobUrl || URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.rel = 'noopener';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                if (url !== MS._pdfPreviewBlobUrl) {
+                    try {
+                        URL.revokeObjectURL(url);
+                    } catch (_) {
+                        /* ignore */
+                    }
+                }
+                const isMobile =
+                    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent || '') ||
+                    (typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 768px)').matches);
+                try {
+                    if (isMobile) {
+                        alert('다운로드 폴더에 저장되었습니다. 파일 관리자 또는 브라우저 다운로드 목록을 확인해 주세요.');
+                    }
+                } catch (_) {
+                    /* ignore */
+                }
+                MS.showForestToast(
+                    isMobile ? '다운로드가 시작되었습니다. 다운로드 폴더를 확인해 주세요.' : '다운로드가 시작되었습니다.',
+                    4000
+                );
+            } catch (e) {
+                try {
+                    alert('저장에 실패했습니다. 브라우저 인쇄로 PDF를 저장해 보세요.');
+                } catch (_) {
+                    /* ignore */
+                }
+            }
+        },
+
+        openPdfPreviewModal(blob, filename) {
+            MS.closePdfPreviewModal();
+            const blobUrl = URL.createObjectURL(blob);
+            MS._pdfPreviewBlobUrl = blobUrl;
+            MS._pdfPreviewBlob = blob;
+            MS._pdfPreviewFilename = filename;
+            const overlay = document.createElement('div');
+            overlay.id = 'ms-pdf-preview-overlay';
+            overlay.setAttribute('role', 'dialog');
+            overlay.setAttribute('aria-modal', 'true');
+            overlay.setAttribute('aria-labelledby', 'ms-pdf-preview-title');
+            overlay.className =
+                'fixed inset-0 z-[250] flex flex-col items-center justify-center p-3 sm:p-4';
+            const dim = document.createElement('div');
+            dim.className = 'absolute inset-0 bg-black/50';
+            dim.setAttribute('aria-hidden', 'true');
+            dim.onclick = function () {
+                MS.closePdfPreviewModal();
+            };
+            const panel = document.createElement('div');
+            panel.className =
+                'relative z-10 flex w-full max-w-[min(96vw,920px)] max-h-[90vh] flex-col overflow-hidden rounded-2xl border-2 border-[#2D4A3E]/20 bg-[#FDFBF7] shadow-2xl';
+            const head = document.createElement('div');
+            head.className =
+                'flex shrink-0 items-center justify-between gap-2 border-b border-[#2D4A3E]/14 bg-white/95 px-4 py-3';
+            const h2 = document.createElement('h2');
+            h2.id = 'ms-pdf-preview-title';
+            h2.className = 'text-lg font-black text-[#2D4A3E]';
+            h2.textContent = 'PDF 미리보기';
+            const closeBtn = document.createElement('button');
+            closeBtn.type = 'button';
+            closeBtn.className =
+                'ms-btn ms-btn-report-secondary rounded-full border-2 border-[#2D4A3E]/28 bg-white px-3 py-1.5 text-sm font-bold text-[#2D4A3E]';
+            closeBtn.setAttribute('aria-label', '닫기');
+            closeBtn.textContent = '✕';
+            closeBtn.onclick = function () {
+                MS.closePdfPreviewModal();
+            };
+            head.appendChild(h2);
+            head.appendChild(closeBtn);
+            const mid = document.createElement('div');
+            mid.className = 'min-h-0 flex-1 bg-[#5d4037]/10 p-2 sm:p-3';
+            const iframe = document.createElement('iframe');
+            iframe.id = 'ms-pdf-preview-iframe';
+            iframe.className =
+                'h-[min(65vh,640px)] w-full min-h-[40vh] rounded-lg border border-[#2D4A3E]/16 bg-white';
+            iframe.title = 'PDF 미리보기';
+            iframe.src = blobUrl;
+            mid.appendChild(iframe);
+            const foot = document.createElement('div');
+            foot.className =
+                'flex shrink-0 flex-col gap-2 border-t border-[#2D4A3E]/14 bg-white/95 p-4 sm:flex-row sm:items-center sm:justify-between';
+            const hint = document.createElement('p');
+            hint.className = 'text-sm text-[#5D4037]/75';
+            hint.textContent = '확인 후 아래 「기기에 저장하기」를 눌러 파일을 받으세요. (모바일은 공유 시트가 열릴 수 있습니다.)';
+            const dl = document.createElement('button');
+            dl.type = 'button';
+            dl.className =
+                'ms-btn ms-btn-report-primary w-full rounded-full text-white font-black py-3 text-sm shadow-lg sm:w-auto sm:min-w-[12rem]';
+            dl.textContent = '기기에 저장하기';
+            dl.onclick = function () {
+                Promise.resolve(MS.confirmPdfDownloadFromPreview()).catch(function () {
+                    /* errors surfaced via alert inside */
+                });
+            };
+            foot.appendChild(hint);
+            foot.appendChild(dl);
+            panel.appendChild(head);
+            panel.appendChild(mid);
+            panel.appendChild(foot);
+            overlay.appendChild(dim);
+            overlay.appendChild(panel);
+            document.body.appendChild(overlay);
+            try {
+                document.body.style.overflow = 'hidden';
+            } catch (_) {
+                /* ignore */
+            }
+            MS._pdfPreviewEscapeHandler = function (ev) {
+                if (ev.key === 'Escape') MS.closePdfPreviewModal();
+            };
+            document.addEventListener('keydown', MS._pdfPreviewEscapeHandler);
+        },
+
         downloadReportPdf() {
-            const root = document.getElementById('ms-report-capture-root');
+            if (MS._pdfGenerating) return;
+            const root =
+                document.getElementById('ms-report-capture-root') ||
+                document.getElementById('report-container');
             if (!root) {
                 try {
                     alert('보고서 영역을 찾을 수 없습니다. 화면을 새로고침 후 다시 시도해 주세요.');
@@ -6454,6 +7199,17 @@
                     /* ignore */
                 }
                 return;
+            }
+            const pdfBtn = document.getElementById('ms-report-pdf-download-btn');
+            let btnPrev = '';
+            if (pdfBtn) {
+                btnPrev = pdfBtn.textContent;
+                pdfBtn.disabled = true;
+                pdfBtn.textContent = 'PDF 생성 중…';
+            }
+            MS._pdfGenerating = true;
+            if (typeof MS.touchReportPrintDate === 'function') {
+                MS.touchReportPrintDate();
             }
             const acRoot = document.getElementById('ms-report-academic-intro-root');
             let acWasExpanded = false;
@@ -6517,31 +7273,78 @@
                     if (expanded != null) p.setAttribute('aria-expanded', expanded);
                 });
             }
+            function restoreReportPdfLayout() {
+                root.classList.remove('ms-report-pdf-mode');
+                document.body.classList.remove('ms-report-pdf-generating');
+            }
+            function restoreAllAfterPdf() {
+                restoreAcademicIntroForPdf();
+                restoreRankDetailForPdf();
+                restoreTemperamentAccordionForPdf();
+                restoreReportPdfLayout();
+            }
             const inst = STATE.selected();
-            const tgPdf = inst ? SCHEMA.getTargetGroup(inst) : STATE.targetGroup || 'preschool';
-            const fpPrefix = tgPdf === 'elementary' ? 'JTT_Elementary' : 'JTT_Kinder';
-            const nameSeg = MS.sanitizeReportFilenameSegment(inst && inst.name);
-            const d = new Date();
-            const dateSeg =
-                d.getFullYear() +
-                '-' +
-                String(d.getMonth() + 1).padStart(2, '0') +
-                '-' +
-                String(d.getDate()).padStart(2, '0');
-            const filename = fpPrefix + '_보고서_' + nameSeg + '_' + dateSeg + '.pdf';
-            MS.loadHtml2PdfBundle()
+            const rid = inst && String(inst.lastReportRequestId || '').trim();
+            const idPart = rid
+                ? rid.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40)
+                : String((inst && inst.id) || 'report').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 32);
+            let dateSeg = '';
+            try {
+                const d = new Date();
+                dateSeg =
+                    String(d.getFullYear()) +
+                    String(d.getMonth() + 1).padStart(2, '0') +
+                    String(d.getDate()).padStart(2, '0');
+            } catch (_) {
+                dateSeg = String(Date.now()).slice(0, 8);
+            }
+            const filename = '유아숲_결과보고서_' + dateSeg + '_' + idPart + '.pdf';
+
+            function waitForReportPdfLayout() {
+                return new Promise(function (resolve) {
+                    requestAnimationFrame(function () {
+                        requestAnimationFrame(function () {
+                            setTimeout(resolve, 160);
+                        });
+                    });
+                });
+            }
+
+            root.classList.add('ms-report-pdf-mode');
+            document.body.classList.add('ms-report-pdf-generating');
+            try {
+                root.scrollIntoView({ block: 'start', behavior: 'instant' });
+            } catch (_) {
+                /* ignore */
+            }
+            try {
+                window.scrollTo(0, 0);
+            } catch (_) {
+                /* ignore */
+            }
+
+            waitForReportPdfLayout()
+                .then(function () {
+                    return MS.loadHtml2PdfBundle();
+                })
                 .then(function (h2p) {
+                    const captureH = Math.max(400, Math.ceil(root.scrollHeight));
                     const opt = {
-                        margin: [20, 14, 20, 14],
-                        filename: filename,
-                        image: { type: 'jpeg', quality: 0.95 },
+                        margin: 10,
+                        filename: filename || '보고서.pdf',
+                        image: { type: 'jpeg', quality: 0.98 },
                         html2canvas: {
                             scale: 2,
                             useCORS: true,
                             logging: false,
                             letterRendering: true,
                             scrollY: 0,
-                            windowWidth: root.scrollWidth,
+                            scrollX: 0,
+                            windowWidth: 794,
+                            windowHeight: captureH,
+                            width: 794,
+                            height: captureH,
+                            allowTaint: false,
                             ignoreElements: function (el) {
                                 try {
                                     return el && el.classList && el.classList.contains('ms-report-pdf-exclude');
@@ -6551,26 +7354,188 @@
                             }
                         },
                         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-                        pagebreak: { mode: ['css', 'legacy'] }
+                        pagebreak: {
+                            mode: ['avoid-all', 'css', 'legacy'],
+                            avoid: [
+                                '.ms-card',
+                                '.ms-report-dominant-card',
+                                '.ms-report-academic-intro',
+                                '.ms-density-chart-svg',
+                                '.ms-report-temperament-detail-shell',
+                                'svg',
+                                'table',
+                                'img',
+                                'canvas'
+                            ]
+                        }
                     };
-                    return h2p().set(opt).from(root).save();
+                    return h2p()
+                        .set(opt)
+                        .from(root)
+                        .toPdf()
+                        .get('pdf')
+                        .then(function (pdf) {
+                            applyForestReportPdfHeaderFooter(pdf);
+                            try {
+                                return pdf.output('blob');
+                            } catch (eOut) {
+                                throw eOut || new Error('PDF blob output failed');
+                            }
+                        });
                 })
-                .then(function () {
-                    restoreAcademicIntroForPdf();
-                    restoreRankDetailForPdf();
-                    restoreTemperamentAccordionForPdf();
+                .then(function (blob) {
+                    if (!blob || !(blob instanceof Blob)) {
+                        throw new Error('PDF Blob 생성 실패');
+                    }
+                    MS.openPdfPreviewModal(blob, filename);
+                    MS.showForestToast('미리보기가 생성되었습니다. 저장은 하단 버튼을 눌러 주세요.', 3200);
                 })
                 .catch(function (e) {
-                    restoreAcademicIntroForPdf();
-                    restoreRankDetailForPdf();
-                    restoreTemperamentAccordionForPdf();
                     try {
                         console.error('[forest] PDF', e);
                     } catch (_) {
                         /* ignore */
                     }
                     try {
-                        alert('PDF 저장에 실패했습니다. 네트워크를 확인하거나 인쇄(PDF 저장)를 이용해 주세요.');
+                        alert(
+                            'PDF 생성에 실패했습니다.\n모바일에서는 메모리·팝업 차단을 확인하거나, 브라우저 메뉴의 「인쇄」로 PDF를 저장해 보세요.\n\n' +
+                                (e && e.message ? String(e.message) : '')
+                        );
+                    } catch (_) {
+                        /* ignore */
+                    }
+                })
+                .finally(function () {
+                    restoreAllAfterPdf();
+                    MS._pdfGenerating = false;
+                    if (pdfBtn) {
+                        pdfBtn.disabled = false;
+                        pdfBtn.textContent = btnPrev || '💾 PDF 보고서 저장';
+                    }
+                });
+        },
+
+        /** 전문가 소견: requestId 기준 D1 GET/PUT (관리자만 저장) */
+        initForestExpertCommentaryAfterRender() {
+            const mount = document.getElementById('ms-report-expert-commentary-mount');
+            const root = document.getElementById('ms-report-expert-commentary-root');
+            if (!mount || !root) return;
+            const inst = STATE.selected();
+            const rid = inst && String(inst.lastReportRequestId || '').trim();
+            if (!rid) {
+                root.classList.add('hidden');
+                return;
+            }
+            root.classList.remove('hidden');
+            mount.innerHTML = '<p class="text-sm text-ms-muted py-1">불러오는 중...</p>';
+            MS.fetchForestAuthMe()
+                .then(function (me) {
+                    const isAdmin = MS.forestIsAdminRole(me && me.role);
+                    return fetch('/api/forest-results/commentary?request_id=' + encodeURIComponent(rid), {
+                        credentials: 'same-origin',
+                        cache: 'no-store'
+                    }).then(function (r) {
+                        return r.json().then(function (j) {
+                            return { r: r, j: j, isAdmin: isAdmin };
+                        });
+                    });
+                })
+                .then(function (o) {
+                    const r = o.r;
+                    const j = o.j;
+                    const isAdmin = o.isAdmin;
+                    if (r.status === 401) {
+                        mount.innerHTML =
+                            '<p class="text-sm text-ms-muted leading-relaxed">전문가 소견을 보려면 로그인해 주세요.</p>';
+                        return;
+                    }
+                    if (r.status === 403) {
+                        mount.innerHTML =
+                            '<p class="text-sm text-ms-muted leading-relaxed">전문가 소견은 해당 검사를 서버에 등록한 계정 또는 관리자에게만 표시됩니다.</p>';
+                        return;
+                    }
+                    if (!j || !j.success || !j.data) {
+                        mount.innerHTML =
+                            '<p class="text-sm text-red-800/90 leading-relaxed">소견을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</p>';
+                        return;
+                    }
+                    const d = j.data;
+                    if (!d.has_row) {
+                        mount.innerHTML =
+                            '<p class="text-sm text-ms-muted leading-relaxed">아직 서버(D1)에 이 검사 결과가 저장되지 않았습니다. 결과 전송이 완료된 뒤 전문가 소견을 연결할 수 있습니다.</p>' +
+                            (isAdmin
+                                ? '<p class="text-[13px] text-ms-muted mt-3 leading-relaxed">관리자: <code class="text-[#2D4A3E]">request_id</code>가 포함된 행이 생기면 아래에서 소견을 저장할 수 있습니다.</p>'
+                                : '');
+                        return;
+                    }
+                    const t = d.expert_commentary != null ? String(d.expert_commentary) : '';
+                    if (isAdmin) {
+                        mount.innerHTML =
+                            '<label for="ms-report-expert-ta" class="block text-[12px] font-black text-[#2D4A3E] tracking-wide mb-1.5">관리자 편집</label>' +
+                            '<textarea id="ms-report-expert-ta" class="w-full min-h-[9rem] rounded-2xl border-2 border-[#2D4A3E]/18 bg-white p-4 text-sm text-[#2D4A3E] leading-relaxed shadow-inner focus:outline-none focus:ring-2 focus:ring-[#D4A373]/50" placeholder="예: 이번 집단은 차분한 성향이 두드러져, 정적인 탐색·감각 활동에서 몰입도가 높았습니다. 가정에서는 …"></textarea>' +
+                            '<div class="flex justify-end mt-3">' +
+                            '<button type="button" id="ms-report-expert-save" class="print-hidden ms-btn rounded-full bg-[#2D4A3E] text-white font-bold py-2.5 px-8 text-sm shadow-md hover:brightness-95" onclick="MS.saveForestExpertCommentary()">소견 저장</button>' +
+                            '</div>';
+                        const ta = document.getElementById('ms-report-expert-ta');
+                        if (ta) ta.value = t;
+                        return;
+                    }
+                    if (t) {
+                        mount.innerHTML =
+                            '<div class="rounded-2xl border border-[#2D4A3E]/14 bg-white/95 p-5 text-sm md:text-[15px] text-[#2D4A3E] leading-relaxed whitespace-pre-wrap text-left shadow-sm">' +
+                            UI.esc(t) +
+                            '</div>';
+                    } else {
+                        mount.innerHTML =
+                            '<p class="text-sm text-ms-muted leading-relaxed">등록된 전문가 소견이 없습니다.</p>';
+                    }
+                })
+                .catch(function () {
+                    mount.innerHTML =
+                        '<p class="text-sm text-red-800/90 leading-relaxed">네트워크 오류로 소견을 불러오지 못했습니다.</p>';
+                });
+        },
+
+        saveForestExpertCommentary() {
+            const ta = document.getElementById('ms-report-expert-ta');
+            const inst = STATE.selected();
+            const rid = inst && String(inst.lastReportRequestId || '').trim();
+            if (!ta || !rid) return;
+            const btn = document.getElementById('ms-report-expert-save');
+            if (btn) btn.disabled = true;
+            fetch('/api/forest-results/commentary', {
+                method: 'PUT',
+                credentials: 'same-origin',
+                cache: 'no-store',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ request_id: rid, expert_commentary: ta.value })
+            })
+                .then(function (r) {
+                    return r.json().then(function (j) {
+                        return { r: r, j: j };
+                    });
+                })
+                .then(function (o) {
+                    if (btn) btn.disabled = false;
+                    if (o.r.ok && o.j && o.j.success) {
+                        try {
+                            alert('저장되었습니다.');
+                        } catch (_) {
+                            /* ignore */
+                        }
+                        return;
+                    }
+                    const msg = (o.j && o.j.message) || '저장에 실패했습니다.';
+                    try {
+                        alert(msg);
+                    } catch (_) {
+                        /* ignore */
+                    }
+                })
+                .catch(function () {
+                    if (btn) btn.disabled = false;
+                    try {
+                        alert('저장에 실패했습니다.');
                     } catch (_) {
                         /* ignore */
                     }
@@ -6766,7 +7731,9 @@
                 const typeForSheet = MS.normalizeForestSheetInstType(inst);
                 const nameForSheet = String(MS.stripForestSheetInstNameSuffix(iname, typeForSheet) || iname).trim() || iname;
                 const rawInputs = MS.buildForestRawInputs(inst, tg);
-                const requestId = MS.generateForestRequestId();
+                MS.ensurePendingForestRequestId(inst);
+                let requestId = String(inst.pendingForestRequestId || '').trim() || MS.generateForestRequestId();
+                inst.pendingForestRequestId = requestId;
                 let reportUrl = '';
                 try {
                     const u = new URL(location.href);
@@ -6835,6 +7802,7 @@
                 STATE.persist();
                 payload = {
                     request_id: requestId,
+                    requestId: requestId,
                     instType: typeForSheet,
                     institute: nameForSheet,
                     stage: observation_stage,
@@ -6917,6 +7885,8 @@
                 return;
             }
 
+            MS.syncForestTransmitRequestIds(inst, sheetPayload, payload);
+
             /** 구글 앱스 스크립트 → 이어서 LMS. GAS 실패 시에도 LMS fetch 는 진행 */
             (async function () {
                 let gasNetworkFailed = false;
@@ -6943,11 +7913,14 @@
                     }
                 }
 
+                const ridForServer =
+                    String(payload.request_id || payload.requestId || '').trim() || MS.generateForestRequestId();
                 const r = await fetch('/api/forest-results', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload),
-                    credentials: 'same-origin'
+                    body: JSON.stringify({ ...payload, request_id: ridForServer, requestId: ridForServer }),
+                    credentials: 'same-origin',
+                    cache: 'no-store'
                 });
                 const ct = (r.headers.get('content-type') || '').toLowerCase();
                 let data = null;
@@ -7009,6 +7982,13 @@
                 try {
                     const key = 'ms_forest_submitted:' + inst.id + ':' + String(inst.updatedAt || '');
                     if (typeof sessionStorage !== 'undefined') sessionStorage.setItem(key, '1');
+                } catch (_) {
+                    /* ignore */
+                }
+                try {
+                    inst.pendingForestRequestId = undefined;
+                    delete inst.pendingForestRequestId;
+                    STATE.persist();
                 } catch (_) {
                     /* ignore */
                 }
@@ -7260,7 +8240,7 @@
                         onmousedown="event.preventDefault()"
                         onclick="MS.pickInstitution('${safeId}')">
                         <span class="text-sm font-bold leading-tight truncate min-w-0 flex-1 text-left">${labelHtml}</span>
-                        <span class="text-[10px] text-[#5D4037]/60 font-medium shrink-0">[${UI.esc(inst.type)}]</span>
+                        <span class="text-[12px] text-[#5D4037]/60 font-medium shrink-0">[${UI.esc(inst.type)}]</span>
                     </button>`;
                     }
                     if (row.kind === 'direct') {
@@ -7276,7 +8256,7 @@
                         onmousedown="event.preventDefault()"
                         onclick="MS.pickInstitutionByName('${safeName}')">
                         <span class="text-sm font-bold leading-tight truncate min-w-0 flex-1 text-left">직접 입력: &quot;${labelHtml}&quot; 사용하기</span>
-                        <span class="text-[10px] text-[#5D4037]/60 font-medium shrink-0">[직접입력]</span>
+                        <span class="text-[12px] text-[#5D4037]/60 font-medium shrink-0">[직접입력]</span>
                     </button>`;
                     }
                     const name = row.name;
@@ -7291,7 +8271,7 @@
                         onmousedown="event.preventDefault()"
                         onclick="MS.pickInstitutionByName('${safeName}')">
                         <span class="text-sm font-bold leading-tight truncate min-w-0 flex-1 text-left">${labelHtml}</span>
-                        <span class="text-[10px] text-[#5D4037]/60 font-medium shrink-0">[사전명단]</span>
+                        <span class="text-[12px] text-[#5D4037]/60 font-medium shrink-0">[사전명단]</span>
                     </button>`;
                 })
                 .join('');
@@ -8746,6 +9726,19 @@
             }
             UI.render();
         },
+        toggleReportJsonDataMenu(ev) {
+            if (ev) {
+                ev.preventDefault();
+                ev.stopPropagation();
+            }
+            const root = document.getElementById('ms-report-data-management');
+            const btn = document.getElementById('ms-report-json-toggle');
+            const grid = root && root.querySelector('.ms-report-json-menu-grid');
+            if (!root || !btn) return;
+            const open = root.classList.toggle('ms-json-menu-open');
+            btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+            if (grid) grid.setAttribute('aria-hidden', open ? 'false' : 'true');
+        },
         backToInput() {
             STATE.reportDeepLink = false;
             STATE.step = 'input';
@@ -8803,7 +9796,7 @@
                 <div class="absolute inset-0 bg-black/45" onclick="MS.closeForestMapModal()" aria-hidden="true"></div>
                 <div class="relative w-full max-w-md rounded-t-[1.75rem] sm:rounded-[2rem] bg-[#FDFBF7] shadow-2xl border border-[#2D4A3E]/12 p-6 md:p-8 max-h-[88vh] overflow-y-auto pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] sm:pb-8" onclick="event.stopPropagation()">
                     <h3 id="ms-modal-title" class="text-lg md:text-xl font-black text-[#2D4A3E] text-center mb-1 leading-tight">우리 아이의 마음 숲 지도</h3>
-                    <p class="text-center text-[10px] text-gray-400 mb-4">${getAppBrandShortForGroup(tg)} · 네 축 기질 해설</p>
+                    <p class="text-center text-[12px] text-gray-400 mb-4">${getAppBrandShortForGroup(tg)} · 네 축 기질 해설</p>
                     <p class="text-sm text-ms-body leading-relaxed mt-2 mb-6 text-left">${UI.esc(summary)}</p>
                     <button type="button" class="w-full rounded-full border-2 border-[#2D4A3E] bg-transparent text-[#2D4A3E] font-bold py-3 text-sm mb-2 hover:bg-[rgba(45,74,62,0.06)]" onclick="MS.goHomeToDashboard()">🏠 홈으로 — 대시보드</button>
                     <button type="button" class="w-full rounded-full bg-[#2D4A3E] text-white font-bold py-3.5 text-sm shadow-md hover:brightness-95" onclick="MS.closeForestMapModal()">닫기</button>
@@ -8854,6 +9847,12 @@
     };
 
     window.MS = MS;
+
+    window.addEventListener('beforeprint', function () {
+        if (typeof MS !== 'undefined' && MS.touchReportPrintDate) {
+            MS.touchReportPrintDate();
+        }
+    });
 
     STATE.hydrate();
 

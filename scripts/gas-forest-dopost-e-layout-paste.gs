@@ -1,6 +1,7 @@
 /**
  * JTT 숲 → 구글 시트 — appendForest2026Row_ = 정확히 41열 (A~AO)
  * A입력시간 B기관유형 C기관명 D사전·사후 EreportUrl F~AC Q1~12 AD~AG 4축 AH~AO 부가
+ * doGet 보고서 조회: ForestReports 없어도 탭 '2026'·'2026초등' 메인 시트에서 E(URL)·AN(requestId)로 검색
  */
 
 function doGet(e) {
@@ -262,39 +263,81 @@ function appendForest2026Row_(data) {
   return row;
 }
 
-function getReportSnapshotByRequestId_(id) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sh = ss.getSheetByName('ForestReports');
-  if (!sh) return null;
-  var data = sh.getDataRange().getValues();
-  var i;
-  for (i = 1; i < data.length; i++) {
-    var row = data[i];
-    if (!row || row.length === 0) continue;
-    if (String(row[0] || '').trim() === id && row.length <= 4) {
-      try {
-        return {
-          version: 1,
-          requestId: id,
-          savedAt: row[2] ? String(row[2]) : '',
-          sheetPayload: JSON.parse(String(row[1] || '{}'))
-        };
-      } catch (e) {
-        continue;
-      }
+function forestRowMatchesRequestId_(row, id) {
+  if (!row || !id) return false;
+  if (String(row[39] || '').trim() === id) return true;
+  var cellE = String(row[4] || '');
+  if (!cellE) return false;
+  if (cellE.indexOf(id) !== -1) return true;
+  var m = cellE.match(/[?&]id=([^&]+)/);
+  if (m) {
+    try {
+      if (decodeURIComponent(String(m[1]).replace(/\+/g, ' ')) === id) return true;
+    } catch (e) {
+      if (String(m[1]) === id) return true;
     }
-    if (row.length >= 41 && String(row[39] || '').trim() === id) {
+  }
+  return false;
+}
+
+function findReportSnapshotInMainSheets_(ss, id) {
+  var names = ['2026', '2026초등'];
+  var ni;
+  for (ni = 0; ni < names.length; ni++) {
+    var sheet = ss.getSheetByName(names[ni]);
+    if (!sheet) continue;
+    var data = sheet.getDataRange().getValues();
+    var i;
+    for (i = 1; i < data.length; i++) {
+      var row = data[i];
+      if (!forestRowMatchesRequestId_(row, id)) continue;
+      if (!row || row.length < 41) continue;
       try {
-        return {
-          version: 1,
-          requestId: id,
-          savedAt: row[38] != null ? String(row[38]) : '',
-          sheetPayload: JSON.parse(String(row[40] || '{}'))
-        };
+        var payload = JSON.parse(String(row[40] || '{}'));
+        var savedAt = row[38] != null ? String(row[38]) : '';
+        return { version: 1, requestId: id, savedAt: savedAt, sheetPayload: payload };
       } catch (e2) {
         continue;
       }
     }
   }
   return null;
+}
+
+function getReportSnapshotByRequestId_(id) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName('ForestReports');
+  if (sh) {
+    var data = sh.getDataRange().getValues();
+    var i;
+    for (i = 1; i < data.length; i++) {
+      var row = data[i];
+      if (!row || row.length === 0) continue;
+      if (String(row[0] || '').trim() === id && row.length <= 4) {
+        try {
+          return {
+            version: 1,
+            requestId: id,
+            savedAt: row[2] ? String(row[2]) : '',
+            sheetPayload: JSON.parse(String(row[1] || '{}'))
+          };
+        } catch (e) {
+          continue;
+        }
+      }
+      if (row.length >= 41 && String(row[39] || '').trim() === id) {
+        try {
+          return {
+            version: 1,
+            requestId: id,
+            savedAt: row[38] != null ? String(row[38]) : '',
+            sheetPayload: JSON.parse(String(row[40] || '{}'))
+          };
+        } catch (e2) {
+          continue;
+        }
+      }
+    }
+  }
+  return findReportSnapshotInMainSheets_(ss, id);
 }
