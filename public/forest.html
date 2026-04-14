@@ -4705,8 +4705,12 @@
                     <div class="ms-result-footer print-hidden px-0.5 mt-1.5 mb-1.5 space-y-2">
                         <section class="rounded-[1.75rem] border border-[#2D4A3E]/14 bg-[#FDFBF7]/95 p-3 shadow-[0_6px_20px_rgba(45,74,62,0.06)]" aria-label="보고서 저장 및 공유">
                             <p class="text-[12px] font-black text-[#2D4A3E] tracking-[0.12em] mb-2">보고서 저장 및 공유</p>
-                            <button type="button" id="ms-report-pdf-download-btn" class="ms-btn ms-btn-report-primary w-full rounded-full text-white font-black py-3 text-sm shadow-lg"
-                                onclick="MS.downloadReportPdf()">💾 PDF 보고서 저장</button>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <button type="button" id="ms-report-pdf-download-btn" class="ms-btn ms-btn-report-primary w-full rounded-full text-white font-black py-3 text-sm shadow-lg"
+                                    onclick="MS.downloadReportPdf()">💾 PDF 보고서 저장</button>
+                                <button type="button" id="ms-report-docx-download-btn" class="ms-btn w-full rounded-full border-2 border-[#2D4A3E]/35 bg-white text-[#2D4A3E] font-black py-3 text-sm shadow-md hover:bg-[rgba(45,74,62,0.06)] active:scale-[0.99] transition-all"
+                                    onclick="MS.downloadReportDocx()">📄 Word(.docx)로 저장</button>
+                            </div>
                             <div class="grid grid-cols-2 gap-2 mt-2">
                                 <button type="button" class="ms-btn ms-btn-report-secondary rounded-full border-ms text-[#2D4A3E] font-bold py-2.5 text-xs min-h-[44px]"
                                     onclick="MS.shareReportLink()">🔗 링크 공유</button>
@@ -6883,6 +6887,264 @@
                 document.head.appendChild(s);
             });
             return MS._html2pdfLoadPromise;
+        },
+
+        _docxModule: null,
+        _docxLoadPromise: null,
+        loadDocxModule() {
+            if (MS._docxModule) return Promise.resolve(MS._docxModule);
+            if (!MS._docxLoadPromise) {
+                MS._docxLoadPromise = import('https://esm.sh/docx@9.1.0?bundle').then(function (m) {
+                    MS._docxModule = m;
+                    return m;
+                });
+            }
+            return MS._docxLoadPromise;
+        },
+
+        async downloadReportDocx() {
+            if (MS._docxGenerating) return;
+            const inst = STATE.selected();
+            if (!inst) {
+                try {
+                    alert('기관 정보를 찾을 수 없습니다. 화면을 새로고침 후 다시 시도해 주세요.');
+                } catch (_) {
+                    /* ignore */
+                }
+                return;
+            }
+            const tgRes = SCHEMA.getTargetGroup(inst);
+            if (!STATE.isPreviewSample && !UI.allInputQuestionsFilled(inst)) {
+                try {
+                    alert(
+                        tgRes === 'preschool' || tgRes === 'elementary'
+                            ? '모든 문항에 △·□ 인원 수를 입력해 주세요.'
+                            : '모든 문항에 O·X 인원 수를 입력해 주세요.'
+                    );
+                } catch (_) {
+                    /* ignore */
+                }
+                return;
+            }
+            const docxBtn = document.getElementById('ms-report-docx-download-btn');
+            let btnPrev = '';
+            if (docxBtn) {
+                btnPrev = docxBtn.textContent;
+                docxBtn.disabled = true;
+                docxBtn.textContent = 'Word 생성 중…';
+            }
+            MS._docxGenerating = true;
+            try {
+                const docx = await MS.loadDocxModule();
+                const Document = docx.Document;
+                const Packer = docx.Packer;
+                const Paragraph = docx.Paragraph;
+                const TextRun = docx.TextRun;
+                const Table = docx.Table;
+                const TableRow = docx.TableRow;
+                const TableCell = docx.TableCell;
+                const WidthType = docx.WidthType;
+                const AlignmentType = docx.AlignmentType;
+                const kFont = '맑은 고딕';
+                function run(t, o) {
+                    return new TextRun(Object.assign({ text: String(t != null ? t : ''), font: kFont, size: 22 }, o || {}));
+                }
+                function para(runArr, spacing) {
+                    return new Paragraph(Object.assign({ children: runArr }, spacing || {}));
+                }
+                const totalsO = SCHEMA.rawOTotalsFromCounts(inst.counts, tgRes);
+                const percentByAxis = SCHEMA.scoresFromCounts(inst.counts, tgRes);
+                const rankedTemperaments = SCHEMA.rankTemperamentsByRawO(totalsO);
+                const brandShort = getAppBrandShortForGroup(tgRes);
+                const harmony = UI.buildHarmonySummary(percentByAxis, brandShort);
+                const totalOXSlots = SCHEMA.totalOXSlotsFromCounts(inst.counts, tgRes);
+                const participantCountSheet = SCHEMA.participantCountFromQ1(inst.counts, tgRes);
+                const ageLabel = tgRes === 'elementary' ? '초등부' : '유아·유치부';
+                const gn = String(inst.groupName || '').trim();
+                const instName = String(inst.name || '').trim();
+                const rid = String(inst.lastReportRequestId || '').trim();
+                const qs = SCHEMA.questionsForGroup(tgRes);
+                const qCount = qs.length;
+                const oxMode = tgRes === 'preschool' || tgRes === 'elementary';
+                const axisCountLabel = oxMode ? '△·□ 집계' : 'O·X 축 누적';
+
+                const children = [];
+                children.push(
+                    para([run('유아숲 기질 관찰 결과 보고서', { bold: true, size: 36 })], {
+                        alignment: AlignmentType.CENTER,
+                        spacing: { after: 200 }
+                    })
+                );
+                children.push(
+                    para([run('마인드스토리 JTT · ' + ageLabel + ' · ' + qCount + '문항', { size: 20, color: '444444' })], {
+                        alignment: AlignmentType.CENTER,
+                        spacing: { after: 360 }
+                    })
+                );
+                children.push(para([run('기관·관찰 정보', { bold: true, size: 26 })], { spacing: { after: 200 } }));
+                children.push(para([run('기관명: ', { bold: true }), run(instName)]));
+                if (gn) children.push(para([run('반 이름: ', { bold: true }), run(gn)]));
+                children.push(para([run('연령대: ', { bold: true }), run(ageLabel + ' (' + qCount + '문항)')]));
+                children.push(
+                    para(
+                        [
+                            run(oxMode ? '참가 인원(Q1 △+□): ' : '참가 인원(Q1 O+X): ', { bold: true }),
+                            run(String(participantCountSheet) + '명')
+                        ]
+                    )
+                );
+                children.push(
+                    para(
+                        [
+                            run(oxMode ? '관찰 슬롯 합(전 문항 △+□): ' : '관찰 슬롯 합(전 문항 O+X): ', { bold: true }),
+                            run(String(totalOXSlots) + '명')
+                        ]
+                    )
+                );
+                if (rid) children.push(para([run('보고서 요청 ID: ', { bold: true }), run(rid)]));
+                children.push(
+                    para(
+                        [
+                            run('발행일: ', { bold: true }),
+                            run(
+                                new Date().toLocaleString('ko-KR', {
+                                    year: 'numeric',
+                                    month: 'long',
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                })
+                            )
+                        ],
+                        { spacing: { after: 280 } }
+                    )
+                );
+
+                const headerRow = new TableRow({
+                    children: [
+                        new TableCell({ children: [para([run('기질 축', { bold: true })])] }),
+                        new TableCell({ children: [para([run('비율(%)', { bold: true })])] }),
+                        new TableCell({ children: [para([run(axisCountLabel, { bold: true })])] })
+                    ]
+                });
+                const dataRows = SCHEMA.categories.map(function (cat) {
+                    return new TableRow({
+                        children: [
+                            new TableCell({
+                                children: [
+                                    para([
+                                        run(
+                                            (SCHEMA.temperamentRankLabel[cat] || cat) + ' (' + cat + ')'
+                                        )
+                                    ])
+                                ]
+                            }),
+                            new TableCell({ children: [para([run(String(percentByAxis[cat] || 0))])] }),
+                            new TableCell({ children: [para([run(String(totalsO[cat] || 0))])] })
+                        ]
+                    });
+                });
+                children.push(para([run('네 축 밸런스(%)', { bold: true, size: 26 })], { spacing: { before: 200, after: 160 } }));
+                children.push(
+                    new Table({
+                        columnWidths: [4800, 2200, 2200],
+                        width: { size: 100, type: WidthType.PERCENTAGE },
+                        rows: [headerRow].concat(dataRows)
+                    })
+                );
+
+                children.push(para([run('기질 순위', { bold: true, size: 26 })], { spacing: { before: 320, after: 160 } }));
+                rankedTemperaments.forEach(function (r) {
+                    children.push(
+                        para(
+                            [
+                                run(
+                                    '[' +
+                                        r.rank +
+                                        '순위] ' +
+                                        r.label +
+                                        ' — ' +
+                                        r.score +
+                                        '명 (전체 슬롯 대비 ' +
+                                        r.density_pct +
+                                        '%)'
+                                )
+                            ],
+                            { spacing: { after: 100 } }
+                        )
+                    );
+                });
+
+                children.push(para([run('네 축 조화 요약', { bold: true, size: 26 })], { spacing: { before: 320, after: 160 } }));
+                children.push(para([run(harmony)], { spacing: { after: 240 } }));
+
+                children.push(
+                    para([run('© MINDSTORY · 유아숲 숲 활동 기질 관찰 · ' + brandShort, { size: 18, color: '666666' })], {
+                        alignment: AlignmentType.CENTER,
+                        spacing: { before: 400 }
+                    })
+                );
+
+                const doc = new Document({
+                    sections: [
+                        {
+                            properties: {},
+                            children: children
+                        }
+                    ]
+                });
+                const blob = await Packer.toBlob(doc);
+                if (!blob || !(blob instanceof Blob)) {
+                    throw new Error('Word Blob 생성 실패');
+                }
+                const ridPart = inst && String(inst.lastReportRequestId || '').trim();
+                const idPart = ridPart
+                    ? ridPart.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40)
+                    : String((inst && inst.id) || 'report').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 32);
+                let dateSeg = '';
+                try {
+                    const d = new Date();
+                    dateSeg =
+                        String(d.getFullYear()) +
+                        String(d.getMonth() + 1).padStart(2, '0') +
+                        String(d.getDate()).padStart(2, '0');
+                } catch (_) {
+                    dateSeg = String(Date.now()).slice(0, 8);
+                }
+                const filename = '유아숲_결과보고서_' + dateSeg + '_' + idPart + '.docx';
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.rel = 'noopener';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                if (typeof MS.showForestToast === 'function') {
+                    MS.showForestToast('Word(.docx) 파일을 저장했습니다.', 2800);
+                }
+            } catch (e) {
+                try {
+                    console.error('[forest] DOCX', e);
+                } catch (_) {
+                    /* ignore */
+                }
+                try {
+                    alert(
+                        'Word 파일 생성에 실패했습니다.\n네트워크·차단 설정을 확인하거나 잠시 후 다시 시도해 주세요.\n\n' +
+                            (e && e.message ? String(e.message) : '')
+                    );
+                } catch (_) {
+                    /* ignore */
+                }
+            } finally {
+                MS._docxGenerating = false;
+                if (docxBtn) {
+                    docxBtn.disabled = false;
+                    docxBtn.textContent = btnPrev || '📄 Word(.docx)로 저장';
+                }
+            }
         },
 
         /** 결과 리포트: 학술 서론(검사 도구 소개) 펼침/접기 */
