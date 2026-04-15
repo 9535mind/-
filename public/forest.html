@@ -303,6 +303,78 @@
             break-inside: avoid;
             page-break-inside: avoid;
         }
+
+        /*
+         * PDF(html2canvas) 전용: 웹 UI·장식 배경 제거 → 전자문서형(밝은 바탕·텍스트·도표 중심)
+         * (@media print 는 html2canvas에 적용되지 않으므로 .ms-report-pdf-mode 로만 제어)
+         */
+        #ms-report-capture-root.ms-report-pdf-mode {
+            background: #ffffff !important;
+            color: #111827 !important;
+            border-top: 0 !important;
+            box-shadow: none !important;
+            -webkit-print-color-adjust: economy;
+            print-color-adjust: economy;
+        }
+        #ms-report-capture-root.ms-report-pdf-mode .fade-in {
+            opacity: 1 !important;
+        }
+        #ms-report-capture-root.ms-report-pdf-mode button,
+        #ms-report-capture-root.ms-report-pdf-mode .ms-report-toggle-pill {
+            display: none !important;
+        }
+        #ms-report-capture-root.ms-report-pdf-mode .ms-report-pdf-exclude,
+        #ms-report-capture-root.ms-report-pdf-mode .print-hidden {
+            display: none !important;
+        }
+        #ms-report-capture-root.ms-report-pdf-mode [class*='bg-gradient'],
+        #ms-report-capture-root.ms-report-pdf-mode [class*='from-'],
+        #ms-report-capture-root.ms-report-pdf-mode [class*='to-'],
+        #ms-report-capture-root.ms-report-pdf-mode [class*='via-'] {
+            background-image: none !important;
+        }
+        #ms-report-capture-root.ms-report-pdf-mode [class*='shadow'],
+        #ms-report-capture-root.ms-report-pdf-mode [class*='ring-'] {
+            box-shadow: none !important;
+        }
+        #ms-report-capture-root.ms-report-pdf-mode .ms-card,
+        #ms-report-capture-root.ms-report-pdf-mode .ms-report-dominant-card,
+        #ms-report-capture-root.ms-report-pdf-mode .ms-report-academic-intro,
+        #ms-report-capture-root.ms-report-pdf-mode .ms-report-rank-detail-inner,
+        #ms-report-capture-root.ms-report-pdf-mode #ms-report-inline-profile,
+        #ms-report-capture-root.ms-report-pdf-mode #ms-report-expert-commentary-root,
+        #ms-report-capture-root.ms-report-pdf-mode section {
+            background-color: #ffffff !important;
+            background: #ffffff !important;
+            box-shadow: none !important;
+            border-radius: 0.35rem !important;
+            border: 1px solid rgba(17, 24, 39, 0.1) !important;
+        }
+        #ms-report-capture-root.ms-report-pdf-mode .ms-report-academic-intro-panel {
+            max-height: none !important;
+            opacity: 1 !important;
+            overflow: visible !important;
+        }
+        #ms-report-capture-root.ms-report-pdf-mode .ms-report-rank-detail-panel {
+            max-height: none !important;
+            opacity: 1 !important;
+            overflow: visible !important;
+        }
+        #ms-report-capture-root.ms-report-pdf-mode .ms-report-temperament-detail-shell {
+            border: 0 !important;
+        }
+        #ms-report-capture-root.ms-report-pdf-mode blockquote {
+            background: transparent !important;
+            border-left: 3px solid #2d4a3e !important;
+            border-radius: 0 !important;
+        }
+        #ms-report-capture-root.ms-report-pdf-mode .ms-density-chart-wrap,
+        #ms-report-capture-root.ms-report-pdf-mode .ms-density-chart-svg {
+            background: #ffffff !important;
+        }
+        #ms-report-capture-root.ms-report-pdf-mode .bg-ms-soft {
+            background: #f3f4f6 !important;
+        }
         #ms-pdf-preview-overlay {
             font-family: 'Noto Sans KR', system-ui, sans-serif;
         }
@@ -986,10 +1058,10 @@
      * GAS 웹앱 /exec URL — 로컬·디버그용. 운영 POST 는 Worker 의 FOREST_GAS_WEBHOOK_URL(Pages Secrets 등)을 씁니다.
      * 시트 POST 는 동일 출처 POST /api/forest-gas-webhook → Worker→GAS (클라이언트가 이 상수를 직접 호출하지 않음).
      * GAS doPost: JSON.parse(e.postData.contents), 응답은 JSON MIME 권장. 배포 액세스: 모든 사용자.
-     * 배포 버전(v47 등) 변경 시: 이 URL과 Cloudflare 의 FOREST_GAS_WEBHOOK_URL 을 동일한 /exec 로 맞출 것.
+     * 배포 버전(v51 등) 변경 시: 이 URL과 Cloudflare 의 FOREST_GAS_WEBHOOK_URL 을 동일한 /exec 로 맞출 것.
      */
     const FOREST_SHEETS_WEBHOOK_URL =
-        'https://script.google.com/macros/s/AKfycbwD4vtRsnmQQyMoTb5TLyapdeBAX9Gwicekvwk0v7bQhKln_NvqrFfdhHza34BFcMWV/exec';
+        'https://script.google.com/macros/s/AKfycbxr06oPkzJmWoVE0X9rm11sdM3FdkNmrKYFfyBcFpcQCC1750t_gHm0qL6KOhwBu_wz/exec';
 
     /** forest_auth_debug — 예비 플래그(숲 앱은 세션 API를 호출하지 않음). */
     /** ?forest_report_debug=1 또는 ms_forest_report_debug=1 — /api/forest-gas-report 응답 상태·본문 앞부분 로깅 */
@@ -1097,7 +1169,21 @@
                 canon.requestId = Date.now() + '-' + Math.random().toString(36).slice(2, 10);
             }
         }
-        const body = JSON.stringify(canon);
+        let body;
+        try {
+            body = JSON.stringify(canon);
+            if (typeof body !== 'string' || !body.trim()) {
+                throw new Error('empty payload');
+            }
+            JSON.parse(body);
+        } catch (serErr) {
+            try {
+                console.error('[forest GAS] 페이로드 JSON 직렬화·검증 실패', serErr, canon);
+            } catch (_) {
+                /* ignore */
+            }
+            return Promise.reject(new Error('FOREST_GAS_PAYLOAD_INVALID'));
+        }
         const debug = isForestGasDebugEnabled();
         try {
             var o =
@@ -1131,7 +1217,7 @@
                 mode: 'cors',
                 cache: 'no-store',
                 credentials: 'omit',
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                headers: { 'Content-Type': 'application/json;charset=utf-8' },
                 body: body
             }).then(async function (r) {
                 try {
@@ -1184,28 +1270,71 @@
                     let parsed = null;
                     try {
                         parsed = raw ? JSON.parse(raw) : null;
-                    } catch (_) {
-                        parsed = null;
-                    }
-                    if (!r.ok) {
+                    } catch (parseErr) {
                         try {
-                            console.error('[forest GAS] proxy HTTP', r.status, raw.slice(0, 400));
+                            if (r.ok && raw && String(raw).trim()) {
+                                console.error(
+                                    '[forest GAS] proxy 응답이 JSON이 아님 (HTTP ' + r.status + ')',
+                                    parseErr,
+                                    raw.slice(0, 800)
+                                );
+                            }
                         } catch (_) {
                             /* ignore */
                         }
-                        throw new Error('GAS proxy HTTP ' + r.status);
+                        if (r.ok && raw && String(raw).trim()) {
+                            throw new Error('GAS proxy non-JSON body (HTTP ' + r.status + ')');
+                        }
+                        parsed = null;
+                    }
+                    if (!r.ok) {
+                        const detail =
+                            parsed && typeof parsed === 'object'
+                                ? {
+                                      status: r.status,
+                                      statusText: r.statusText,
+                                      error: parsed.error,
+                                      message: parsed.message,
+                                      upstreamStatus: parsed.status,
+                                      upstreamBody: typeof parsed.body === 'string' ? parsed.body.slice(0, 500) : parsed.body
+                                  }
+                                : { status: r.status, statusText: r.statusText, rawBody: raw.slice(0, 800) };
+                        try {
+                            console.error('[forest GAS] Worker 프록시 오류', detail);
+                        } catch (_) {
+                            /* ignore */
+                        }
+                        const msg =
+                            parsed && typeof parsed === 'object'
+                                ? String(parsed.error || parsed.message || 'upstream').trim() +
+                                  (parsed.status != null ? ' [upstream HTTP ' + parsed.status + ']' : '') +
+                                  (typeof parsed.body === 'string' && parsed.body.trim()
+                                      ? ': ' + parsed.body.slice(0, 300)
+                                      : '')
+                                : raw.slice(0, 500);
+                        throw new Error('GAS proxy HTTP ' + r.status + (msg ? ': ' + msg : ''));
                     }
                     if (parsed && typeof parsed === 'object' && parsed.success === false) {
+                        try {
+                            console.error('[forest GAS] 프록시 응답 success:false', parsed);
+                        } catch (_) {
+                            /* ignore */
+                        }
                         throw new Error(String(parsed.message || parsed.error || 'GAS success:false'));
                     }
                     if (parsed && typeof parsed === 'object' && parsed.error != null && String(parsed.error).trim() !== '') {
+                        try {
+                            console.error('[forest GAS] 프록시 응답 error 필드', parsed);
+                        } catch (_) {
+                            /* ignore */
+                        }
                         throw new Error(String(parsed.error));
                     }
                     return r;
                 })
                 .catch(function (err) {
                     try {
-                        console.error('[forest GAS] fetch 실패', err);
+                        console.error('[forest GAS] postForestGasSheetFetch 실패', err && err.message ? err.message : err);
                     } catch (_) {
                         /* ignore */
                     }
@@ -5902,33 +6031,30 @@
             }
             document.body.style.overflow = '';
         },
-        showForestTransmitSuccessModal() {
-            const root = document.getElementById('ms-modal-root');
-            if (!root) return;
-            root.className = 'print-hidden fixed inset-0 z-[200] flex items-center justify-center p-4';
-            root.innerHTML = `
-                <div class="absolute inset-0 bg-black/45" onclick="MS.closeForestTransmitModal()" aria-hidden="true"></div>
-                <div class="relative w-full max-w-md rounded-[2rem] bg-[#FDFBF7] shadow-2xl border-2 border-[#5D4037]/20 p-6 md:p-8 text-center" onclick="event.stopPropagation()">
-                    <p class="text-lg font-black text-[#2D4A3E] mb-2">전송 완료</p>
-                    <p class="text-sm text-ms-body mb-6 leading-relaxed">구글 시트로 안전하게 전송되었습니다. 아래에서 PDF·Word 보고서를 저장하거나 인쇄·공유할 수 있어요.</p>
-                    <button type="button" class="ms-btn w-full !rounded-2xl bg-[#5D4037] text-white font-black py-5 text-base shadow-lg mb-3"
-                        onclick="MS.closeForestTransmitModal()">결과 보고서 보기</button>
-                    <button type="button" class="text-xs text-ms-muted underline underline-offset-2" onclick="MS.closeForestTransmitModal()">닫기</button>
-                </div>
-            `;
-            document.body.style.overflow = 'hidden';
-        },
-        /** 결과 보고서 PDF·Word 저장 영역으로 스크롤 (전송 완료 후 안내용) */
-        scrollToForestReportExports() {
+        /**
+         * 결과 보고서 PDF·Word 저장 영역으로 스크롤 (모달 닫은 직후 DOM이 늦을 수 있어 재시도).
+         * @param {{ attempt?: number }} [opt]
+         */
+        scrollToForestReportExports(opt) {
+            const attempt = opt && typeof opt.attempt === 'number' ? opt.attempt : 0;
+            const maxAttempts = 8;
             requestAnimationFrame(function () {
                 const el =
                     document.getElementById('ms-report-pdf-download-btn') ||
                     document.getElementById('ms-report-docx-download-btn') ||
                     document.getElementById('ms-report-capture-root') ||
-                    document.getElementById('report-container');
-                if (!el) return;
+                    document.getElementById('report-container') ||
+                    document.getElementById('view-content');
+                if (!el) {
+                    if (attempt < maxAttempts) {
+                        setTimeout(function () {
+                            MS.scrollToForestReportExports({ attempt: attempt + 1 });
+                        }, 100);
+                    }
+                    return;
+                }
                 try {
-                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    el.scrollIntoView({ behavior: attempt > 0 ? 'auto' : 'smooth', block: 'center' });
                 } catch (_) {
                     try {
                         el.scrollIntoView(true);
@@ -5940,26 +6066,44 @@
         },
         finishForestGasGraceModalAndGoReport() {
             MS.closeForestTransmitModal();
-            MS.scrollToForestReportExports();
+            setTimeout(function () {
+                MS.scrollToForestReportExports({ attempt: 0 });
+            }, 50);
         },
         /**
-         * 구글 시트 전송 실패 후 로컬 백업됨 — 부드러운 안내 (alert 대신).
+         * 결과 보고서가 화면에 그려진 뒤, 시트 전송 결과만 안내(평생교육원·LMS 호출 없음).
+         * @param {{ ok: boolean, gasFailed?: boolean }} r
          */
+        afterForestSheetTransmitUi(r) {
+            if (!r || !r.ok) return;
+            requestAnimationFrame(function () {
+                requestAnimationFrame(function () {
+                    if (r.gasFailed) {
+                        MS.showForestGasSheetGraceModal();
+                    } else {
+                        try {
+                            if (typeof MS.showForestToast === 'function') {
+                                MS.showForestToast('구글 시트로 안전하게 전송되었습니다.', 2800);
+                            }
+                        } catch (_) {
+                            /* ignore */
+                        }
+                        MS.scrollToForestReportExports();
+                    }
+                });
+            });
+        },
+        /** 구글 시트 전송 실패 시 로컬 백업 안내 — LMS·서버 저장 문구 없음 */
         showForestGasSheetGraceModal() {
             const root = document.getElementById('ms-modal-root');
             if (!root) return;
             root.className = 'print-hidden fixed inset-0 z-[200] flex items-center justify-center p-4';
             root.innerHTML = `
                 <div class="absolute inset-0 bg-black/45" onclick="MS.finishForestGasGraceModalAndGoReport()" aria-hidden="true"></div>
-                <div class="relative w-full max-w-md rounded-[2rem] bg-[#FDFBF7] shadow-2xl border-2 border-[#2D4A3E]/28 p-6 md:p-8 text-center" onclick="event.stopPropagation()" role="dialog" aria-modal="true" aria-labelledby="ms-gas-grace-title">
-                    <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[radial-gradient(ellipse_at_30%_30%,rgba(168,201,184,0.55),rgba(45,74,62,0.12))] text-3xl" aria-hidden="true">🛡️</div>
-                    <p id="ms-gas-grace-title" class="text-lg font-black text-[#2D4A3E] mb-3 leading-snug">시트로 보내는 단계만 잠시 지연됐어요</p>
-                    <p class="text-sm text-ms-body mb-4 leading-relaxed text-left">
-                        데이터를 구글 시트로 보내는 중 일시적인 지연이 발생했습니다. 하지만 걱정 마세요! 모든 데이터는 현재 기기에 안전하게 백업되었습니다. 인터넷이 회복되면 동기화로 다시 보낼 수 있어요.
-                    </p>
-                    <p class="text-xs text-[#2D4A3E]/90 mb-6 flex items-start gap-2 text-left rounded-2xl border border-[#2D4A3E]/15 bg-white/90 px-3 py-2.5 leading-relaxed">
-                        <span class="shrink-0 text-base" aria-hidden="true">🔄</span>
-                        <span>인터넷이 안정되면 결과 화면에서 <strong class="font-black">동기화</strong>를 눌러 시트로 다시 보낼 수 있어요.</span>
+                <div class="relative w-full max-w-md rounded-[2rem] bg-[#FDFBF7] shadow-2xl border-2 border-[#2D4A3E]/28 p-6 md:p-8 text-center" onclick="event.stopPropagation()" role="dialog" aria-modal="true" aria-labelledby="ms-gas-grace-body">
+                    <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-800 text-2xl font-black ring-2 ring-emerald-300/60" aria-hidden="true">✓</div>
+                    <p id="ms-gas-grace-body" class="text-sm text-ms-body mb-6 leading-relaxed text-left">
+                        구글 시트 전송이 일시적으로 지연되어 기기에 안전하게 백업되었습니다.
                     </p>
                     <button type="button" class="ms-btn w-full !rounded-2xl bg-[#2D4A3E] text-white font-black py-4 text-base shadow-lg"
                         onclick="MS.finishForestGasGraceModalAndGoReport()">확인</button>
@@ -6265,7 +6409,25 @@
 
         scheduleForestGroupSubmit() {
             requestAnimationFrame(() => {
-                void MS.submitForestGroupResult();
+                void MS.submitForestGroupResult()
+                    .then(function (r) {
+                        if (r && r.ok && STATE.step === 'result') {
+                            MS.afterForestSheetTransmitUi(r);
+                        }
+                    })
+                    .catch(function (err) {
+                        if (STATE.step === 'result') {
+                            try {
+                                MS.showForestTransmitErrorModal(
+                                    '구글 시트 전송에 실패했습니다.',
+                                    err && err.message ? String(err.message) : '네트워크 오류'
+                                );
+                            } catch (_) {
+                                /* ignore */
+                            }
+                            MS.scrollToForestReportExports();
+                        }
+                    });
             });
         },
 
@@ -7571,7 +7733,12 @@
                             allowTaint: false,
                             ignoreElements: function (el) {
                                 try {
-                                    return el && el.classList && el.classList.contains('ms-report-pdf-exclude');
+                                    if (!el || !el.classList) return false;
+                                    if (el.classList.contains('ms-report-pdf-exclude')) return true;
+                                    if (el.classList.contains('print-hidden')) return true;
+                                    var tag = el.tagName ? String(el.tagName).toUpperCase() : '';
+                                    if (tag === 'BUTTON') return true;
+                                    return false;
                                 } catch (_) {
                                     return false;
                                 }
@@ -7809,27 +7976,27 @@
         },
 
         /**
-         * 구글 시트(webhook) 전송만 수행. Promise는 전송·모달 표시까지 완료된 뒤 resolve(goResult 에서 대기).
-         * @returns {Promise<void>}
+         * 구글 시트(webhook)만 전송 — 평생교육원 DB·로그인 API 호출 없음.
+         * @returns {Promise<{ ok: boolean, gasFailed?: boolean }>}
          */
         submitForestGroupResult() {
-            if (STATE.isPreviewSample) return Promise.resolve();
-            if (STATE.reportDeepLink) return Promise.resolve();
+            if (STATE.isPreviewSample) return Promise.resolve({ ok: false });
+            if (STATE.reportDeepLink) return Promise.resolve({ ok: false });
             const inst = STATE.selected();
-            if (!inst) return Promise.resolve();
+            if (!inst) return Promise.resolve({ ok: false });
             const iname = String(inst.name || '').trim();
-            if (!iname) return Promise.resolve();
+            if (!iname) return Promise.resolve({ ok: false });
             if (!MS.forestRespondentTotalsOk(inst)) {
                 MS.showForestRespondentMismatchModal();
-                return Promise.resolve();
+                return Promise.resolve({ ok: false });
             }
             try {
                 const key = 'ms_forest_submitted:' + inst.id + ':' + String(inst.updatedAt || '');
-                if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(key)) return Promise.resolve();
+                if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(key)) return Promise.resolve({ ok: false });
             } catch (_) {
                 /* ignore */
             }
-            if (MS._forestGasSubmitInFlight) return Promise.resolve();
+            if (MS._forestGasSubmitInFlight) return Promise.resolve({ ok: false });
             MS._forestGasSubmitInFlight = true;
 
             let sheetPayload;
@@ -7932,13 +8099,12 @@
                 } catch (_) {
                     /* ignore */
                 }
-                MS._forestGasSubmitInFlight = false;
-                return Promise.resolve();
+                return Promise.resolve({ ok: false });
             }
 
             MS.syncForestTransmitRequestIds(inst, sheetPayload);
 
-            /** 구글 시트(GAS)만 전송 */
+            /** 구글 시트(GAS)만 전송 — UI는 afterForestSheetTransmitUi(결과 화면 렌더 후) */
             return (async function () {
                 let gasNetworkFailed = false;
                 try {
@@ -7946,7 +8112,10 @@
                 } catch (gasErr) {
                     gasNetworkFailed = true;
                     try {
-                        console.warn('[forest GAS] 시트 POST 실패(또는 디버그에서 스크립트 오류):', gasErr);
+                        console.error(
+                            '[forest GAS] 시트 POST 실패:',
+                            gasErr && gasErr.message ? gasErr.message : gasErr
+                        );
                     } catch (_) {
                         /* ignore */
                     }
@@ -7969,37 +8138,16 @@
                 } catch (_) {
                     /* ignore */
                 }
-                if (gasNetworkFailed) {
-                    try {
-                        MS.showForestGasSheetGraceModal();
-                    } catch (_) {
-                        try {
-                            alert(
-                                '구글 시트 전송은 실패했으며, 이 기기에 안전하게 백업되었습니다(ms_forest_gas_backup). 동기화로 다시 보낼 수 있어요.'
-                            );
-                        } catch (_) {
-                            /* ignore */
-                        }
-                    }
-                    return;
-                }
-                try {
-                    MS.showForestTransmitSuccessModal();
-                } catch (_) {
-                    /* ignore */
-                }
+                return { ok: true, gasFailed: gasNetworkFailed };
             })()
                 .catch(function (err) {
                     const msg = err && err.message ? String(err.message) : '네트워크 오류';
                     try {
-                        MS.showForestTransmitErrorModal('구글 시트 전송에 실패했습니다.', msg);
+                        console.error('[forest] submitForestGroupResult', err);
                     } catch (_) {
-                        try {
-                            alert('구글 시트 전송에 실패했습니다: ' + msg);
-                        } catch (_) {
-                            /* ignore */
-                        }
+                        /* ignore */
                     }
+                    return Promise.reject(new Error(msg));
                 })
                 .finally(function () {
                     MS._forestGasSubmitInFlight = false;
@@ -9691,18 +9839,59 @@
             }
             STATE.touchSelected();
             void (async function () {
-                const p = MS.submitForestGroupResult();
-                if (p && typeof p.then === 'function') {
+                let r;
+                try {
+                    r = await MS.submitForestGroupResult();
+                } catch (err) {
                     try {
-                        await p;
-                    } catch (err) {
+                        console.error('[forest] goResult 전송', err);
+                    } catch (_) {
+                        /* ignore */
+                    }
+                    STATE.step = 'result';
+                    STATE.persist();
+                    try {
+                        localStorage.setItem(
+                            LS_FOREST_LAST_RESULT_REF,
+                            JSON.stringify({ id: inst.id, updatedAt: String(inst.updatedAt || '') })
+                        );
+                    } catch (_) {
+                        /* ignore */
+                    }
+                    UI.render();
+                    requestAnimationFrame(function () {
                         try {
-                            console.error('[forest] goResult 전송', err);
+                            MS.showForestTransmitErrorModal(
+                                '구글 시트 전송에 실패했습니다.',
+                                err && err.message ? String(err.message) : '네트워크 오류'
+                            );
                         } catch (_) {
                             /* ignore */
                         }
-                        return;
+                        MS.scrollToForestReportExports();
+                    });
+                    return;
+                }
+                if (!r || !r.ok) {
+                    try {
+                        const sk = 'ms_forest_submitted:' + inst.id + ':' + String(inst.updatedAt || '');
+                        if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(sk)) {
+                            STATE.step = 'result';
+                            STATE.persist();
+                            try {
+                                localStorage.setItem(
+                                    LS_FOREST_LAST_RESULT_REF,
+                                    JSON.stringify({ id: inst.id, updatedAt: String(inst.updatedAt || '') })
+                                );
+                            } catch (_) {
+                                /* ignore */
+                            }
+                            UI.render();
+                        }
+                    } catch (_) {
+                        /* ignore */
                     }
+                    return;
                 }
                 STATE.step = 'result';
                 STATE.persist();
@@ -9715,6 +9904,7 @@
                     /* ignore */
                 }
                 UI.render();
+                MS.afterForestSheetTransmitUi(r);
             })();
         },
         toggleReportJsonDataMenu(ev) {

@@ -2,12 +2,17 @@
  * GET /api/forest-gas-report?id=REQUEST_ID
  * 브라우저 → Worker → Google Apps Script doGet (?view=report&id=)
  * 본인 소유(request_id → user_id) 또는 관리자만 GAS 프록시 허용.
+ * FOREST_GAS_WEBHOOK_URL: Pages Secret 권장. 미설정 시 v51 웹앱 /exec 폴백 (forest-gas-webhook.ts 와 동일).
  */
 
 import { Hono } from 'hono'
 import type { Bindings } from '../types/database'
 import { getCurrentUser } from '../utils/helpers'
 import { isForestAdminRole } from '../utils/forest-admin'
+
+/** v51 GAS 웹앱 — Secret 미바인딩 시 GET upstream 폴백 (public/forest.html FOREST_SHEETS_WEBHOOK_URL 과 동일) */
+const FOREST_GAS_WEBHOOK_URL_FALLBACK =
+  'https://script.google.com/macros/s/AKfycbxr06oPkzJmWoVE0X9rm11sdM3FdkNmrKYFfyBcFpcQCC1750t_gHm0qL6KOhwBu_wz/exec'
 
 const forestGasReport = new Hono<{ Bindings: Bindings }>()
 
@@ -67,15 +72,14 @@ forestGasReport.get('/', async (c) => {
     }
   }
 
-  const base = (c.env.FOREST_GAS_WEBHOOK_URL || '').trim()
-  if (!base) {
-    return c.json({ success: false, error: 'FOREST_GAS_WEBHOOK_URL not configured' }, 503)
-  }
+  const fromEnv = (c.env.FOREST_GAS_WEBHOOK_URL || '').trim()
+  const base = fromEnv || FOREST_GAS_WEBHOOK_URL_FALLBACK
   let url: URL
   try {
     url = new URL(base)
   } catch {
-    return c.json({ success: false, error: 'invalid FOREST_GAS_WEBHOOK_URL' }, 503)
+    console.error('[forest-gas-report] webhook URL is not a valid URL', base)
+    return c.json({ success: false, error: 'invalid FOREST_GAS_WEBHOOK_URL' }, 500)
   }
   url.searchParams.set('id', id)
   url.searchParams.set('view', 'report')

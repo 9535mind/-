@@ -20,7 +20,7 @@
       "bucket_name": "mindstory-lms"
     }
   ],
-  // Pages/Worker 시크릿 FOREST_GAS_WEBHOOK_URL: GAS 웹앱 /exec 전체 URL (public/forest.html 의 FOREST_SHEETS_WEBHOOK_URL 과 동일·최신 배포(예: v47) 유지).
+  // Pages/Worker 시크릿 FOREST_GAS_WEBHOOK_URL: GAS 웹앱 /exec 전체 URL (public/forest.html 의 FOREST_SHEETS_WEBHOOK_URL 과 동일·최신 배포(예: v51) 유지).
   "vars": {
     "OPENAI_BASE_URL": "https://api.openai.com/v1",
     "OPENAI_MODEL": "gpt-4o"

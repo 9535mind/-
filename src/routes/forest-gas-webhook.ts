@@ -2,6 +2,8 @@
  * POST /api/forest-gas-webhook
  * 브라우저 → 동일 출처 → Worker → Google Apps Script doPost (본문 JSON)
  * (forest.html 이 script.google.com 에 직접 POST 하면 opaque·차단으로 실패하는 경우가 있어 프록시)
+ * Upstream: POST with Content-Type application/json; fetch uses redirect: 'follow' (GAS /exec 302 대응).
+ * FOREST_GAS_WEBHOOK_URL: Pages Secret 권장. 미설정 시 v51 웹앱 /exec 폴백.
  */
 
 import { Hono } from 'hono'
@@ -9,18 +11,21 @@ import type { Bindings } from '../types/database'
 
 const MAX_BODY = 2_000_000
 
+/** v51 GAS 웹앱 — Secret 미바인딩 시 프록시 upstream 폴백 (public/forest.html FOREST_SHEETS_WEBHOOK_URL 과 동일) */
+const FOREST_GAS_WEBHOOK_URL_FALLBACK =
+  'https://script.google.com/macros/s/AKfycbxr06oPkzJmWoVE0X9rm11sdM3FdkNmrKYFfyBcFpcQCC1750t_gHm0qL6KOhwBu_wz/exec'
+
 const forestGasWebhook = new Hono<{ Bindings: Bindings }>()
 
 forestGasWebhook.post('/', async (c) => {
-  const base = (c.env.FOREST_GAS_WEBHOOK_URL || '').trim()
-  if (!base) {
-    return c.json({ success: false, error: 'FOREST_GAS_WEBHOOK_URL not configured' }, 503)
-  }
+  const fromEnv = (c.env.FOREST_GAS_WEBHOOK_URL || '').trim()
+  const base = fromEnv || FOREST_GAS_WEBHOOK_URL_FALLBACK
   let gasUrl: URL
   try {
     gasUrl = new URL(base)
   } catch {
-    return c.json({ success: false, error: 'invalid FOREST_GAS_WEBHOOK_URL' }, 503)
+    console.error('[forest-gas-webhook] webhook URL is not a valid URL', base)
+    return c.json({ success: false, error: 'invalid FOREST_GAS_WEBHOOK_URL' }, 500)
   }
 
   let raw: string
@@ -37,12 +42,21 @@ forestGasWebhook.post('/', async (c) => {
   }
 
   try {
+    JSON.parse(raw)
+  } catch (e) {
+    return c.json({ success: false, error: 'body must be valid JSON: ' + String(e) }, 400)
+  }
+
+  try {
     const res = await fetch(gasUrl.toString(), {
       method: 'POST',
       redirect: 'follow',
       cache: 'no-store',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8', Accept: 'application/json,text/plain,*/*' },
-      body: raw
+      headers: {
+        'Content-Type': 'application/json;charset=utf-8',
+        Accept: 'application/json,text/plain,*/*',
+      },
+      body: raw,
     })
     const text = await res.text()
     if (!res.ok) {
