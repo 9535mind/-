@@ -1058,10 +1058,10 @@
      * GAS 웹앱 /exec URL — 로컬·디버그용. 운영 POST 는 Worker 의 FOREST_GAS_WEBHOOK_URL(Pages Secrets 등)을 씁니다.
      * 시트 POST 는 동일 출처 POST /api/forest-gas-webhook → Worker→GAS (클라이언트가 이 상수를 직접 호출하지 않음).
      * GAS doPost: JSON.parse(e.postData.contents), 응답은 JSON MIME 권장. 배포 액세스: 모든 사용자.
-     * 배포 버전(v51 등) 변경 시: 이 URL과 Cloudflare 의 FOREST_GAS_WEBHOOK_URL 을 동일한 /exec 로 맞출 것.
+     * 배포 버전(v52 등) 변경 시: 이 URL과 Cloudflare 의 FOREST_GAS_WEBHOOK_URL 을 동일한 /exec 로 맞출 것.
      */
     const FOREST_SHEETS_WEBHOOK_URL =
-        'https://script.google.com/macros/s/AKfycbxr06oPkzJmWoVE0X9rm11sdM3FdkNmrKYFfyBcFpcQCC1750t_gHm0qL6KOhwBu_wz/exec';
+        'https://script.google.com/macros/s/AKfycbzIhdMS_0n2djgQaAaJqJm21dfl47bKPkhTK-7HylErEn9KQ8fnJ7kJAyTtIL_wJGtX/exec';
 
     /** forest_auth_debug — 예비 플래그(숲 앱은 세션 API를 호출하지 않음). */
     /** ?forest_report_debug=1 또는 ms_forest_report_debug=1 — /api/forest-gas-report 응답 상태·본문 앞부분 로깅 */
@@ -1162,7 +1162,7 @@
 
     /**
      * GAS 시트 웹훅 POST — 동일 출처 /api/forest-gas-webhook → Worker → GAS (모바일·CORS 안정).
-     * 본문은 JSON.stringify 문자열, Content-Type 은 text/plain (GAS doPost 호환).
+     * 본문은 JSON.stringify 문자열. Worker→GAS는 application/json(권장). 브라우저→Worker도 동일 MIME 권장.
      * 디버그 시에만 직접 script.google.com URL 로 CORS 확인.
      * @returns {Promise<void>} 네트워크 실패 시 reject
      */
@@ -1227,7 +1227,7 @@
                 mode: 'cors',
                 cache: 'no-store',
                 credentials: 'omit',
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                headers: { 'Content-Type': 'application/json;charset=utf-8' },
                 body: body
             }).then(async function (r) {
                 try {
@@ -1272,7 +1272,7 @@
                 mode: 'same-origin',
                 cache: 'no-store',
                 credentials: 'same-origin',
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                headers: { 'Content-Type': 'application/json;charset=utf-8' },
                 body: body
             })
                 .then(async function (r) {
@@ -1356,7 +1356,7 @@
             mode: 'no-cors',
             cache: 'no-store',
             credentials: 'omit',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            headers: { 'Content-Type': 'application/json;charset=utf-8' },
             body: body
         }).then(function (r) {
             try {
@@ -6081,17 +6081,35 @@
             }, 50);
         },
         /**
-         * 제출 직후(시트 성공 또는 기기 백업 완료) — 다음 단계 선택 모달.
-         * @param {{ gasFailed?: boolean }} [opt]
+         * 전송 시도 후(시트 성공·지연·백업 등) — 선택의 갈림길 모달.
+         * @param {{ gasFailed?: boolean, gasErrorMessage?: string, submitHardFail?: boolean }} [opt]
          */
-        showPostSubmitGuidanceModal(opt) {
+        showPostSubmitChoiceModal(opt) {
             const o = opt && typeof opt === 'object' ? opt : {};
             const gasFailed = !!o.gasFailed;
+            const submitHardFail = !!o.submitHardFail;
+            const errRaw = String(o.gasErrorMessage || '').trim();
+            try {
+                if (errRaw) {
+                    console.error('[forest GAS] 전송 상세(모달 표시)', errRaw);
+                }
+            } catch (_) {
+                /* ignore */
+            }
+            const errEsc = errRaw ? UI.esc(errRaw) : '';
+            const backupNote =
+                gasFailed && !submitHardFail
+                    ? '<p class="text-xs text-amber-900/90 text-left leading-relaxed rounded-xl border border-amber-200/90 bg-amber-50/95 px-3 py-2.5 mb-3">구글 시트 전송이 일시적으로 지연되어 기기에 안전하게 백업되었습니다. 나중에 「동기화」로 다시 보낼 수 있어요.</p>'
+                    : '';
+            const errFooter =
+                errEsc && gasFailed
+                    ? '<p class="mt-4 pt-3 border-t border-slate-200/90 text-[10px] text-slate-500 leading-snug break-words font-mono text-left" title="디버그">' +
+                      '<span class="font-sans font-bold text-slate-600">전송 참고: </span>' +
+                      errEsc +
+                      '</p>'
+                    : '';
             const root = document.getElementById('ms-modal-root');
             if (!root) return;
-            const backupNote = gasFailed
-                ? '<p class="text-xs text-amber-900/90 text-left leading-relaxed rounded-xl border border-amber-200/90 bg-amber-50/95 px-3 py-2.5 mb-4">구글 시트 전송이 일시적으로 지연되어 기기에 안전하게 백업되었습니다. 나중에 「동기화」로 다시 보낼 수 있어요.</p>'
-                : '';
             root.className =
                 'print-hidden fixed inset-0 z-[200] flex items-center justify-center p-4';
             root.innerHTML = `
@@ -6099,35 +6117,40 @@
                 <div class="relative w-full max-w-md rounded-[2rem] bg-[#FDFBF7] shadow-2xl border-2 border-[#2D4A3E]/18 p-6 md:p-8 text-left" onclick="event.stopPropagation()" role="dialog" aria-modal="true" aria-labelledby="ms-post-submit-title">
                     <div class="text-center mb-3">
                         <div class="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-800 text-lg font-black ring-2 ring-emerald-300/50" aria-hidden="true">✓</div>
-                        <h2 id="ms-post-submit-title" class="text-lg md:text-xl font-black text-[#2D4A3E] leading-snug">검사가 성공적으로 제출되었습니다!</h2>
+                        <h2 id="ms-post-submit-title" class="text-lg md:text-xl font-black text-[#2D4A3E] leading-snug">검사가 성공적으로 완료되었습니다!</h2>
                     </div>
                     <p class="text-sm text-ms-body leading-relaxed mb-5 text-center">
-                        제출된 내용은 관리자 시스템에 기록되었습니다. 다음 단계를 선택해 주세요.
+                        제출된 데이터는 안전하게 기록되었습니다. 다음 단계를 선택해 주세요.
                     </p>
                     ${backupNote}
                     <div class="flex flex-col gap-2.5">
                         <button type="button" class="ms-btn w-full rounded-2xl bg-[#2D4A3E] text-white font-black py-3.5 text-sm shadow-lg hover:brightness-[0.97] active:scale-[0.99] transition-all"
-                            onclick="MS.postSubmitGuidanceViewReport()">결과 보고서 보기</button>
+                            onclick="MS.postSubmitChoiceViewReport()">📄 결과 보고서 확인</button>
                         <button type="button" class="ms-btn w-full rounded-2xl border-2 border-[#2D4A3E]/35 bg-white text-[#2D4A3E] font-black py-3.5 text-sm shadow-sm hover:bg-[rgba(45,74,62,0.06)]"
-                            onclick="MS.postSubmitGuidanceNewExam()">새로운 검사 시작</button>
+                            onclick="MS.postSubmitChoiceNewExam()">🔄 새로운 검사 시작</button>
                         <button type="button" class="ms-btn w-full rounded-2xl border border-slate-300/90 bg-slate-100/95 text-slate-700 font-bold py-3.5 text-sm hover:bg-slate-200/90"
-                            onclick="MS.postSubmitGuidanceGoLifelongHome()">홈으로 이동</button>
+                            onclick="MS.postSubmitChoiceGoHome()">🏠 홈으로 이동</button>
                     </div>
+                    ${errFooter}
                 </div>
             `;
             document.body.style.overflow = 'hidden';
         },
-        postSubmitGuidanceViewReport() {
+        /** @deprecated 호환용 — showPostSubmitChoiceModal */
+        showPostSubmitGuidanceModal(opt) {
+            return MS.showPostSubmitChoiceModal(opt);
+        },
+        postSubmitChoiceViewReport() {
             MS.closeForestModal();
             setTimeout(function () {
                 MS.scrollToForestReportExports({ attempt: 0 });
             }, 50);
         },
-        postSubmitGuidanceNewExam() {
+        postSubmitChoiceNewExam() {
             MS.closeForestModal();
             MS.resetForestProgressForNewExam();
         },
-        postSubmitGuidanceGoLifelongHome() {
+        postSubmitChoiceGoHome() {
             MS.closeForestModal();
             try {
                 const u = typeof getForestLifelongHomeUrl === 'function' ? getForestLifelongHomeUrl() : '/';
@@ -6140,8 +6163,33 @@
                 }
             }
         },
+        postSubmitGuidanceViewReport() {
+            MS.postSubmitChoiceViewReport();
+        },
+        postSubmitGuidanceNewExam() {
+            MS.postSubmitChoiceNewExam();
+        },
+        postSubmitGuidanceGoLifelongHome() {
+            MS.postSubmitChoiceGoHome();
+        },
         /**
-         * 로컬 검사 진행 데이터 초기화 후 검사 설정(첫 단계)으로 — 새로고침 없음.
+         * 전송 시도 후 UI — 선택의 갈림길 모달 (성공/시트 지연 공통).
+         * @param {{ ok: boolean, gasFailed?: boolean, gasErrorMessage?: string }} r
+         */
+        afterForestSheetTransmitUi(r) {
+            if (!r || !r.ok) return;
+            requestAnimationFrame(function () {
+                requestAnimationFrame(function () {
+                    MS.showPostSubmitChoiceModal({
+                        gasFailed: !!r.gasFailed,
+                        gasErrorMessage: String(r.gasErrorMessage || ''),
+                        submitHardFail: false
+                    });
+                });
+            });
+        },
+        /**
+         * 로컬 검사 진행 데이터 초기화 후 앱 첫 화면(대시보드·Intro)으로 — 새로고침 없음.
          */
         resetForestProgressForNewExam() {
             try {
@@ -6156,7 +6204,7 @@
                 STATE.observationStage = 'pre';
                 STATE.obsLocation = 'forest';
                 STATE.targetGroup = 'preschool';
-                STATE.step = 'setup';
+                STATE.step = 'dashboard';
                 try {
                     MS._instDropdownAll = false;
                 } catch (_) {
@@ -6200,6 +6248,11 @@
                 }
                 try {
                     localStorage.removeItem('ms_forest_gas_backup');
+                } catch (_) {
+                    /* ignore */
+                }
+                try {
+                    localStorage.removeItem('ms_forest_answers');
                 } catch (_) {
                     /* ignore */
                 }
@@ -8125,7 +8178,7 @@
 
         /**
          * 구글 시트(webhook)만 전송 — 평생교육원 DB·로그인 API 호출 없음.
-         * @returns {Promise<{ ok: boolean, gasFailed?: boolean }>}
+         * @returns {Promise<{ ok: boolean, gasFailed?: boolean, gasErrorMessage?: string }>}
          */
         submitForestGroupResult() {
             if (STATE.isPreviewSample) return Promise.resolve({ ok: false });
@@ -8180,9 +8233,12 @@
                     reportUrl =
                         'https://mindstory.kr/forest.html?view=report&id=' + encodeURIComponent(requestId);
                 }
+                const isKinder = tg !== 'elementary';
                 sheetPayload = {
                     /** GAS: 시트명 2026(유아) vs 2026초등 — scripts/gas-forest-2026-rowContents-sample.gs doPost 와 동기 */
                     isElementary: tg === 'elementary',
+                    /** GAS getSheetByName — 유아/초등 탭 구분 */
+                    targetSheet: isKinder ? '2026 유아용' : '2026 초등용',
                     /** 보고서 딥링크·시트 열과 동일 문자열 */
                     requestId: requestId,
                     /** 시트 표시용 날짜(YY.M.D) — GAS appendForest2026Row_ Col A */
@@ -8232,6 +8288,10 @@
                     sheetPayload.report_url = ru;
                     sheetPayload.reportUrl = ru;
                 }
+                /* GAS 시트 헤더 columnMap 호환: institutionType·institutionName·testType·reportUrl (reportUrl은 위 객체 + report_url 별칭) */
+                sheetPayload.institutionType = sheetPayload.institution_type;
+                sheetPayload.institutionName = sheetPayload.institution_name;
+                sheetPayload.testType = observation_stage === 'post' ? '사후' : '사전';
                 MS.saveForestReportSnapshot(requestId, sheetPayload, inst, tg);
                 inst.lastReportRequestId = requestId;
                 STATE.persist();
@@ -8252,18 +8312,17 @@
 
             MS.syncForestTransmitRequestIds(inst, sheetPayload);
 
-            /** 구글 시트(GAS)만 전송 — UI는 goResult → showPostSubmitGuidanceModal(결과 화면 렌더 후) */
+            /** 구글 시트(GAS)만 전송 — UI는 goResult → afterForestSheetTransmitUi → showPostSubmitChoiceModal */
             return (async function () {
                 let gasNetworkFailed = false;
+                let gasErrorMessage = '';
                 try {
                     await postForestGasSheetFetch(sheetPayload);
                 } catch (gasErr) {
                     gasNetworkFailed = true;
+                    gasErrorMessage = gasErr && gasErr.message ? String(gasErr.message) : '';
                     try {
-                        console.error(
-                            '[forest GAS] 시트 POST 실패:',
-                            gasErr && gasErr.message ? gasErr.message : gasErr
-                        );
+                        console.error('[forest GAS] 시트 POST 실패:', gasErrorMessage || gasErr);
                     } catch (_) {
                         /* ignore */
                     }
@@ -8286,7 +8345,7 @@
                 } catch (_) {
                     /* ignore */
                 }
-                return { ok: true, gasFailed: gasNetworkFailed };
+                return { ok: true, gasFailed: gasNetworkFailed, gasErrorMessage: gasErrorMessage };
             })()
                 .catch(function (err) {
                     const msg = err && err.message ? String(err.message) : '네트워크 오류';
@@ -10008,15 +10067,13 @@
                     }
                     UI.render();
                     requestAnimationFrame(function () {
-                        try {
-                            MS.showForestTransmitErrorModal(
-                                '구글 시트 전송에 실패했습니다.',
-                                err && err.message ? String(err.message) : '네트워크 오류'
-                            );
-                        } catch (_) {
-                            /* ignore */
-                        }
-                        MS.scrollToForestReportExports();
+                        requestAnimationFrame(function () {
+                            MS.showPostSubmitChoiceModal({
+                                gasFailed: true,
+                                gasErrorMessage: err && err.message ? String(err.message) : '네트워크 오류',
+                                submitHardFail: true
+                            });
+                        });
                     });
                     return;
                 }
@@ -10052,11 +10109,7 @@
                     /* ignore */
                 }
                 UI.render();
-                requestAnimationFrame(function () {
-                    requestAnimationFrame(function () {
-                        MS.showPostSubmitGuidanceModal({ gasFailed: !!r.gasFailed });
-                    });
-                });
+                MS.afterForestSheetTransmitUi(r);
             })();
         },
         toggleReportJsonDataMenu(ev) {
