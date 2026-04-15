@@ -1151,8 +1151,18 @@
         }
     }
 
+    /** 평생교육원 랜딩(동일 origin 루트). forest.html 이 서브경로여도 상위 도메인 홈으로 이동 */
+    function getForestLifelongHomeUrl() {
+        try {
+            return String(location.origin || '').replace(/\/$/, '') + '/';
+        } catch (_) {
+            return 'https://mindstory.kr/';
+        }
+    }
+
     /**
      * GAS 시트 웹훅 POST — 동일 출처 /api/forest-gas-webhook → Worker → GAS (모바일·CORS 안정).
+     * 본문은 JSON.stringify 문자열, Content-Type 은 text/plain (GAS doPost 호환).
      * 디버그 시에만 직접 script.google.com URL 로 CORS 확인.
      * @returns {Promise<void>} 네트워크 실패 시 reject
      */
@@ -1217,7 +1227,7 @@
                 mode: 'cors',
                 cache: 'no-store',
                 credentials: 'omit',
-                headers: { 'Content-Type': 'application/json;charset=utf-8' },
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: body
             }).then(async function (r) {
                 try {
@@ -1262,7 +1272,7 @@
                 mode: 'same-origin',
                 cache: 'no-store',
                 credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json;charset=utf-8' },
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: body
             })
                 .then(async function (r) {
@@ -6071,27 +6081,163 @@
             }, 50);
         },
         /**
-         * 결과 보고서가 화면에 그려진 뒤, 시트 전송 결과만 안내(평생교육원·LMS 호출 없음).
-         * @param {{ ok: boolean, gasFailed?: boolean }} r
+         * 제출 직후(시트 성공 또는 기기 백업 완료) — 다음 단계 선택 모달.
+         * @param {{ gasFailed?: boolean }} [opt]
          */
-        afterForestSheetTransmitUi(r) {
-            if (!r || !r.ok) return;
-            requestAnimationFrame(function () {
-                requestAnimationFrame(function () {
-                    if (r.gasFailed) {
-                        MS.showForestGasSheetGraceModal();
-                    } else {
-                        try {
-                            if (typeof MS.showForestToast === 'function') {
-                                MS.showForestToast('구글 시트로 안전하게 전송되었습니다.', 2800);
-                            }
-                        } catch (_) {
-                            /* ignore */
-                        }
-                        MS.scrollToForestReportExports();
+        showPostSubmitGuidanceModal(opt) {
+            const o = opt && typeof opt === 'object' ? opt : {};
+            const gasFailed = !!o.gasFailed;
+            const root = document.getElementById('ms-modal-root');
+            if (!root) return;
+            const backupNote = gasFailed
+                ? '<p class="text-xs text-amber-900/90 text-left leading-relaxed rounded-xl border border-amber-200/90 bg-amber-50/95 px-3 py-2.5 mb-4">구글 시트 전송이 일시적으로 지연되어 기기에 안전하게 백업되었습니다. 나중에 「동기화」로 다시 보낼 수 있어요.</p>'
+                : '';
+            root.className =
+                'print-hidden fixed inset-0 z-[200] flex items-center justify-center p-4';
+            root.innerHTML = `
+                <div class="absolute inset-0 bg-black/50" aria-hidden="true"></div>
+                <div class="relative w-full max-w-md rounded-[2rem] bg-[#FDFBF7] shadow-2xl border-2 border-[#2D4A3E]/18 p-6 md:p-8 text-left" onclick="event.stopPropagation()" role="dialog" aria-modal="true" aria-labelledby="ms-post-submit-title">
+                    <div class="text-center mb-3">
+                        <div class="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-800 text-lg font-black ring-2 ring-emerald-300/50" aria-hidden="true">✓</div>
+                        <h2 id="ms-post-submit-title" class="text-lg md:text-xl font-black text-[#2D4A3E] leading-snug">검사가 성공적으로 제출되었습니다!</h2>
+                    </div>
+                    <p class="text-sm text-ms-body leading-relaxed mb-5 text-center">
+                        제출된 내용은 관리자 시스템에 기록되었습니다. 다음 단계를 선택해 주세요.
+                    </p>
+                    ${backupNote}
+                    <div class="flex flex-col gap-2.5">
+                        <button type="button" class="ms-btn w-full rounded-2xl bg-[#2D4A3E] text-white font-black py-3.5 text-sm shadow-lg hover:brightness-[0.97] active:scale-[0.99] transition-all"
+                            onclick="MS.postSubmitGuidanceViewReport()">결과 보고서 보기</button>
+                        <button type="button" class="ms-btn w-full rounded-2xl border-2 border-[#2D4A3E]/35 bg-white text-[#2D4A3E] font-black py-3.5 text-sm shadow-sm hover:bg-[rgba(45,74,62,0.06)]"
+                            onclick="MS.postSubmitGuidanceNewExam()">새로운 검사 시작</button>
+                        <button type="button" class="ms-btn w-full rounded-2xl border border-slate-300/90 bg-slate-100/95 text-slate-700 font-bold py-3.5 text-sm hover:bg-slate-200/90"
+                            onclick="MS.postSubmitGuidanceGoLifelongHome()">홈으로 이동</button>
+                    </div>
+                </div>
+            `;
+            document.body.style.overflow = 'hidden';
+        },
+        postSubmitGuidanceViewReport() {
+            MS.closeForestModal();
+            setTimeout(function () {
+                MS.scrollToForestReportExports({ attempt: 0 });
+            }, 50);
+        },
+        postSubmitGuidanceNewExam() {
+            MS.closeForestModal();
+            MS.resetForestProgressForNewExam();
+        },
+        postSubmitGuidanceGoLifelongHome() {
+            MS.closeForestModal();
+            try {
+                const u = typeof getForestLifelongHomeUrl === 'function' ? getForestLifelongHomeUrl() : '/';
+                location.assign(u);
+            } catch (_) {
+                try {
+                    location.href = '/';
+                } catch (_) {
+                    /* ignore */
+                }
+            }
+        },
+        /**
+         * 로컬 검사 진행 데이터 초기화 후 검사 설정(첫 단계)으로 — 새로고침 없음.
+         */
+        resetForestProgressForNewExam() {
+            try {
+                STATE.reportDeepLink = false;
+                STATE.isPreviewSample = false;
+                STATE.institutions = [];
+                STATE.selectedId = null;
+                STATE.selectedGroupName = '';
+                STATE.searchTerm = '';
+                STATE.setupObsPhase = '';
+                STATE.setupTypeOverride = null;
+                STATE.observationStage = 'pre';
+                STATE.obsLocation = 'forest';
+                STATE.targetGroup = 'preschool';
+                STATE.step = 'setup';
+                try {
+                    MS._instDropdownAll = false;
+                } catch (_) {
+                    /* ignore */
+                }
+                try {
+                    localStorage.setItem(LS_OBSERVATION_STAGE, 'pre');
+                    localStorage.setItem(LS_OBS_LOCATION, 'forest');
+                } catch (_) {
+                    /* ignore */
+                }
+                STATE.toastMessage = null;
+                if (STATE._toastTimer) {
+                    try {
+                        clearTimeout(STATE._toastTimer);
+                    } catch (_) {
+                        /* ignore */
                     }
-                });
-            });
+                    STATE._toastTimer = null;
+                }
+                try {
+                    localStorage.removeItem(LS_FOREST_LAST_RESULT_REF);
+                } catch (_) {
+                    /* ignore */
+                }
+                try {
+                    const keys = Object.keys(localStorage);
+                    let i;
+                    for (i = 0; i < keys.length; i++) {
+                        const k = keys[i];
+                        if (k.indexOf(LS_FOREST_REPORT_PREFIX) === 0) {
+                            try {
+                                localStorage.removeItem(k);
+                            } catch (_) {
+                                /* ignore */
+                            }
+                        }
+                    }
+                } catch (_) {
+                    /* ignore */
+                }
+                try {
+                    localStorage.removeItem('ms_forest_gas_backup');
+                } catch (_) {
+                    /* ignore */
+                }
+                try {
+                    localStorage.removeItem('jtt_backup');
+                } catch (_) {
+                    /* ignore */
+                }
+                try {
+                    if (typeof sessionStorage !== 'undefined') {
+                        const sk = Object.keys(sessionStorage);
+                        sk.forEach(function (k) {
+                            if (k.indexOf('ms_forest_submitted:') === 0) {
+                                try {
+                                    sessionStorage.removeItem(k);
+                                } catch (_) {
+                                    /* ignore */
+                                }
+                            }
+                        });
+                    }
+                } catch (_) {
+                    /* ignore */
+                }
+                STATE.persist();
+            } catch (e) {
+                try {
+                    console.error('[forest] resetForestProgressForNewExam', e);
+                } catch (_) {
+                    /* ignore */
+                }
+            }
+            try {
+                window.scrollTo(0, 0);
+            } catch (_) {
+                /* ignore */
+            }
+            UI.render();
         },
         /** 구글 시트 전송 실패 시 로컬 백업 안내 — LMS·서버 저장 문구 없음 */
         showForestGasSheetGraceModal() {
@@ -6411,21 +6557,23 @@
             requestAnimationFrame(() => {
                 void MS.submitForestGroupResult()
                     .then(function (r) {
-                        if (r && r.ok && STATE.step === 'result') {
-                            MS.afterForestSheetTransmitUi(r);
+                        if (r && r.ok && STATE.step === 'result' && !r.gasFailed) {
+                            try {
+                                if (typeof MS.showForestToast === 'function') {
+                                    MS.showForestToast('구글 시트로 동기화되었습니다.', 2600);
+                                }
+                            } catch (_) {
+                                /* ignore */
+                            }
                         }
                     })
                     .catch(function (err) {
                         if (STATE.step === 'result') {
                             try {
-                                MS.showForestTransmitErrorModal(
-                                    '구글 시트 전송에 실패했습니다.',
-                                    err && err.message ? String(err.message) : '네트워크 오류'
-                                );
+                                console.warn('[forest GAS] background submit', err && err.message ? err.message : err);
                             } catch (_) {
                                 /* ignore */
                             }
-                            MS.scrollToForestReportExports();
                         }
                     });
             });
@@ -8104,7 +8252,7 @@
 
             MS.syncForestTransmitRequestIds(inst, sheetPayload);
 
-            /** 구글 시트(GAS)만 전송 — UI는 afterForestSheetTransmitUi(결과 화면 렌더 후) */
+            /** 구글 시트(GAS)만 전송 — UI는 goResult → showPostSubmitGuidanceModal(결과 화면 렌더 후) */
             return (async function () {
                 let gasNetworkFailed = false;
                 try {
@@ -9904,7 +10052,11 @@
                     /* ignore */
                 }
                 UI.render();
-                MS.afterForestSheetTransmitUi(r);
+                requestAnimationFrame(function () {
+                    requestAnimationFrame(function () {
+                        MS.showPostSubmitGuidanceModal({ gasFailed: !!r.gasFailed });
+                    });
+                });
             })();
         },
         toggleReportJsonDataMenu(ev) {

@@ -2,7 +2,7 @@
  * POST /api/forest-gas-webhook
  * 브라우저 → 동일 출처 → Worker → Google Apps Script doPost (본문 JSON)
  * (forest.html 이 script.google.com 에 직접 POST 하면 opaque·차단으로 실패하는 경우가 있어 프록시)
- * Upstream: POST with Content-Type application/json; fetch uses redirect: 'follow' (GAS /exec 302 대응).
+ * Upstream: POST body = JSON 문자열, Content-Type text/plain (GAS doPost 호환); redirect: 'follow' (302 대응).
  * FOREST_GAS_WEBHOOK_URL: Pages Secret 권장. 미설정 시 v51 웹앱 /exec 폴백.
  */
 
@@ -53,7 +53,7 @@ forestGasWebhook.post('/', async (c) => {
       redirect: 'follow',
       cache: 'no-store',
       headers: {
-        'Content-Type': 'application/json;charset=utf-8',
+        'Content-Type': 'text/plain;charset=utf-8',
         Accept: 'application/json,text/plain,*/*',
       },
       body: raw,
