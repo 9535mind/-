@@ -1058,7 +1058,7 @@
      * GAS 웹앱 /exec URL — 로컬·디버그용. 운영 POST 는 Worker 의 FOREST_GAS_WEBHOOK_URL(Pages Secrets 등)을 씁니다.
      * 시트 POST 는 동일 출처 POST /api/forest-gas-webhook → Worker→GAS (클라이언트가 이 상수를 직접 호출하지 않음).
      * GAS doPost: JSON.parse(e.postData.contents), 응답은 JSON MIME 권장. 배포 액세스: 모든 사용자.
-     * 배포 버전(v52 등) 변경 시: 이 URL과 Cloudflare 의 FOREST_GAS_WEBHOOK_URL 을 동일한 /exec 로 맞출 것.
+     * 배포 버전(v54 등) 변경 시: 이 URL과 Cloudflare 의 FOREST_GAS_WEBHOOK_URL 을 동일한 /exec 로 맞출 것.
      */
     const FOREST_SHEETS_WEBHOOK_URL =
         'https://script.google.com/macros/s/AKfycbzIhdMS_0n2djgQaAaJqJm21dfl47bKPkhTK-7HylErEn9KQ8fnJ7kJAyTtIL_wJGtX/exec';

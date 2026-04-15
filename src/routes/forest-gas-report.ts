@@ -2,7 +2,7 @@
  * GET /api/forest-gas-report?id=REQUEST_ID
  * 브라우저 → Worker → Google Apps Script doGet (?view=report&id=)
  * 본인 소유(request_id → user_id) 또는 관리자만 GAS 프록시 허용.
- * FOREST_GAS_WEBHOOK_URL: Pages Secret 권장. 미설정 시 v52 웹앱 /exec 폴백 (forest-gas-webhook.ts 와 동일).
+ * FOREST_GAS_WEBHOOK_URL: Pages Secret 권장. 미설정 시 v54 웹앱 /exec 폴백 (forest-gas-webhook.ts 와 동일).
  */
 
 import { Hono } from 'hono'
@@ -10,7 +10,7 @@ import type { Bindings } from '../types/database'
 import { getCurrentUser } from '../utils/helpers'
 import { isForestAdminRole } from '../utils/forest-admin'
 
-/** v52 GAS 웹앱 — Secret 미바인딩 시 GET upstream 폴백 (public/forest.html FOREST_SHEETS_WEBHOOK_URL 과 동일) */
+/** v54 GAS 웹앱 — Secret 미바인딩 시 GET upstream 폴백 (public/forest.html FOREST_SHEETS_WEBHOOK_URL 과 동일) */
 const FOREST_GAS_WEBHOOK_URL_FALLBACK =
   'https://script.google.com/macros/s/AKfycbzIhdMS_0n2djgQaAaJqJm21dfl47bKPkhTK-7HylErEn9KQ8fnJ7kJAyTtIL_wJGtX/exec'
 
