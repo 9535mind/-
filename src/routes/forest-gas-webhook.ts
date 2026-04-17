@@ -3,7 +3,7 @@
  * 브라우저 → 동일 출처 → Worker → Google Apps Script doPost (본문 JSON)
  * (forest.html 이 script.google.com 에 직접 POST 하면 opaque·차단으로 실패하는 경우가 있어 프록시)
  * Upstream: POST body = JSON 문자열, Content-Type application/json (GAS doPost·JSON.parse 와 정합); redirect: 'follow'.
- * FOREST_GAS_WEBHOOK_URL: Pages Secret 권장. 미설정 시 v54 웹앱 /exec 폴백.
+ * FOREST_GAS_WEBHOOK_URL: Pages Secret 권장. 미설정 시 GAS 웹앱 /exec 폴백.
  */
 
 import { Hono } from 'hono'
@@ -11,9 +11,9 @@ import type { Bindings } from '../types/database'
 
 const MAX_BODY = 2_000_000
 
-/** v54 GAS 웹앱 — Secret 미바인딩 시 프록시 upstream 폴백 (public/forest.html FOREST_SHEETS_WEBHOOK_URL 과 동일) */
+/** GAS 웹앱 — Secret 미바인딩 시 프록시 upstream 폴백 (public/forest.html FOREST_SHEETS_WEBHOOK_URL 과 동일) */
 const FOREST_GAS_WEBHOOK_URL_FALLBACK =
-  'https://script.google.com/macros/s/AKfycbzIhdMS_0n2djgQaAaJqJm21dfl47bKPkhTK-7HylErEn9KQ8fnJ7kJAyTtIL_wJGtX/exec'
+  'https://script.google.com/macros/s/AKfycbykAF9oeJuarWapeOYPPW_qtQ8svVvSb6N_Y1_U5MSpBVo679I6_pratwPVcbNnucq0/exec'
 
 const forestGasWebhook = new Hono<{ Bindings: Bindings }>()
 
