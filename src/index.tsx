@@ -57,6 +57,7 @@ import pagesBrandCatalog from './routes/pages-brand-catalog'
 import digitalBooks from './routes/digital-books'
 import forestResults from './routes/forest-results'
 import forestGasReport from './routes/forest-gas-report'
+import forestGasReportPublic from './routes/forest-gas-report-public'
 import forestGasWebhook from './routes/forest-gas-webhook'
 import youtubeProxy from './routes/youtube-proxy'
 import security from './routes/security'
@@ -182,6 +183,7 @@ app.use('/api/posts', generalRateLimiter)
 app.use('/api/upload', generalRateLimiter)
 app.use('/api/forest-results', generalRateLimiter)
 app.use('/api/forest-gas-report', generalRateLimiter)
+app.use('/api/forest-gas-report-public', generalRateLimiter)
 app.use('/api/forest-gas-webhook', generalRateLimiter)
 
 // 관대한 제한: 읽기 전용 API (1분에 200회)
@@ -235,7 +237,8 @@ app.route('/api/youtube', youtubeProxy)  // YouTube oEmbed 프록시 (CORS 해�
 app.route('/api/security', security)  // 보안 이벤트 로깅
 app.route('/api/digital-books', digitalBooks) // Next 디지털 도서·ISBN
 app.route('/api/forest-results', forestResults) // 유아숲 4군자 집단 결과(기관·반)
-app.route('/api/forest-gas-report', forestGasReport) // GAS 보고서 JSON 프록시(CORS 회피)
+app.route('/api/forest-gas-report', forestGasReport) // GAS 보고서 JSON 프록시(CORS 회피, 로그인·소유권)
+app.route('/api/forest-gas-report-public', forestGasReportPublic) // GAS 보고서 JSON — 로그인 불필요(시트 링크·관리자 열람)
 app.route('/api/forest-gas-webhook', forestGasWebhook) // GAS 시트 doPost 프록시(브라우저 직접 POST 실패 방지)
 
 // 구버전 북마크(정적 파일·.html 링크 → Clean URL)

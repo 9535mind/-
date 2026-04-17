@@ -260,6 +260,10 @@
             border: 0 !important;
         }
 
+        #ms-forest-submit-loading-overlay.hidden {
+            display: none !important;
+        }
+
         /* 결과 보고서: 학부모 전달용 — 여백·명조 느낌 타이포 */
         .ms-report-capture {
             text-align: left;
@@ -1180,15 +1184,6 @@
             .replace(/"/g, '&quot;')
             .replace(/</g, '&lt;')
             .replace(/'/g, '&#39;');
-    }
-
-    /** 평생교육원 랜딩(동일 origin 루트). forest.html 이 서브경로여도 상위 도메인 홈으로 이동 */
-    function getForestLifelongHomeUrl() {
-        try {
-            return String(location.origin || '').replace(/\/$/, '') + '/';
-        } catch (_) {
-            return 'https://mindstory.kr/';
-        }
     }
 
     /**
@@ -5291,6 +5286,10 @@
         _modalInstDropdownAll: false,
         /** 결과 화면에서 GAS 전송 중복 호출 방지 */
         _forestGasSubmitInFlight: false,
+        /** goResult 제출 UI(버튼·오버레이) 중복 방지 */
+        _goResultSubmitUiActive: false,
+        /** 제출 버튼 로딩 전 원래 라벨 */
+        _forestSubmitBtnPrevLabel: null,
         /** 드롭다운 키보드(↑↓) 하이라이트 인덱스 */
         _instDropdownActiveIndex: -1,
         /** 한글 IME 조합 중: value 재대입·드롭다운 갱신·모달 전체 재렌더 지연 */
@@ -6304,12 +6303,11 @@
         postSubmitChoiceGoHome() {
             MS.closeForestModal();
             try {
-                const u = typeof getForestLifelongHomeUrl === 'function' ? getForestLifelongHomeUrl() : '/';
-                location.assign(u);
+                MS.goDashboard();
             } catch (_) {
                 try {
-                    location.href = '/';
-                } catch (_) {
+                    location.reload();
+                } catch (__) {
                     /* ignore */
                 }
             }
@@ -7126,7 +7124,7 @@
         },
 
         /**
-         * 동일 출처 Worker 프록시(/api/forest-gas-report) → GAS doGet.
+         * GAS doGet 보고서 스냅샷 — 1) 로그인 불필요 공개 프록시(시트 링크·다른 PC 관리자) 2) 로그인 시 소유권 프록시
          * @returns {{ snapshot: object|null, error: null|'forbidden' }}
          */
         fetchForestReportSnapshotById(rid) {
@@ -7142,43 +7140,67 @@
                 return null;
             }
 
-            const proxyUrl = '/api/forest-gas-report?id=' + encodeURIComponent(id);
-            return fetch(proxyUrl, { method: 'GET', mode: 'same-origin', cache: 'no-store', credentials: 'same-origin' })
+            function logDbg(label, r, raw) {
+                try {
+                    var dbgR =
+                        (typeof location !== 'undefined' &&
+                            /\bforest_report_debug=1\b/.test(String(location.search || ''))) ||
+                        (typeof localStorage !== 'undefined' &&
+                            localStorage.getItem('ms_forest_report_debug') === '1');
+                    if (dbgR) {
+                        console.info('[forest][' + label + ']', {
+                            id: id,
+                            status: r.status,
+                            ok: r.ok,
+                            rawLen: raw ? raw.length : 0,
+                            rawHead: raw ? String(raw).slice(0, 400) : ''
+                        });
+                    }
+                } catch (_) {
+                    /* ignore */
+                }
+            }
+
+            function parseGasProxyResponse(r, raw) {
+                if (r.status === 401) {
+                    return { snapshot: null, error: null };
+                }
+                if (r.status === 403) {
+                    return { snapshot: null, error: 'forbidden' };
+                }
+                if (!raw || !String(raw).trim()) return { snapshot: null, error: null };
+                let j = null;
+                try {
+                    j = JSON.parse(raw);
+                } catch (_) {
+                    return { snapshot: null, error: null };
+                }
+                if (!r.ok) return { snapshot: null, error: null };
+                return { snapshot: parseSnapshotJson(j), error: null };
+            }
+
+            const publicUrl = '/api/forest-gas-report-public?id=' + encodeURIComponent(id);
+            const authUrl = '/api/forest-gas-report?id=' + encodeURIComponent(id);
+            const fetchOpts = {
+                method: 'GET',
+                mode: 'same-origin',
+                cache: 'no-store',
+                credentials: 'same-origin'
+            };
+
+            return fetch(publicUrl, fetchOpts)
                 .then(function (r) {
                     return r.text().then(function (raw) {
-                        try {
-                            var dbgR =
-                                (typeof location !== 'undefined' &&
-                                    /\bforest_report_debug=1\b/.test(String(location.search || ''))) ||
-                                (typeof localStorage !== 'undefined' &&
-                                    localStorage.getItem('ms_forest_report_debug') === '1');
-                            if (dbgR) {
-                                console.info('[forest][forest-gas-report]', {
-                                    id: id,
-                                    status: r.status,
-                                    ok: r.ok,
-                                    rawLen: raw ? raw.length : 0,
-                                    rawHead: raw ? String(raw).slice(0, 400) : ''
-                                });
-                            }
-                        } catch (_) {
-                            /* ignore */
-                        }
-                        if (r.status === 401) {
-                            return { snapshot: null, error: null };
-                        }
-                        if (r.status === 403) {
-                            return { snapshot: null, error: 'forbidden' };
-                        }
-                        if (!raw || !String(raw).trim()) return { snapshot: null, error: null };
-                        let j = null;
-                        try {
-                            j = JSON.parse(raw);
-                        } catch (_) {
-                            return { snapshot: null, error: null };
-                        }
-                        if (!r.ok) return { snapshot: null, error: null };
-                        return { snapshot: parseSnapshotJson(j), error: null };
+                        logDbg('forest-gas-report-public', r, raw);
+                        const out = parseGasProxyResponse(r, raw);
+                        if (out.snapshot) return out;
+                        if (out.error === 'forbidden') return out;
+                        return fetch(authUrl, fetchOpts).then(function (r2) {
+                            return r2.text().then(function (raw2) {
+                                logDbg('forest-gas-report', r2, raw2);
+                                return parseGasProxyResponse(r2, raw2);
+                            });
+                        });
                     });
                 })
                 .catch(function () {
@@ -7265,8 +7287,9 @@
                     try {
                         alert(
                             '이 링크에 해당하는 보고서 데이터를 찾을 수 없습니다.\n\n' +
-                                '· 이 기기의 로컬 저장소에 해당 requestId가 있는지 확인하세요.\n' +
-                                '· 구글 시트(GAS) 연동이 설정된 경우 관리자에게 문의하세요.\n\n' +
+                                '· 시트 「리포트 링크」가 구글 드라이브 PDF 주소인 경우, 그 링크를 눌러 PDF를 여세요.\n' +
+                                '· 웹 보고서(mindstory 링크)는 구글 시트에 저장된 데이터로 복원됩니다. GAS 웹앱·시트 연동을 확인하세요.\n' +
+                                '· 검사를 제출한 기기에만 로컬 저장이 있을 수 있습니다.\n\n' +
                                 'requestId: ' +
                                 rid
                         );
@@ -10357,6 +10380,69 @@
                 }
             }
         },
+        beginForestSubmitLoadingUI() {
+            const btn = document.getElementById('ms-input-submit-btn');
+            if (btn) {
+                MS._forestSubmitBtnPrevLabel = btn.textContent;
+                btn.disabled = true;
+                btn.classList.add('opacity-90', 'cursor-wait');
+                btn.textContent = '결과를 저장하고 있습니다…';
+                btn.setAttribute('aria-busy', 'true');
+            }
+            let ov = document.getElementById('ms-forest-submit-loading-overlay');
+            if (!ov) {
+                ov = document.createElement('div');
+                ov.id = 'ms-forest-submit-loading-overlay';
+                ov.setAttribute('role', 'alertdialog');
+                ov.setAttribute('aria-modal', 'true');
+                ov.setAttribute('aria-labelledby', 'ms-forest-submit-loading-title');
+                ov.className =
+                    'fixed inset-0 z-[300] flex items-center justify-center bg-black/40 p-4 backdrop-blur-[2px]';
+                ov.innerHTML =
+                    '<div class="ms-card max-w-sm rounded-[1.75rem] border-2 border-[#2D4A3E]/20 bg-[#FDFBF7] px-8 py-8 shadow-2xl text-center">' +
+                    '<div class="mx-auto mb-4 h-12 w-12 rounded-full border-4 border-[#2D4A3E]/20 border-t-[#2D4A3E] animate-spin" aria-hidden="true"></div>' +
+                    '<p id="ms-forest-submit-loading-title" class="text-base font-black text-[#2D4A3E] mb-1">잠시만 기다려 주세요</p>' +
+                    '<p class="text-sm text-ms-muted leading-relaxed">구글 시트에 결과를 저장하고 있습니다.</p>' +
+                    '</div>';
+                document.body.appendChild(ov);
+            } else {
+                ov.classList.remove('hidden');
+            }
+            try {
+                document.body.style.overflow = 'hidden';
+            } catch (_) {
+                /* ignore */
+            }
+        },
+
+        endForestSubmitLoadingUI() {
+            const btn = document.getElementById('ms-input-submit-btn');
+            if (btn) {
+                btn.disabled = false;
+                btn.classList.remove('opacity-90', 'cursor-wait');
+                if (MS._forestSubmitBtnPrevLabel != null && String(MS._forestSubmitBtnPrevLabel).trim() !== '') {
+                    btn.textContent = MS._forestSubmitBtnPrevLabel;
+                } else {
+                    btn.textContent = '검사 완료 및 전송';
+                }
+                MS._forestSubmitBtnPrevLabel = null;
+                btn.removeAttribute('aria-busy');
+            }
+            const ov = document.getElementById('ms-forest-submit-loading-overlay');
+            if (ov && ov.parentNode) {
+                try {
+                    ov.parentNode.removeChild(ov);
+                } catch (_) {
+                    /* ignore */
+                }
+            }
+            try {
+                document.body.style.overflow = '';
+            } catch (_) {
+                /* ignore */
+            }
+        },
+
         goResult() {
             const inst = STATE.selected();
             if (!inst || !UI.allInputQuestionsFilled(inst)) {
@@ -10372,16 +10458,65 @@
                 alert('인원을 확인해 주세요.');
                 return;
             }
+            if (MS._goResultSubmitUiActive) {
+                return;
+            }
+            MS._goResultSubmitUiActive = true;
             STATE.touchSelected();
+            MS.beginForestSubmitLoadingUI();
             void (async function () {
-                let r;
                 try {
-                    r = await MS.submitForestGroupResult();
-                } catch (err) {
+                    let r;
                     try {
-                        console.error('[forest] goResult 전송', err);
-                    } catch (_) {
-                        /* ignore */
+                        r = await MS.submitForestGroupResult();
+                    } catch (err) {
+                        try {
+                            console.error('[forest] goResult 전송', err);
+                        } catch (_) {
+                            /* ignore */
+                        }
+                        STATE.step = 'result';
+                        STATE.persist();
+                        try {
+                            localStorage.setItem(
+                                LS_FOREST_LAST_RESULT_REF,
+                                JSON.stringify({ id: inst.id, updatedAt: String(inst.updatedAt || '') })
+                            );
+                        } catch (_) {
+                            /* ignore */
+                        }
+                        UI.render();
+                        requestAnimationFrame(function () {
+                            requestAnimationFrame(function () {
+                                MS.showPostSubmitChoiceModal({
+                                    gasFailed: true,
+                                    gasErrorMessage: err && err.message ? String(err.message) : '네트워크 오류',
+                                    submitHardFail: true
+                                });
+                            });
+                        });
+                        return;
+                    }
+                    if (!r || !r.ok) {
+                        try {
+                            const sk = 'ms_forest_submitted:' + inst.id + ':' + String(inst.updatedAt || '');
+                            if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(sk)) {
+                                STATE.step = 'result';
+                                STATE.persist();
+                                try {
+                                    localStorage.setItem(
+                                        LS_FOREST_LAST_RESULT_REF,
+                                        JSON.stringify({ id: inst.id, updatedAt: String(inst.updatedAt || '') })
+                                    );
+                                } catch (_) {
+                                    /* ignore */
+                                }
+                                UI.render();
+                            }
+                        } catch (_) {
+                            /* ignore */
+                        }
+                        return;
                     }
                     STATE.step = 'result';
                     STATE.persist();
@@ -10394,50 +10529,15 @@
                         /* ignore */
                     }
                     UI.render();
-                    requestAnimationFrame(function () {
-                        requestAnimationFrame(function () {
-                            MS.showPostSubmitChoiceModal({
-                                gasFailed: true,
-                                gasErrorMessage: err && err.message ? String(err.message) : '네트워크 오류',
-                                submitHardFail: true
-                            });
-                        });
-                    });
-                    return;
-                }
-                if (!r || !r.ok) {
+                    MS.afterForestSheetTransmitUi(r);
+                } finally {
                     try {
-                        const sk = 'ms_forest_submitted:' + inst.id + ':' + String(inst.updatedAt || '');
-                        if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(sk)) {
-                            STATE.step = 'result';
-                            STATE.persist();
-                            try {
-                                localStorage.setItem(
-                                    LS_FOREST_LAST_RESULT_REF,
-                                    JSON.stringify({ id: inst.id, updatedAt: String(inst.updatedAt || '') })
-                                );
-                            } catch (_) {
-                                /* ignore */
-                            }
-                            UI.render();
-                        }
+                        MS.endForestSubmitLoadingUI();
                     } catch (_) {
                         /* ignore */
                     }
-                    return;
+                    MS._goResultSubmitUiActive = false;
                 }
-                STATE.step = 'result';
-                STATE.persist();
-                try {
-                    localStorage.setItem(
-                        LS_FOREST_LAST_RESULT_REF,
-                        JSON.stringify({ id: inst.id, updatedAt: String(inst.updatedAt || '') })
-                    );
-                } catch (_) {
-                    /* ignore */
-                }
-                UI.render();
-                MS.afterForestSheetTransmitUi(r);
             })();
         },
         toggleReportJsonDataMenu(ev) {
