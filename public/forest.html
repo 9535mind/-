@@ -5410,10 +5410,8 @@
             introVideo.preload = 'auto';
 
             const defaultUrl = normalizeForestVideoUrl(DEFAULT_FOREST_DASH_VIDEO);
-            const relayFileNames = [
-                'KakaoTalk_20240501_163910442.mp4',
-                'KakaoTalk_20240501_172743992.mp4'
-            ];
+            /** 저장소에 포함된 에셋만 기본 릴레이 (없는 KakaoTalk 파일 프로브 → 콘솔 404 다발 방지) */
+            const relayFileNames = ['forest_intro.mp4', 'forest_test.mp4'];
 
             function candidateUrlsForFile(name) {
                 try {
