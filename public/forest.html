@@ -251,7 +251,7 @@
             line-height: 1.28;
         }
 
-        /* 검사 입력: 마지막 문항 완료 전까지 완료 버튼 래퍼를 레이아웃에서 제거 */
+        /* 검사 입력: 숨김은 .hidden 토글로만 사용 (문항이 있으면 완료·이름 영역 항상 표시) */
         #ms-input-submit-wrap.hidden {
             display: none !important;
             margin: 0 !important;
@@ -4509,7 +4509,8 @@
                 this.allInputQuestionsFilled(inst) &&
                 (typeof MS !== 'undefined' && MS.forestRespondentTotalsOk(inst)) &&
                 userNameDone;
-            const showSubmitArea = this.lastQuestionRowComplete(inst);
+            /** 마지막 문항만 기준으로 숨기면 스크롤·입력 순서에 따라 버튼이 안 보이거나 멈춘 것처럼 보일 수 있음 */
+            const showSubmitArea = qs.length > 0;
 
             el.innerHTML = `
                 <div class="max-w-lg mx-auto pt-1 flex flex-col min-h-0">
@@ -10451,11 +10452,15 @@
             if (STATE.step !== 'input') return;
             const inst = STATE.selected();
             if (!inst) return;
-            const lastDone = UI.lastQuestionRowComplete(inst);
             const wrap = document.getElementById('ms-input-submit-wrap');
             if (wrap) {
-                wrap.classList.toggle('hidden', !lastDone);
-                wrap.setAttribute('aria-hidden', lastDone ? 'false' : 'true');
+                wrap.classList.remove('hidden');
+                wrap.setAttribute('aria-hidden', 'false');
+            }
+            const nameWrap = document.getElementById('ms-forest-user-name-wrap');
+            if (nameWrap) {
+                nameWrap.classList.remove('hidden');
+                nameWrap.setAttribute('aria-hidden', 'false');
             }
             const btn = document.getElementById('ms-input-submit-btn');
             if (!btn) return;
@@ -10464,11 +10469,29 @@
                 unEl && String(unEl.value || '').trim().length > 0
                     ? true
                     : String(inst.userName || '').trim().length > 0;
-            const ok = UI.allInputQuestionsFilled(inst) && MS.forestRespondentTotalsOk(inst) && userNameOk;
+            const allFilled = UI.allInputQuestionsFilled(inst);
+            const totalsOk = MS.forestRespondentTotalsOk(inst);
+            const ok = allFilled && totalsOk && userNameOk;
             btn.disabled = !ok;
             btn.classList.toggle('opacity-45', !ok);
             btn.classList.toggle('cursor-not-allowed', !ok);
             btn.setAttribute('aria-disabled', ok ? 'false' : 'true');
+            const tg = MS.resolveForestTargetGroup(inst);
+            const triSq = tg === 'preschool' || tg === 'elementary';
+            if (!ok) {
+                if (!allFilled) {
+                    btn.title = triSq
+                        ? '모든 문항에 △·□ 인원을 입력해 주세요.'
+                        : '모든 문항에 O·X 인원을 입력해 주세요.';
+                } else if (!totalsOk) {
+                    btn.title =
+                        '문항마다 △+□(또는 O+X) 합이 모두 같아야 합니다. 빨간 안내 문구가 있는 줄을 맞춰 주세요.';
+                } else if (!userNameOk) {
+                    btn.title = '수검자 이름을 입력해 주세요.';
+                }
+            } else {
+                btn.removeAttribute('title');
+            }
         },
         /** Q1 기준 인원과 Q2~ 마지막 문항 합이 다를 때 문항별 경고 문구 */
         refreshParticipantInputWarnings() {
@@ -10543,7 +10566,6 @@
         endForestSubmitLoadingUI() {
             const btn = document.getElementById('ms-input-submit-btn');
             if (btn) {
-                btn.disabled = false;
                 btn.classList.remove('opacity-90', 'cursor-wait');
                 if (MS._forestSubmitBtnPrevLabel != null && String(MS._forestSubmitBtnPrevLabel).trim() !== '') {
                     btn.textContent = MS._forestSubmitBtnPrevLabel;
@@ -10565,6 +10587,9 @@
                 document.body.style.overflow = '';
             } catch (_) {
                 /* ignore */
+            }
+            if (STATE.step === 'input' && typeof MS.refreshInputSubmitButton === 'function') {
+                MS.refreshInputSubmitButton();
             }
         },
 
