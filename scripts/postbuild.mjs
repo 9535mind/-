@@ -117,7 +117,7 @@ if (existsSync(assetsDir)) {
 }
 
 writeFileSync(join(dist, '_routes.json'), JSON.stringify(ROUTES, null, 2) + '\n', 'utf8')
-console.log('✅ dist/_routes.json 작성 (forest.html·forest-question-banks.js 정적 exclude)')
+console.log('✅ dist/_routes.json 작성 (forest.html·/forest·forest-question-banks.js 정적 exclude)')
 
 const now = new Date()
 const builtAtISO = now.toISOString()
