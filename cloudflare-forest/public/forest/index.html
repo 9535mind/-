@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>forest — GAS 프록시 테스트</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 42rem;
+        margin: 2rem auto;
+        padding: 0 1rem;
+        line-height: 1.5;
+        color: #14532d;
+      }
+      code {
+        background: #f0fdf4;
+        padding: 0.15rem 0.35rem;
+        border-radius: 4px;
+      }
+      button {
+        margin-top: 0.75rem;
+        padding: 0.5rem 1rem;
+        cursor: pointer;
+      }
+      #out {
+        margin-top: 1rem;
+        white-space: pre-wrap;
+        font-size: 0.9rem;
+        background: #f8fafc;
+        padding: 1rem;
+        border-radius: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>forest</h1>
+    <p>
+      이 페이지는 Cloudflare Pages 정적 자산으로 제공됩니다. API는
+      <code>POST /api/forest-gas</code> 만 처리합니다. 브라우저에서 이 주소로 직접 GET 하면 JSON 안내만
+      반환합니다.
+    </p>
+    <p>
+      서버에서 <code>FOREST_GAS_WEBHOOK_URL</code> 이 비어 있으면 API는
+      <strong>503</strong> 과 설정 안내 JSON을 돌려줍니다. (500이면 Worker 예외이므로 대시보드 로그를 확인하세요.)
+    </p>
+
+    <h2>JSON POST 테스트</h2>
+    <button type="button" id="btnPing">POST {"ping":true} 보내기</button>
+    <div id="out" aria-live="polite"></div>
+
+    <script>
+      const out = document.getElementById("out");
+      document.getElementById("btnPing").addEventListener("click", async () => {
+        out.textContent = "요청 중…";
+        try {
+          const res = await fetch("/api/forest-gas", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Accept: "application/json" },
+            body: JSON.stringify({ ping: true }),
+          });
+          const text = await res.text();
+          out.textContent =
+            "HTTP " + res.status + "\n" + text.slice(0, 4000) + (text.length > 4000 ? "\n…" : "");
+        } catch (e) {
+          out.textContent = "네트워크 오류: " + (e && e.message ? e.message : String(e));
+        }
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,6 @@
+# Cloudflare Pages — 정적: ./public, Functions: ./functions
+# 배포: npm run deploy (프로젝트 이름은 대시보드와 맞출 것)
+# 로컬: npm run dev
+
+name = "mindstory-forest"
+compatibility_date = "2024-09-23"
