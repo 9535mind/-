@@ -20,6 +20,10 @@ node_modules/
 .env.production
 .dev.vars
 
+# GCP / Firebase 등 로컬 서비스 계정 (절대 커밋 금지)
+server/serviceAccount.json
+**/serviceAccount.json
+
 # logs
 logs/
 *.log
