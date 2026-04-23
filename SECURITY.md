@@ -21,7 +21,7 @@
 ```bash
 # .dev.vars 파일 생성 (이 파일은 Git에 커밋되지 않습니다)
 KAKAO_CLIENT_ID=your_kakao_client_id
-KAKAO_REDIRECT_URI=http://localhost:3000/api/auth/kakao/callback
+KAKAO_REDIRECT_URI=http://localhost:3000/auth/kakao/callback
 GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret
 GOOGLE_REDIRECT_URI=http://localhost:3000/api/auth/google/callback

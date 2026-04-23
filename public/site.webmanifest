@@ -1,12 +1,12 @@
 {
-  "name": "마인드스토리 원격평생교육원",
-  "short_name": "마인드스토리",
-  "description": "마인드스토리 온라인 학습 플랫폼",
-  "start_url": "/",
+  "name": "MS12",
+  "short_name": "MS12",
+  "description": "회의·협업",
+  "start_url": "/app",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#F9FAFB",
-  "theme_color": "#6366F1",
+  "background_color": "#F8FAFC",
+  "theme_color": "#4F46E5",
   "icons": [
     {
       "src": "/android-chrome-192x192.png",

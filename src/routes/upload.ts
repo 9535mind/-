@@ -15,8 +15,8 @@ const upload = new Hono<{ Bindings: Bindings }>()
 /**
  * 로컬 환경 확인 (Cloudflare R2 사용 불가능한 경우)
  */
-function isLocalEnvironment(c: any): boolean {
-  return !c.env.STORAGE && !c.env.VIDEO_STORAGE
+function isLocalEnvironment(c: { env: Bindings }): boolean {
+  return !c.env.R2
 }
 
 /**
@@ -190,9 +190,8 @@ upload.post('/video', requireAdmin, async (c) => {
  */
 upload.get('/storage/*', async (c) => {
   try {
-    const { STORAGE } = c.env
-    
-    if (!STORAGE) {
+    const bucket = c.env.R2
+    if (!bucket) {
       return c.notFound()
     }
 
@@ -200,7 +199,7 @@ upload.get('/storage/*', async (c) => {
     const path = c.req.path.replace('/api/storage/', '')
 
     // R2에서 파일 가져오기
-    const object = await STORAGE.get(path)
+    const object = await bucket.get(path)
 
     if (!object) {
       return c.notFound()
@@ -223,13 +222,12 @@ upload.get('/storage/*', async (c) => {
 
 /**
  * GET /api/storage/videos/:filename
- * R2 VIDEO_STORAGE에서 영상 파일 가져오기
+ * R2(c.env.R2)에서 영상 파일 가져오기
  */
 upload.get('/storage/videos/*', async (c) => {
   try {
-    const { VIDEO_STORAGE } = c.env
-    
-    if (!VIDEO_STORAGE) {
+    const bucket = c.env.R2
+    if (!bucket) {
       return c.notFound()
     }
 
@@ -239,7 +237,7 @@ upload.get('/storage/videos/*', async (c) => {
     console.log('[VIDEO STORAGE] Fetching:', path)
 
     // R2에서 파일 가져오기
-    const object = await VIDEO_STORAGE.get(path)
+    const object = await bucket.get(path)
 
     if (!object) {
       console.log('[VIDEO STORAGE] Not found:', path)
@@ -288,13 +286,12 @@ upload.get('/storage/videos/*', async (c) => {
 
 /**
  * DELETE /api/storage/videos/:path
- * R2 VIDEO_STORAGE에서 영상 파일 삭제 (관리자 전용)
+ * R2(c.env.R2)에서 영상 파일 삭제 (관리자 전용)
  */
 upload.delete('/storage/videos/*', requireAdmin, async (c) => {
   try {
-    const { VIDEO_STORAGE } = c.env
-    
-    if (!VIDEO_STORAGE) {
+    const bucket = c.env.R2
+    if (!bucket) {
       return c.json(errorResponse('영상 스토리지가 설정되지 않았습니다.'), 500)
     }
 
@@ -304,7 +301,7 @@ upload.delete('/storage/videos/*', requireAdmin, async (c) => {
     console.log('[VIDEO DELETE] Deleting:', path)
 
     // R2에서 파일 존재 확인
-    const object = await VIDEO_STORAGE.get(path)
+    const object = await bucket.get(path)
     
     if (!object) {
       console.log('[VIDEO DELETE] Not found:', path)
@@ -312,7 +309,7 @@ upload.delete('/storage/videos/*', requireAdmin, async (c) => {
     }
 
     // R2에서 파일 삭제
-    await VIDEO_STORAGE.delete(path)
+    await bucket.delete(path)
     
     console.log('[VIDEO DELETE] Deleted successfully:', path)
 

@@ -73,16 +73,16 @@ app.get('/courses/classic', async (c) => {
     await shell(
       c,
       'MINDSTORY Classic',
-      'theme-classic bg-classic-cream',
+      'theme-legacy bg-mst-surface',
       `
   <main class="max-w-7xl mx-auto px-4 py-12">
     <div class="mb-10 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
       <div>
-        <span class="text-classic-sage font-semibold text-sm tracking-widest uppercase">Heritage</span>
-        <h1 class="text-3xl md:text-4xl font-bold text-classic-forest mt-2 tracking-tight">Classic 강좌</h1>
-        <p class="text-classic-forest/80 mt-2 max-w-2xl leading-relaxed">본질의 깊이 — 상담·진로·학습의 기록이 쌓이는 차분한 여정입니다.</p>
+        <span class="text-mst-accent font-semibold text-sm tracking-widest uppercase">Heritage</span>
+        <h1 class="text-3xl md:text-4xl font-bold text-mst-navy mt-2 tracking-tight">Classic 강좌</h1>
+        <p class="text-slate-600 mt-2 max-w-2xl leading-relaxed">본질의 깊이 — 상담·진로·학습의 기록이 쌓이는 차분한 여정입니다.</p>
       </div>
-      <div class="rounded-xl bg-white border border-classic-sage/25 px-4 py-2 text-xs text-classic-forest/70 shadow-sm shrink-0">헤리티지 모드 · 세이지 포인트</div>
+      <div class="rounded-xl bg-white border border-mst-line px-4 py-2 text-xs text-slate-600 shadow-sm shrink-0">헤리티지 모드 · 딥 네이비 액센트</div>
     </div>
     <div id="gridClassic" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
     <script>
@@ -96,7 +96,7 @@ app.get('/courses/classic', async (c) => {
         }
         function msLineBadgesClassic(cg) {
           return msLineTokens(cg).map(function (k) {
-            var cls = k === 'NEXT' ? 'bg-violet-100 text-violet-800' : k === 'NCS' ? 'bg-amber-100 text-amber-900' : 'bg-classic-sage/20 text-classic-forest'
+            var cls = k === 'NEXT' ? 'bg-violet-100 text-violet-800' : k === 'NCS' ? 'bg-amber-100 text-amber-900' : 'bg-slate-200/90 text-mst-navy'
             var lab = k === 'CLASSIC' ? 'Classic' : k === 'NEXT' ? 'Next' : 'NCS'
             return '<span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ' + cls + '">' + lab + '</span>'
           }).join(' ')
@@ -112,12 +112,12 @@ app.get('/courses/classic', async (c) => {
           var res = await axios.get('/api/courses?category_group=CLASSIC')
           var list = res.data.data || []
           var el = document.getElementById('gridClassic')
-          if (!list.length) { el.innerHTML = '<p class="text-classic-forest/70">등록된 Classic 강좌가 없습니다.</p>'; return }
+          if (!list.length) { el.innerHTML = '<p class="text-slate-500">등록된 Classic 강좌가 없습니다.</p>'; return }
           el.innerHTML = list.map(function(course) {
             var pencil = msAdmin
               ? '<a href="/admin/course/edit/' + course.id + '" class="admin-magic-pencil shrink-0 mt-0.5" title="관리자 수정" aria-label="강좌 수정"><i class="fas fa-pencil-alt" aria-hidden="true"></i></a>'
               : ''
-            return '<article class="rounded-2xl border border-classic-sage/25 bg-white shadow-sm hover:shadow-md transition overflow-hidden group">' +
+            return '<article class="rounded-2xl border border-slate-200/90 bg-white shadow-sm hover:shadow-md transition overflow-hidden group">' +
               '<a href="/courses/' + course.id + '" class="block relative aspect-[16/10] w-full overflow-hidden bg-slate-900">' +
               '<img src="' + (course.thumbnail_url || '/static/images/course-placeholder.svg') + '" alt="" class="absolute inset-0 w-full h-full object-cover transition duration-500 group-hover:scale-[1.03]" onerror="this.src=\'/static/images/course-placeholder.svg\'" />' +
               '<div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none"></div>' +
@@ -127,9 +127,9 @@ app.get('/courses/classic', async (c) => {
               '<p class="text-sm text-gray-300 mt-2 line-clamp-1">' + msLineLabelStr(course.category_group) + ' · 마인드스토리 강좌</p>' +
               '</div></a>' +
               '<div class="p-5">' +
-              '<p class="text-sm text-classic-forest/70 flex items-start gap-1">' +
+              '<p class="text-sm text-slate-600 flex items-start gap-1">' +
               '<span class="line-clamp-2 flex-1 min-w-0">' + (course.description || '') + '</span>' + pencil + '</p>' +
-              '<a href="/courses/' + course.id + '" class="mt-4 inline-block rounded-lg bg-classic-sage text-white px-4 py-2 text-sm font-semibold hover:opacity-90">자세히</a>' +
+              '<a href="/courses/' + course.id + '" class="mt-4 inline-block rounded-lg bg-mst-navy text-white px-4 py-2 text-sm font-semibold hover:bg-mst-navy-light">자세히</a>' +
               '</div></article>'
           }).join('')
         } catch (e) {
@@ -334,7 +334,7 @@ app.get('/courses/consortium', async (c) => {
       <p class="text-slate-700 mb-6">Classic·Next·NCS 강좌 목록은 각 카탈로그에서 확인하실 수 있습니다. 공동훈련 관련 공지는 커뮤니티에서 업데이트됩니다.</p>
       <div class="flex flex-col sm:flex-row gap-3 justify-center flex-wrap">
         <a href="/community" class="inline-flex items-center justify-center rounded-xl bg-indigo-600 text-white px-6 py-3 font-semibold hover:bg-indigo-700 transition shadow-sm">공지 · FAQ 보기</a>
-        <a href="/#signature-lineup" class="inline-flex items-center justify-center rounded-xl border border-indigo-300 bg-indigo-50/90 text-indigo-900 px-6 py-3 font-semibold hover:bg-indigo-100 transition">시그니처 라인업으로</a>
+        <a href="/legacy/mindstory-landing#signature-lineup" class="inline-flex items-center justify-center rounded-xl border border-indigo-300 bg-indigo-50/90 text-indigo-900 px-6 py-3 font-semibold hover:bg-indigo-100 transition">시그니처 라인업으로</a>
         <a href="/courses/classic" class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-800 px-6 py-3 font-semibold hover:bg-slate-50 transition">Classic 강좌</a>
         <a href="/courses/next" class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-800 px-6 py-3 font-semibold hover:bg-slate-50 transition">Next 강좌</a>
         <a href="/courses/ncs" class="inline-flex items-center justify-center rounded-xl border border-amber-200 bg-amber-50 text-amber-950 px-6 py-3 font-semibold hover:bg-amber-100 transition">NCS 강좌</a>

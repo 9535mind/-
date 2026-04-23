@@ -230,6 +230,7 @@ pages.get('/login', async (c) => {
                         </div>
                     </div>
                     
+                    <p id="kakaoKeyHint" class="hidden text-sm text-amber-800 text-center bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">카카오: 루트 <code class="text-xs">.env</code>에 <code class="text-xs">KAKAO_CLIENT_ID=</code>(REST)를 넣고 <code class="text-xs">npm run dev</code>를 다시 실행하세요.</p>
                     <!-- 구글 로그인 버튼 -->
                     <button type="button" onclick="loginWithGoogle()"
                         class="group relative w-full flex justify-center py-3 px-4 border-2 border-gray-300 text-base font-semibold rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-all">
@@ -263,14 +264,33 @@ pages.get('/login', async (c) => {
     </div>
 
     <script>
-        // Google 로그인 함수
+        // Google / 카카오 — redirect= 은 /app* 제외(회의는 별도 도메인)
         function loginWithGoogle() {
-            window.location.href = '/api/auth/google/login';
+            const p = new URLSearchParams(window.location.search);
+            const r = p.get('redirect');
+            if (r && r.trim().startsWith('/app')) {
+                window.location.href = '/api/auth/google/login';
+                return;
+            }
+            if (r && r.trim().startsWith('/') && !r.trim().startsWith('//') && r.indexOf('..') === -1) {
+                window.location.href = '/api/auth/google/login?next=' + encodeURIComponent(r.trim().split('#')[0] || r.trim());
+            } else {
+                window.location.href = '/api/auth/google/login';
+            }
         }
         
-        // 카카오 로그인 함수
         function loginWithKakao() {
-            window.location.href = '/api/auth/kakao/login';
+            const p = new URLSearchParams(window.location.search);
+            const r = p.get('redirect');
+            if (r && r.trim().startsWith('/app')) {
+                window.location.href = '/api/auth/kakao/login';
+                return;
+            }
+            if (r && r.trim().startsWith('/') && !r.trim().startsWith('//') && r.indexOf('..') === -1) {
+                window.location.href = '/api/auth/kakao/login?next=' + encodeURIComponent(r.trim().split('#')[0] || r.trim());
+            } else {
+                window.location.href = '/api/auth/kakao/login';
+            }
         }
         
         // 로컬스토리지에서 저장된 로그인 정보 불러오기
@@ -282,6 +302,16 @@ pages.get('/login', async (c) => {
                 document.getElementById('email').value = rememberedEmail
                 document.getElementById('rememberMe').checked = true
             }
+            fetch('/api/auth/kakao/ready', { credentials: 'include' })
+                .then((r) => r.json())
+                .then((b) => {
+                    const d = b && b.data
+                    if (d && !d.kakaoConfigured) {
+                        const h = document.getElementById('kakaoKeyHint')
+                        if (h) h.classList.remove('hidden')
+                    }
+                })
+                .catch(() => {})
         })
     </script>
     <script>
@@ -1164,8 +1194,8 @@ pages.get('/courses/:id', async (c) => {
                 var lineKeys = msCatalogLineKeys(course.category_group, course.category_groups)
                 var hasNext = lineKeys.indexOf('NEXT') >= 0
                 var hasNcs = lineKeys.indexOf('NCS') >= 0
-                document.body.classList.remove('theme-classic', 'theme-next')
-                document.body.classList.add(hasNext ? 'theme-next' : 'theme-classic')
+                document.body.classList.remove('theme-legacy', 'theme-next')
+                document.body.classList.add(hasNext ? 'theme-next' : 'theme-legacy')
                 var cg = hasNext ? 'NEXT' : 'CLASSIC'
                 var lineBadgesRow = lineKeys.map(function (k) {
                     var cls = k === 'NEXT' ? 'bg-violet-500/90 text-white' : k === 'NCS' ? 'bg-amber-300/95 text-amber-950' : 'bg-white/25 text-white'
@@ -1302,15 +1332,15 @@ pages.get('/courses/:id', async (c) => {
                     
                     \${ncsBanner}
                     \${cg === 'CLASSIC' ? \`
-                    <div class="rounded-2xl border border-classic-sage/30 bg-classic-cream p-6 md:p-8 mb-8 shadow-sm">
+                    <div class="rounded-2xl border border-slate-200/80 bg-mst-surface p-6 md:p-8 mb-8 shadow-sm">
                         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                             <div>
-                                <p class="text-sm font-semibold text-classic-sage uppercase tracking-wide">MINDSTORY Classic · Heritage</p>
-                                <h3 class="text-xl font-bold text-classic-forest mt-1">학습 상담 & 기록</h3>
-                                <p class="text-classic-forest/80 mt-2 text-sm">상담 일지와 학습 기록을 남기고 전문가와 연결할 수 있습니다.</p>
+                                <p class="text-sm font-semibold text-mst-accent uppercase tracking-wide">MINDSTORY Classic · Heritage</p>
+                                <h3 class="text-xl font-bold text-mst-navy mt-1">학습 상담 & 기록</h3>
+                                <p class="text-slate-600 mt-2 text-sm">상담 일지와 학습 기록을 남기고 전문가와 연결할 수 있습니다.</p>
                             </div>
                             <div class="flex flex-wrap gap-3">
-                                <a href="mailto:support@mindstory.kr?subject=상담%20신청" class="inline-flex items-center justify-center rounded-xl bg-classic-sage text-white px-5 py-3 font-semibold hover:opacity-90 transition">
+                                <a href="mailto:support@mindstory.kr?subject=상담%20신청" class="inline-flex items-center justify-center rounded-xl bg-mst-navy text-white px-5 py-3 font-semibold hover:bg-mst-navy-light transition">
                                     <i class="fas fa-comments mr-2"></i>상담 신청
                                 </a>
                             </div>

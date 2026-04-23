@@ -16,10 +16,41 @@ export async function ensureListedAdminRole(
   userId: number
 ): Promise<void> {
   if (!isListedAdminEmail(email)) return
-  await db
-    .prepare(
-      `UPDATE users SET role = 'admin', updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL`
-    )
-    .bind(userId)
-    .run()
+  const runPlain = () =>
+    db
+      .prepare(
+        `UPDATE users SET role = 'admin', updated_at = datetime('now') WHERE id = ?`,
+      )
+      .bind(userId)
+      .run()
+  try {
+    const withDeleted = await db
+      .prepare(
+        `UPDATE users SET role = 'admin', updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL`,
+      )
+      .bind(userId)
+      .run()
+    if (withDeleted.success) return
+    const err = String((withDeleted as { error?: string }).error || '')
+    if (!/no such column[:\s].*deleted_at|D1_ERROR.*\bdeleted_at|SQLITE_ERROR.*\bdeleted_at/i.test(err)) {
+      throw new Error(err || 'admin promote failed')
+    }
+    const plain = await runPlain()
+    if (!plain.success) {
+      throw new Error(
+        String((plain as { error?: string }).error || 'admin promote failed'),
+      )
+    }
+  } catch (e) {
+    const m = e instanceof Error ? e.message : String(e)
+    if (!/no such column[:\s].*deleted_at|D1_ERROR.*\bdeleted_at|SQLITE_ERROR.*\bdeleted_at/i.test(m)) {
+      throw e
+    }
+    const plain = await runPlain()
+    if (!plain.success) {
+      throw new Error(
+        String((plain as { error?: string }).error || 'admin promote fail'),
+      )
+    }
+  }
 }

@@ -4,4 +4,4 @@
  */
 export const ENTERPRISE_HTML_HEAD_INJECT = `
     <meta http-equiv="Cache-Control" content="no-store" />
-    <script>(function(){if(!('serviceWorker'in navigator))return;navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister();});}).catch(function(){});})();</script>`
+    <script>(function(){if(!('serviceWorker'in navigator))return;navigator.serviceWorker.getRegistrations().then(function(rs){return Promise.all(rs.map(function(r){return r.unregister().catch(function(){});}));}).catch(function(){});})();</script>`

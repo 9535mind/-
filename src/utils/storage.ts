@@ -12,9 +12,7 @@ import * as path from 'path'
  * 환경이 로컬인지 확인
  */
 export function isLocalEnvironment(c: Context): boolean {
-  // R2 바인딩이 없으면 로컬 환경
-  const { STORAGE, VIDEO_STORAGE } = c.env
-  return !STORAGE && !VIDEO_STORAGE
+  return !c.env.R2
 }
 
 /**
@@ -88,7 +86,8 @@ export async function saveFile(
     return await saveFileLocally(file, folder)
   } else {
     console.log(`[Storage] 프로덕션 환경: R2에 저장`)
-    const bucket = folder === 'videos' ? c.env.VIDEO_STORAGE : c.env.STORAGE
+    const bucket = c.env.R2
+    if (!bucket) throw new Error('R2_NOT_CONFIGURED')
     return await saveFileToR2(file, bucket, folder)
   }
 }
@@ -170,7 +169,8 @@ export async function deleteFile(
     return deleteFileLocally(filePath)
   } else {
     console.log(`[Storage] R2 파일 삭제: ${filePath}`)
-    const bucket = folder === 'videos' ? c.env.VIDEO_STORAGE : c.env.STORAGE
+    const bucket = c.env.R2
+    if (!bucket) return false
     return await deleteFileFromR2(bucket, filePath)
   }
 }

@@ -7,11 +7,15 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        classic: {
-          cream: '#FDFCF8',
-          sage: '#5C7F67',
-          forest: '#2F4F3A',
-          moss: '#8FAF95',
+        /** MindStory 브랜드 — 딥 네이비·화이트/그레이 */
+        mst: {
+          navy: { DEFAULT: '#0a1628', light: '#132337' },
+          ink: '#0f172a',
+          surface: '#f8fafc',
+          canvas: '#f1f5f9',
+          line: '#e2e8f0',
+          muted: '#64748b',
+          accent: '#3b5bdb',
         },
         next: {
           ink: '#0f172a',

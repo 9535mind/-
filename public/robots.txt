@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://mindstory.kr/sitemap.xml
+Sitemap: https://ms12.org/sitemap.xml

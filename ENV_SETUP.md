@@ -9,7 +9,7 @@
 ```bash
 # Kakao OAuth
 KAKAO_CLIENT_ID=your-kakao-client-id
-KAKAO_REDIRECT_URI=http://localhost:3000/api/auth/kakao/callback
+KAKAO_REDIRECT_URI=http://localhost:3000/auth/kakao/callback
 
 # Google OAuth
 GOOGLE_CLIENT_ID=your-google-client-id

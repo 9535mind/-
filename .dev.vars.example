@@ -1,4 +1,9 @@
-# 로컬 Worker 바인딩 — git 미추적(.dev.vars). `npm run dev` 시 .env 의 OPENAI_* 가 여기로 병합될 수 있음.
-OPENAI_API_KEY=
-OPENAI_BASE_URL=https://api.openai.com/v1
-OPENAI_MODEL=gpt-4o
+# ---------------------------------------------------------------------------
+# 프로젝트 루트( package.json 이 있는 폴더 )에 ".dev.vars" 로 복사한 뒤 값을 넣으세요.
+# ".dev.vars" 는 .gitignore 되어 있으므로 Git 에 올라가지 않습니다.
+# npm run dev 시 getPlatformProxy 가 이 파일을 읽어 c.env.KAKAO_* 로 주입합니다.
+# ---------------------------------------------------------------------------
+KAKAO_CLIENT_ID=
+# 선택: KAKAO_CLIENT_SECRET=
+# 로컬 콜백(카카오 콘솔에도 동일 URI 등록): ms12 는 /auth/kakao/callback 사용
+# KAKAO_REDIRECT_URI=http://localhost:3000/auth/kakao/callback

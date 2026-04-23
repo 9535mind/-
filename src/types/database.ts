@@ -7,9 +7,8 @@ export type Bindings = {
   /** Pages 배포 번들의 정적 자산(단일 HTML 등 Worker에서 명시 서빙 시 사용) */
   ASSETS?: Fetcher
   DB: D1Database;
-  R2: R2Bucket;             // Primary R2 Storage for all files
-  VIDEO_STORAGE?: R2Bucket; // For course videos (optional, legacy)
-  STORAGE?: R2Bucket;       // For PDFs, certificates, documents (optional, legacy)
+  /** R2: wrangler `ms12-storage` → `c.env.R2` (문서·업로드 등 단일 버킷) */
+  R2?: R2Bucket;
   APIVIDEO_API_KEY?: string; // api.video API key
   APIVIDEO_BASE_URL?: string; // api.video base URL
   GEMINI_API_KEY?: string;   // Gemini API key

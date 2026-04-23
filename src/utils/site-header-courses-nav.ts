@@ -105,7 +105,7 @@ a.admin-magic-pencil {
 }
 a.admin-magic-pencil:hover,
 a.admin-magic-pencil:focus-visible {
-  color: rgb(22 163 74);
+  color: rgb(37 99 235);
   opacity: 1;
   animation: adminMagicPencilTremor 0.1s linear 0s 12 forwards;
   animation-fill-mode: forwards;
@@ -329,7 +329,7 @@ function navCoursesDropdownDesktop(): string {
   <div id="site-nav-dd-panel" role="menu" aria-label="과정 안내 하위 메뉴" class="site-nav-dd-panel site-nav-dd-panel--cards">
     <div class="site-nav-titanium-outer site-nav-dd-tremor">
       <div class="site-nav-titanium-inner py-1">
-        <a href="/courses/classic" role="menuitem" class="site-nav-dd-link site-nav-dd-link--row text-classic-sage font-semibold">
+        <a href="/courses/classic" role="menuitem" class="site-nav-dd-link site-nav-dd-link--row text-mst-navy font-semibold">
           <span class="site-nav-dd-ico site-nav-dd-ico--classic" aria-hidden="true"><i class="fas fa-book-open"></i></span>
           <span class="site-nav-dd-link-body">
             <span class="block">Classic</span>
@@ -357,7 +357,7 @@ function navCoursesDropdownDesktop(): string {
             <span class="site-nav-dd-desc">기업 및 기관 맞춤형 협력 과정</span>
           </span>
         </a>
-        <a href="/#signature-lineup" role="menuitem" class="site-nav-dd-link site-nav-dd-link--summary border-t border-slate-200/50 text-sm text-gray-700 font-medium">
+        <a href="/legacy/mindstory-landing#signature-lineup" role="menuitem" class="site-nav-dd-link site-nav-dd-link--summary border-t border-slate-200/50 text-sm text-gray-700 font-medium">
           전체 과정 보기<span class="site-nav-dd-desc">시그니처 라인업·추천 과정 섹션으로 이동</span>
         </a>
       </div>
@@ -376,7 +376,7 @@ function navDrawerCoursesAccordion(): string {
   <div class="px-2 pb-3 border-t border-slate-200/40">
     <div class="site-nav-titanium-outer mt-2">
       <div class="site-nav-titanium-inner flex flex-col py-1">
-        <a href="/courses/classic" class="site-nav-dd-link site-nav-dd-link--row text-classic-sage font-semibold">
+        <a href="/courses/classic" class="site-nav-dd-link site-nav-dd-link--row text-mst-navy font-semibold">
           <span class="site-nav-dd-ico site-nav-dd-ico--classic" aria-hidden="true"><i class="fas fa-book-open"></i></span>
           <span class="site-nav-dd-link-body"><span class="block">Classic</span><span class="site-nav-dd-desc">마인드스토리 전통 입문 과정</span></span>
         </a>
@@ -395,7 +395,7 @@ function navDrawerCoursesAccordion(): string {
             <span class="site-nav-dd-desc">기업 및 기관 맞춤형 협력 과정</span>
           </span>
         </a>
-        <a href="/#signature-lineup" class="site-nav-dd-link text-sm text-gray-700 font-medium">전체 과정 보기<span class="site-nav-dd-desc">시그니처 라인업으로 이동</span></a>
+        <a href="/legacy/mindstory-landing#signature-lineup" class="site-nav-dd-link text-sm text-gray-700 font-medium">전체 과정 보기<span class="site-nav-dd-desc">시그니처 라인업으로 이동</span></a>
       </div>
     </div>
   </div>
@@ -404,12 +404,12 @@ function navDrawerCoursesAccordion(): string {
 
 function logoBlock(opts: SiteHeaderOptions): string {
   if (opts.variant === 'landing') {
-    return `<a href="/" class="text-xl sm:text-2xl md:text-3xl font-bold truncate min-w-0" style="color: var(--color-primary);">마인드스토리 원격평생교육원</a>`
+    return `<a href="/legacy/mindstory-landing" class="text-xl sm:text-2xl md:text-3xl font-bold truncate min-w-0" style="color: var(--color-primary);">마인드스토리 원격평생교육원</a>`
   }
   if (opts.variant === 'brand') {
-    return `<a href="/" class="text-lg font-bold text-slate-800 truncate">마인드스토리</a>`
+    return `<a href="/legacy/mindstory-landing" class="text-lg font-bold text-slate-800 truncate">마인드스토리</a>`
   }
-  return `<a href="/" class="text-lg sm:text-xl md:text-2xl font-bold text-indigo-600 whitespace-nowrap truncate min-w-0">마인드스토리 원격 평생교육원</a>`
+  return `<a href="/legacy/mindstory-landing" class="text-lg sm:text-xl md:text-2xl font-bold text-indigo-600 whitespace-nowrap truncate min-w-0">마인드스토리 원격 평생교육원</a>`
 }
 
 function enrollmentLink(className: string): string {
@@ -460,7 +460,7 @@ export function siteHeaderFullMarkup(opts: SiteHeaderOptions): string {
       : ''
 
   const drawerBody =
-    `<a href="/" class="px-4 py-3 rounded-xl text-gray-900 font-medium hover:bg-white/50 border border-transparent hover:border-slate-200/50 transition-all">홈</a>` +
+    `<a href="/legacy/mindstory-landing" class="px-4 py-3 rounded-xl text-gray-900 font-medium hover:bg-white/50 border border-transparent hover:border-slate-200/50 transition-all">홈</a>` +
     navDrawerCoursesAccordion() +
     drawerEnrollment +
     drawerCoursesAll +
@@ -510,7 +510,7 @@ export function siteHeaderFullMarkup(opts: SiteHeaderOptions): string {
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center py-3.5 gap-4">
       ${logoBlock(opts)}
       <nav class="flex items-center gap-6 lg:gap-8 text-base flex-wrap justify-end" aria-label="주 메뉴">
-        <a href="/" class="text-gray-700 hover:text-indigo-600 font-medium transition-colors">홈</a>
+        <a href="/legacy/mindstory-landing" class="text-gray-700 hover:text-indigo-600 font-medium transition-colors">홈</a>
         ${navCoursesDropdownDesktop()}
         ${desktopGnbExtras}
       </nav>

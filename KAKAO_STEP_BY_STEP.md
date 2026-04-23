@@ -77,12 +77,12 @@
 
 5. **다음 두 개의 URI를 하나씩 추가**:
    ```
-   http://localhost:3000/api/auth/kakao/callback
+   http://localhost:3000/auth/kakao/callback
    ```
    입력 후 **"확인"** 또는 **"추가"** 버튼 클릭
 
    ```
-   https://mindstory-lms.pages.dev/api/auth/kakao/callback
+   https://ms12.org/auth/kakao/callback
    ```
    입력 후 **"확인"** 또는 **"추가"** 버튼 클릭
 

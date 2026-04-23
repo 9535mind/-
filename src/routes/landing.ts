@@ -1,13 +1,6 @@
 /**
- * 마인드스토리 원격평생교육원 - 랜딩 페이지
- * Ver.3.0 - 2026 웹 트렌드 반영
- * 
- * 디자인 시스템:
- * - Font: Pretendard (CDN)
- * - Layout: Bento Grid
- * - Style: Glassmorphism
- * - Animation: Marquee
- * - Color: Primary #6366F1, Background #F9FAFB, Text #111827
+ * 마인드스토리 LSM/학습 랜딩 (레거시) — GET /legacy/mindstory-landing
+ * 공개 루트 `/` 는 index 에서 `/legacy/mindstory-landing` 으로 리다이렉트됩니다.
  */
 
 import { Hono } from 'hono'
@@ -53,20 +46,20 @@ function renderSignatureLineupSection(cards: Record<SignatureCardId, SignatureCa
         <section id="signature-lineup" class="py-20 border-y border-stone-200/45 bg-transparent scroll-mt-24">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <h2 class="text-3xl md:text-4xl font-bold text-center text-gray-900 mb-2">MINDSTORY 시그니처 라인업</h2>
-                <div class="w-14 h-0.5 rounded-full bg-[#8a9b8e]/35 mx-auto mb-4" aria-hidden="true"></div>
+                <div class="w-14 h-0.5 rounded-full bg-slate-300/60 mx-auto mb-4" aria-hidden="true"></div>
                 <p class="text-center text-gray-600 text-lg mb-12 max-w-3xl mx-auto">Classic · Next · 공동훈련(NCS) 세 가지 로드맵으로 목표와 수준에 맞는 학습을 설계합니다.</p>
                 <div class="grid grid-cols-1 gap-8 lg:grid-cols-3 lg:items-stretch">
                     <div class="spring-lineup-card group relative flex h-full min-h-[300px] rounded-3xl border border-yellow-900/10 bg-gradient-to-br from-white via-slate-50 to-slate-100 shadow-lg backdrop-blur-md" data-ms-signature-lineup-card="classic">
                         <a href="${escapeHtml(cl.button_href)}" class="absolute inset-0 z-0 rounded-3xl" aria-label="${escapeHtml(cl.title)} 안내로 이동"></a>
                         <div class="relative z-10 flex h-full min-h-[300px] flex-1 flex-col p-8 sm:p-10 pointer-events-none">
-                            <span class="text-xs font-bold text-classic-sage tracking-widest uppercase">FUNDAMENTAL COURSE</span>
+                            <span class="text-xs font-bold text-mst-accent tracking-widest uppercase">FUNDAMENTAL COURSE</span>
                             <div class="relative mt-3 pr-2">
-                                <h3 class="text-2xl md:text-3xl xl:text-4xl font-extrabold leading-tight text-classic-forest tracking-tight transition-colors group-hover:text-classic-sage pointer-events-none">${escapeHtml(cl.title)}</h3>
+                                <h3 class="text-2xl md:text-3xl xl:text-4xl font-extrabold leading-tight text-mst-navy tracking-tight transition-colors group-hover:text-mst-accent pointer-events-none">${escapeHtml(cl.title)}</h3>
                             </div>
                             <div class="relative mt-4 flex flex-1 flex-col pr-2">
-                                <p class="text-classic-forest/80 flex-1 leading-relaxed pointer-events-none">${escapeHtml(cl.description)}</p>
+                                <p class="text-slate-600 flex-1 leading-relaxed pointer-events-none">${escapeHtml(cl.description)}</p>
                             </div>
-                            <span class="mt-6 inline-flex items-center rounded-full border border-amber-900/25 bg-emerald-50/90 px-5 py-2 text-sm font-semibold text-classic-forest shadow-sm transition-all duration-300 group-hover:border-classic-sage group-hover:bg-classic-sage group-hover:text-white group-hover:shadow-md pointer-events-none sm:px-6">${escapeHtml(cl.button_label)} <i class="fas fa-arrow-right ml-2 text-xs transition-transform group-hover:translate-x-1"></i></span>
+                            <span class="mt-6 inline-flex items-center rounded-full border border-slate-300/80 bg-slate-50/95 px-5 py-2 text-sm font-semibold text-mst-navy shadow-sm transition-all duration-300 group-hover:border-mst-accent group-hover:bg-mst-accent group-hover:text-white group-hover:shadow-md pointer-events-none sm:px-6">${escapeHtml(cl.button_label)} <i class="fas fa-arrow-right ml-2 text-xs transition-transform group-hover:translate-x-1"></i></span>
                         </div>
                     </div>
                     <div class="spring-lineup-card group relative flex h-full min-h-[300px] rounded-3xl border border-slate-300 bg-gradient-to-br from-white via-slate-50 to-slate-100 shadow-lg backdrop-blur-md" data-ms-signature-lineup-card="next">
@@ -104,10 +97,9 @@ const landing = new Hono<{ Bindings: Bindings; Variables: { user?: User } }>()
 landing.use('*', optionalAuth)
 
 /**
- * GET /
- * 홈페이지 (랜딩 페이지)
+ * GET /legacy/mindstory-landing — LSM/학습 홈(레거시). GET / 는 /legacy/… 로 302.
  */
-landing.get('/', async (c) => {
+landing.get('/legacy/mindstory-landing', async (c) => {
   const adminCommandPulse = await resolveAdminCommandPulse(c)
   const signatureCards = await loadLandingSignatureCardsFromDb(c.env)
   return c.html(`

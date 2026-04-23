@@ -1,5 +1,5 @@
 /**
- * 관리자 — R2(mindstory-lms) 객체 목록 · 강좌 차시 자동 매칭
+ * 관리자 — R2(c.env.R2 / ms12-storage) 객체 목록 · 강좌 차시 자동 매칭
  * GET /api/admin/r2/list
  * POST /api/admin/r2/auto-match
  */

@@ -22,11 +22,11 @@
 @layer components {
   .header-user-admin-badge {
     @apply inline-flex max-w-full items-center rounded-full px-2 py-0.5 text-xs font-bold tracking-tight text-white;
-    background: linear-gradient(180deg, #10b981 0%, #059669 55%, #047857 100%);
+    background: linear-gradient(180deg, #1e3a5f 0%, #0f2847 50%, #0a1628 100%);
     border: 1px solid rgba(255, 255, 255, 0.5);
     box-shadow:
       0 0 0 1px rgba(15, 23, 42, 0.12),
-      0 2px 8px rgba(5, 150, 105, 0.4);
+      0 2px 8px rgba(10, 22, 40, 0.45);
   }
 
   /** 관리자 헤더 좌측 상단 브랜드 → 서비스 홈(/) */
@@ -55,14 +55,16 @@
     0 2px 10px rgba(0, 0, 0, 0.45);
 }
 
-/* MINDSTORY 테마 훅 — Classic/Next 동일 고딕 스택 (Pretendard 우선), 컬러만 테마별 유지 */
-.theme-classic,
-.theme-next {
+/* 마인드스토리 레거시 LMS — 공통 고딕 스택 (Pretendard 우선) */
+.theme-legacy,
+.theme-next,
+.theme-mst {
   font-family: 'Pretendard Variable', 'Pretendard', ui-sans-serif, system-ui, 'Segoe UI', Roboto,
     'Helvetica Neue', Arial, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
 }
-.theme-classic {
-  background-color: #fdfcf8;
+.theme-legacy,
+.theme-mst {
+  background-color: #f8fafc;
 }
 .theme-next {
   background-color: #ffffff;
@@ -101,7 +103,7 @@ a.admin-magic-pencil.admin-magic-pencil--corner {
 
 a.admin-magic-pencil:hover,
 a.admin-magic-pencil:focus-visible {
-  color: rgb(22 163 74);
+  color: rgb(37 99 235);
   opacity: 1;
   animation: adminMagicPencilTremor 0.1s linear 0s 12 forwards;
   animation-fill-mode: forwards;

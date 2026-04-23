@@ -41,10 +41,10 @@ if [ -f ".dev.vars" ]; then
         FAIL_COUNT=$((FAIL_COUNT + 1))
     fi
     
-    # KAKAO_REDIRECT_URI 확인
+    # KAKAO_REDIRECT_URI 확인 (ms12 기본: .../auth/kakao/callback; 로컬은 http OK)
     if grep -q "KAKAO_REDIRECT_URI=" .dev.vars; then
         REDIRECT_URI=$(grep "KAKAO_REDIRECT_URI=" .dev.vars | cut -d'=' -f2-)
-        if [ ! -z "$REDIRECT_URI" ] && [[ "$REDIRECT_URI" == https://* ]]; then
+        if [ ! -z "$REDIRECT_URI" ] && { [[ "$REDIRECT_URI" == http://localhost* ]] || [[ "$REDIRECT_URI" == http://127.0.0.1* ]] || [[ "$REDIRECT_URI" == https://* ]]; }; then
             echo -e "${GREEN}✓${NC} KAKAO_REDIRECT_URI: $REDIRECT_URI"
             PASS_COUNT=$((PASS_COUNT + 1))
             
@@ -54,17 +54,17 @@ if [ -f ".dev.vars" ]; then
                 WARN_COUNT=$((WARN_COUNT + 1))
             fi
             
-            if [[ "$REDIRECT_URI" != *"/api/auth/kakao/callback" ]]; then
-                echo -e "${YELLOW}⚠${NC}  경고: Redirect URI 경로가 /api/auth/kakao/callback이 아닙니다"
+            if [[ "$REDIRECT_URI" == *"/api/auth/kakao/callback" ]]; then
+                echo -e "${YELLOW}⚠${NC}  경고: 예전 /api/auth/kakao/callback 경로입니다. ms12는 /auth/kakao/callback + 카카오 콘솔에 동일 URI를 등록하세요"
                 WARN_COUNT=$((WARN_COUNT + 1))
             fi
             
-            if [[ "$REDIRECT_URI" != https://* ]]; then
-                echo -e "${RED}✗${NC} Redirect URI가 https로 시작하지 않습니다"
+            if [[ "$REDIRECT_URI" == http://* ]] && ! { [[ "$REDIRECT_URI" == http://localhost* ]] || [[ "$REDIRECT_URI" == http://127.0.0.1* ]]; }; then
+                echo -e "${RED}✗${NC} production용 Redirect는 https:// 로 시작해야 합니다"
                 FAIL_COUNT=$((FAIL_COUNT + 1))
             fi
         else
-            echo -e "${RED}✗${NC} KAKAO_REDIRECT_URI가 비어있거나 형식이 잘못되었습니다"
+            echo -e "${RED}✗${NC} KAKAO_REDIRECT_URI가 비어있거나 형식이 잘못되었습니다 (http://localhost·127.0.0.1 또는 https://)"
             FAIL_COUNT=$((FAIL_COUNT + 1))
         fi
     else

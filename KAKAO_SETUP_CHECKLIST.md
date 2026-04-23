@@ -20,8 +20,8 @@
 - [ ] "Redirect URI" 섹션에서 "Redirect URI 등록" 버튼 클릭
 - [ ] 다음 두 개의 URI 추가:
   ```
-  http://localhost:3000/api/auth/kakao/callback
-  https://mindstory-lms.pages.dev/api/auth/kakao/callback
+  http://localhost:3000/auth/kakao/callback
+  https://ms12.org/auth/kakao/callback
   ```
 - [ ] "저장" 버튼 클릭
 
@@ -50,7 +50,7 @@ cd /home/user/webapp
 cat > .dev.vars << 'EOF'
 # 카카오 로그인 설정
 KAKAO_CLIENT_ID=여기에_복사한_REST_API_키_입력
-KAKAO_REDIRECT_URI=http://localhost:3000/api/auth/kakao/callback
+KAKAO_REDIRECT_URI=http://localhost:3000/auth/kakao/callback
 
 # R2 Storage 설정 (기존)
 R2_ACCOUNT_ID=your_account_id
@@ -94,7 +94,7 @@ npx wrangler d1 execute mindstory-production --local \
 | Variable name | Value | Environment |
 |--------------|-------|-------------|
 | `KAKAO_CLIENT_ID` | `(복사한 REST API 키)` | Production & Preview |
-| `KAKAO_REDIRECT_URI` | `https://mindstory-lms.pages.dev/api/auth/kakao/callback` | Production & Preview |
+| `KAKAO_REDIRECT_URI` | `https://ms12.org/auth/kakao/callback` | Production & Preview |
 
 - [ ] "Save" 버튼 클릭
 

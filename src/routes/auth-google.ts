@@ -18,32 +18,29 @@ import { applySessionCookie } from '../utils/session-cookie'
 import { ensureListedAdminRole } from '../utils/admin-emails'
 import {
   envRedirectUriHostname,
+  getRequestPublicOrigin,
   GOOGLE_OAUTH_REDIRECT_URI,
+  isCloudflarePagesPreviewHost,
   isLocalDevHostname,
-  OAUTH_SUCCESS_LANDING_URL,
+  isPrivateLanHostname,
   requestHostname,
   SITE_PUBLIC_ORIGIN,
+  isMs12Hostname,
 } from '../utils/oauth-public'
+import { redirectAfterOAuthOrDefault, setPostLoginPathCookie } from '../utils/oauth-post-login'
 
 const authGoogle = new Hono<{ Bindings: Bindings }>()
 
 function getRequestOrigin(c: Context<{ Bindings: Bindings }>): string {
-  const reqUrl = new URL(c.req.url)
-  const protoRaw =
-    c.req.header('x-forwarded-proto') || reqUrl.protocol.replace(':', '') || 'https'
-  const proto = protoRaw.split(',')[0]?.trim() || 'https'
-  const hostRaw =
-    c.req.header('x-forwarded-host') || c.req.header('host') || reqUrl.host
-  const host = hostRaw.split(',')[0]?.trim() || reqUrl.host
-  return `${proto}://${host}`
+  return getRequestPublicOrigin(c)
 }
 
 function isAllowedRedirectHost(hostname: string): boolean {
   return (
-    hostname === 'mindstory.kr' ||
-    hostname.endsWith('.mindstory.kr') ||
+    isMs12Hostname(hostname) ||
     hostname === 'localhost' ||
-    hostname === '127.0.0.1'
+    hostname === '127.0.0.1' ||
+    isPrivateLanHostname(hostname)
   )
 }
 
@@ -56,6 +53,8 @@ function redirectGoogleOAuthToCanonicalOrigin(c: Context<{ Bindings: Bindings }>
   const h = raw.split(',')[0].trim().split(':')[0]
   if (!h || h === 'mindstory.kr' || h.endsWith('.mindstory.kr')) return undefined
   if (h === 'localhost' || h === '127.0.0.1') return undefined
+  if (isPrivateLanHostname(h)) return undefined
+  if (isCloudflarePagesPreviewHost(h)) return undefined
   const u = new URL(c.req.url)
   return c.redirect(`${SITE_PUBLIC_ORIGIN}${u.pathname}${u.search}`, 302)
 }
@@ -81,10 +80,13 @@ function resolveGoogleRedirectUri(c: Context<{ Bindings: Bindings }>): string {
     if (fromEnv && isAllowedGoogleRedirectUrl(fromEnv)) return fromEnv
     return 'http://localhost:3000/api/auth/google/callback'
   }
+  if (h === 'ms12.pages.dev' || h.endsWith('.ms12.pages.dev') || h === 'mslms.pages.dev' || h.endsWith('.mslms.pages.dev')) {
+    return `${getRequestPublicOrigin(c).replace(/\/$/, '')}/api/auth/google/callback`
+  }
 
   const fromEnv = (c.env.GOOGLE_REDIRECT_URI || '').trim().replace(/\/$/, '')
   if (fromEnv && fromEnv !== GOOGLE_OAUTH_REDIRECT_URI) {
-    console.warn('[GOOGLE_REDIRECT] Production ignores GOOGLE_REDIRECT_URI (use mindstory.kr only):', fromEnv)
+    console.warn('[GOOGLE_REDIRECT] Production ignores GOOGLE_REDIRECT_URI (use ms12.org only):', fromEnv)
   }
   return GOOGLE_OAUTH_REDIRECT_URI
 }
@@ -97,6 +99,9 @@ authGoogle.get('/login', async (c) => {
   try {
     const forceCanon = redirectGoogleOAuthToCanonicalOrigin(c)
     if (forceCanon) return forceCanon
+
+    const nextParam = c.req.query('next')
+    if (nextParam) setPostLoginPathCookie(c, nextParam)
 
     const clientId = c.env.GOOGLE_CLIENT_ID
     const redirectUri = resolveGoogleRedirectUri(c)
@@ -143,7 +148,7 @@ authGoogle.get('/debug', (c) => {
   const clientId = (c.env.GOOGLE_CLIENT_ID || '').trim()
   const clientSecret = (c.env.GOOGLE_CLIENT_SECRET || '').trim()
   const h = requestHostname(c)
-  const redirectUri = isLocalDevHostname(h) ? resolveGoogleRedirectUri(c) : GOOGLE_OAUTH_REDIRECT_URI
+  const redirectUri = resolveGoogleRedirectUri(c)
   return c.json(
     successResponse({
       origin: getRequestOrigin(c),
@@ -386,8 +391,7 @@ authGoogle.get('/callback', async (c) => {
     applySessionCookie(c, sessionToken, 7 * 24 * 60 * 60)
     console.log('[GOOGLE_CALLBACK] Session cookie set successfully')
 
-    // 상대 경로 / 대신 apex 절대 URL — www/비www 혼선 시에도 쿠키 Domain=mindstory.kr 과 방문 호스트 정합
-    return c.redirect(OAUTH_SUCCESS_LANDING_URL, 302)
+    return redirectAfterOAuthOrDefault(c)
     
   } catch (error) {
     console.error('[GOOGLE_CALLBACK] ===== ERROR OCCURRED =====')

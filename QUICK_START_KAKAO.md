@@ -27,8 +27,8 @@
 3. **"Redirect URI 등록"** 버튼 클릭
 4. 다음 두 개 URI 추가:
    ```
-   http://localhost:3000/api/auth/kakao/callback
-   https://mindstory-lms.pages.dev/api/auth/kakao/callback
+   http://localhost:3000/auth/kakao/callback
+   https://ms12.org/auth/kakao/callback
    ```
 5. **"저장"** 클릭
 
@@ -57,7 +57,7 @@
 # .dev.vars 파일 생성
 cd /home/user/webapp
 echo "KAKAO_CLIENT_ID=복사한_REST_API_키" > .dev.vars
-echo "KAKAO_REDIRECT_URI=http://localhost:3000/api/auth/kakao/callback" >> .dev.vars
+echo "KAKAO_REDIRECT_URI=http://localhost:3000/auth/kakao/callback" >> .dev.vars
 
 # 빌드 및 재시작
 npm run build

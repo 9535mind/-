@@ -1,6 +1,5 @@
 /**
- * 마인드스토리 LMS 보안 모듈
- * 저작권 보호를 위한 클라이언트 측 보안 기능
+ * MS12 — 클라이언트 보조(레거시 정리)
  */
 
 ;(function initMindstoryDevFlag() {

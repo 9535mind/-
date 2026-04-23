@@ -163,12 +163,9 @@ export async function getCurrentUser(c: Context) {
   }
 
   const env = c.env as { DB: D1Database }
-  
-  // 세션 조회 (배포 환경의 users 스키마 차이 대비: 확장 컬럼 실패 시 최소 컬럼으로 폴백)
-  let session: Record<string, unknown> | null = null
-  try {
-    session = await env.DB.prepare(`
-      SELECT 
+
+  const selectUserSessionWithSoftDelete = `
+      SELECT
         u.id, u.email, u.name, u.role, u.created_at, u.updated_at,
         u.phone, u.birth_date,
         u.terms_agreed, u.privacy_agreed, u.marketing_agreed,
@@ -177,25 +174,44 @@ export async function getCurrentUser(c: Context) {
         s.session_token, s.expires_at
       FROM sessions s
       JOIN users u ON s.user_id = u.id
-      WHERE s.session_token = ? 
+      WHERE s.session_token = ?
         AND ${SQL_SESSION_S_VALID}
         AND u.deleted_at IS NULL
-    `).bind(sessionToken).first()
-  } catch (e) {
-    console.warn('[getCurrentUser] extended user columns unavailable, fallback query used:', e)
-    session = await env.DB.prepare(`
-      SELECT 
-        u.id, u.email, u.name, u.role,
-        u.created_at, u.updated_at, u.deleted_at,
+    `
+
+  /** users.deleted_at 컬럼이 없는 D1: SQL 에서 soft-delete 조건/컬럼을 쓰지 않음(탈퇴 필터 생략) */
+  const selectUserSessionWithoutDeletedColumn = `
+      SELECT
+        u.id, u.email, u.name, u.role, u.created_at, u.updated_at,
+        u.phone, u.birth_date,
+        u.terms_agreed, u.privacy_agreed, u.marketing_agreed,
+        u.social_provider, u.social_id, u.profile_image_url,
         s.session_token, s.expires_at
       FROM sessions s
       JOIN users u ON s.user_id = u.id
       WHERE s.session_token = ?
         AND ${SQL_SESSION_S_VALID}
-        AND u.deleted_at IS NULL
-    `).bind(sessionToken).first()
+    `
+
+  let session: Record<string, unknown> | null = null
+  try {
+    session = await env.DB.prepare(selectUserSessionWithSoftDelete)
+      .bind(sessionToken)
+      .first()
+  } catch (e) {
+    const m = e instanceof Error ? e.message : String(e)
+    if (!/no such column[:\s].*deleted_at|D1_ERROR.*\bdeleted_at|SQLITE_ERROR.*\bdeleted_at/i.test(m)) {
+      throw e
+    }
+    console.warn(
+      '[getCurrentUser] users.deleted_at 없음 — soft-delete 제외 쿼리로 세션 조회:',
+      m.slice(0, 200),
+    )
+    session = await env.DB.prepare(selectUserSessionWithoutDeletedColumn)
+      .bind(sessionToken)
+      .first()
   }
-  
+
   if (!session) {
     return null
   }

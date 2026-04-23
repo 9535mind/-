@@ -36,7 +36,7 @@ function walk(dir, out) {
 function main() {
   const files = []
   for (const d of dirs) walk(path.join(root, d), files)
-  files.push(path.join(root, 'wrangler.jsonc'))
+  files.push(path.join(root, 'wrangler.toml'))
 
   let bad = []
   for (const file of files) {

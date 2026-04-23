@@ -169,11 +169,11 @@ async function syncUserSession() {
 /** 유틸 바·모바일 드로어·관제탑 등 — 관리자만 초록 배지 (role === 'admin' 엄격 일치). 스타일은 /static/css/app.css */
 const HEADER_USER_NAME_CLASS_USER = 'font-semibold text-slate-900'
 
-const MINDSTORY_VIEW_MODE_KEY = 'mindstory_view_mode'
+const MS12_VIEW_MODE_KEY = 'ms12_view_mode'
 
 function getMindstoryViewMode() {
   try {
-    var v = localStorage.getItem(MINDSTORY_VIEW_MODE_KEY)
+    var v = localStorage.getItem(MS12_VIEW_MODE_KEY)
     if (v === 'student' || v === 'admin') return v
   } catch (e) {}
   return 'admin'

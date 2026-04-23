@@ -1,3 +1,7 @@
+# API는 Worker 전용(정적 404/SPA 캐시와 혼동 방지). 캐시 힌트: 실제 body는 _worker.js 가 Cache-Control 을 냄
+/api/*
+  Cache-Control: no-store, no-cache, must-revalidate, private
+
 # Cloudflare Pages 정적 자산 — Worker가 내려주는 HTML과 별개로 /static JS·CSS 에지 캐시 억제
 # (배포 후에도 Enterprise Chrome이 옛 content-protection.js 등을 붙잡는 경우 완화)
 /static/*

@@ -61,7 +61,10 @@ function main() {
   let existing = {}
   if (fs.existsSync(devVarsPath)) {
     try {
-      const raw = fs.readFileSync(devVarsPath, 'utf8')
+      let raw = fs.readFileSync(devVarsPath, 'utf8')
+      if (raw.charCodeAt(0) === 0xfeff) {
+        raw = raw.slice(1)
+      }
       const withoutComments = raw
         .split(/\r?\n/)
         .filter((line) => !/^\s*#/.test(line))
