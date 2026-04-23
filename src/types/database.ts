@@ -52,6 +52,8 @@ export type Bindings = {
   AUTH_MODE?: string
   /** AUTH_MODE 별칭 */
   MS12_AUTH_MODE?: string
+  /** 1|true|yes 이면 AUTH_MODE=required 를 그대로 적용(희귀). MS12 기본은 공개·게스트 우선 */
+  MS12_AUTH_STRICT?: string
 
   /** JTT 숲 시트 GAS 웹앱 /exec URL — GET 보고서(/api/forest-gas-report)·POST 시트(/api/forest-gas-webhook) 프록시에 사용 */
   FOREST_GAS_WEBHOOK_URL?: string;

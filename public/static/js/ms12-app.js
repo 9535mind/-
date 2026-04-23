@@ -259,14 +259,10 @@
     var w = document.getElementById('ms12-wait')
     var g = document.getElementById('ms12-guest')
     var a = document.getElementById('ms12-authed')
-    var hint = document.getElementById('ms12-guest-hint')
     authLog('route=' + getRoute(), 'shell=' + phase, options)
     if (w) w.style.display = phase === 'loading' ? 'block' : 'none'
     if (g) g.style.display = phase === 'login' ? 'block' : 'none'
     if (a) a.style.display = phase === 'app' ? 'block' : 'none'
-    if (hint) {
-      hint.style.display = phase === 'app' ? 'block' : 'none'
-    }
     var demoMode = !!options.demoMode
     var nameText = '사용자'
     if (options.user) {
@@ -280,7 +276,7 @@
     }
     var sufs = document.querySelectorAll('.js-ms12-user-suffix')
     for (var s = 0; s < sufs.length; s++) {
-      sufs[s].textContent = options.isGuest ? (demoMode ? ' (이 브라우저 저장)' : '으로 사용 중') : ' 님'
+      sufs[s].textContent = options.isGuest ? '' : ' 님'
     }
     var badges = document.querySelectorAll('.js-ms12-badge')
     for (var b = 0; b < badges.length; b++) {
@@ -288,13 +284,8 @@
         badges[b].textContent = '로그인됨'
         badges[b].setAttribute('style', 'background:rgb(220 252 231);color:rgb(22 101 52)')
       } else if (options.isGuest) {
-        if (demoMode) {
-          badges[b].textContent = '누구나 이용'
-          badges[b].setAttribute('style', 'background:rgb(224 231 255);color:rgb(55 48 163)')
-        } else {
-          badges[b].textContent = '바로 이용'
-          badges[b].setAttribute('style', 'background:rgb(254 243 199);color:rgb(120 53 15)')
-        }
+        badges[b].textContent = ''
+        badges[b].setAttribute('style', 'display:none')
       } else {
         badges[b].textContent = '준비됨'
         badges[b].setAttribute('style', 'background:rgb(220 252 231);color:rgb(22 101 52)')
@@ -823,8 +814,8 @@
       j = Object.assign({}, j, { actor: { type: 'guest', id: lid3, source: 'local' } })
     }
     var user = authed && j && j.data ? j.data : null
-    var isGuest = openMode && !authed
-    var demoMode = pageMode === 'demo'
+    var isGuest = !authed
+    var demoMode = isGuest || pageMode === 'demo'
     if (j && j.actor && j.actor.type === 'guest') {
       try {
         localStorage.setItem('ms12_actor', JSON.stringify(j.actor))
@@ -841,20 +832,16 @@
     }
 
     var showApp = openMode || authed
-    if (pageMode === 'required' && !authed) {
-      var r0 = getRoute()
-      if (r0 === 'meeting' || r0 === 'home' || r0 === 'meeting_new' || r0 === 'join' || r0 === 'records' || r0 === 'meeting_room') {
-        applyNextToOAuthLinks()
-      }
-      applyShell('login', {})
-      return
-    }
     if (showApp) {
+      applyNextToOAuthLinks()
       applyShell('app', { user: user, isGuest: !!isGuest, demoMode: demoMode })
       wireLogout()
       initAuthedPage()
     } else {
-      applyShell('login', {})
+      applyNextToOAuthLinks()
+      applyShell('app', { user: null, isGuest: true, demoMode: true })
+      wireLogout()
+      initAuthedPage()
     }
     authLog('no other auto redirect', routePath())
   }
@@ -862,16 +849,13 @@
   function safeRun() {
     return run().catch(function (e) {
       authLog('route=' + routePath(), 'error=', String((e && e.message) || e))
-      if (getPageAuthMode() === 'required') {
-        applyShell('login', {})
-      } else {
-        var dm = getPageAuthMode() === 'demo'
-        try {
-          ensureLocalOnlyActorId()
-        } catch (err) {}
-        applyShell('app', { user: null, isGuest: true, demoMode: dm })
-        initAuthedPage()
-      }
+      var dm = getPageAuthMode() === 'demo'
+      try {
+        ensureLocalOnlyActorId()
+      } catch (err) {}
+      applyShell('app', { user: null, isGuest: true, demoMode: dm })
+      wireLogout()
+      initAuthedPage()
     })
   }
 

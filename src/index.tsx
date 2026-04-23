@@ -133,9 +133,17 @@ app.get('/api/health', (c) => {
   })
 })
 
-// 루트 → /app (로그인 후 기본·OAuth 랜딩은 /app — Zoom 스타일 시작화면)
-app.get('/', (c) => c.redirect('/app', 302))
+// GET / = 302 없이 /app 과 동일 HTML(배포 Worker 내부 subrequest)
 app.route('/app', ms12Pages)
+app.get('/', (c) => {
+  const u = new URL(c.req.url)
+  u.pathname = '/app'
+  return app.fetch(
+    new Request(u.toString(), c.req.raw),
+    c.env,
+    c.executionCtx as ExecutionContext
+  )
+})
 
 app.onError((err, c) => {
   if (err instanceof HTTPException) {

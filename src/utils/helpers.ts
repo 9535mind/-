@@ -163,6 +163,9 @@ export async function getCurrentUser(c: Context) {
   }
 
   const env = c.env as { DB: D1Database }
+  if (!env?.DB) {
+    return null
+  }
 
   const selectUserSessionWithSoftDelete = `
       SELECT
@@ -200,16 +203,27 @@ export async function getCurrentUser(c: Context) {
       .first()
   } catch (e) {
     const m = e instanceof Error ? e.message : String(e)
+    if (/no such table[:\s].*sessions|D1_ERROR.*\bsessions|SQLITE_ERROR.*\bsessions/i.test(m)) {
+      console.warn('[getCurrentUser] sessions table missing — treat as no session')
+      return null
+    }
     if (!/no such column[:\s].*deleted_at|D1_ERROR.*\bdeleted_at|SQLITE_ERROR.*\bdeleted_at/i.test(m)) {
-      throw e
+      console.warn('[getCurrentUser] session lookup error — treat as no session:', m.slice(0, 220))
+      return null
     }
     console.warn(
       '[getCurrentUser] users.deleted_at 없음 — soft-delete 제외 쿼리로 세션 조회:',
       m.slice(0, 200),
     )
-    session = await env.DB.prepare(selectUserSessionWithoutDeletedColumn)
-      .bind(sessionToken)
-      .first()
+    try {
+      session = await env.DB.prepare(selectUserSessionWithoutDeletedColumn)
+        .bind(sessionToken)
+        .first()
+    } catch (e2) {
+      const m2 = e2 instanceof Error ? e2.message : String(e2)
+      console.warn('[getCurrentUser] fallback session query failed:', m2.slice(0, 220))
+      return null
+    }
   }
 
   if (!session) {

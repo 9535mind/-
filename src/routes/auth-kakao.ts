@@ -60,10 +60,10 @@ const authKakao = new Hono<{ Bindings: Bindings }>()
 /** 콜백·오류 후 이동 — MS12 회의 앱 로그인 */
 function kakaoErrorLandingPath(c: Context<{ Bindings: Bindings }>): string {
   const h = requestHostname(c)
-  if (h === 'localhost' || h === '127.0.0.1') return '/app/login?kakao_err=1'
-  if (isCloudflarePagesPreviewHost(h)) return '/app/login?kakao_err=1'
-  if (isMs12Hostname(h)) return '/app/login?kakao_err=1'
-  return '/app/login?kakao_err=1'
+  if (h === 'localhost' || h === '127.0.0.1') return '/app?kakao_err=1'
+  if (isCloudflarePagesPreviewHost(h)) return '/app?kakao_err=1'
+  if (isMs12Hostname(h)) return '/app?kakao_err=1'
+  return '/app?kakao_err=1'
 }
 
 function getRequestOrigin(c: Context<{ Bindings: Bindings }>): string {

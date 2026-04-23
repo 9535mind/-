@@ -1,15 +1,14 @@
-/**
- * MS12 /app* — 온보딩(Zoom 스타일) + 회의방 — optional/demo 시 게스트·로컬 데모
- */
+/** MS12 /app* — 공개·게스트 기본, OAuth 는 loginAside 만 */
 import { Hono } from 'hono'
 import { Bindings } from '../types/database'
-import { getAuthMode, type AuthMode } from '../utils/auth-mode'
+import { getAuthMode } from '../utils/auth-mode'
 
 const p = new Hono<{ Bindings: Bindings }>()
 
-const MS12_APP_SCRIPT = '/static/js/ms12-app.js?v=20260423d'
-const waitBlock =
-  '<p class="ms12-p" id="ms12-wait" style="color:rgb(100 116 139)">로그인 상태 확인 중…</p>'
+/** Pages 배포·소스 ?v= 일치(배포 후 페이지 소스에 이 주석이 보이면 새 Worker) */
+const MS12_BUILD = '20260424c'
+const MS12_APP_SCRIPT = `/static/js/ms12-app.js?v=${MS12_BUILD}`
+const waitBlock = '<p class="ms12-p" id="ms12-wait" style="color:rgb(100 116 139)">불러오는 중…</p>'
 
 const commonStyles = `
   .ms12-wrap{max-width:48rem;margin:0 auto;padding:2rem 1.25rem;}
@@ -38,7 +37,32 @@ const commonStyles = `
   .ms12-part-list{list-style:none;padding:0;margin:0.5rem 0 0 0;}
   .ms12-part-list li{padding:0.35rem 0;border-bottom:1px solid rgb(241 245 249);font-size:0.9rem;}
   .ms12-toolbar{display:flex;flex-wrap:wrap;gap:0.5rem;margin-top:0.75rem;}
+  .ms12-login-aside{clear:both;margin-top:1.75rem;padding:0.75rem 0.9rem;border-radius:0.5rem;border:1px solid rgb(241 245 249);background:rgb(248 250 252);max-width:100%}
+  .ms12-login-aside summary{cursor:pointer;list-style:none;font-size:0.82rem;color:rgb(100 116 139);user-select:none}
+  .ms12-login-aside summary::-webkit-details-marker{display:none}
+  .ms12-login-aside[open] summary{margin-bottom:0.35rem}
+  .ms12-login-aside .ms12-login-aside__links a{font-size:0.82rem;color:rgb(79 70 229)}
 `
+
+function guestNoJs(heading: string): string {
+  return `<h1 class="ms12-h1">${heading}</h1>
+  <p class="ms12-p" style="font-size:0.9rem">JS 필요. <a href="/app" class="text-indigo-600">이동</a></p>`
+}
+
+function loginAside(nextPath: string, k: (n: string) => string, g: (n: string) => string): string {
+  return `<aside class="ms12-login-aside" aria-label="계정·로그인(선택)">
+  <details>
+    <summary>계정 · 로그인 (선택)</summary>
+    <p class="ms12-login-aside__links" style="margin:0.4rem 0 0 0;line-height:1.5">기기를 바꿔도 이어 쓰려면 연동할 수 있습니다.
+      <a href="${k(nextPath)}" data-ms12-login-lnk>카카오</a> ·
+      <a href="${g(nextPath)}" data-ms12-login-lnk>Google</a>
+    </p>
+  </details>
+  <p class="ms12-js-logout-line" style="margin:0.6rem 0 0 0">
+    <button type="button" class="ms12-btn ms12-btn--muted" style="font-size:0.8rem;padding:0.3rem 0.6rem" data-ms12-logout>로그아웃</button>
+  </p>
+</aside>`
+}
 
 type Ms12Route =
   | 'home'
@@ -57,6 +81,7 @@ function layout(
   authMode: string
 ) {
   return `<!DOCTYPE html>
+<!-- m:${MS12_BUILD} -->
 <html lang="ko">
 <head>
   <meta charset="utf-8"/>
@@ -77,6 +102,16 @@ function layout(
     <div id="ms12-guest" style="display:none">${guest}</div>
     <div id="ms12-authed" style="display:none">${authed}</div>
   </div>
+  <script>
+  (function () {
+    var w = document.getElementById('ms12-wait')
+    if (w) w.style.display = 'none'
+    var a = document.getElementById('ms12-authed')
+    if (a) a.style.display = 'block'
+    var g = document.getElementById('ms12-guest')
+    if (g) g.style.display = 'none'
+  })()
+  </script>
 </body>
 </html>`
 }
@@ -85,16 +120,7 @@ const oauthNext = (path: string) => encodeURIComponent(path)
 const kakao = (next: string) => `/api/auth/kakao/login?next=${oauthNext(next)}`
 const google = (next: string) => `/api/auth/google/login?next=${oauthNext(next)}`
 
-function ms12GuestHintBanner(mode: AuthMode): string {
-  const base =
-    'display:none;margin-bottom:0.75rem;padding:0.6rem 0.9rem;border-radius:0.5rem;font-size:0.9rem'
-  if (mode === 'demo') {
-    return `<div class="ms12-guest-hint" id="ms12-guest-hint" style="${base};background:rgb(239 246 255);border:1px solid rgb(191 219 254);color:rgb(30 64 175)">지금은 <strong>로그인 없이 체험 가능한 데모 모드</strong>입니다. 메모·전사·요약은 이 브라우저에 임시 저장됩니다. <a href="${kakao('/app')}" class="text-indigo-800 underline" style="font-weight:500">계정 연결(선택)</a></div>`
-  }
-  return `<div class="ms12-guest-hint" id="ms12-guest-hint" style="${base};background:rgb(254 252 232);border:1px solid rgb(253 230 138);color:rgb(120 53 15)">로그인 없이 <strong>이용</strong> 중입니다. 쿠키·브라우저를 바꾸면 기록이 이어지지 않을 수 있어요. <a href="${kakao('/app')}" class="text-indigo-700 underline" style="font-weight:500">로그인(선택)</a></div>`
-}
-
-/** Zoom 스타일 홈 (로그인 랜딩) */
+/** MS12 홈 */
 p.get('/', (c) => {
   const mode = getAuthMode(c)
   return c.html(
@@ -102,13 +128,8 @@ p.get('/', (c) => {
       'MS12',
       'home',
       '',
-      `<h1 class="ms12-h1">MS12</h1>
-       <p class="ms12-p">로그인이 필요합니다. (AUTH_MODE=required)</p>
-       <a class="ms12-btn" href="${kakao('/app')}">카카오로 계속</a>
-       <p class="ms12-p" style="margin-top:0.75rem;font-size:0.875rem;">Google: <a href="${google('/app')}" class="text-indigo-600 underline">Google로 계속</a></p>
-       <p class="ms12-p" style="margin-top:0.5rem;font-size:0.875rem;"><a href="/app/meeting" class="text-slate-500">회의 화면에서 로그인하기</a></p>`,
-      `${ms12GuestHintBanner(mode)}
-       <div class="ms12-header-row">
+      guestNoJs('MS12'),
+      `<div class="ms12-header-row">
          <h1 class="ms12-h1" style="margin:0">MS12</h1>
          <div><span class="ms12-badge js-ms12-badge" style="background:rgb(220 252 231);color:rgb(22 101 52)">준비됨</span></div>
        </div>
@@ -125,14 +146,12 @@ p.get('/', (c) => {
            <strong>회의 기록</strong><span>참여·저장·요약을 봅니다</span>
          </a>
        </div>
+       <div id="ms12-resume" class="ms12-muted" style="display:none;margin-bottom:0.75rem;padding:0.5rem 0.75rem;border-radius:0.5rem;border:1px solid rgb(226 232 240);background:rgb(248 250 252)"></div>
        <div class="ms12-footer-cards">
          <p class="ms12-subtitle">최근 흐름</p>
          <div id="ms12-home-recent" class="ms12-muted" style="min-height:2.5rem">불러오는 중…</div>
        </div>
-       <p style="margin-top:1.5rem" class="js-ms12-account-actions">
-         <button type="button" class="ms12-btn ms12-btn--muted" data-ms12-logout>로그아웃</button>
-         <a class="ms12-btn" href="${kakao('/app')}" style="margin-left:0.4rem" data-ms12-login-lnk>계정 연결</a>
-       </p>`,
+       ${loginAside('/app', kakao, google)}`,
       mode,
     ),
   )
@@ -146,10 +165,7 @@ p.get('/meeting/new', (c) =>
       '새 회의 — MS12',
       'meeting_new',
       '',
-      `<h1 class="ms12-h1">새 회의</h1>
-       <p class="ms12-p">로그인이 필요합니다.</p>
-       <a class="ms12-btn" href="${kakao('/app/meeting/new')}">카카오로 계속</a>
-       <p class="ms12-p" style="margin-top:0.5rem"><a href="${google('/app/meeting/new')}" class="text-indigo-600">Google</a> · <a href="/app" class="text-slate-500">시작화면</a></p>`,
+      guestNoJs('새 회의'),
       `<a href="/app" class="ms12-p" style="display:inline-block;margin-bottom:0.5rem">← 시작화면</a>
        <h1 class="ms12-h1">새 회의</h1>
        <p class="ms12-p">제목을 입력하면 회의 코드가 자동으로 만들어지고, <span class="js-ms12-user-name" style="font-weight:600">—</span> 님은 호스트로 입장됩니다.</p>
@@ -160,7 +176,7 @@ p.get('/meeting/new', (c) =>
          <input class="ms12-input" name="displayName" type="text" maxlength="40" placeholder="없으면 '게스트'" />
          <p style="margin-top:1rem"><button type="submit" class="ms12-btn ms12-btn--teal">회의 열기</button></p>
        </form>
-       <p style="margin-top:0.5rem"><button type="button" class="ms12-btn ms12-btn--muted" data-ms12-logout>로그아웃</button></p>`,
+       ${loginAside('/app/meeting/new', kakao, google)}`,
       getAuthMode(c),
     ),
   ),
@@ -172,10 +188,7 @@ p.get('/join', (c) =>
       '회의 입장 — MS12',
       'join',
       '',
-      `<h1 class="ms12-h1">회의 입장</h1>
-       <p class="ms12-p">로그인이 필요합니다.</p>
-       <a class="ms12-btn" href="${kakao('/app/join')}">카카오로 계속</a>
-       <p class="ms12-p" style="margin-top:0.5rem"><a href="${google('/app/join')}" class="text-indigo-600">Google</a> · <a href="/app" class="text-slate-500">시작화면</a></p>`,
+      guestNoJs('회의 입장'),
       `<a href="/app" class="ms12-p" style="display:inline-block;margin-bottom:0.5rem">← 시작화면</a>
        <h1 class="ms12-h1">회의 입장</h1>
        <p class="ms12-p">초대받은 <strong>회의 코드</strong>를 넣으면, <span class="js-ms12-user-name" style="font-weight:600">—</span> 님 이름으로 참석자 목록에 올라갑니다.</p>
@@ -187,7 +200,7 @@ p.get('/join', (c) =>
          <p style="margin-top:1rem"><button type="submit" class="ms12-btn">입장</button></p>
        </form>
        <p id="ms12-join-err" class="ms12-p" style="color:rgb(185 28 28);display:none"></p>
-       <p style="margin-top:0.5rem"><button type="button" class="ms12-btn ms12-btn--muted" data-ms12-logout>로그아웃</button></p>`,
+       ${loginAside('/app/join', kakao, google)}`,
       getAuthMode(c),
     ),
   ),
@@ -199,15 +212,12 @@ p.get('/records', (c) =>
       '회의 기록 — MS12',
       'records',
       '',
-      `<h1 class="ms12-h1">회의 기록</h1>
-       <p class="ms12-p">로그인이 필요합니다.</p>
-       <a class="ms12-btn" href="${kakao('/app/records')}">카카오로 계속</a>
-       <p class="ms12-p" style="margin-top:0.5rem"><a href="${google('/app/records')}" class="text-indigo-600">Google</a></p>`,
+      guestNoJs('회의 기록'),
       `<a href="/app" class="ms12-p" style="display:inline-block;margin-bottom:0.5rem">← 시작화면</a>
        <h1 class="ms12-h1">회의 기록</h1>
        <p class="ms12-p">참여한 회의·저장·요약(연동 예정)을 한곳에 모읍니다. 아래는 참여·개설한 모임 기준입니다.</p>
        <div id="ms12-records-list" class="ms12-p" style="margin-top:1rem">불러오는 중…</div>
-       <p style="margin-top:0.5rem"><button type="button" class="ms12-btn ms12-btn--muted" data-ms12-logout>로그아웃</button></p>`,
+       ${loginAside('/app/records', kakao, google)}`,
       getAuthMode(c),
     ),
   ),
@@ -219,11 +229,7 @@ p.get('/meeting', (c) =>
       '회의 — MS12',
       'meeting',
       '',
-      `<h1 class="ms12-h1">회의</h1>
-       <p class="ms12-p" style="font-weight:500">로그인이 필요합니다. 아래에서 카카오 또는 Google 계정으로 로그인하세요.</p>
-       <a class="ms12-btn" href="${kakao('/app/meeting')}">카카오로 계속</a>
-       <p class="ms12-p" style="margin-top:1rem;font-size:0.875rem;">Google: <a href="${google('/app/meeting')}" class="text-indigo-600 underline">Google로 계속</a></p>
-       <p class="ms12-p" style="margin-top:1.5rem;"><a href="/app" class="text-slate-500">시작화면(회의·입장·기록)</a></p>`,
+      guestNoJs('회의'),
       `<h1 class="ms12-h1">회의</h1>
        <p class="ms12-p">시작화면에서 <strong>회의 시작 / 회의 입장</strong>을 이용하시거나, 아래로 바로 갈 수 있습니다.</p>
        <p class="ms12-p" style="margin-top:0.5rem">계정: <span class="js-ms12-user-name" style="font-weight:600">—</span></p>
@@ -233,7 +239,7 @@ p.get('/meeting', (c) =>
          <a class="ms12-btn ms12-btn--muted" href="/app/records" style="margin-left:0.5rem">회의 기록</a>
        </p>
        <p style="margin-top:1rem"><a href="/app" class="ms12-p">← 시작화면</a></p>
-       <p style="margin-top:0.5rem"><button type="button" class="ms12-btn ms12-btn--muted" data-ms12-logout>로그아웃</button></p>`,
+       ${loginAside('/app/meeting', kakao, google)}`,
       getAuthMode(c),
     ),
   ),
@@ -249,10 +255,7 @@ p.get('/meeting/:id', (c) => {
       '회의 — MS12',
       'meeting_room',
       `data-ms12-meeting-id="${escapeHtml(id)}"`,
-      `<h1 class="ms12-h1">회의</h1>
-       <p class="ms12-p">로그인이 필요합니다.</p>
-       <a class="ms12-btn" href="${kakao('/app/meeting/' + id)}">카카오로 계속</a>
-       <p class="ms12-p" style="margin-top:0.5rem"><a href="${google('/app/meeting/' + id)}" class="text-indigo-600">Google</a> · <a href="/app">시작화면</a></p>`,
+      guestNoJs('회의'),
       `<a href="/app" class="ms12-p" style="display:inline-block;margin-bottom:0.5rem">← 시작화면</a>
        <h1 class="ms12-h1">회의 <span class="ms12-room-title js-ms12-room-title">—</span></h1>
        <p class="ms12-p">코드: <code class="js-ms12-room-code">—</code> · <span class="js-ms12-user-name" style="font-weight:600">—</span> 님</p>
@@ -279,7 +282,7 @@ p.get('/meeting/:id', (c) => {
            </div>
          </aside>
        </div>
-       <p style="margin-top:0.5rem"><button type="button" class="ms12-btn ms12-btn--muted" data-ms12-logout>로그아웃</button></p>
+       ${loginAside('/app/meeting/' + id, kakao, google)}
        <p id="ms12-room-err" class="ms12-p" style="color:rgb(185 28 28);display:none"></p>`,
       getAuthMode(c),
     ),
@@ -294,7 +297,7 @@ function escapeHtml(s: string): string {
     .replace(/"/g, '&quot;')
 }
 
-/** /app/login 북마크·OAuth next — /app (쿼리 유지) */
+/** /app/login — 로그인 랜딩 없이 /app(사용 화면)로만. 쿼리(오류 등)는 유지 */
 p.get('/login', (c) => {
   const q = new URL(c.req.url).search || ''
   return c.redirect(`/app${q}`, 302)

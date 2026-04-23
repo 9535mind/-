@@ -16,6 +16,23 @@ type Ctx = Context<{ Bindings: Bindings; Variables: { actor: AppActor } }>
 
 const api = new Hono<{ Bindings: Bindings; Variables: { actor: AppActor } }>()
 
+api.use(async (c, next) => {
+  const p = c.req.path
+  const segs = p.split('/').filter(Boolean)
+  if (segs[segs.length - 1] === 'health') {
+    return next()
+  }
+  if (!c.env?.DB) {
+    return c.json(
+      errorResponse(
+        'DB 연결 없음. Cloudflare Pages → ms12 → Settings → D1 `DB` → ms12-production 바인딩을 확인하세요.',
+      ),
+      503,
+    )
+  }
+  return next()
+})
+
 const CODE_ALPH = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 
 function randomId(): string {
@@ -84,8 +101,10 @@ api.get('/meetings/my', ms12Access, async (c) => {
   const actor = c.get('actor')
   const k = participantKey(actor)
   const limit = Math.min(50, Math.max(1, parseInt(c.req.query('limit') || '20', 10) || 20))
-  const rows = await c.env.DB.prepare(
-    `SELECT
+  let list: Array<Record<string, unknown> & { id: string }> = []
+  try {
+    const rows = await c.env.DB.prepare(
+      `SELECT
       r.id, r.title, r.host_user_id, r.host_guest_id, r.host_actor_type,
       r.meeting_code, r.status, r.created_at, r.updated_at,
       p.role AS my_role, p.joined_at AS my_joined_at
@@ -94,26 +113,28 @@ api.get('/meetings/my', ms12Access, async (c) => {
     WHERE p.participant_key = ?
     ORDER BY r.updated_at DESC
     LIMIT ?`
-  )
-    .bind(k, limit)
-    .all()
-  return c.json(
-    successResponse(
-      (rows.results || []).map((row: Record<string, unknown>) => ({
-        id: String(row.id),
-        title: row.title,
-        hostUserId: row.host_user_id,
-        hostGuestId: row.host_guest_id,
-        hostActorType: row.host_actor_type,
-        meetingCode: row.meeting_code,
-        status: row.status,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-        myRole: row.my_role,
-        myJoinedAt: row.my_joined_at,
-      }))
     )
-  )
+      .bind(k, limit)
+      .all()
+    list = (rows.results || []).map((row: Record<string, unknown>) => ({
+      id: String(row.id),
+      title: row.title,
+      hostUserId: row.host_user_id,
+      hostGuestId: row.host_guest_id,
+      hostActorType: row.host_actor_type,
+      meetingCode: row.meeting_code,
+      status: row.status,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      myRole: row.my_role,
+      myJoinedAt: row.my_joined_at,
+    }))
+  } catch (e) {
+    const m = e instanceof Error ? e.message : String(e)
+    console.error('[ms12] meetings/my', m.slice(0, 300))
+    list = []
+  }
+  return c.json(successResponse(list))
 })
 
 api.get('/meetings/:id/participants', ms12Access, async (c) => {
@@ -233,7 +254,13 @@ api.post('/meetings', ms12Access, async (c) => {
       const m = e instanceof Error ? e.message : String(e)
       if (/UNIQUE|unique|constraint|SQLITE_CONSTRAINT/i.test(m)) continue
       console.error('[ms12] create meeting', e)
-      return c.json(errorResponse('회의를 만들 수 없습니다.'), 500)
+      const detail = /no such (table|column)/i.test(m)
+        ? 'D1에 ms12 마이그레이션(0074·0075)이 적용됐는지 확인하세요.'
+        : '회의를 만들 수 없습니다.'
+      return c.json(
+        { success: false, error: detail, message: m.slice(0, 300) } as { success: false; error: string; message: string },
+        500,
+      )
     }
   }
   return c.json(errorResponse('회의 코드 충돌 — 잠시 후 다시 시도하세요.'), 500)
