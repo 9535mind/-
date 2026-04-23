@@ -1,0 +1,30 @@
+# Cloudflare Pages + D1 + R2 — npm run deploy / dev:d1
+# Pages 프로젝트명(배포): ms12 — wrangler pages deploy dist --project-name ms12
+# 커스텀 도메인 ms12.org 는 Dashboard → Pages → ms12 에 연결. (과거 mslms 프로젝트와 별개)
+name = "ms12"
+# 로컬 러ntime(설치된 wrangler)이 지원하는 날짜 — 업그레이드 시 12-27 등으로 맞출 수 있음
+compatibility_date = "2025-12-10"
+pages_build_output_dir = "./dist"
+# Pages(Git) 대시보드: Build command = npm run build, Output directory = dist, Root = 이 저장소 루트(vite.config.ts).
+# Output을 public·dist/static 등으로만 두면 _worker.js 없이 정적만 배포되어 /api/* 가 로그인 SPA로 떨어짐.
+compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "ms12-production"
+database_id = "f6ed95cc-c6b5-41bf-aa52-39ad8e44823c"
+
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "ms12-storage"
+
+# 공개 var (OpenAI API 키는 넣지 말고 Secret 또는 .dev.vars 사용)
+[vars]
+# MS12: 로그인 없이 /app 진입·회의·로컬 저장 체험. 운영에서 로그인 강제 시 Pages/여기서 required 로 바꿀 것.
+AUTH_MODE = "demo"
+OPENAI_BASE_URL = "https://api.openai.com/v1"
+OPENAI_MODEL = "gpt-4o"
+
+# Kakao: REST = Secret `KAKAO_CLIENT_ID` (콘솔: ms12-rest-key). JavaScript(브라우저) = Vite `VITE_KAKAO_JS_KEY` (콘솔: ms12-official), Worker vars 아님.
+# KAKAO_CLIENT_SECRET(선택), KAKAO_REDIRECT_URI(로컬) — .dev.vars(로컬) / Dashboard(배포) — 실키 커밋 금지.
+# Google: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, (선택) GOOGLE_REDIRECT_URI — 동일
