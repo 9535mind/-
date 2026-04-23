@@ -1,9 +1,124 @@
 /**
- * MS12 /app* — /api/auth/me 단일 진실.
- * OAuth 직후(oauth_sync=1)는 예전 /app/meeting·/app/login 랜딩만 /app(시작화면)로 정리.
- * 그 외 자동 location 이동 없음(로그아웃은 사용자 클릭).
+ * MS12 /app* — /api/auth/me + optional/demo 모드.
+ * OAuth 직후(oauth_sync=1)만 레거시 경로 → /app 정리. 로그인 강제 리다이렉트 없음( mode=required 제외).
+ * 데모/optional: actor 없어도 앱 셸 유지, 로컬( ms12_demo_v1 )에 회의·메모·전사·요약 백업.
  */
 ;(function () {
+  var pageMode = 'optional'
+
+  function isOpenAuthMode(m) {
+    return m === 'optional' || m === 'disabled' || m === 'demo'
+  }
+
+  var LS = 'ms12_demo_v1'
+  function readStore() {
+    try {
+      var s = localStorage.getItem(LS)
+      if (!s) return { meetings: [], byId: {} }
+      var o = JSON.parse(s)
+      if (!o || typeof o !== 'object') return { meetings: [], byId: {} }
+      if (!o.byId) o.byId = {}
+      if (!o.meetings) o.meetings = []
+      return o
+    } catch (e) {
+      return { meetings: [], byId: {} }
+    }
+  }
+  function writeStore(st) {
+    try {
+      localStorage.setItem(LS, JSON.stringify(st))
+    } catch (e) {}
+  }
+  function recordMeetingLocal(d) {
+    if (!d || !d.id) return
+    try {
+      var st = readStore()
+      var prev = st.byId[d.id] || {}
+      st.byId[d.id] = {
+        id: d.id,
+        title: d.title != null ? d.title : prev.title,
+        meetingCode: d.meetingCode != null ? d.meetingCode : prev.meetingCode,
+        myRole: d.myRole != null ? d.myRole : prev.myRole,
+        updatedAt: new Date().toISOString(),
+        notes: prev.notes,
+        transcript: prev.transcript,
+        summary: prev.summary
+      }
+      var ix = st.meetings.indexOf(d.id)
+      if (ix >= 0) st.meetings.splice(ix, 1)
+      st.meetings.unshift(d.id)
+      if (st.meetings.length > 80) st.meetings = st.meetings.slice(0, 80)
+      writeStore(st)
+    } catch (e) {}
+  }
+  function ensureLocalOnlyActorId() {
+    try {
+      var a = localStorage.getItem('ms12_actor')
+      if (a) {
+        var p = JSON.parse(a)
+        if (p && p.id) return p.id
+      }
+    } catch (e) {}
+    try {
+      var l = localStorage.getItem('ms12_local_actor')
+      if (l) {
+        var q = JSON.parse(l)
+        if (q && q.id) return q.id
+      }
+    } catch (e) {}
+    var id =
+      typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : 'g_' + String(Date.now()) + '_' + Math.random().toString(36).slice(2, 9)
+    try {
+      localStorage.setItem('ms12_local_actor', JSON.stringify({ type: 'guest', id: id, source: 'local' }))
+    } catch (e) {}
+    return id
+  }
+  function mergeMeetingRows(apiRows) {
+    if (!apiRows) apiRows = []
+    var st = readStore()
+    var inApi = {}
+    for (var i = 0; i < apiRows.length; i++) inApi[apiRows[i].id] = true
+    var out = apiRows.slice()
+    for (var j = 0; j < st.meetings.length; j++) {
+      var id = st.meetings[j]
+      if (!inApi[id] && st.byId[id]) {
+        var L = st.byId[id]
+        out.push({
+          id: L.id,
+          title: L.title,
+          meetingCode: L.meetingCode,
+          myRole: L.myRole || '이 브라우저',
+        })
+      }
+    }
+    return out
+  }
+  function saveRoomDraft(meetingId) {
+    if (!meetingId) return
+    var n = document.getElementById('ms12-room-notes')
+    var tr = document.getElementById('ms12-room-transcript')
+    var su = document.getElementById('ms12-room-summary')
+    var st = readStore()
+    if (!st.byId[meetingId]) st.byId[meetingId] = { id: meetingId }
+    st.byId[meetingId].notes = n ? n.value : (st.byId[meetingId].notes || '')
+    st.byId[meetingId].transcript = tr ? tr.value : (st.byId[meetingId].transcript || '')
+    st.byId[meetingId].summary = su ? su.value : (st.byId[meetingId].summary || '')
+    st.byId[meetingId].roomUpdatedAt = new Date().toISOString()
+    writeStore(st)
+  }
+  function loadRoomDraftToDom(meetingId) {
+    var st = readStore()
+    var x = st.byId[meetingId] || {}
+    var n = document.getElementById('ms12-room-notes')
+    var tr = document.getElementById('ms12-room-transcript')
+    var su = document.getElementById('ms12-room-summary')
+    if (n && x.notes != null) n.value = x.notes
+    if (tr && x.transcript != null) tr.value = x.transcript
+    if (su && x.summary != null) su.value = x.summary
+  }
+
   function authLog() {
     var a = ['[ms12-auth]'].concat(
       Array.prototype.slice.call(arguments).map(function (x) {
@@ -131,11 +246,12 @@
     if (hint) {
       hint.style.display = phase === 'app' && options.isGuest ? 'block' : 'none'
     }
+    var demoMode = !!options.demoMode
     var nameText = '사용자'
     if (options.user) {
       nameText = options.user.name || options.user.email || '사용자'
     } else if (options.isGuest) {
-      nameText = '게스트'
+      nameText = demoMode ? '체험 사용자' : '이용자'
     }
     var nodes = document.querySelectorAll('.js-ms12-user-name')
     for (var n = 0; n < nodes.length; n++) {
@@ -143,7 +259,7 @@
     }
     var sufs = document.querySelectorAll('.js-ms12-user-suffix')
     for (var s = 0; s < sufs.length; s++) {
-      sufs[s].textContent = options.isGuest ? '으로 사용 중' : ' 님'
+      sufs[s].textContent = options.isGuest ? (demoMode ? ' (데모 · 임시 저장)' : '으로 사용 중') : ' 님'
     }
     var badges = document.querySelectorAll('.js-ms12-badge')
     for (var b = 0; b < badges.length; b++) {
@@ -151,8 +267,13 @@
         badges[b].textContent = '로그인됨'
         badges[b].setAttribute('style', 'background:rgb(220 252 231);color:rgb(22 101 52)')
       } else if (options.isGuest) {
-        badges[b].textContent = '게스트'
-        badges[b].setAttribute('style', 'background:rgb(254 243 199);color:rgb(120 53 15)')
+        if (demoMode) {
+          badges[b].textContent = '체험 모드'
+          badges[b].setAttribute('style', 'background:rgb(224 231 255);color:rgb(55 48 163)')
+        } else {
+          badges[b].textContent = '로그인 생략'
+          badges[b].setAttribute('style', 'background:rgb(254 243 199);color:rgb(120 53 15)')
+        }
       } else {
         badges[b].textContent = '준비됨'
         badges[b].setAttribute('style', 'background:rgb(220 252 231);color:rgb(22 101 52)')
@@ -190,6 +311,20 @@
     }
   }
 
+  function renderRowLinksHtml(rows) {
+    return rows
+      .map(function (row) {
+        var t = (row.title || '제목 없음') + ' · ' + (row.meetingCode || '') + ' · ' + (row.myRole || '')
+        return (
+          '<div style="padding:0.35rem 0;border-bottom:1px solid rgb(241 245 249)"><a href="/app/meeting/' +
+          encodeURIComponent(row.id) +
+          '" class="text-indigo-600" style="text-decoration:underline">' +
+          t +
+          '</a></div>'
+        )
+      })
+      .join('')
+  }
   function initHomeRecent() {
     var el = document.getElementById('ms12-home-recent')
     if (!el) return
@@ -198,30 +333,35 @@
         return r.json()
       })
       .then(function (j) {
-        if (!j || !j.success || !j.data) {
-          el.textContent = '목록을 불러오지 못했습니다.'
+        var apiRows = j && j.success && Array.isArray(j.data) ? j.data : null
+        if (apiRows === null) {
+          var loc = mergeMeetingRows([])
+          if (loc.length) {
+            el.innerHTML = renderRowLinksHtml(loc.slice(0, 5))
+            return
+          }
+          el.textContent = '서버 목록을 불러오지 못했습니다. 이 브라우저에만 저장한 회의가 있으면 아래에 나타납니다.'
           return
         }
-        var rows = j.data
+        for (var i = 0; i < apiRows.length; i++) {
+          try {
+            recordMeetingLocal(apiRows[i])
+          } catch (e) {}
+        }
+        var rows = mergeMeetingRows(apiRows).slice(0, 5)
         if (!rows.length) {
           el.textContent = '최근 참여·개설한 회의가 아직 없습니다. 회의를 시작하거나 입장해 보세요.'
           return
         }
-        el.innerHTML = rows
-          .map(function (row) {
-            var t = (row.title || '제목 없음') + ' · ' + (row.meetingCode || '') + ' · ' + (row.myRole || '')
-            return (
-              '<div style="padding:0.35rem 0;border-bottom:1px solid rgb(241 245 249)"><a href="/app/meeting/' +
-              encodeURIComponent(row.id) +
-              '" class="text-indigo-600" style="text-decoration:underline">' +
-              t +
-              '</a></div>'
-            )
-          })
-          .join('')
+        el.innerHTML = renderRowLinksHtml(rows)
       })
       .catch(function () {
-        el.textContent = '최근 회의를 불러올 수 없습니다.'
+        var loc2 = mergeMeetingRows([])
+        if (loc2.length) {
+          el.innerHTML = renderRowLinksHtml(loc2.slice(0, 5))
+        } else {
+          el.textContent = '서버에 연결할 수 없을 때는 이 기기에 저장한 목록이 여기에 표시됩니다. 아직 로컬 기록이 없습니다.'
+        }
       })
   }
 
@@ -247,6 +387,9 @@
         })
         .then(function (j) {
           if (j && j.success && j.data && j.data.id) {
+            try {
+              recordMeetingLocal(j.data)
+            } catch (e) {}
             window.location.href = '/app/meeting/' + encodeURIComponent(j.data.id)
             return
           }
@@ -286,6 +429,9 @@
         })
         .then(function (j) {
           if (j && j.success && j.data && j.data.id) {
+            try {
+              recordMeetingLocal(j.data)
+            } catch (e) {}
             window.location.href = '/app/meeting/' + encodeURIComponent(j.data.id)
             return
           }
@@ -317,11 +463,21 @@
         return r.json()
       })
       .then(function (j) {
-        if (!j || !j.success || !j.data) {
-          el.textContent = '목록을 불러올 수 없습니다.'
-          return
+        var raw = j && j.success && Array.isArray(j.data) ? j.data : null
+        if (raw === null) {
+          var loc = mergeMeetingRows([])
+          if (!loc.length) {
+            el.textContent = '목록을 불러올 수 없습니다. (로컬에도 이전 기록이 없으면 비어 있을 수 있습니다.)'
+            return
+          }
+          raw = loc
         }
-        var rows = j.data
+        for (var k = 0; k < raw.length; k++) {
+          try {
+            recordMeetingLocal(raw[k])
+          } catch (e) {}
+        }
+        var rows = mergeMeetingRows(raw)
         if (!rows.length) {
           el.textContent = '아직 참여·개설한 회의가 없습니다. 시작화면에서 회의를 만들거나 입장해 보세요.'
           return
@@ -343,7 +499,24 @@
           .join('')
       })
       .catch(function () {
-        el.textContent = '목록을 불러올 수 없습니다.'
+        var loc2 = mergeMeetingRows([])
+        if (loc2.length) {
+          el.innerHTML = loc2
+            .map(function (row) {
+              return (
+                '<div style="padding:0.5rem 0;border-bottom:1px solid rgb(241 245 249)"><strong>' +
+                (row.title || '제목 없음') +
+                '</strong> <span class="ms12-muted" style="font-size:0.8rem">(이 브라우저)</span><br/><span class="ms12-p" style="font-size:0.85rem">코드: ' +
+                (row.meetingCode || '—') +
+                '</span><br/><a class="ms12-btn" style="margin-top:0.4rem" href="/app/meeting/' +
+                encodeURIComponent(row.id) +
+                '">회의실 열기</a></div>'
+              )
+            })
+            .join('')
+        } else {
+          el.textContent = '오프라인이거나 서버에 연결할 수 없을 때, 이 기기에 저장된 기록이 없으면 비어 있을 수 있습니다.'
+        }
       })
   }
 
@@ -402,6 +575,90 @@
     if (!id) return
     var titleEls = document.querySelectorAll('.js-ms12-room-title')
     var codeEls = document.querySelectorAll('.js-ms12-room-code')
+    var localRow = (readStore().byId || {})[id] || null
+
+    try {
+      loadRoomDraftToDom(id)
+    } catch (e) {}
+    if (localRow) {
+      for (var li = 0; li < titleEls.length; li++) {
+        if (localRow.title) titleEls[li].textContent = localRow.title
+      }
+      for (var lj = 0; lj < codeEls.length; lj++) {
+        if (localRow.meetingCode) codeEls[lj].textContent = localRow.meetingCode
+      }
+    }
+    var noteEl = function () {
+      return [
+        document.getElementById('ms12-room-notes'),
+        document.getElementById('ms12-room-transcript'),
+        document.getElementById('ms12-room-summary'),
+      ]
+    }
+    var debT = null
+    function onDraftInput() {
+      if (debT) clearTimeout(debT)
+      debT = setTimeout(function () {
+        saveRoomDraft(id)
+      }, 500)
+    }
+    noteEl()
+      .filter(Boolean)
+      .forEach(function (el) {
+        el.addEventListener('input', onDraftInput)
+        el.addEventListener('change', onDraftInput)
+      })
+    var exp = document.getElementById('ms12-room-export')
+    if (exp) {
+      exp.addEventListener('click', function () {
+        try {
+          saveRoomDraft(id)
+        } catch (e) {}
+        var st = readStore()
+        var pack = (st.byId && st.byId[id]) || {}
+        var name = (pack.title || 'meeting') + '-' + id.slice(0, 8) + '.json'
+        var blob = new Blob(
+          [
+            JSON.stringify(
+              {
+                version: 1,
+                meetingId: id,
+                title: pack.title,
+                meetingCode: pack.meetingCode,
+                savedAt: new Date().toISOString(),
+                notes: pack.notes || '',
+                transcript: pack.transcript || '',
+                summary: pack.summary || '',
+              },
+              null,
+              2
+            ),
+          ],
+          { type: 'application/json' }
+        )
+        var a = document.createElement('a')
+        a.href = URL.createObjectURL(blob)
+        a.download = name
+        a.click()
+        setTimeout(function () {
+          try {
+            URL.revokeObjectURL(a.href)
+          } catch (e) {}
+        }, 2000)
+      })
+    }
+    var flush = document.getElementById('ms12-room-flush')
+    if (flush) {
+      flush.addEventListener('click', function () {
+        try {
+          saveRoomDraft(id)
+        } catch (e) {}
+        var ln = document.getElementById('ms12-room-local-note')
+        if (ln) {
+          ln.textContent = '이 브라우저에 저장했습니다. (' + new Date().toLocaleTimeString() + ')'
+        }
+      })
+    }
 
     fetch('/api/ms12/meetings/' + encodeURIComponent(id), { credentials: 'include' })
       .then(function (r) {
@@ -411,16 +668,29 @@
       })
       .then(function (o) {
         if (o.status === 403) {
-          showRoomErr('이 방의 참석자만 내용을 볼 수 있습니다. 먼저「회의 입장」에서 코드로 입장하세요.')
-          for (var t = 0; t < titleEls.length; t++) titleEls[t].textContent = '—'
-          for (var c = 0; c < codeEls.length; c++) codeEls[c].textContent = '—'
-          return { ok: false }
+          if (localRow) {
+            showRoomErr(
+              '이 방에 서버 기준으로는 아직 입장 기록이 없을 수 있습니다. 이 브라우저에 저장해 둔 메모·전사·요약은 그대로 표시했습니다. 코드로「회의 입장」하면 동기화됩니다.'
+            )
+          } else {
+            showRoomErr('이 방의 참석자만 내용을 볼 수 있습니다. 먼저「회의 입장」에서 코드로 입장하세요.')
+            for (var t = 0; t < titleEls.length; t++) titleEls[t].textContent = '—'
+            for (var c = 0; c < codeEls.length; c++) codeEls[c].textContent = '—'
+          }
+          return { ok: false, j: null }
         }
         if (!o.j || !o.j.success || !o.j.data) {
-          showRoomErr((o.j && o.j.error) || '회의를 불러올 수 없습니다.')
-          return { ok: false }
+          if (localRow) {
+            showRoomErr('서버 응답이 없어 이 기기에 저장된 정보만 표시 중입니다.')
+          } else {
+            showRoomErr((o.j && o.j.error) || '회의를 불러올 수 없습니다.')
+          }
+          return { ok: false, j: null }
         }
         var d = o.j.data
+        try {
+          recordMeetingLocal(d)
+        } catch (e) {}
         for (var i = 0; i < titleEls.length; i++) titleEls[i].textContent = d.title || '회의'
         for (var jn = 0; jn < codeEls.length; jn++) codeEls[jn].textContent = d.meetingCode || '—'
         showRoomErr('')
@@ -441,7 +711,11 @@
         }, 5000)
       })
       .catch(function () {
-        showRoomErr('요청이 실패했습니다.')
+        if (localRow) {
+          showRoomErr('네트워크가 불안정해 이 기기에 저장된 내용만 사용합니다.')
+        } else {
+          showRoomErr('요청이 실패했습니다.')
+        }
       })
   }
 
@@ -475,14 +749,21 @@
         pageMode = (j && j.authMode) || pageMode
       }
     }
+    var openMode = isOpenAuthMode(pageMode)
+    if (openMode && !authed && (o.status === 0 || (o.status >= 500 && o.status < 600))) {
+      var lid = ensureLocalOnlyActorId()
+      j = {
+        success: true,
+        data: null,
+        authMode: pageMode,
+        actor: { type: 'guest', id: lid, source: 'offline' },
+      }
+      authed = false
+      authLog('me failed or offline; continue as local demo_guest', lid)
+    }
     var user = authed && j && j.data ? j.data : null
-    var isGuest =
-      (pageMode === 'optional' || pageMode === 'disabled') &&
-      j &&
-      j.success &&
-      j.actor &&
-      j.actor.type === 'guest' &&
-      !authed
+    var isGuest = openMode && !authed
+    var demoMode = pageMode === 'demo'
     if (j && j.actor && j.actor.type === 'guest') {
       try {
         localStorage.setItem('ms12_actor', JSON.stringify(j.actor))
@@ -520,7 +801,7 @@
       stripOauthParam()
     }
 
-    var showApp = pageMode === 'optional' || pageMode === 'disabled' || authed
+    var showApp = openMode || authed
     if (pageMode === 'required' && !authed) {
       var r0 = getRoute()
       if (r0 === 'meeting' || r0 === 'home' || r0 === 'meeting_new' || r0 === 'join' || r0 === 'records' || r0 === 'meeting_room') {
@@ -530,7 +811,7 @@
       return
     }
     if (showApp) {
-      applyShell('app', { user: user, isGuest: !!isGuest })
+      applyShell('app', { user: user, isGuest: !!isGuest, demoMode: demoMode })
       wireLogout()
       initAuthedPage()
     } else {
@@ -545,7 +826,12 @@
       if (getPageAuthMode() === 'required') {
         applyShell('login', {})
       } else {
-        applyShell('app', { user: null, isGuest: true })
+        var dm = getPageAuthMode() === 'demo'
+        try {
+          ensureLocalOnlyActorId()
+        } catch (err) {}
+        applyShell('app', { user: null, isGuest: true, demoMode: dm })
+        initAuthedPage()
       }
     })
   }

@@ -22,7 +22,7 @@ import {
 } from '../utils/helpers'
 import { requireAuth } from '../middleware/auth'
 import { ensureListedAdminRole, isListedAdminEmail } from '../utils/admin-emails'
-import { getAuthMode } from '../utils/auth-mode'
+import { getAuthMode, isOpenGuestMode } from '../utils/auth-mode'
 import { ensureActorForMeEndpoint, type AppActor } from '../utils/actor'
 
 const auth = new Hono<{ Bindings: Bindings }>()
@@ -300,7 +300,7 @@ auth.get('/me', async (c) => {
     const mode = getAuthMode(c)
     const user = await getCurrentUser(c)
     let actor: AppActor | null = null
-    if (mode === 'optional' || mode === 'disabled') {
+    if (isOpenGuestMode(mode)) {
       actor = await ensureActorForMeEndpoint(c)
     } else {
       if (user) {

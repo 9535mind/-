@@ -53,15 +53,44 @@ export function requestHostname(c: Context): string {
 export function getRequestPublicOrigin(c: Context): string {
   const reqUrl = new URL(c.req.url)
   const protoRaw = c.req.header('x-forwarded-proto') || reqUrl.protocol.replace(':', '') || 'https'
-  const proto = protoRaw.split(',')[0]?.trim() || 'https'
+  const proto = (protoRaw.split(',')[0] ?? 'https').trim() || 'https'
   const hostRaw = c.req.header('x-forwarded-host') || c.req.header('host') || reqUrl.host
-  const host = hostRaw.split(',')[0]?.trim() || reqUrl.host
-  return `${proto}://${host}`
+  const fromHeaders = (hostRaw.split(',')[0] ?? '').trim()
+  const host = fromHeaders || reqUrl.host || (reqUrl.hostname ? `${reqUrl.hostname}${reqUrl.port ? `:${reqUrl.port}` : ''}` : '')
+  if (host) {
+    return `${proto}://${host}`
+  }
+  return reqUrl.origin
+}
+
+/**
+ * 302 Location·script redirect용 — 호스트 누락(예: `https://` 단독)으로 about:blank 로 이어지는 것 방지
+ */
+export function getSafeRequestOrigin(c: Context): string {
+  let raw: string
+  try {
+    raw = getRequestPublicOrigin(c)
+    const u = new URL(raw)
+    if (u.hostname) return u.origin
+  } catch {
+    // fall through
+  }
+  try {
+    const u2 = new URL(c.req.url)
+    if (u2.hostname) return u2.origin
+  } catch {
+    // fall through
+  }
+  const h = requestHostname(c)
+  if (h) {
+    return h === 'localhost' || h === '127.0.0.1' ? `http://${h}` : `https://${h}`
+  }
+  return SITE_PUBLIC_ORIGIN.replace(/\/$/, '') || 'https://ms12.org'
 }
 
 /** OAuth 콜백 직후 — Zoom 스타일 시작화면 /app */
 export function oauthSuccessLandingUrl(c: Context): string {
-  return `${getRequestPublicOrigin(c)}/app?oauth_sync=1`
+  return `${getSafeRequestOrigin(c)}/app?oauth_sync=1`
 }
 
 export function isLocalDevHostname(hostname: string): boolean {

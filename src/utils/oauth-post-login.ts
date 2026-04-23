@@ -3,7 +3,7 @@
  */
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 import type { Context } from 'hono'
-import { getRequestPublicOrigin, oauthSuccessLandingUrl } from './oauth-public'
+import { getSafeRequestOrigin, oauthSuccessLandingUrl } from './oauth-public'
 import { isSecureCookieRequest } from './session-cookie'
 
 export const OAUTH_POST_LOGIN_COOKIE = 'oauth_post_login'
@@ -56,6 +56,8 @@ export function setPostLoginPathCookie(c: Context, pathWithQuery: string) {
 
 /**
  * Kakao·Google 콜백 성공 직후(세션 쿠키 set 이후) 호출.
+ * 302 + 절대 URL — Set-Cookie 직후 브라우저가 /app 을 GET 할 때 쿠키를 안정적으로 보내게 하고,
+ * 클라이언트는 oauth_sync 시 /api/auth/me 를 짧게 재시도(레이스 방지)한다.
  */
 export function redirectAfterOAuthOrDefault(c: Context) {
   const raw = getCookie(c, OAUTH_POST_LOGIN_COOKIE)
@@ -65,13 +67,28 @@ export function redirectAfterOAuthOrDefault(c: Context) {
     sameSite: 'Lax',
   })
 
+  const origin = getSafeRequestOrigin(c)
   const path = sanitizeLmsPostLoginPath(raw || '')
+  let targetUrl: string
   if (path) {
-    const origin = getRequestPublicOrigin(c).replace(/\/$/, '')
     const hasQuery = path.includes('?')
     const sep = hasQuery ? '&' : '?'
-    return c.redirect(`${origin}${path}${sep}oauth_sync=1`, 302)
+    targetUrl = `${origin}${path}${sep}oauth_sync=1`
+  } else {
+    targetUrl = oauthSuccessLandingUrl(c)
+  }
+  let ok = false
+  try {
+    const u = new URL(targetUrl)
+    ok = (u.protocol === 'https:' || u.protocol === 'http:') && !!u.host
+  } catch {
+    ok = false
+  }
+  if (!ok) {
+    targetUrl = `${origin}/app?oauth_sync=1`
   }
 
-  return c.redirect(oauthSuccessLandingUrl(c), 302)
+  c.header('Cache-Control', 'no-store, must-revalidate, private')
+  c.header('Pragma', 'no-cache')
+  return c.redirect(targetUrl, 302)
 }

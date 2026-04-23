@@ -1,13 +1,13 @@
 /**
- * MS12 /app* — 온보딩(Zoom 스타일) + 회의방 — AUTH_MODE=optional 시 게스트 전역 사용
+ * MS12 /app* — 온보딩(Zoom 스타일) + 회의방 — optional/demo 시 게스트·로컬 데모
  */
 import { Hono } from 'hono'
 import { Bindings } from '../types/database'
-import { getAuthMode } from '../utils/auth-mode'
+import { getAuthMode, type AuthMode } from '../utils/auth-mode'
 
 const p = new Hono<{ Bindings: Bindings }>()
 
-const MS12_APP_SCRIPT = '/static/js/ms12-app.js?v=20260425c'
+const MS12_APP_SCRIPT = '/static/js/ms12-app.js?v=20260423d'
 const waitBlock =
   '<p class="ms12-p" id="ms12-wait" style="color:rgb(100 116 139)">로그인 상태 확인 중…</p>'
 
@@ -85,9 +85,19 @@ const oauthNext = (path: string) => encodeURIComponent(path)
 const kakao = (next: string) => `/api/auth/kakao/login?next=${oauthNext(next)}`
 const google = (next: string) => `/api/auth/google/login?next=${oauthNext(next)}`
 
+function ms12GuestHintBanner(mode: AuthMode): string {
+  const base =
+    'display:none;margin-bottom:0.75rem;padding:0.6rem 0.9rem;border-radius:0.5rem;font-size:0.9rem'
+  if (mode === 'demo') {
+    return `<div class="ms12-guest-hint" id="ms12-guest-hint" style="${base};background:rgb(239 246 255);border:1px solid rgb(191 219 254);color:rgb(30 64 175)">지금은 <strong>로그인 없이 체험 가능한 데모 모드</strong>입니다. 메모·전사·요약은 이 브라우저에 임시 저장됩니다. <a href="${kakao('/app')}" class="text-indigo-800 underline" style="font-weight:500">계정 연결(선택)</a></div>`
+  }
+  return `<div class="ms12-guest-hint" id="ms12-guest-hint" style="${base};background:rgb(254 252 232);border:1px solid rgb(253 230 138);color:rgb(120 53 15)">로그인 없이 <strong>이용</strong> 중입니다. 쿠키·브라우저를 바꾸면 기록이 이어지지 않을 수 있어요. <a href="${kakao('/app')}" class="text-indigo-700 underline" style="font-weight:500">로그인(선택)</a></div>`
+}
+
 /** Zoom 스타일 홈 (로그인 랜딩) */
-p.get('/', (c) =>
-  c.html(
+p.get('/', (c) => {
+  const mode = getAuthMode(c)
+  return c.html(
     layout(
       'MS12',
       'home',
@@ -97,7 +107,7 @@ p.get('/', (c) =>
        <a class="ms12-btn" href="${kakao('/app')}">카카오로 계속</a>
        <p class="ms12-p" style="margin-top:0.75rem;font-size:0.875rem;">Google: <a href="${google('/app')}" class="text-indigo-600 underline">Google로 계속</a></p>
        <p class="ms12-p" style="margin-top:0.5rem;font-size:0.875rem;"><a href="/app/meeting" class="text-slate-500">회의 화면에서 로그인하기</a></p>`,
-      `<div class="ms12-guest-hint" id="ms12-guest-hint" style="display:none;margin-bottom:0.75rem;padding:0.6rem 0.9rem;border-radius:0.5rem;background:rgb(254 252 232);border:1px solid rgb(253 230 138);color:rgb(120 53 15);font-size:0.9rem">지금은 <strong>게스트</strong>로 쓰는 중입니다. 쿠키·브라우저를 바꾸면 이 기기에서의 기록이 이어지지 않을 수 있습니다. <a href="${kakao('/app')}" class="text-indigo-700 underline" style="font-weight:500">로그인(선택)</a></div>
+      `${ms12GuestHintBanner(mode)}
        <div class="ms12-header-row">
          <h1 class="ms12-h1" style="margin:0">MS12</h1>
          <div><span class="ms12-badge js-ms12-badge" style="background:rgb(220 252 231);color:rgb(22 101 52)">준비됨</span></div>
@@ -123,10 +133,10 @@ p.get('/', (c) =>
          <button type="button" class="ms12-btn ms12-btn--muted" data-ms12-logout>로그아웃</button>
          <a class="ms12-btn" href="${kakao('/app')}" style="margin-left:0.4rem" data-ms12-login-lnk>계정 연결</a>
        </p>`,
-      getAuthMode(c),
+      mode,
     ),
-  ),
-)
+  )
+})
 
 p.get('/home', (c) => c.redirect('/app', 302))
 
@@ -246,15 +256,19 @@ p.get('/meeting/:id', (c) => {
       `<a href="/app" class="ms12-p" style="display:inline-block;margin-bottom:0.5rem">← 시작화면</a>
        <h1 class="ms12-h1">회의 <span class="ms12-room-title js-ms12-room-title">—</span></h1>
        <p class="ms12-p">코드: <code class="js-ms12-room-code">—</code> · <span class="js-ms12-user-name" style="font-weight:600">—</span> 님</p>
+       <p class="ms12-p ms12-muted" style="font-size:0.88rem" id="ms12-room-local-note">핵심 메모·전사·요약은 이 브라우저에 자동 저장됩니다.</p>
        <div class="ms12-room-wrap" style="margin-top:0.75rem">
          <div>
            <div class="ms12-panel">
-             <p class="ms12-p" style="font-weight:600;margin:0 0 0.5rem 0">회의 내용</p>
-             <textarea class="ms12-notes" id="ms12-room-notes" placeholder="핵심 메모(연동·저장은 다음 단계)"></textarea>
+             <p class="ms12-p" style="font-weight:600;margin:0 0 0.5rem 0">회의 메모</p>
+             <textarea class="ms12-notes" id="ms12-room-notes" placeholder="핵심 메모 (자동 저장)"></textarea>
+             <p class="ms12-p" style="font-weight:600;margin:0.75rem 0 0.4rem 0">전사</p>
+             <textarea class="ms12-notes" id="ms12-room-transcript" placeholder="전사문 (데모: 입력·붙여넣기, 자동 저장)" style="min-height:6rem"></textarea>
+             <p class="ms12-p" style="font-weight:600;margin:0.75rem 0 0.4rem 0">요약</p>
+             <textarea class="ms12-notes" id="ms12-room-summary" placeholder="요약 (자동 저장)" style="min-height:6rem"></textarea>
              <div class="ms12-toolbar">
-               <button type="button" class="ms12-btn ms12-btn--muted" disabled>저장(예정)</button>
-               <button type="button" class="ms12-btn ms12-btn--muted" disabled>요약(예정)</button>
-               <button type="button" class="ms12-btn ms12-btn--muted" disabled>문서화(예정)</button>
+               <button type="button" class="ms12-btn ms12-btn--muted" id="ms12-room-flush">지금 이 브라우저에 저장</button>
+               <button type="button" class="ms12-btn" id="ms12-room-export">JSON 내보내기</button>
              </div>
            </div>
          </div>

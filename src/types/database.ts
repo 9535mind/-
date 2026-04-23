@@ -46,7 +46,7 @@ export type Bindings = {
   NEXT_PUBLIC_SITE_URL?: string;
 
   /**
-   * MS12 인증 강도 — optional(게스트+로그인) | required(로그인 필수, API 미인증 401) | disabled(선택, 현재 optional 과 동일 처리)
+   * MS12 인증 강도 — optional | demo(시연·로컬 백업 강조, 서버는 optional 과 동일) | required | disabled
    * @see src/utils/auth-mode.ts
    */
   AUTH_MODE?: string

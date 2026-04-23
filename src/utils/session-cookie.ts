@@ -21,14 +21,8 @@ export function isSecureCookieRequest(c: Context): boolean {
   return new URL(c.req.url).protocol === 'https:'
 }
 
-export function sessionCookieDomain(c: Context): string | undefined {
-  const h = requestHostname(c)
-  if (h === 'ms12.org' || h === 'www.ms12.org' || h.endsWith('.ms12.org')) {
-    return 'ms12.org'
-  }
-  if (h === 'ms12.pages.dev' || h.endsWith('.ms12.pages.dev')) {
-    return 'ms12.pages.dev'
-  }
+export function sessionCookieDomain(_c: Context): string | undefined {
+  /** Domain 미지정(호스트 전용) — Domain=… 지정 시 리다이렉트 직후 세션이 누락되는 사례 완화 */
   return undefined
 }
 
@@ -46,12 +40,9 @@ export function applySessionCookie(c: Context, token: string, maxAgeSeconds: num
 }
 
 export function clearSessionCookie(c: Context) {
-  const domain = sessionCookieDomain(c)
   const secure = isSecureCookieRequest(c)
-  deleteCookie(c, 'session_token', {
-    path: '/',
-    secure,
-    sameSite: 'Lax',
-    ...(domain ? { domain } : {}),
-  })
+  const base = { path: '/', secure, sameSite: 'Lax' as const }
+  deleteCookie(c, 'session_token', base)
+  deleteCookie(c, 'session_token', { ...base, domain: 'ms12.org' })
+  deleteCookie(c, 'session_token', { ...base, domain: 'ms12.pages.dev' })
 }
