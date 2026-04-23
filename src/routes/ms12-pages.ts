@@ -6,7 +6,7 @@ import { getAuthMode } from '../utils/auth-mode'
 const p = new Hono<{ Bindings: Bindings }>()
 
 /** Pages 배포·소스 ?v= 일치(배포 후 페이지 소스에 이 주석이 보이면 새 Worker) */
-const MS12_BUILD = '20260422o'
+const MS12_BUILD = '20260422q'
 const MS12_APP_SCRIPT = `/static/js/ms12-app.js?v=${MS12_BUILD}`
 const waitBlock = '<p class="ms12-p" id="ms12-wait" style="color:rgb(100 116 139)">불러오는 중…</p>'
 
@@ -524,21 +524,42 @@ p.get('/meeting/:id', (c) => {
                  <button type="button" class="ms12-btn" id="ms12-ai-summary-apply" style="margin:0">AI 제안 → 아래 요약에 반영</button>
                </div>
                <div class="ms12-panel" style="margin:0.35rem 0 0.75rem 0;padding:0.6rem 0.75rem;background:rgb(248 250 252)">
-                 <p class="ms12-muted" style="font-size:0.75rem;margin:0 0 0.3rem 0">AI·기본</p>
-                 <div id="ms12-ai-sug-basic" class="ms12-p" style="font-size:0.86rem;white-space:pre-wrap;min-height:1.2rem">—</div>
-                 <p class="ms12-muted" style="font-size:0.75rem;margin:0.5rem 0 0.3rem 0">AI·실행</p>
-                 <div id="ms12-ai-sug-action" class="ms12-p" style="font-size:0.86rem;white-space:pre-wrap;min-height:1.2rem">—</div>
-                 <p class="ms12-muted" style="font-size:0.75rem;margin:0.5rem 0 0.3rem 0">AI·보고</p>
-                 <div id="ms12-ai-sug-report" class="ms12-p" style="font-size:0.86rem;white-space:pre-wrap;min-height:1.2rem">—</div>
+                 <p class="ms12-muted" style="font-size:0.75rem;margin:0 0 0.3rem 0">AI·기본 (직접 수정 가능)</p>
+                 <textarea id="ms12-ai-sug-basic" class="ms12-input" rows="2" style="width:100%;min-height:2.4rem;max-width:100%;font-size:0.86rem;white-space:pre-wrap;resize:vertical" placeholder="—">—</textarea>
+                 <p class="ms12-muted" style="font-size:0.75rem;margin:0.5rem 0 0.3rem 0">AI·실행 (직접 수정 가능)</p>
+                 <textarea id="ms12-ai-sug-action" class="ms12-input" rows="2" style="width:100%;min-height:2.4rem;max-width:100%;font-size:0.86rem;white-space:pre-wrap;resize:vertical" placeholder="—">—</textarea>
+                 <p class="ms12-muted" style="font-size:0.75rem;margin:0.5rem 0 0.3rem 0">AI·보고 (직접 수정 가능)</p>
+                 <textarea id="ms12-ai-sug-report" class="ms12-input" rows="2" style="width:100%;min-height:2.4rem;max-width:100%;font-size:0.86rem;white-space:pre-wrap;resize:vertical" placeholder="—">—</textarea>
                </div>
                <p class="ms12-p" style="font-weight:600;margin:0.5rem 0 0.35rem 0">수정·저장용 요약 (3단)</p>
-             <p class="ms12-muted" style="font-size:0.8rem;margin:0 0 0.4rem 0">기본·실행·보고로 나누어 적으면 서버 보관·AI 문서에 반영됩니다.</p>
-             <label class="ms12-muted" style="font-size:0.78rem;display:block;margin:0.25rem 0 0.15rem 0">기본 요약</label>
-             <textarea class="ms12-notes" id="ms12-room-summary-basic" placeholder="기본 요약 (자동 저장)" style="min-height:4rem"></textarea>
-             <label class="ms12-muted" style="font-size:0.78rem;display:block;margin:0.45rem 0 0.15rem 0">실행 요약</label>
-             <textarea class="ms12-notes" id="ms12-room-summary-action" placeholder="실행 요약" style="min-height:4rem"></textarea>
-             <label class="ms12-muted" style="font-size:0.78rem;display:block;margin:0.45rem 0 0.15rem 0">보고 요약</label>
-             <textarea class="ms12-notes" id="ms12-room-summary-report" placeholder="보고 요약" style="min-height:4rem"></textarea>
+             <p class="ms12-muted" style="font-size:0.8rem;margin:0 0 0.4rem 0">탭을 누르면 해당 유형만 AI로 정리·아래에 반영됩니다. (자동 저장) 전체 3단은 위「지금 AI 요약 받기」에서 한꺼번에 갱신됩니다.</p>
+             <div class="ms12-subtab-bar" role="tablist" aria-label="요약 유형" style="margin:0.35rem 0 0.5rem 0;flex-wrap:wrap">
+               <button type="button" class="ms12-subtab ms12-subtab--active" data-ms12-summary-tab="basic" id="ms12-sum-tab-basic" role="tab" aria-selected="true">기본요약</button>
+               <button type="button" class="ms12-subtab" data-ms12-summary-tab="action" id="ms12-sum-tab-action" role="tab" aria-selected="false">실행요약</button>
+               <button type="button" class="ms12-subtab" data-ms12-summary-tab="report" id="ms12-sum-tab-report" role="tab" aria-selected="false">보고요약</button>
+             </div>
+             <div data-ms12-summary-wrap="basic" class="ms12-summary-wrap" style="display:block">
+             <label class="ms12-muted" style="font-size:0.78rem;display:block;margin:0 0 0.15rem 0" for="ms12-room-summary-basic">기본 요약</label>
+             <textarea class="ms12-notes" id="ms12-room-summary-basic" placeholder="기본 요약 (자동 저장)" style="min-height:5rem" aria-label="기본 요약"></textarea>
+             </div>
+             <div data-ms12-summary-wrap="action" class="ms12-summary-wrap" style="display:none">
+             <label class="ms12-muted" style="font-size:0.78rem;display:block;margin:0 0 0.15rem 0" for="ms12-room-summary-action">실행 요약</label>
+             <textarea class="ms12-notes" id="ms12-room-summary-action" placeholder="실행 요약" style="min-height:5rem" aria-label="실행 요약"></textarea>
+             </div>
+             <div data-ms12-summary-wrap="report" class="ms12-summary-wrap" style="display:none">
+             <label class="ms12-muted" style="font-size:0.78rem;display:block;margin:0 0 0.15rem 0" for="ms12-room-summary-report">보고 요약</label>
+             <textarea class="ms12-notes" id="ms12-room-summary-report" placeholder="보고 요약" style="min-height:5rem" aria-label="보고 요약"></textarea>
+             </div>
+             <p class="ms12-p" style="font-weight:600;margin:0.75rem 0 0.35rem 0">실행 항목 (AI 초안)</p>
+             <p class="ms12-muted" style="font-size:0.8rem;margin:0 0 0.4rem 0">메모·전사·3단 요약을 바탕으로 AI가 후보를 만듭니다. 아래 JSON을 고친 뒤 «서버에 반영»하세요. <strong>실행 항목</strong> 탭 목록에서도 제목·상세·담당·기한을 바로 고칠 수 있습니다.</p>
+             <label class="ms12-muted" style="font-size:0.78rem;display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;margin:0 0 0.4rem 0">
+               <input type="checkbox" id="ms12-ai-action-sync" checked style="width:auto" /> 전체 AI 요약(90초·또는「지금 받기」)과 함께 실행 항목 초안도 채움
+             </label>
+             <div class="ms12-toolbar" style="margin:0 0 0.5rem 0;flex-wrap:wrap;gap:0.4rem;align-items:center">
+               <button type="button" class="ms12-btn" id="ms12-ai-action-gen" style="margin:0">실행 항목 AI 제안</button>
+               <button type="button" class="ms12-btn ms12-btn--teal" id="ms12-ai-action-apply" style="margin:0">초안 → 서버 실행 항목에 추가</button>
+             </div>
+             <textarea class="ms12-notes" id="ms12-ai-action-draft" style="min-height:6.5rem;font-size:0.85rem" placeholder='[ { "title": "…", "taskDetail": "", "assignee": "", "dueAt": "" } ] JSON 배열, 수정 후 반영' aria-label="실행 항목 AI 초안"></textarea>
              </div>
            </div>
            <div id="ms12-rpanel-actions" class="ms12-rpanel" data-panel="actions" style="display:none">

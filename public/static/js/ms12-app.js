@@ -1049,6 +1049,7 @@
                 summaryBasic: pack.summaryBasic,
                 summaryAction: pack.summaryAction,
                 summaryReport: pack.summaryReport,
+                draftByKind: pack.draftByKind,
                 actionItems: lastMergedActions && lastMergedActions.length
                   ? lastMergedActions
                   : mergeActionLists([], getLocalActionItemsOnly(id)),
@@ -1236,6 +1237,116 @@
         .catch(function () {
           if (statEl) statEl.textContent = '요청 실패'
         })
+    }
+    var summaryTabBusy = false
+    function showSummaryTabUI(kind) {
+      var k =
+        kind === 'action' || kind === 'report' || kind === 'basic' ? kind : 'basic'
+      var wraps = document.querySelectorAll('[data-ms12-summary-wrap]')
+      for (var wi = 0; wi < wraps.length; wi++) {
+        var w = wraps[wi]
+        var wk = w.getAttribute('data-ms12-summary-wrap')
+        w.style.display = wk === k ? 'block' : 'none'
+      }
+      var tabs = document.querySelectorAll('[data-ms12-summary-tab]')
+      for (var ti = 0; ti < tabs.length; ti++) {
+        var tbtn = tabs[ti]
+        var tk = tbtn.getAttribute('data-ms12-summary-tab')
+        var on = tk === k
+        if (on) tbtn.classList.add('ms12-subtab--active')
+        else tbtn.classList.remove('ms12-subtab--active')
+        tbtn.setAttribute('aria-selected', on ? 'true' : 'false')
+      }
+    }
+    function runAutoSummaryForFocus(focus) {
+      if (summaryTabBusy) return
+      if (!roomServerOk) {
+        if (statEl) {
+          statEl.textContent =
+            '서버에 참가한 방에서만 AI 자동요약 API를 씁니다. (코드로 입장·세션)'
+        }
+        return
+      }
+      var n = document.getElementById('ms12-room-notes')
+      var tr = document.getElementById('ms12-room-transcript')
+      var sba = document.getElementById('ms12-room-summary-basic')
+      var sac = document.getElementById('ms12-room-summary-action')
+      var srp = document.getElementById('ms12-room-summary-report')
+      var notes = n ? n.value : ''
+      var trans = tr ? tr.value : ''
+      if (!String(notes + trans).trim() || String(notes + trans).trim().length < 30) {
+        if (statEl) statEl.textContent = '메모·전사를 조금 더 입력하세요. (최소 약 30자)'
+        return
+      }
+      var label =
+        focus === 'basic'
+          ? '기본요약'
+          : focus === 'action'
+            ? '실행요약'
+            : '보고요약'
+      if (statEl) statEl.textContent = label + ' AI 정리 중…'
+      summaryTabBusy = true
+      fetch('/api/ms12/meetings/' + encodeURIComponent(id) + '/auto-summary', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          notes: notes,
+          transcript: trans,
+          summaryBasic: sba ? sba.value : '',
+          summaryAction: sac ? sac.value : '',
+          summaryReport: srp ? srp.value : '',
+          focus: focus,
+        }),
+      })
+        .then(function (r) {
+          return jsonFromResponse(r)
+        })
+        .then(function (j) {
+          if (j && j.success && j.data) {
+            var d = j.data
+            if (d.summaryBasic && focus === 'basic') {
+              if (sugB) sugB.textContent = d.summaryBasic
+              if (sba) sba.value = d.summaryBasic
+            } else if (d.summaryAction && focus === 'action') {
+              if (sugA) sugA.textContent = d.summaryAction
+              if (sac) sac.value = d.summaryAction
+            } else if (d.summaryReport && focus === 'report') {
+              if (sugR) sugR.textContent = d.summaryReport
+              if (srp) srp.value = d.summaryReport
+            }
+            if (statEl) {
+              statEl.textContent =
+                label +
+                ' 반영 ' +
+                new Date().toLocaleTimeString() +
+                (d.source ? ' · ' + d.source : '')
+            }
+            try {
+              saveRoomDraft(id)
+            } catch (e) {}
+          } else {
+            if (statEl) statEl.textContent = (j && j.error) || '실패'
+          }
+        })
+        .catch(function () {
+          if (statEl) statEl.textContent = '요청 실패'
+        })
+        .finally(function () {
+          summaryTabBusy = false
+        })
+    }
+    var sumTabBtns = document.querySelectorAll('[data-ms12-summary-tab]')
+    for (var sti = 0; sti < sumTabBtns.length; sti++) {
+      ;(function (btn) {
+        btn.addEventListener('click', function () {
+          var k = btn.getAttribute('data-ms12-summary-tab')
+          if (k === 'basic' || k === 'action' || k === 'report') {
+            showSummaryTabUI(k)
+            runAutoSummaryForFocus(k)
+          }
+        })
+      })(sumTabBtns[sti])
     }
     function scheduleAutoSummary() {
       var n = document.getElementById('ms12-room-notes')
@@ -1706,7 +1817,7 @@
         summary: combinedSummaryFromDom(),
       }
     }
-    function postRoomDraft(path, extra) {
+    function postRoomDraft(path, extra, dkind) {
       if (!draftOut) return
       var b = roomDraftBody()
       if (!b.notes.trim() && !b.transcript.trim() && !b.summary.trim()) {
@@ -1725,7 +1836,27 @@
         })
         .then(function (j) {
           if (j && j.success && j.data && j.data.draft) {
-            draftOut.value = j.data.draft
+            var text = j.data.draft
+            draftOut.value = text
+            if (dkind) {
+              g_ms12DraftKind = dkind
+              var st = readStore()
+              if (!st.byId[id]) st.byId[id] = { id: id }
+              st.byId[id].draftByKind = st.byId[id].draftByKind || {}
+              st.byId[id].draftByKind[dkind] = text
+              writeStore(st)
+              var sub = document.querySelectorAll('[data-ms12-draft-kind]')
+              for (var sx = 0; sx < sub.length; sx++) {
+                var sk = sub[sx].getAttribute('data-ms12-draft-kind')
+                if (sk === dkind) sub[sx].classList.add('ms12-subtab--active')
+                else sub[sx].classList.remove('ms12-subtab--active')
+              }
+              var lab2 = document.getElementById('ms12-draft-cur-label')
+              if (lab2) lab2.textContent = '· ' + (DRAFT_KIND_LABEL[dkind] || dkind)
+            }
+            try {
+              saveRoomDraft(id)
+            } catch (e) {}
           } else {
             draftOut.value = (j && (j.error || j.message)) || '오류'
           }
@@ -1734,22 +1865,40 @@
           draftOut.value = '요청이 실패했습니다.'
         })
     }
-    var bindDraft = function (elId, path, extra) {
+    var bindDraft = function (elId, path, extra, dkind) {
       var el = document.getElementById(elId)
       if (el) {
         el.addEventListener('click', function () {
-          postRoomDraft(path, extra || {})
+          if (dkind) showDraftKind(dkind)
+          postRoomDraft(path, extra || {}, dkind)
         })
       }
     }
-    bindDraft('ms12-draft-report-int', '/report-draft', { kind: 'internal' })
-    bindDraft('ms12-draft-report-ext', '/report-draft', { kind: 'external' })
-    bindDraft('ms12-draft-action-plan', '/report-draft', { kind: 'action_plan' })
-    bindDraft('ms12-draft-result', '/report-draft', { kind: 'result_report' })
-    bindDraft('ms12-draft-proposal', '/report-draft', { kind: 'proposal' })
-    bindDraft('ms12-draft-press', '/content-draft', { channel: 'press' })
-    bindDraft('ms12-draft-blog', '/content-draft', { channel: 'blog' })
-    bindDraft('ms12-draft-social', '/content-draft', { channel: 'social' })
+    bindDraft('ms12-draft-report-int', '/report-draft', { kind: 'internal' }, 'report_int')
+    bindDraft('ms12-draft-report-ext', '/report-draft', { kind: 'external' }, 'report_ext')
+    bindDraft('ms12-draft-action-plan', '/report-draft', { kind: 'action_plan' }, 'action_plan')
+    bindDraft('ms12-draft-result', '/report-draft', { kind: 'result_report' }, 'result_report')
+    bindDraft('ms12-draft-proposal', '/report-draft', { kind: 'proposal' }, 'proposal')
+    bindDraft('ms12-draft-press', '/content-draft', { channel: 'press' }, 'press')
+    bindDraft('ms12-draft-blog', '/content-draft', { channel: 'blog' }, 'blog')
+    bindDraft('ms12-draft-social', '/content-draft', { channel: 'social' }, 'social')
+    var genCur = document.getElementById('ms12-draft-gen-current')
+    if (genCur) {
+      genCur.addEventListener('click', function () {
+        var m = {
+          report_int: ['/report-draft', { kind: 'internal' }, 'report_int'],
+          report_ext: ['/report-draft', { kind: 'external' }, 'report_ext'],
+          action_plan: ['/report-draft', { kind: 'action_plan' }, 'action_plan'],
+          result_report: ['/report-draft', { kind: 'result_report' }, 'result_report'],
+          proposal: ['/report-draft', { kind: 'proposal' }, 'proposal'],
+          press: ['/content-draft', { channel: 'press' }, 'press'],
+          blog: ['/content-draft', { channel: 'blog' }, 'blog'],
+          social: ['/content-draft', { channel: 'social' }, 'social'],
+        }
+        var row = m[g_ms12DraftKind]
+        if (row) postRoomDraft(row[0], row[1], row[2])
+      })
+    }
 
     loadActionItems()
 

@@ -476,6 +476,73 @@ api.get('/meetings/:id/action-items', ms12Access, async (c) => {
   return c.json(successResponse({ meetingId, items: list }))
 })
 
+/** AI: 메모·전사(·요약)에서 실행 항목 후보 — 참가자가 편집·추가 API로 반영 */
+api.post('/meetings/:id/action-items/ai-suggest', ms12Access, async (c) => {
+  const actor = c.get('actor')
+  const meetingId = c.req.param('id')
+  await requireRoomParticipant(c, meetingId, actor)
+  let body: {
+    notes?: string
+    transcript?: string
+    summaryBasic?: string
+    summaryAction?: string
+    summaryReport?: string
+  } = {}
+  try {
+    body = (await c.req.json()) as typeof body
+  } catch {
+    return c.json(errorResponse('JSON 본문이 필요합니다.'), 400)
+  }
+  const notes = clipContext(String(body.notes || ''))
+  const transcript = clipContext(String(body.transcript || ''))
+  const b0 = String(body.summaryBasic || '').trim()
+  const b1 = String(body.summaryAction || '').trim()
+  const b2 = String(body.summaryReport || '').trim()
+  if (![notes, transcript, b0, b1, b2].some((x) => x.length > 0)) {
+    return c.json(
+      errorResponse('메모·전사·요약 중 최소 한 가지는 보내 주세요. 먼저 3단 요약을 쓰거나 메모·전사를 입력하세요.'),
+      400,
+    )
+  }
+  const part = [b0 && `## 기본 요약\n${b0}`, b1 && `## 실행 요약\n${b1}`, b2 && `## 보고 요약\n${b2}`]
+    .filter(Boolean)
+    .join('\n\n')
+  const block = [notes && `## 메모\n${notes}`, transcript && `## 전사\n${transcript}`, part]
+    .filter(Boolean)
+    .join('\n\n')
+  const system = `You extract actionable follow-ups from a meeting. Output ONLY valid JSON, no markdown fences: {"items":[{"title":"(필수, 한국어, 한 줄)","taskDetail":"(선택, 짧게)","assignee":"(선택, 이름/역할)","dueAt":""}, ...]}. at most 20 items, each field string. If no clear action items, return {"items":[]}. dueAt only as YYYY-MM-DD when a date is clearly stated; else "".`
+  try {
+    const raw = await generateTextGeminiOrOpenAI(c.env, block, system)
+    const t = raw.trim()
+    const m = t.match(/\{[\s\S]*\}/)
+    const j = m ? (JSON.parse(m[0]) as { items?: unknown }) : null
+    const arr = j && Array.isArray(j.items) ? j.items : []
+    const items: Array<{ title: string; taskDetail: string; assignee: string; dueAt: string }> = []
+    for (const u of arr.slice(0, 20)) {
+      if (!u || typeof u !== 'object') continue
+      const o = u as Record<string, unknown>
+      const title = String(o.title != null ? o.title : '').trim().slice(0, 500)
+      if (!title) continue
+      const taskDetail = String(o.taskDetail != null ? o.taskDetail : '').trim().slice(0, 2000)
+      const assignee = String(o.assignee != null ? o.assignee : '').trim().slice(0, 120)
+      let dueAt = String(o.dueAt != null ? o.dueAt : '').trim().slice(0, 20)
+      if (dueAt && !/^\d{4}-\d{2}-\d{2}/.test(dueAt)) dueAt = ''
+      items.push({ title, taskDetail, assignee, dueAt })
+    }
+    return c.json(successResponse({ meetingId, items }))
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    if (msg === 'NO_AI_KEY') {
+      return c.json(
+        errorResponse('AI 키가 없습니다. GEMINI_API_KEY 또는 OPENAI_API_KEY를 설정하세요.'),
+        503,
+      )
+    }
+    console.error('[ms12] action-items ai-suggest', msg.slice(0, 200))
+    return c.json(errorResponse('실행 항목 제안을 만들지 못했습니다.'), 502)
+  }
+})
+
 api.post('/meetings/:id/action-items', ms12Access, async (c) => {
   const actor = c.get('actor')
   const meetingId = c.req.param('id')
@@ -559,6 +626,9 @@ api.patch('/meetings/:id/action-items/:itemId', ms12Access, async (c) => {
     taskDetail?: string | null
     priority?: string
     itemCategory?: string
+    title?: string
+    assignee?: string | null
+    dueAt?: string | null
   } = {}
   try {
     body = (await c.req.json()) as typeof body
@@ -570,8 +640,14 @@ api.patch('/meetings/:id/action-items/:itemId', ms12Access, async (c) => {
   const hasTask = 'taskDetail' in body
   const hasPr = body.priority != null && String(body.priority).trim() !== ''
   const hasIc = body.itemCategory != null && String(body.itemCategory).trim() !== ''
-  if (!hasStatus && !hasResult && !hasTask && !hasPr && !hasIc) {
+  const hasTitle = 'title' in body && String(body.title != null ? body.title : '').trim() !== ''
+  const hasAssignee = 'assignee' in body
+  const hasDueAt = 'dueAt' in body
+  if (!hasStatus && !hasResult && !hasTask && !hasPr && !hasIc && !hasTitle && !hasAssignee && !hasDueAt) {
     return c.json(errorResponse('갱신할 필드를 지정하세요.'), 400)
+  }
+  if ('title' in body && !hasTitle) {
+    return c.json(errorResponse('제목은 비울 수 없습니다.'), 400)
   }
   if (hasStatus) {
     const st = String(body.status || '').trim()
@@ -596,6 +672,28 @@ api.patch('/meetings/:id/action-items/:itemId', ms12Access, async (c) => {
       setParts.push('task_detail = ?')
       const td = body.taskDetail
       bindVals.push(td === null || td === undefined ? null : String(td).slice(0, 8000))
+    }
+    if (hasTitle) {
+      setParts.push('title = ?')
+      bindVals.push(String(body.title).trim().slice(0, 500))
+    }
+    if (hasAssignee) {
+      setParts.push('assignee = ?')
+      const a = body.assignee
+      bindVals.push(
+        a === null || a === undefined || String(a).trim() === ''
+          ? null
+          : String(a).trim().slice(0, 120),
+      )
+    }
+    if (hasDueAt) {
+      setParts.push('due_at = ?')
+      const d = body.dueAt
+      bindVals.push(
+        d === null || d === undefined || String(d).trim() === ''
+          ? null
+          : String(d).trim().slice(0, 20),
+      )
     }
     if (hasPr) {
       setParts.push('priority = ?')
@@ -704,6 +802,7 @@ api.post('/meetings/:id/auto-summary', ms12Access, async (c) => {
     summaryBasic?: string
     summaryAction?: string
     summaryReport?: string
+    focus?: 'basic' | 'action' | 'report'
   } = {}
   try {
     body = (await c.req.json()) as typeof body
@@ -715,9 +814,10 @@ api.post('/meetings/:id/auto-summary', ms12Access, async (c) => {
   if (![notes, transcript].some((x) => x.trim().length > 0)) {
     return c.json(errorResponse('메모·전사 중 최소 하나는 보내 주세요.'), 400)
   }
-  const prev = [body.summaryBasic, body.summaryAction, body.summaryReport]
-    .map((x) => String(x || '').trim())
-    .filter(Boolean)
+  const prevBasic = String(body.summaryBasic || '').trim()
+  const prevAction = String(body.summaryAction || '').trim()
+  const prevReport = String(body.summaryReport || '').trim()
+  const prev = [prevBasic, prevAction, prevReport].filter(Boolean)
   const block = [
     notes && `## 현재 메모\n${notes}`,
     transcript && `## 현재 전사\n${transcript}`,
@@ -727,6 +827,53 @@ api.post('/meetings/:id/auto-summary', ms12Access, async (c) => {
   ]
     .filter(Boolean)
     .join('\n\n')
+  const focus = body.focus
+  const isFocus = focus === 'basic' || focus === 'action' || focus === 'report'
+
+  if (isFocus) {
+    const oneLine =
+      focus === 'basic'
+        ? '기본요약: 회의의 핵심 3~6문장(전체 흐름·논의 주제)으로 한국어로 정리하세요.'
+        : focus === 'action'
+          ? '실행요약: 결정·할 일·책임·일정이 드러나면 불릿으로, 없으면 1~3개 항목에 "검토 필요" 등으로 한국어로 정리하세요.'
+          : '보고요약: 기관·대외 보고 톤으로 성과·과제·다음 단계 3~5문장(한국어)으로 정리하세요.'
+    const system = `You are a Korean meeting assistant. Read the input and output ONLY a JSON object: {"text":"(your summary in Korean, markdown bullets allowed)"}. 
+Task: ${oneLine}
+If information is missing, use [미정] or brief placeholders. Be concise, no key other than "text".`
+    try {
+      const raw = await generateTextGeminiOrOpenAI(c.env, block, system)
+      const t = raw.trim()
+      const m = t.match(/\{[\s\S]*\}/)
+      const j = m ? (JSON.parse(m[0]) as Record<string, unknown>) : null
+      const text =
+        j && typeof j.text === 'string'
+          ? String(j.text).trim()
+          : t.replace(/^```[\s\S]*?```/m, '').trim().slice(0, 4000)
+      return c.json(
+        successResponse({
+          meetingId,
+          focus,
+          summaryBasic: focus === 'basic' ? text : '',
+          summaryAction: focus === 'action' ? text : '',
+          summaryReport: focus === 'report' ? text : '',
+          source: 'json',
+        }),
+      )
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      if (msg === 'NO_AI_KEY') {
+        return c.json(
+          errorResponse(
+            'AI 키가 없습니다. Cloudflare에 GEMINI_API_KEY 또는 OPENAI_API_KEY를 설정하세요.',
+          ),
+          503,
+        )
+      }
+      console.error('[ms12] auto-summary', msg.slice(0, 200))
+      return c.json(errorResponse('자동 요약을 만들지 못했습니다.'), 502)
+    }
+  }
+
   const system = `You are a Korean meeting assistant. Read the input and output ONLY a single JSON object with exactly these string keys, no markdown fences:
 {"summaryBasic":"(핵심 3~6문장, 전체 흐름)","summaryAction":"(할 일·책임·일정이 드러나면 불릿, 없으면 항목 1~3개 '검토 필요' 등)","summaryReport":"(기관·대외 보고 톤, 성과·과제 3~5문장)"}
 If information is missing, use short placeholders like [미정] in Korean. Be concise.`
