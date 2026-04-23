@@ -133,7 +133,7 @@ app.get('/api/health', (c) => {
   })
 })
 
-// 루트 → /app (클라이언트가 /me로 분기, 로그인 후 기본·OAuth 랜딩은 /app/meeting)
+// 루트 → /app (로그인 후 기본·OAuth 랜딩은 /app — Zoom 스타일 시작화면)
 app.get('/', (c) => c.redirect('/app', 302))
 app.route('/app', ms12Pages)
 

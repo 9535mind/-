@@ -13,7 +13,7 @@ export const KAKAO_OAUTH_REDIRECT_URI = `${SITE_PUBLIC_ORIGIN}/auth/kakao/callba
 
 export const GOOGLE_OAUTH_REDIRECT_URI = `${SITE_PUBLIC_ORIGIN}/api/auth/google/callback`
 
-export const OAUTH_SUCCESS_LANDING_URL = `${SITE_PUBLIC_ORIGIN}/app/meeting?oauth_sync=1`
+export const OAUTH_SUCCESS_LANDING_URL = `${SITE_PUBLIC_ORIGIN}/app?oauth_sync=1`
 
 /** 구 mslms Pages 북마크 — 필요 시 308(미들웨어) */
 export const LEGACY_PAGES_HOSTNAMES: readonly string[] = [
@@ -59,9 +59,9 @@ export function getRequestPublicOrigin(c: Context): string {
   return `${proto}://${host}`
 }
 
-/** OAuth 콜백 직후 — 회의 첫 화면(앱 홈 /app 는 쓰지 않음) */
+/** OAuth 콜백 직후 — Zoom 스타일 시작화면 /app */
 export function oauthSuccessLandingUrl(c: Context): string {
-  return `${getRequestPublicOrigin(c)}/app/meeting?oauth_sync=1`
+  return `${getRequestPublicOrigin(c)}/app?oauth_sync=1`
 }
 
 export function isLocalDevHostname(hostname: string): boolean {
