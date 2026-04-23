@@ -7,7 +7,7 @@ import { getCurrentUser } from '../utils/helpers'
 const p = new Hono<{ Bindings: Bindings }>()
 
 /** Pages 배포·소스 ?v= 일치(배포 후 페이지 소스에 이 주석이 보이면 새 Worker) */
-const MS12_BUILD = '20260424a'
+const MS12_BUILD = '20260424d'
 const MS12_APP_SCRIPT = `/static/js/ms12-app.js?v=${MS12_BUILD}`
 const waitBlock = '<p class="ms12-p" id="ms12-wait" style="color:rgb(100 116 139)">불러오는 중…</p>'
 
@@ -147,7 +147,8 @@ function layoutEntry(authMode: string): string {
   const entryStyles = `
   .ms12-entry-root{min-height:100dvh;overflow-x:hidden;position:relative;
     background:radial-gradient(120% 80% at 50% 20%,#0c1222 0%,#04060d 45%,#020308 100%);
-    color:rgba(255,255,255,0.88);font-family:ui-sans-serif,system-ui,sans-serif}
+    color:rgba(255,255,255,0.88);
+    font-family:'Pretendard Variable',Pretendard,'Apple SD Gothic Neo','Malgun Gothic',ui-sans-serif,system-ui,sans-serif}
   .ms12-entry-wait#ms12-wait{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:20;
     color:rgba(226,232,240,0.75);font-size:0.9rem;letter-spacing:0.12em}
   .ms12-entry-aurora{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
@@ -169,12 +170,17 @@ function layoutEntry(authMode: string): string {
     padding:2rem 1.25rem 9rem;box-sizing:border-box}
   .ms12-entry-title-wrap{text-align:center;animation:ms12Etitle 2.1s ease forwards;opacity:0}
   @keyframes ms12Etitle{to{opacity:1}}
-  .ms12-entry-title__ms{font-size:clamp(1.75rem,5vw,2.75rem);font-weight:200;letter-spacing:0.55em;margin-right:0.35em;vertical-align:middle;
-    text-shadow:0 0 40px rgba(165,180,252,0.25)}
-  .ms12-entry-title__plat{font-size:clamp(1.35rem,3.2vw,1.85rem);font-weight:300;letter-spacing:0.38em;opacity:0.9;
-    text-transform:none;color:rgba(224,231,255,0.85)}
-  .ms12-entry-sub{margin:1rem 0 0 0;font-size:0.78rem;letter-spacing:0.2em;opacity:0.45;font-weight:300}
-  .ms12-entry-card{margin-top:2.25rem;max-width:20rem;width:100%;padding:1.15rem 1.25rem;border-radius:1rem;
+  .ms12-entry-h1{line-height:1.02;margin:0;padding:0}
+  .ms12-entry-title-line{display:inline-flex;align-items:baseline;justify-content:center;flex-wrap:wrap;column-gap:0.14em;row-gap:0.06em;
+    font-family:'Pretendard Variable',Pretendard,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+    font-variation-settings:'wght' 800;
+    -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+    text-shadow:0 0 32px rgba(165,180,252,0.2),0 1px 0 rgba(15,23,42,0.4)}
+  .ms12-entry-title__ms,.ms12-entry-title__plat{font-weight:800;font-style:normal;opacity:0.96;
+    text-transform:none;color:rgba(240,244,255,0.96)}
+  .ms12-entry-title__ms{font-size:clamp(1.9rem,5.2vw,3rem);letter-spacing:-0.04em;flex-shrink:0}
+  .ms12-entry-title__plat{font-size:clamp(1.5rem,3.7vw,2.15rem);letter-spacing:-0.035em}
+  .ms12-entry-card{margin-top:1.7rem;max-width:20rem;width:100%;padding:1.05rem 1.15rem;border-radius:1rem;
     background:rgba(15,23,42,0.45);border:1px solid rgba(148,163,184,0.2);backdrop-filter:blur(12px) saturate(1.2);
     -webkit-backdrop-filter:blur(12px) saturate(1.2);
     box-shadow:0 8px 32px rgba(0,0,0,0.35),inset 0 1px 0 rgba(255,255,255,0.06);
@@ -189,19 +195,21 @@ function layoutEntry(authMode: string): string {
   .ms12-entry-oauth{margin:0;text-align:center;font-size:0.86rem;letter-spacing:0.06em}
   .ms12-entry-oauth a{color:#a5b4fc;text-decoration:none;border-bottom:1px solid rgba(165,180,252,0.35)}
   .ms12-entry-oauth a:hover{color:#c7d2fe}
-  .ms12-entry-bottom{position:fixed;left:0;right:0;bottom:0;z-index:1;padding:0.6rem 0 0.9rem;pointer-events:none;
-    display:flex;flex-direction:column;gap:0.35rem}
-  .ms12-entry-marquee-line{overflow:hidden;width:100%;min-height:1.2em;opacity:0.42}
+  .ms12-entry-bottom{position:fixed;left:0;right:0;bottom:0;z-index:1;padding:0.85rem 0 1rem;pointer-events:none}
+  .ms12-entry-marquee-line{overflow:hidden;width:100%;min-height:2.1em;display:flex;align-items:center;
+    opacity:0.65;
+    mask-image:linear-gradient(90deg,transparent 0%,#000 12%,#000 88%,transparent 100%);
+    -webkit-mask-image:linear-gradient(90deg,transparent 0%,#000 12%,#000 88%,transparent 100%)}
   .ms12-entry-marquee-track{display:inline-block;white-space:nowrap;will-change:transform;
-    font-size:0.75rem;font-weight:300;letter-spacing:0.06em;
-    color:rgba(203,213,225,0.7);
-    animation:ms12Emq linear infinite;animation-duration:var(--ms12-mq-dur,90s);animation-delay:var(--ms12-mq-delay,0s)}
-  @keyframes ms12Emq{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+    backface-visibility:hidden;
+    font-size:clamp(0.95rem,2.8vw,1.28rem);font-weight:400;letter-spacing:0.045em;
+    color:rgba(218,227,241,0.88);
+    text-shadow:0 0 24px rgba(148,163,184,0.15);
+    animation:ms12Emq linear infinite;animation-duration:var(--ms12-mq-dur,118s)}
+  @keyframes ms12Emq{0%{transform:translate3d(0,0,0)}100%{transform:translate3d(-50%,0,0)}}
   @media (prefers-reduced-motion:reduce){
     .ms12-entry-blob,.ms12-entry-shard,.ms12-entry-title-wrap,.ms12-entry-card,.ms12-entry-marquee-track{animation:none!important;opacity:1!important;transform:none!important}
   }
-  .ms12-entry-card .ms12-login-aside{margin-top:0.9rem;border:none;background:transparent;padding:0.35rem 0 0 0;max-width:100%}
-  .ms12-entry-card .ms12-login-aside summary{color:rgba(148,163,184,0.9)}
   .ms12-entry-card .ms12-js-logout-line{margin:0.5rem 0 0 0}
   .ms12-entry-card .ms12-btn--muted{background:rgba(51,65,85,0.6);color:#e2e8f0}
   .ms12-entry-breadcrumb{margin-top:1.25rem;font-size:0.7rem;opacity:0.35;letter-spacing:0.1em}
@@ -217,6 +225,7 @@ function layoutEntry(authMode: string): string {
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>MS Platform</title>
   <link rel="stylesheet" href="/static/css/app.css" />
+  <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" />
   <script src="${MS12_APP_SCRIPT}" defer></script>
   <style>
     ${entryStyles}
@@ -235,10 +244,11 @@ function layoutEntry(authMode: string): string {
   <div id="ms12-authed" style="display:none">
     <div class="ms12-entry-center">
       <div class="ms12-entry-title-wrap">
-        <h1 class="ms12-entry-h1" style="margin:0">
-          <span class="ms12-entry-title__ms">MS</span> <span class="ms12-entry-title__plat">Platform</span>
+        <h1 class="ms12-entry-h1">
+          <span class="ms12-entry-title-line" lang="en">
+            <span class="ms12-entry-title__ms">MS</span><span class="ms12-entry-title__plat">Platform</span>
+          </span>
         </h1>
-        <p class="ms12-entry-sub">고요 · 작은 뒤틀림 · 투명한 층</p>
       </div>
       <div class="ms12-entry-card" id="ms12-entry-login">
         <p class="ms12-entry-card__p">기기에 묶이지 않고 이어 쓰려면 계정으로 입장할 수 있습니다.</p>
@@ -249,15 +259,14 @@ function layoutEntry(authMode: string): string {
           <span> · </span>
           <a href="${google(POST_LOGIN_MEETING)}" data-ms12-login-lnk>Google</a>
         </p>
-        ${loginAside(POST_LOGIN_MEETING, kakao, google)}
+        <p class="ms12-js-logout-line" style="margin-top:0.85rem;text-align:center">
+          <button type="button" class="ms12-btn ms12-btn--muted" style="font-size:0.78rem;padding:0.28rem 0.6rem" data-ms12-logout>로그아웃</button>
+        </p>
       </div>
       <p class="ms12-entry-breadcrumb"><a href="/app/hub">전체 메뉴(대시보드)</a></p>
     </div>
     <div class="ms12-entry-bottom" aria-hidden="true">
-      ${entryMarqueeLine('고요한 질서 속의 작은 혼돈 — 빛은 잘리어 있어도 이어집니다', 96, 0)}
-      ${entryMarqueeLine('회의 · 기록 · 문서 — 유리 너머의 결', 110, 0)}
-      ${entryMarqueeLine('투명한 경계 — 느리게 흐르는 단편', 88, 0)}
-      ${entryMarqueeLine('MS Platform — 이곳은 입구', 102, 0)}
+      ${entryMarqueeSingleRow()}
     </div>
   </div>
 </body>
