@@ -2,6 +2,7 @@
  * MS12 — 회의 플랫폼 (Hono on Cloudflare Pages)
  * 라우트: /app*, /api/auth*, /api/ms12* 및 정적·OAuth 콜백.
  */
+// deploy trigger
 import { Hono, type Context } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { cors } from 'hono/cors'
@@ -17,7 +18,7 @@ import apiMs12 from './routes/api-ms12'
 import apiMs12Documents from './routes/api-ms12-documents'
 import apiMs12MeetingRecords from './routes/api-ms12-meeting-records'
 import apiMs12Announcements from './routes/api-ms12-announcements'
-import ms12Pages from './routes/ms12-pages'
+import ms12Pages, { renderEntryPage } from './routes/ms12-pages'
 import { FOOTER_HTML_REVISION } from './utils/site-footer-legal'
 import {
   LEGACY_PAGES_HOSTNAMES,
@@ -25,7 +26,8 @@ import {
   isCloudflarePagesPreviewHost,
 } from './utils/oauth-public'
 
-const app = new Hono<{ Bindings: Bindings }>()
+/** /app·/app/ 일치(메인이 strict true면 /app/ 만 404로 떨어질 수 있음) */
+const app = new Hono<{ Bindings: Bindings }>({ strict: false })
 
 app.use('*', logger())
 
@@ -114,11 +116,12 @@ app.use('/api/ms12', lenientRateLimiter)
 app.use('/static/*', serveStatic({ manifest: {} }))
 app.use('/uploads/*', serveStatic({ manifest: {} }))
 
-app.route('/api/auth', auth)
+// /api/auth 보다 구체적 경로를 먼저 등록(그렇지 않으면 /api/auth/* 가 /api/auth/google/start 를 가로채 404·잘못된 응답 가능)
+app.route('/api/auth/google', authGoogle)
 app.route('/api/auth/kakao', authKakao)
 /** Kakao 콘솔·KOE006: `https://ms12.org/auth/kakao/callback` — /api 가 아닌 짧은 경로 */
 app.route('/auth/kakao', authKakao)
-app.route('/api/auth/google', authGoogle)
+app.route('/api/auth', auth)
 const apiMs12All = new Hono<{ Bindings: Bindings }>()
 apiMs12All.route('/', apiMs12)
 apiMs12All.route('/', apiMs12Documents)
@@ -141,25 +144,19 @@ app.get('/api/health', (c) => {
   })
 })
 
-/** 북마크·오타로 흔함: /ms12 → 앱 진입 */
-app.get('/ms12', (c) => {
-  const u = new URL(c.req.url)
-  u.pathname = '/app'
-  return c.redirect(u.toString(), 308)
+// 루트 → /app. 첫 화면은 `app.route('/app',…)`의 서브 `/`에만 의존하지 않고 get 으로 직접 등록(Worker/Pages 루트 매칭 누락 방지)
+app.get('/join/:code', (c) => {
+  const raw = c.req.param('code') || ''
+  const alnum = raw.replace(/[^A-Za-z0-9]/g, '')
+  if (alnum.length < 4) {
+    return c.text('Not Found', 404)
+  }
+  return c.redirect('/app/join?code=' + encodeURIComponent(alnum.toUpperCase()), 302)
 })
-app.get('/ms12/', (c) => {
-  const u = new URL(c.req.url)
-  u.pathname = '/app'
-  return c.redirect(u.toString(), 308)
-})
-
-// 루트: 내부 app.fetch() 재진입은 일부 edge(Pages)에서 404·바인딩 누락이 나는 경우가 있어
-// — 브라우저가 /app(동일 콘텐트=엔트리)으로 따라가면 Worker 한 번만 탄다.
+app.get('/', (c) => c.redirect('/app' + (new URL(c.req.url).search || ''), 302))
+app.get('/app', (c) => renderEntryPage(c))
+app.get('/app/', (c) => renderEntryPage(c))
 app.route('/app', ms12Pages)
-app.get('/', (c) => {
-  const u = new URL(c.req.url)
-  return c.redirect('/app' + (u.search || ''), 308)
-})
 
 app.onError((err, c) => {
   if (err instanceof HTTPException) {

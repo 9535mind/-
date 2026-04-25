@@ -20,7 +20,6 @@ import {
   envRedirectUriHostname,
   getRequestPublicOrigin,
   GOOGLE_OAUTH_REDIRECT_URI,
-  isCloudflarePagesPreviewHost,
   isLocalDevHostname,
   isPrivateLanHostname,
   requestHostname,
@@ -30,6 +29,23 @@ import {
 import { redirectAfterOAuthOrDefault, setPostLoginPathCookie } from '../utils/oauth-post-login'
 
 const authGoogle = new Hono<{ Bindings: Bindings }>()
+
+/** soft delete — kakao 콜백과 동일(스키마에 deleted_at 없으면 false) */
+function isUserSoftDeleted(u: User | null | undefined): boolean {
+  if (!u) return false
+  const d = u.deleted_at
+  if (d == null) return false
+  return String(d).trim() !== ''
+}
+
+function d1LastInsertUserId(
+  meta: { last_row_id?: number; lastRowId?: number } | null | undefined,
+): number {
+  const raw = meta?.last_row_id ?? meta?.lastRowId
+  if (raw == null) return 0
+  const n = typeof raw === 'bigint' ? Number(raw) : Number(raw)
+  return Number.isFinite(n) && n > 0 ? Math.trunc(n) : 0
+}
 
 function getRequestOrigin(c: Context<{ Bindings: Bindings }>): string {
   return getRequestPublicOrigin(c)
@@ -42,21 +58,6 @@ function isAllowedRedirectHost(hostname: string): boolean {
     hostname === '127.0.0.1' ||
     isPrivateLanHostname(hostname)
   )
-}
-
-/** *.pages.dev 등에서 OAuth 시작 시 구글·쿠키 도메인 불일치 방지 */
-function redirectGoogleOAuthToCanonicalOrigin(c: Context<{ Bindings: Bindings }>): Response | undefined {
-  const raw =
-    c.req.header('x-forwarded-host') ||
-    c.req.header('host') ||
-    new URL(c.req.url).host
-  const h = raw.split(',')[0].trim().split(':')[0]
-  if (!h || h === 'mindstory.kr' || h.endsWith('.mindstory.kr')) return undefined
-  if (h === 'localhost' || h === '127.0.0.1') return undefined
-  if (isPrivateLanHostname(h)) return undefined
-  if (isCloudflarePagesPreviewHost(h)) return undefined
-  const u = new URL(c.req.url)
-  return c.redirect(`${SITE_PUBLIC_ORIGIN}${u.pathname}${u.search}`, 302)
 }
 
 function isAllowedGoogleRedirectUrl(urlStr: string): boolean {
@@ -92,59 +93,74 @@ function resolveGoogleRedirectUri(c: Context<{ Bindings: Bindings }>): string {
 }
 
 /**
- * GET /api/auth/google/login
- * Google 로그인 시작 (Google 인증 페이지로 리다이렉트)
+ * GET /api/auth/google/start · GET /api/auth/google/login
+ * Google OAuth 시작(동일 핸들러, /start 권장)
  */
-authGoogle.get('/login', async (c) => {
+const handleGoogleOAuthStart = async (c: Context<{ Bindings: Bindings }>) => {
   try {
-    const forceCanon = redirectGoogleOAuthToCanonicalOrigin(c)
-    if (forceCanon) return forceCanon
+    // /start·/login: 로그인(세션) 여부와 무관하게 항상 accounts.google.com 으로만 302. /app/meeting 리다이렉트는 콜백(redirectAfterOAuthOrDefault)에서만.
+    console.log(
+      '[GOOGLE START ENTER]',
+      c.req.method,
+      c.req.path,
+      (c.req.url || '').slice(0, 220),
+    )
 
     const nextParam = c.req.query('next')
     if (nextParam) setPostLoginPathCookie(c, nextParam)
 
-    const clientId = c.env.GOOGLE_CLIENT_ID
+    const clientId = (c.env.GOOGLE_CLIENT_ID || '').trim()
     const redirectUri = resolveGoogleRedirectUri(c)
-    
-    // 디버깅 로그
-    console.log('[GOOGLE_LOGIN] c.env keys:', Object.keys(c.env))
-    console.log('[GOOGLE_LOGIN] GOOGLE_CLIENT_ID exists:', !!clientId)
-    console.log('[GOOGLE_LOGIN] GOOGLE_REDIRECT_URI exists:', !!redirectUri)
-    
-    if (!clientId) {
-      console.error('[GOOGLE_LOGIN] Missing environment variables:', {
-        GOOGLE_CLIENT_ID: !!clientId,
-        GOOGLE_REDIRECT_URI: !!redirectUri,
-      })
-      return c.json(errorResponse('Google 로그인 설정이 완료되지 않았습니다.'), 500)
+
+    const hasClientId = clientId.length > 0
+    const envKeys = typeof c.env === 'object' && c.env ? Object.keys(c.env) : []
+    if (!hasClientId) {
+      console.error(
+        '[GOOGLE_START] GOOGLE_CLIENT_ID missing or empty. Set GOOGLE_CLIENT_ID in Cloudflare Pages → Settings → Environment variables (Production).',
+        {
+          envKeyCount: envKeys.length,
+          hasClientIdKey: 'GOOGLE_CLIENT_ID' in (c.env || {}),
+        },
+      )
+      return c.json(
+        {
+          success: false,
+          error: 'GOOGLE_CLIENT_ID missing',
+          message:
+            'Cloudflare Production/Preview에 GOOGLE_CLIENT_ID(및 콜백에 필요한 GOOGLE_CLIENT_SECRET)를 설정하세요. Worker는 process.env가 아닌 c.env(대시보드·wrangler) 값만 사용합니다.',
+        },
+        500,
+      )
     }
-    
-    console.log('[GOOGLE_LOGIN] Client ID:', clientId.substring(0, 20) + '...')
-    console.log('[GOOGLE_LOGIN] Redirect URI:', redirectUri)
-    
-    // Google 인증 URL 생성
+
     const googleAuthUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth')
     googleAuthUrl.searchParams.set('client_id', clientId)
     googleAuthUrl.searchParams.set('redirect_uri', redirectUri)
     googleAuthUrl.searchParams.set('response_type', 'code')
     googleAuthUrl.searchParams.set('scope', 'openid email profile')
     googleAuthUrl.searchParams.set('access_type', 'online')
-    
-    console.log('[GOOGLE_LOGIN] Full OAuth URL:', googleAuthUrl.toString())
-    
-    // Google 로그인 페이지로 리다이렉트
-    return c.redirect(googleAuthUrl.toString())
-    
+
+    const loc = googleAuthUrl.toString()
+    if (!loc.startsWith('https://accounts.google.com/')) {
+      console.error('[GOOGLE START] built URL is not accounts.google.com:', loc.slice(0, 120))
+      return c.json(
+        { success: false, error: 'OAUTH_START_URL_INVALID', message: 'Google OAuth URL 생성에 실패했습니다.' },
+        500,
+      )
+    }
+    console.log(`[GOOGLE REDIRECT LOCATION] ${loc}`)
+
+    return c.redirect(loc, 302)
   } catch (error) {
     console.error('Google login start error:', error)
     return c.json(errorResponse('Google 로그인 시작에 실패했습니다.'), 500)
   }
-})
+}
+
+authGoogle.get('/start', handleGoogleOAuthStart)
+authGoogle.get('/login', handleGoogleOAuthStart)
 
 authGoogle.get('/debug', (c) => {
-  const forceCanon = redirectGoogleOAuthToCanonicalOrigin(c)
-  if (forceCanon) return forceCanon
-
   const clientId = (c.env.GOOGLE_CLIENT_ID || '').trim()
   const clientSecret = (c.env.GOOGLE_CLIENT_SECRET || '').trim()
   const h = requestHostname(c)
@@ -194,7 +210,7 @@ authGoogle.get('/callback', async (c) => {
           <body>
             <script>
               alert('구글 로그인 오류: ${error}\n\n다시 시도해주세요.');
-              window.location.href = '/login';
+              window.location.href = '/app/login';
             </script>
           </body>
         </html>
@@ -206,13 +222,20 @@ authGoogle.get('/callback', async (c) => {
       return c.json(errorResponse('인증 코드가 없습니다.'), 400)
     }
     
-    const clientId = c.env.GOOGLE_CLIENT_ID
-    const clientSecret = c.env.GOOGLE_CLIENT_SECRET
+    const clientId = (c.env.GOOGLE_CLIENT_ID || '').trim()
+    const clientSecret = (c.env.GOOGLE_CLIENT_SECRET || '').trim()
     const redirectUri = resolveGoogleRedirectUri(c)
     
     if (!clientId || !clientSecret) {
-      console.error('[GOOGLE_CALLBACK] Missing environment variables')
-      return c.json(errorResponse('Google 로그인 설정이 완료되지 않았습니다.'), 500)
+      console.error('[GOOGLE_CALLBACK] Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET (check Pages env / c.env)')
+      return c.json(
+        {
+          success: false,
+          error: !clientId ? 'GOOGLE_CLIENT_ID missing' : 'GOOGLE_CLIENT_SECRET missing',
+          message: 'Cloudflare Pages 환경 변수에 Google OAuth 자격 증명을 설정하세요.',
+        },
+        500,
+      )
     }
     
     console.log('[GOOGLE_CALLBACK] Using redirect_uri:', redirectUri)
@@ -270,29 +293,45 @@ authGoogle.get('/callback', async (c) => {
       picture?: string
       verified_email: boolean
     }>()
+    const googleSub = String(googleUser.id).trim()
     
     const { DB } = c.env
     
-    console.log('[GOOGLE_CALLBACK] Google user ID:', googleUser.id)
+    console.log('[GOOGLE_CALLBACK] Google user ID:', googleSub)
     console.log('[GOOGLE_CALLBACK] Google email:', googleUser.email)
     console.log('[GOOGLE_CALLBACK] Google name:', googleUser.name)
     console.log('[GOOGLE_CALLBACK] Email verified:', googleUser.verified_email)
     
-    // 3. 기존 사용자 확인
-    const existingUser = await DB.prepare(`
+    // 3. 기존 사용자 (kakao 콜백과 같이: SQL에 deleted_at 조건을 넣지 않고 JS에서 soft-delete 판정)
+    const row = await DB.prepare(`
       SELECT * FROM users 
       WHERE social_provider = 'google' AND social_id = ?
-      AND deleted_at IS NULL
-    `).bind(googleUser.id).first<User>()
-    
+    `).bind(googleSub).first<User>()
+
+    if (row && isUserSoftDeleted(row)) {
+      return c.html(
+        `
+        <html lang="ko"><head><meta charset="UTF-8"><title>로그인 불가</title></head>
+        <body><script>alert('탈퇴 처리된 계정입니다. 복구가 필요하면 관리자에게 문의해 주세요.');location.href='/app/login';</script></body>
+        </html>
+      `,
+        403,
+      )
+    }
+    const existingUser = row
+
     let userId: number
     let user: User
     
     if (existingUser) {
       // 기존 사용자 - 로그인 처리
-      console.log('[GOOGLE_CALLBACK] Existing user found, ID:', existingUser.id)
-      userId = existingUser.id
+      const uid = Number(existingUser.id)
+      if (!Number.isFinite(uid) || uid < 1) {
+        throw new Error('Invalid existing user id from database')
+      }
+      userId = uid
       user = existingUser
+      console.log('[GOOGLE_CALLBACK] Existing user found, ID:', userId)
       
       // 프로필 업데이트 (이름, 이미지 변경 가능성)
       await DB.prepare(`
@@ -301,11 +340,7 @@ authGoogle.get('/callback', async (c) => {
             profile_image_url = ?,
             updated_at = datetime('now')
         WHERE id = ?
-      `).bind(
-        googleUser.name,
-        googleUser.picture || null,
-        userId
-      ).run()
+      `).bind(googleUser.name, googleUser.picture || null, userId).run()
       
     } else {
       // 신규 사용자 - 회원가입 처리
@@ -326,30 +361,56 @@ authGoogle.get('/callback', async (c) => {
             <head>
               <script>
                 alert('이미 가입된 이메일입니다. 기존 계정으로 로그인해주세요.');
-                window.location.href = '/login';
+                window.location.href = '/app/login';
               </script>
             </head>
           </html>
         `)
       }
       
-      // 신규 회원 가입
-      const result = await DB.prepare(`
+      // 신규 회원 가입 (kakao와 동일: terms 컬럼 있으면 풀 INSERT, 없으면 축소 INSERT)
+      try {
+        const result = await DB.prepare(`
         INSERT INTO users (
           email, password_hash, name, social_provider, social_id, 
-          profile_image_url, role
-        ) VALUES (?, '', ?, 'google', ?, ?, 'student')
-      `).bind(
-        email,
-        googleUser.name,
-        googleUser.id,
-        googleUser.picture || null
-      ).run()
-      
-      userId = result.meta.last_row_id as number
+          profile_image_url, role, terms_agreed, privacy_agreed, marketing_agreed
+        ) VALUES (?, '', ?, 'google', ?, ?, 'student', 1, 1, 0)
+      `).bind(email, googleUser.name, googleSub, googleUser.picture || null).run()
+        if (!result.success) {
+          throw new Error(String((result as { error?: string }).error || 'INSERT users (full) failed'))
+        }
+        const lid = d1LastInsertUserId(result.meta)
+        if (!lid) {
+          throw new Error('D1 last_row_id missing after users INSERT (full)')
+        }
+        userId = lid
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        if (!/terms_agreed|privacy_agreed|marketing_agreed|no such column|no column named|D1_ERROR/i.test(msg)) {
+          throw e
+        }
+        const result = await DB.prepare(`
+          INSERT INTO users (
+            email, password_hash, name, social_provider, social_id, 
+            profile_image_url, role
+          ) VALUES (?, '', ?, 'google', ?, ?, 'student')
+        `)
+          .bind(email, googleUser.name, googleSub, googleUser.picture || null)
+          .run()
+        if (!result.success) {
+          throw new Error(String((result as { error?: string }).error) || msg)
+        }
+        const lid = d1LastInsertUserId(result.meta)
+        if (!lid) {
+          throw new Error('D1 last_row_id missing after users INSERT (fallback)')
+        }
+        userId = lid
+        console.warn(
+          '[GOOGLE_CALLBACK] users 약관 컬럼 없음—폴백 INSERT. D1에 migrations/0072_users_terms_privacy_marketing.sql 적용 권장.',
+        )
+      }
       console.log('[GOOGLE_CALLBACK] New user created, ID:', userId)
       
-      // 생성된 사용자 정보 조회
       const newUser = await DB.prepare(`
         SELECT * FROM users WHERE id = ?
       `).bind(userId).first<User>()
@@ -361,6 +422,20 @@ authGoogle.get('/callback', async (c) => {
       user = newUser
     }
 
+    userId = Number(userId)
+    if (!Number.isFinite(userId) || userId < 1) {
+      throw new Error('Invalid user id before session (NaN/0)')
+    }
+    const userRowCheck = await DB.prepare(
+      'SELECT id FROM users WHERE id = ?',
+    )
+      .bind(userId)
+      .first<{ id: number }>()
+    if (!userRowCheck) {
+      throw new Error('User row not found for session (orphan id check)')
+    }
+    console.log(`[GOOGLE USER UPSERT] userId=${userId}`)
+
     await ensureListedAdminRole(DB, googleUser.email, userId)
     
     // 4. 기존 세션 삭제 (만료된 세션 정리)
@@ -371,6 +446,7 @@ authGoogle.get('/callback', async (c) => {
     
     // 5. 새 세션 생성
     console.log('[GOOGLE_CALLBACK] Creating session for user:', userId)
+    console.log(`[GOOGLE SESSION CREATE] userId=${userId}`)
     const sessionToken = generateSessionToken()
     const expiresAt = addDays(new Date(), 7)
     
@@ -396,7 +472,10 @@ authGoogle.get('/callback', async (c) => {
   } catch (error) {
     console.error('[GOOGLE_CALLBACK] ===== ERROR OCCURRED =====')
     console.error('[GOOGLE_CALLBACK] Error type:', error?.constructor?.name)
-    console.error('[GOOGLE_CALLBACK] Error message:', error?.message)
+    console.error(
+      '[GOOGLE_CALLBACK] Error message:',
+      error instanceof Error ? error.message : String(error),
+    )
     console.error('[GOOGLE_CALLBACK] Full error:', error)
     
     return c.html(`
@@ -407,7 +486,7 @@ authGoogle.get('/callback', async (c) => {
         <body>
           <script>
             alert('Google 로그인에 실패했습니다. 다시 시도해주세요.');
-            window.location.href = '/login';
+            window.location.href = '/app/login';
           </script>
         </body>
       </html>
