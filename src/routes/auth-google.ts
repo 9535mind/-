@@ -150,6 +150,8 @@ const handleGoogleOAuthStart = async (c: Context<{ Bindings: Bindings }>) => {
     }
     console.log(`[GOOGLE REDIRECT LOCATION] ${loc}`)
 
+    // 브라우저에서 “/app/meeting 으로 간다”와 구분: 첫 302에 이 헤더가 있으면 authGoogle /start 가 실행된 것(DevTools → Network)
+    c.header('X-MS12-OAuth-Start-Handler', 'auth-google')
     return c.redirect(loc, 302)
   } catch (error) {
     console.error('Google login start error:', error)
