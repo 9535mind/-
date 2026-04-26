@@ -182,6 +182,24 @@ app.get('/app', (c) => renderEntryPage(c))
 app.get('/app/', (c) => renderEntryPage(c))
 app.route('/app', ms12Pages)
 
+/**
+ * Cloudflare Pages `_worker.js` advanced: Worker가 먼저 요청을 받는다. `dist`에 있는 정적 파일(예: /forest.html)은
+ * Hono에 라우트가 없으면 텍스트 404로 끝난다. Pages가 주입하는 `ASSETS`로 배포 정적 자산에 위임한다.
+ * @see https://developers.cloudflare.com/pages/functions/advanced-mode/
+ */
+app.notFound(async (c) => {
+  if (c.req.path.startsWith('/api/')) {
+    return c.json(
+      { success: false, error: 'Not Found', message: 'Not Found' },
+      404
+    )
+  }
+  if ((c.req.method === 'GET' || c.req.method === 'HEAD') && c.env.ASSETS) {
+    return c.env.ASSETS.fetch(c.req.raw)
+  }
+  return c.text('Not Found', 404)
+})
+
 app.onError((err, c) => {
   if (err instanceof HTTPException) {
     if (c.req.path.startsWith('/api/')) {
