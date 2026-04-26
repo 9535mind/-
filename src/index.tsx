@@ -26,6 +26,7 @@ import {
   isForestProductHost,
   isLifelongLmsProductHost,
   isMs12Hostname,
+  normalizeOauthRequestHostname,
   requestHostname,
 } from './utils/oauth-public'
 
@@ -34,12 +35,16 @@ const app = new Hono<{ Bindings: Bindings }>({ strict: false })
 
 app.use('*', logger())
 
-// www.ms12.org → apex(공식)만 308. mslms·mindstory.kr·mindstory-lms 는 ms12.org로 보내지 않음(도메인 정책).
+// www.ms12.org → apex(공식)만 308. mslms·mindstory·mindstory-lms 는 이 블록을 타지 않음(forest 등 절대 ms12.org로 보내지 않음).
 app.use('*', async (c, next) => {
   const raw = c.req.header('x-forwarded-host') || c.req.header('host') || ''
-  const host = raw.split(',')[0].trim().split(':')[0]
+  const host = normalizeOauthRequestHostname(raw.split(',')[0].trim().split(':')[0])
   const url = new URL(c.req.url)
   const isApi = url.pathname.startsWith('/api/')
+  if (isForestProductHost(host) || isLifelongLmsProductHost(host)) {
+    await next()
+    return
+  }
   if (host === 'www.ms12.org' && !isApi) {
     return c.redirect(`https://ms12.org${url.pathname}${url.search}`, 308)
   }
