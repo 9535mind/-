@@ -19,6 +19,10 @@ import apiMs12 from './routes/api-ms12'
 import apiMs12Documents from './routes/api-ms12-documents'
 import apiMs12MeetingRecords from './routes/api-ms12-meeting-records'
 import apiMs12Announcements from './routes/api-ms12-announcements'
+import forestGasWebhook from './routes/forest-gas-webhook'
+import forestGasReport from './routes/forest-gas-report'
+import forestGasReportPublic from './routes/forest-gas-report-public'
+import forestResults from './routes/forest-results'
 import landing from './routes/landing'
 import ms12Pages, { renderEntryPage } from './routes/ms12-pages'
 import { FOOTER_HTML_REVISION } from './utils/site-footer-legal'
@@ -163,6 +167,12 @@ app.get('/api/health', (c) => {
     d1Bound: !!c.env.DB,
   })
 })
+
+// JTT 유아숲 — GAS·시트 프록시·D1 집단 결과(forest.html `educationHostGuard` 허용 경로와 맞출 것)
+app.route('/api/forest-gas-webhook', forestGasWebhook)
+app.route('/api/forest-gas-report', forestGasReport)
+app.route('/api/forest-gas-report-public', forestGasReportPublic)
+app.route('/api/forest-results', forestResults)
 
 // JTT 유아숲 — 별칭(북마크·구 URL). /forest ↔ /forest.html 302 루프(CF 308) 방지: redirect 없이 ASSETS 로 동일 HTML.
 app.get('/forest_v9.html', (c) => serveForestHtmlFromAssets(c))

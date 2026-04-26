@@ -59,6 +59,14 @@ function isLmsHostForestPath(p: string): boolean {
   return false
 }
 
+/**
+ * forest 전용 API — MS12(/api/ms12)·OAuth와 경로가 겹치지 않음. 접두 /api/forest* 로 GAS + forest-results 를 한 번에 커버.
+ * ( forest-gas-webhook, forest-gas-report, forest-gas-report-public, forest-results, … )
+ */
+function isForestApiPath(n: string): boolean {
+  return n.startsWith('/api/forest')
+}
+
 function isForestPathAllowed(p: string): boolean {
   const n = normalizeForGuard(p)
   if (n === '/') return true
@@ -67,7 +75,7 @@ function isForestPathAllowed(p: string): boolean {
   if (n === '/forest_v9' || n === '/forest_v9.html') return true
   if (n.startsWith('/assets/')) return true
   if (n === '/static/js/jtt-metrics-calculator.js') return true
-  if (n.startsWith('/api/forest')) return true
+  if (isForestApiPath(n)) return true
   return false
 }
 
