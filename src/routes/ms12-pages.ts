@@ -1,24 +1,77 @@
 /** MS12 /app* — 공개·게스트 기본, OAuth 는 loginAside 만 */
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { Bindings } from '../types/database'
 import { getAuthMode } from '../utils/auth-mode'
+import { SITE_PUBLIC_ORIGIN } from '../utils/oauth-public'
 
 /** `/app` vs `/app/`·`/app/hub/` 등 끝 슬래시로 404 나지 않게 */
 const p = new Hono<{ Bindings: Bindings }>({ strict: false })
 
 /** Pages 배포·소스 ?v= 일치(배포 후 페이지 소스에 이 주석이 보이면 새 Worker) */
-const MS12_BUILD = '20260425c'
+const MS12_BUILD = '20260425meOrphanSession'
+const MS12_ACTIONS_SCRIPT = `/static/js/ms12-actions.js?v=${MS12_BUILD}`
 const MS12_APP_SCRIPT = `/static/js/ms12-app.js?v=${MS12_BUILD}`
 const waitBlock = '<p class="ms12-p" id="ms12-wait" style="color:rgb(100 116 139)">불러오는 중…</p>'
+/** /app(엔트리)로 가는 뒤로가기: 텍스트 «시작화면» 대신 홈 아이콘 */
+const MS12_HOME_LINK =
+  '<a href="/app" class="ms12-home-link" title="시작 화면" aria-label="시작 화면(홈)"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></a>'
 
 const commonStyles = `
-  .ms12-wrap{max-width:48rem;margin:0 auto;padding:2rem 1.25rem;}
+  .ms12-wrap{max-width:48rem;margin:0 auto;padding:2rem max(1.25rem, env(safe-area-inset-left)) 2rem max(1.25rem, env(safe-area-inset-right));padding-bottom:max(2rem, calc(0.75rem + env(safe-area-inset-bottom)))}
+  .ms12-home-link{display:inline-flex;align-items:center;justify-content:center;margin-bottom:0.5rem;padding:0.35rem;border-radius:0.5rem;color:rgb(71 85 105);text-decoration:none;line-height:0;vertical-align:middle;transition:color 0.15s,background 0.15s}
+  .ms12-home-link:hover{color:rgb(67 56 202);background:rgb(241 245 249)}
+  .ms12-home-link svg{display:block;flex-shrink:0}
+  .ms12-mh{max-width:40rem;margin:0 auto;padding-bottom:0.25rem}
+  .ms12-mh-top{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1.25rem}
+  @media (max-width: 639px){
+    .ms12-mh-top{flex-direction:column;align-items:stretch;gap:0.75rem;margin-bottom:1rem}
+    .ms12-mh-user{text-align:left}
+  }
+  .ms12-mh-user{flex:1;min-width:0;text-align:right}
+  .ms12-mh-user-line{margin:0;font-size:0.92rem;color:rgb(51 65 85);line-height:1.45}
+  .ms12-mh-user-note{margin:0.35rem 0 0 0;font-size:0.8rem;color:rgb(100 116 139);line-height:1.45;max-width:20rem;margin-left:auto}
+  .ms12-mh-hero{text-align:center;padding:0.25rem 0 1rem}
+  .ms12-mh-title{margin:0 0 0.5rem 0;font-size:clamp(1.35rem,4.2vw,1.85rem);font-weight:800;letter-spacing:-0.02em;color:rgb(15 23 42);line-height:1.2}
+  .ms12-mh-sub{margin:0 0 1.35rem 0;font-size:0.95rem;color:rgb(100 116 139);line-height:1.55}
+  a.ms12-mh-cta,button.ms12-mh-cta{display:inline-flex;align-items:center;justify-content:center;width:100%;max-width:22rem;min-height:56px;min-width:56px;padding:0.75rem 1.35rem;box-sizing:border-box;font-size:1.12rem;font-weight:700;border-radius:0.9rem;background:linear-gradient(180deg,rgb(15 150 130) 0%,rgb(13 110 100) 100%);color:#fff!important;text-decoration:none;box-shadow:0 4px 18px rgba(13,110,100,0.35);border:1px solid rgba(0,0,0,0.06);font-family:inherit;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:rgba(255,255,255,0.15);transition:transform 0.12s ease, filter 0.12s ease}
+  a.ms12-mh-cta:hover,button.ms12-mh-cta:hover{filter:brightness(1.05);color:#fff!important}
+  a.ms12-mh-cta:active,button.ms12-mh-cta:active{transform:scale(0.98);filter:brightness(0.94)}
+  .ms12-mh-cta-hint{margin:0.65rem auto 0 auto;max-width:22rem;font-size:0.8rem;line-height:1.45;color:rgb(100 116 139);text-align:center}
+  .ms12-mh-status{min-height:1.3rem;max-width:24rem;margin:0.5rem auto 0;font-size:0.8rem;line-height:1.45;color:rgb(51 65 85);text-align:center}
+  .ms12-mh-quick{max-width:24rem;margin:1.1rem auto 0;padding:0.75rem 0.5rem 0.25rem;box-sizing:border-box;border-top:1px solid rgb(241 245 249)}
+  .ms12-mh-quick-label{margin:0 0 0.45rem 0;font-size:0.78rem;font-weight:600;color:rgb(100 116 139);text-align:center;letter-spacing:-0.01em}
+  .ms12-mh-chips{display:flex;flex-wrap:wrap;gap:0.4rem;justify-content:center}
+  .ms12-mh-chip{min-height:40px;min-width:0;padding:0.35rem 0.7rem;box-sizing:border-box;font-size:0.8rem;font-weight:600;border-radius:0.55rem;border:1px solid rgb(226 232 240);background:rgb(255 255 255);color:rgb(51 65 85);font-family:inherit;cursor:pointer;touch-action:manipulation;transition:background 0.12s,border-color 0.12s}
+  .ms12-mh-chip:hover{border-color:rgb(165 180 252);background:rgb(248 250 252);color:rgb(67 56 202)}
+  .ms12-mh-secondary{max-width:24rem;margin:1.5rem auto 0;display:grid;grid-template-columns:1fr 1fr;gap:0.75rem}
+  a.ms12-mh-sec,button.ms12-mh-sec{display:flex;align-items:center;justify-content:center;min-height:44px;padding:0.45rem 0.6rem;box-sizing:border-box;font-size:0.86rem;font-weight:600;border-radius:0.7rem;border:1px solid rgb(226 232 240);background:rgb(255 255 255);color:rgb(51 65 85)!important;text-decoration:none;text-align:center;line-height:1.25;font-family:inherit;cursor:pointer;touch-action:manipulation}
+  a.ms12-mh-sec:hover,button.ms12-mh-sec:hover{border-color:rgb(165 180 252);color:rgb(67 56 202)!important;background:rgb(248 250 252)}
+  .ms12-mh-card{margin-top:1.35rem;padding:1.1rem 1.15rem;border-radius:0.85rem;border:1px dashed rgb(203 213 225);background:rgb(248 250 252);text-align:center}
+  .ms12-mh-card p{margin:0.35rem 0 0 0;font-size:0.9rem;color:rgb(71 85 105);line-height:1.5}
+  .ms12-mh-card p:first-child{margin-top:0;font-weight:600;color:rgb(30 41 59)}
+  a.ms12-mh-card-btn,button.ms12-mh-card-btn{display:inline-flex;align-items:center;justify-content:center;margin-top:0.75rem;min-height:56px;min-width:56px;padding:0.5rem 1.15rem;font-size:0.88rem;font-weight:600;border-radius:0.55rem;background:rgb(15 118 110);color:#fff!important;text-decoration:none;border:0;font-family:inherit;cursor:pointer;touch-action:manipulation;transition:transform 0.12s ease, filter 0.12s ease}
+  a.ms12-mh-card-btn:hover,button.ms12-mh-card-btn:hover{filter:brightness(1.06);color:#fff!important}
+  a.ms12-mh-card-btn:active,button.ms12-mh-card-btn:active{transform:scale(0.98)}
+  .ms12-mh-recent-grid{margin-top:1.5rem;display:grid;gap:0.75rem}
+  @media (min-width: 768px){.ms12-mh-recent-grid{grid-template-columns:repeat(3,1fr);gap:0.65rem}}
+  .ms12-mh-panel{padding:0.8rem 0.9rem;border:1px solid rgb(226 232 240);border-radius:0.65rem;background:rgb(255 255 255);min-height:5.5rem}
+  .ms12-mh-panel h3{margin:0 0 0.4rem 0;font-size:0.72rem;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:rgb(148 163 184)}
+  .ms12-mh-foot{margin-top:1.5rem;padding:1rem 1rem;border-radius:0.75rem;border:1px solid rgb(241 245 249);background:rgb(252 252 252)}
+  .ms12-mh-foot p{margin:0 0 0.5rem 0;font-size:0.86rem;color:rgb(71 85 105);line-height:1.5}
+  .ms12-mh-oauth a{color:rgb(79 70 229)!important;font-weight:600;text-decoration:underline}
   .ms12-h1{font-size:1.5rem;font-weight:700;margin-bottom:0.5rem;}
   .ms12-p{color:rgb(55 65 81);line-height:1.6;}
-  .ms12-btn{display:inline-block;margin-top:0.75rem;padding:0.5rem 1rem;border-radius:0.5rem;background:rgb(79 70 229);color:#fff;text-decoration:none;font-weight:500;border:none;cursor:pointer;font-size:1rem;}
+  .ms12-btn{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0.5rem 1.1rem;border-radius:0.5rem;background:rgb(79 70 229);color:#fff;text-decoration:none;font-weight:500;border:none;cursor:pointer;font-size:1rem;touch-action:manipulation;box-sizing:border-box}
   .ms12-btn:hover{background:rgb(67 56 202);}
   .ms12-btn--muted{background:rgb(71 85 105);}
   .ms12-btn--teal{background:rgb(15 118 110);}
+  .ms12-btn--kakao{background:#FEE500!important;color:#191919!important;border:1px solid rgba(0,0,0,0.1);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,0.08)}
+  .ms12-btn--kakao:hover{filter:brightness(0.96);color:#191919!important}
+  .ms12-btn--google{display:inline-flex!important;align-items:center;justify-content:center;width:100%;gap:11px;min-height:48px;
+    background:#fff!important;color:#202124!important;-webkit-text-fill-color:#202124;border:1px solid #dadce0;box-shadow:0 1px 2px rgba(0,0,0,0.06);font-weight:600;text-decoration:none;box-sizing:border-box}
+  .ms12-btn--google:hover{background:rgb(248 249 250)!important;color:#202124!important;-webkit-text-fill-color:#202124}
+  .ms12-btn--google .ms12-login-oauth__ic{flex-shrink:0;display:block;width:22px;height:22px}
+  .ms12-btn--google .ms12-login-oauth__label{color:#202124!important;-webkit-text-fill-color:#202124}
   .ms12-card-grid{display:grid;gap:0.75rem;margin-top:1.25rem;}
   @media (min-width: 480px) { .ms12-card-grid--3{grid-template-columns:1fr 1fr 1fr;} }
   @media (min-width: 640px) { .ms12-card-grid--2x2{grid-template-columns:1fr 1fr;} }
@@ -116,8 +169,8 @@ function loginAside(
   <details${openByDefault ? ' open' : ''}>
     <summary>계정 · 로그인 (선택)</summary>
     <p class="ms12-login-aside__links" style="margin:0.4rem 0 0 0;line-height:1.5">기기를 바꿔도 이어 쓰려면 연동할 수 있습니다.
-      <a href="${k(nextPath)}" data-ms12-login-lnk>카카오</a> ·
-      <a href="${g(nextPath)}" data-ms12-login-lnk>Google</a>
+      <a href="${k(nextPath)}" data-ms12-login-lnk${OAUTH_A_ATTRS}>카카오</a> ·
+      <a href="${g(nextPath)}" data-ms12-login-lnk${OAUTH_A_ATTRS}>Google</a>
     </p>
   </details>
   <p class="ms12-js-logout-line" style="margin:0.6rem 0 0 0">
@@ -146,8 +199,17 @@ function layout(
   extraBody: string,
   guest: string,
   authed: string,
-  authMode: string
+  authMode: string,
+  /** 공식 URL(`https://ms12.org/...`) — 검색·북마크용 canonical */
+  canonicalPath?: string
 ) {
+  const can =
+    canonicalPath && canonicalPath.length > 0
+      ? `${SITE_PUBLIC_ORIGIN}${canonicalPath.startsWith('/') ? canonicalPath : `/${canonicalPath}`}`
+      : ''
+  const canTag = can
+    ? `  <link rel="canonical" href="${can}"/>\n`
+    : ''
   return `<!DOCTYPE html>
 <!-- m:${MS12_BUILD} -->
 <html lang="ko">
@@ -155,8 +217,9 @@ function layout(
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>${title}</title>
-  <link rel="stylesheet" href="/static/css/app.css" />
+${canTag}  <link rel="stylesheet" href="/static/css/app.css" />
   <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" />
+  <script src="${MS12_ACTIONS_SCRIPT}" defer></script>
   <script src="${MS12_APP_SCRIPT}" defer></script>
   <style>
     ${commonStyles}
@@ -177,19 +240,33 @@ function layout(
 
 const oauthNext = (path: string) => encodeURIComponent(path)
 const kakao = (next: string) => `/api/auth/kakao/login?next=${oauthNext(next)}`
-const google = (next: string) => `/api/auth/google/login?next=${oauthNext(next)}`
+const google = (next: string) => `/api/auth/google/start?next=${oauthNext(next)}`
+/** iframe·인앱 브라우저에서 OAuth가 막히는 것 방지 — 항상 최상위 창에서 시작 */
+const OAUTH_A_ATTRS = ' target="_top" rel="noopener noreferrer"'
 /** OAuth·이메일 로그인 후 기본 복귀(로그인 직후 첫 화면 — 데스크) */
-const POST_LOGIN_LANDING = '/app/desk'
+const POST_LOGIN_LANDING = '/app/meeting'
 
-function entryMarqueeTrack(fullTwice: string, durationSec: number, delaySec: number): string {
-  return `<div class="ms12-entry-marquee-line">
-  <div class="ms12-entry-marquee-track" style="--ms12-mq-dur:${durationSec}s;--ms12-mq-delay:${delaySec}s">${fullTwice}</div>
-</div>`
+const ENTRY_MARQUEE_LINES: readonly [string, string, string] = [
+  '회의를 기록하면, 생각이 정리됩니다.',
+  '생각이 정리되면, 실행이 쉬워집니다.',
+  '실행이 쉬워지면, 성과가 만들어집니다.',
+]
+/** 한 줄(강 흐름)로 이어서 두 세그먼트의 너비를 정확히 맞춤 → -50% 루프 */
+const ENTRY_MARQUEE_RIVER = ENTRY_MARQUEE_LINES.join('   ·   ')
+
+function entryMarqueeSeg(ariaHidden: boolean): string {
+  const ah = ariaHidden ? ' aria-hidden="true"' : ''
+  return `<div class="ms-marquee-seg"${ah}>${ENTRY_MARQUEE_RIVER}</div>`
 }
 
-function entryMarqueeLine(line: string, durationSec: number, delaySec: number): string {
-  const one = (line + '  ·  ').repeat(4)
-  return entryMarqueeTrack(one + one, durationSec, delaySec)
+/** 하단: 동일 문단 2개 → track translateX(-50%) 로 오른쪽→왼쪽 무한 */
+function entryMarqueeFlow(): string {
+  return `<div class="ms-marquee">
+  <div class="ms-marquee-track">
+    ${entryMarqueeSeg(false)}
+    ${entryMarqueeSeg(true)}
+  </div>
+</div>`
 }
 
 /** 첫 화면: 연출(어두운 캔버스) + MS Platform + 로그인, 하단 느린 흐름 문구 */
@@ -205,22 +282,22 @@ function layoutEntry(authMode: string): string {
     color:rgba(226,232,240,0.75);font-size:0.9rem;letter-spacing:0.12em}
   .ms12-entry-aurora{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
   .ms12-entry-blob{position:absolute;border-radius:50%;filter:blur(72px);opacity:0.38;will-change:transform;
-    animation:ms12Eblob 32s ease-in-out infinite}
+    animation:ms12Eblob 4.75s ease-in-out infinite}
   .ms12-entry-blob--a{width:min(55vmin,28rem);height:min(55vmin,28rem);left:-8%;top:6%;background:#312e81;
-    animation-delay:-4s}
+    animation-delay:-0.63s}
   .ms12-entry-blob--b{width:min(45vmin,22rem);height:min(45vmin,22rem);right:-6%;top:32%;background:#134e4a;opacity:0.32;
-    animation-delay:-14s;animation-duration:36s}
+    animation-delay:-2.12s;animation-duration:5.25s}
   .ms12-entry-blob--c{width:min(50vmin,26rem);height:min(50vmin,26rem);left:18%;bottom:-5%;background:#4c1d95;opacity:0.28;
-    animation-delay:-22s;animation-duration:40s}
+    animation-delay:-3.25s;animation-duration:6s}
   .ms12-entry-shard{position:absolute;inset:0;background:
     linear-gradient(125deg,transparent 40%,rgba(255,255,255,0.03) 48%,rgba(255,255,255,0.07) 50%,rgba(255,255,255,0.02) 52%,transparent 60%);
-    mix-blend:overlay;animation:ms12Eshard 20s ease-in-out infinite;opacity:0.9}
+    mix-blend:overlay;animation:ms12Eshard 3s ease-in-out infinite;opacity:0.9}
   .ms12-entry-veil{position:absolute;inset:0;background:radial-gradient(ellipse 90% 60% at 50% 45%,transparent 0%,rgba(2,3,8,0.5) 100%)}
   @keyframes ms12Eblob{0%,100%{transform:translate(0,0) scale(1) rotate(0)}35%{transform:translate(3%,-2%) scale(1.06) rotate(2deg)}70%{transform:translate(-2%,3%) scale(0.95) rotate(-1.5deg)}}
   @keyframes ms12Eshard{0%,100%{transform:translateX(-4%) translateY(1%)}50%{transform:translateX(4%) translateY(-1%)}}
   .ms12-entry-center{position:relative;z-index:2;min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;
     padding:2rem 1.25rem 9rem;box-sizing:border-box}
-  .ms12-entry-title-wrap{text-align:center;animation:ms12Etitle 2.1s ease forwards;opacity:0}
+  .ms12-entry-title-wrap{text-align:center;animation:ms12Etitle 0.62s ease forwards;opacity:0}
   @keyframes ms12Etitle{to{opacity:1}}
   .ms12-entry-h1{line-height:1.02;margin:0;padding:0}
   .ms12-entry-title-line{display:inline-flex;align-items:baseline;justify-content:center;flex-wrap:wrap;column-gap:0.14em;row-gap:0.06em;
@@ -232,35 +309,64 @@ function layoutEntry(authMode: string): string {
     text-transform:none;color:rgba(240,244,255,0.96)}
   .ms12-entry-title__ms{font-size:clamp(1.9rem,5.2vw,3rem);letter-spacing:-0.04em;flex-shrink:0}
   .ms12-entry-title__plat{font-size:clamp(1.5rem,3.7vw,2.15rem);letter-spacing:-0.035em}
-  .ms12-entry-card{margin-top:1.7rem;max-width:20rem;width:100%;padding:1.05rem 1.15rem;border-radius:1rem;
+  .ms12-entry-hero-h1{margin:0 0 0.45rem 0;padding:0;font-size:clamp(1.12rem,3.8vw,1.4rem);font-weight:700;line-height:1.38;text-align:center;
+    color:rgba(248,250,252,0.98);max-width:22rem;letter-spacing:-0.025em}
+  .ms12-entry-kicker{margin:0 0 0.9rem 0;padding:0;font-size:0.7rem;letter-spacing:0.2em;opacity:0.38;text-align:center}
+  .ms12-entry-startbtn{display:block;width:100%;text-align:center;box-sizing:border-box;padding:0.62rem 0.9rem;min-height:48px;
+    border-radius:0.55rem;font-weight:700;font-size:0.94rem;border:none;cursor:pointer;
+    background:linear-gradient(180deg,rgb(15,150,130) 0%,rgb(13,110,100) 100%);color:#fff;font-family:inherit;
+    box-shadow:0 2px 10px rgba(0,0,0,0.22)}
+  .ms12-entry-startbtn:hover{filter:brightness(1.06)}
+  .ms12-entry-chips{display:flex;flex-wrap:wrap;gap:0.4rem;justify-content:center;margin:0.8rem 0 0 0}
+  .ms12-entry-chip{min-height:38px;padding:0.3rem 0.7rem;font-size:0.78rem;font-weight:600;border-radius:0.5rem;
+    border:1px solid rgba(148,163,184,0.38);background:rgba(15,23,42,0.55);color:rgba(226,232,240,0.95);font-family:inherit;cursor:pointer}
+  .ms12-entry-chip:hover{background:rgba(30,41,59,0.75)}
+  .ms12-entry-status{min-height:1.2rem;font-size:0.74rem;text-align:center;color:rgba(203,213,225,0.9);margin:0.5rem 0 0 0;letter-spacing:0.02em}
+  .ms12-entry-card{margin-top:1.4rem;max-width:20rem;width:100%;padding:1.05rem 1.15rem;border-radius:1rem;
     background:rgba(15,23,42,0.45);border:1px solid rgba(148,163,184,0.2);backdrop-filter:blur(12px) saturate(1.2);
     -webkit-backdrop-filter:blur(12px) saturate(1.2);
     box-shadow:0 8px 32px rgba(0,0,0,0.35),inset 0 1px 0 rgba(255,255,255,0.06);
-    animation:ms12Ecard 1.5s ease 0.75s both}
+    animation:ms12Ecard 0.225s ease 0.11s both}
   @keyframes ms12Ecard{from{opacity:0;transform:translateY(12px) scale(0.98)}to{opacity:1;transform:none}}
   .ms12-entry-card__p{margin:0 0 0.65rem 0;font-size:0.8rem;opacity:0.65;line-height:1.45;letter-spacing:0.02em}
-  .ms12-entry-mail{display:block;width:100%;text-align:center;padding:0.55rem 0.9rem;border-radius:0.6rem;
-    background:rgba(99,102,241,0.9);color:#f8fafc;font-weight:500;font-size:0.92rem;text-decoration:none;letter-spacing:0.04em;
-    border:1px solid rgba(199,210,254,0.3);box-shadow:0 2px 12px rgba(79,70,229,0.25)}
-  .ms12-entry-mail:hover{background:rgba(79,70,229,0.95)}
-  .ms12-entry-or{margin:0.75rem 0 0.4rem 0;font-size:0.68rem;letter-spacing:0.15em;opacity:0.4;text-align:center}
-  .ms12-entry-oauth{margin:0;text-align:center;font-size:0.86rem;letter-spacing:0.06em}
-  .ms12-entry-oauth a{color:#a5b4fc;text-decoration:none;border-bottom:1px solid rgba(165,180,252,0.35)}
-  .ms12-entry-oauth a:hover{color:#c7d2fe}
-  .ms12-entry-bottom{position:fixed;left:0;right:0;bottom:0;z-index:1;padding:0.85rem 0 1rem;pointer-events:none}
-  .ms12-entry-marquee-line{overflow:hidden;width:100%;min-height:2.1em;display:flex;align-items:center;
-    opacity:0.65;
-    mask-image:linear-gradient(90deg,transparent 0%,#000 12%,#000 88%,transparent 100%);
-    -webkit-mask-image:linear-gradient(90deg,transparent 0%,#000 12%,#000 88%,transparent 100%)}
-  .ms12-entry-marquee-track{display:inline-block;white-space:nowrap;will-change:transform;
-    backface-visibility:hidden;
-    font-size:clamp(0.95rem,2.8vw,1.28rem);font-weight:400;letter-spacing:0.045em;
-    color:rgba(218,227,241,0.88);
-    text-shadow:0 0 24px rgba(148,163,184,0.15);
-    animation:ms12Emq linear infinite;animation-duration:var(--ms12-mq-dur,118s)}
-  @keyframes ms12Emq{0%{transform:translate3d(0,0,0)}100%{transform:translate3d(-50%,0,0)}}
+  .ms12-entry-oauth-btns{display:flex;flex-direction:column;gap:0.65rem;width:100%;margin:0.4rem 0 0 0}
+  .ms12-entry-kakao{display:block;width:100%;text-align:center;box-sizing:border-box;padding:0.6rem 0.9rem;min-height:48px;border-radius:0.55rem;font-weight:600;font-size:0.9rem;font-family:inherit;text-decoration:none;
+    background:#FEE500!important;color:#191919!important;border:1px solid rgba(0,0,0,0.08);box-shadow:0 1px 2px rgba(0,0,0,0.1)}
+  .ms12-entry-kakao:hover{filter:brightness(0.97)}
+  .ms12-entry-googlebtn{box-sizing:border-box;width:100%;min-height:48px;padding:0.6rem 0.9rem;border-radius:0.55rem;font-weight:600;font-size:0.9rem;font-family:inherit;text-decoration:none;
+    display:inline-flex;align-items:center;justify-content:center;gap:0.55rem;line-height:1.25;
+    background-color:#fff!important;color:#202124!important;border:1px solid #dadce0;box-shadow:0 1px 2px rgba(0,0,0,0.06);
+    -webkit-text-fill-color:#202124}
+  .ms12-entry-googlebtn:hover{background-color:#f8f9fa!important}
+  .ms12-entry-card a.ms12-entry-googlebtn{color:#202124!important;background-color:#fff!important;-webkit-text-fill-color:#202124}
+  .ms12-entry-googlebtn .ms12-entry-oauth__label{color:#202124!important;-webkit-text-fill-color:#202124}
+  .ms12-entry-oauth__ic{flex-shrink:0;display:block;width:20px;height:20px}
+  .ms12-entry-or{margin:0.85rem 0 0.45rem 0;font-size:0.68rem;letter-spacing:0.15em;opacity:0.45;text-align:center}
+  .ms12-entry-mail-sec{display:block;margin:0.15rem 0 0 0;padding:0.4rem 0.35rem;text-align:center;font-size:0.82rem;color:#a5b4fc;text-decoration:underline;opacity:0.95}
+  .ms12-entry-mail-sec:hover{color:#c7d2fe}
+  .ms12-entry-root .ms-marquee{position:fixed;left:0;right:0;bottom:calc(2rem + env(safe-area-inset-bottom, 0px));
+    overflow:hidden;z-index:25;pointer-events:none;max-width:100%;width:100%;
+    -webkit-transform:translateZ(0);transform:translateZ(0)}
+  .ms12-entry-root .ms-marquee-track{
+    display:flex;flex-direction:row;flex-wrap:nowrap;width:max-content;max-width:none;
+    align-items:center;
+    animation:ms12MarqueeFlow 8.25s linear 0s infinite;
+    -webkit-animation:ms12MarqueeFlow 8.25s linear 0s infinite;
+    animation-play-state:running;
+    will-change:transform;backface-visibility:hidden;
+    -webkit-backface-visibility:hidden}
+  .ms12-entry-root .ms-marquee-seg{
+    flex:0 0 auto;box-sizing:content-box;white-space:nowrap;flex-shrink:0;
+    padding-right:clamp(2.5rem,7vw,5.5rem);
+    font-size:clamp(14px,1.3vw,22px);
+    color:rgba(255,255,255,0.62);letter-spacing:-0.02em;
+    text-shadow:0 0 12px rgba(150,180,255,0.18)}
+  @keyframes ms12MarqueeFlow{
+    0%{-webkit-transform:translate3d(0,0,0);transform:translate3d(0,0,0)}
+    100%{-webkit-transform:translate3d(-50%,0,0);transform:translate3d(-50%,0,0)}}
   @media (prefers-reduced-motion:reduce){
-    .ms12-entry-blob,.ms12-entry-shard,.ms12-entry-title-wrap,.ms12-entry-card,.ms12-entry-marquee-track{animation:none!important;opacity:1!important;transform:none!important}
+    .ms12-entry-blob,.ms12-entry-shard,.ms12-entry-title-wrap,.ms12-entry-card{animation:none!important;opacity:1!important;transform:none!important}
+    .ms12-entry-root .ms-marquee-track{animation-duration:14.5s!important;-webkit-animation-duration:14.5s!important}
   }
   .ms12-entry-card .ms12-js-logout-line{margin:0.5rem 0 0 0}
   .ms12-entry-card .ms12-btn--muted{background:rgba(51,65,85,0.6);color:#e2e8f0}
@@ -276,8 +382,10 @@ function layoutEntry(authMode: string): string {
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>MS Platform</title>
+  <link rel="canonical" href="${SITE_PUBLIC_ORIGIN}/app"/>
   <link rel="stylesheet" href="/static/css/app.css" />
   <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" />
+  <script src="${MS12_ACTIONS_SCRIPT}" defer></script>
   <script src="${MS12_APP_SCRIPT}" defer></script>
   <style>
     ${entryStyles}
@@ -291,38 +399,48 @@ function layoutEntry(authMode: string): string {
     <div class="ms12-entry-shard"></div>
     <div class="ms12-entry-veil"></div>
   </div>
-  <p class="ms12-entry-wait" id="ms12-wait" style="color:rgba(203,213,225,0.8)">불러오는 중…</p>
+  <p class="ms12-entry-wait" id="ms12-wait" style="color:rgba(203,213,225,0.8);display:none">불러오는 중…</p>
   <div id="ms12-guest" style="display:none">${guestNoJs('MS Platform')}</div>
-  <div id="ms12-authed" style="display:none">
+  <div id="ms12-authed" style="display:block">
     <div class="ms12-entry-center">
       <div class="ms12-entry-title-wrap">
-        <h1 class="ms12-entry-h1">
-          <span class="ms12-entry-title-line" lang="en">
-            <span class="ms12-entry-title__ms">MS</span><span class="ms12-entry-title__plat">Platform</span>
-          </span>
-        </h1>
+        <h1 class="ms12-entry-hero-h1" id="ms12-entry-hero">회의를 시작하고 바로 기록하세요</h1>
+        <p class="ms12-entry-kicker" lang="en">MS Platform</p>
       </div>
       <div class="ms12-entry-card" id="ms12-entry-login">
-        <p class="ms12-entry-card__p">기기에 묶이지 않고 이어 쓰려면 계정으로 입장할 수 있습니다.</p>
-        <a class="ms12-entry-mail" href="${emailLogin}">이메일 로그인</a>
-        <p class="ms12-entry-or">또는</p>
-        <p class="ms12-entry-oauth">
-          <a href="${kakao(POST_LOGIN_LANDING)}" data-ms12-login-lnk>카카오</a>
-          <span> · </span>
-          <a href="${google(POST_LOGIN_LANDING)}" data-ms12-login-lnk>Google</a>
-        </p>
-        <p class="ms12-js-logout-line" style="margin-top:0.85rem;text-align:center">
+        <button type="button" class="ms12-entry-startbtn" data-ms12-entry-qs="start" aria-label="새 회의로 시작">회의 시작</button>
+        <p id="ms12-entry-status" class="ms12-entry-status" role="status" aria-live="polite"></p>
+        <div class="ms12-entry-oauth-btns">
+          <a class="ms12-entry-kakao" href="${kakao(POST_LOGIN_LANDING)}" data-ms12-login-lnk${OAUTH_A_ATTRS}>카카오로 계속하기</a>
+          <a class="ms12-entry-googlebtn" href="${google(POST_LOGIN_LANDING)}" data-ms12-login-lnk${OAUTH_A_ATTRS}><svg class="ms12-entry-oauth__ic" width="20" height="20" viewBox="0 0 48 48" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.8 7.18l7.73 6c4.51-4.18 7.11-10.32 7.11-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg><span class="ms12-entry-oauth__label">Google로 계속하기</span></a>
+        </div>
+        <p class="ms12-entry-or" data-ms12-login-lnk>또는</p>
+        <a class="ms12-entry-mail-sec" href="${emailLogin}" data-ms12-login-lnk>이메일·비밀번호로 로그인</a>
+        <p class="ms12-entry-card__p ms12-js-login-only-copy" data-ms12-login-lnk style="margin-top:0.85rem">로그인하면 서버에 저장·초대 링크·다른 기기에서 이어쓰기가 됩니다.</p>
+        <div class="ms12-entry-chips" aria-label="빠른 시작">
+          <button type="button" class="ms12-entry-chip" data-ms12-entry-qs="quick" data-ms12-type="team" data-ms12-title="팀 회의">팀</button>
+          <button type="button" class="ms12-entry-chip" data-ms12-entry-qs="quick" data-ms12-type="class" data-ms12-title="수업 회의">수업</button>
+          <button type="button" class="ms12-entry-chip" data-ms12-entry-qs="quick" data-ms12-type="counseling" data-ms12-title="상담 기록">상담</button>
+          <button type="button" class="ms12-entry-chip" data-ms12-entry-qs="quick" data-ms12-type="planning" data-ms12-title="기획 회의">기획</button>
+        </div>
+        <p class="ms12-entry-policy-line js-ms12-policy" style="margin:0.7rem 0 0 0;font-size:0.7rem;line-height:1.45;color:rgba(186,198,220,0.88);text-align:center" aria-label="플랜 안내"></p>
+        <p class="ms12-js-logout-line" style="margin-top:0.9rem;text-align:center">
           <button type="button" class="ms12-btn ms12-btn--muted" style="font-size:0.78rem;padding:0.28rem 0.6rem" data-ms12-logout>로그아웃</button>
         </p>
       </div>
-      <p class="ms12-entry-breadcrumb"><a href="/app/desk">로그인 후 홈</a> · <a href="/app/hub">전체 메뉴</a></p>
-    </div>
-    <div class="ms12-entry-bottom" aria-hidden="true">
-      ${entryMarqueeSingleRow()}
+      <p class="ms12-entry-breadcrumb"><a href="/app/meeting">로그인 후 회의</a> · <a href="/app/hub">전체 메뉴</a></p>
     </div>
   </div>
+  ${entryMarqueeFlow()}
 </body>
 </html>`
+}
+
+type Ms12Context = Context<{ Bindings: Bindings }>
+
+/** 첫 화면 HTML. 루트 `/app`·`/app/` 는 `index` 에서 직접 `get` 으로 연결(서브 `route`만으로는 루트가 안 잡힌 Pages·엣지 케이스 대비) */
+function renderEntryPage(c: Ms12Context) {
+  return c.html(layoutEntry(getAuthMode(c)))
 }
 
 const HUB_INNER = `<div class="ms12-header-row">
@@ -428,11 +546,8 @@ const DESK_INNER = `<div class="ms12-desk">
   <div class="ms12-dsk-ticker" aria-hidden="true">
     <div class="ms12-dsk-ticker__in">MS Platform — 회의 · 기록 · 문서  ·  MS Platform — 회의 · 기록 · 문서  ·  MS Platform — 회의 · 기록 · 문서  ·  MS Platform — 회의 · 기록 · 문서  ·  MS Platform — 회의 · 기록 · 문서  ·  MS Platform — 회의 · 기록 · 문서  ·  </div>
   </div>
-  ${loginAside('/app/desk', kakao, google)}
+  ${loginAside('/app/meeting', kakao, google)}
 </div>`
-
-/** 첫 화면(연출·로그인) — 도메인·/app 진입 시 항상 동일(로그인 여부와 무관, 데스크는 메뉴에서 이동) */
-p.get('/', async (c) => c.html(layoutEntry(getAuthMode(c))))
 
 /** 예전 대시보드(카드·요약) — /app /app/hub */
 p.get('/hub', (c) =>
@@ -444,6 +559,7 @@ p.get('/hub', (c) =>
       guestNoJs('MS12'),
       HUB_INNER,
       getAuthMode(c),
+      '/app/hub',
     ),
   ),
 )
@@ -471,18 +587,20 @@ p.get('/meeting/new', (c) =>
       'meeting_new',
       '',
       guestNoJs('새 회의'),
-      `<a href="/app" class="ms12-p" style="display:inline-block;margin-bottom:0.5rem">← 시작화면</a>
+      `${MS12_HOME_LINK}
        <h1 class="ms12-h1">새 회의</h1>
        <p class="ms12-p">제목을 입력하면 회의 코드가 자동으로 만들어지고, <span class="js-ms12-user-name" style="font-weight:600">—</span> 님은 호스트로 입장됩니다.</p>
        <form id="ms12-form-new" style="margin-top:1rem">
+         <p class="ms12-p" style="font-size:0.88rem;color:rgb(100 116 139);margin:0 0 0.75rem 0">여기서 제목을 입력한 뒤「회의 열기」로 회의방이 만들어집니다.</p>
          <label class="ms12-p" style="display:block;font-weight:500">회의 제목</label>
          <input class="ms12-input" name="title" type="text" required maxlength="200" placeholder="예: 4월 운영 모임" />
          <label class="ms12-p" style="display:block;margin-top:0.75rem;font-weight:500">호스트로 표시할 이름(선택·게스트)</label>
-         <input class="ms12-input" name="displayName" type="text" maxlength="40" placeholder="없으면 '게스트'" />
+         <input class="ms12-input" id="ms12-input-new-displayname" name="displayName" type="text" maxlength="40" placeholder="없으면 '게스트'" autocomplete="name" />
          <p style="margin-top:1rem"><button type="submit" class="ms12-btn ms12-btn--teal">회의 열기</button></p>
        </form>
        ${loginAside('/app/meeting/new', kakao, google)}`,
       getAuthMode(c),
+      '/app/meeting/new',
     ),
   ),
 )
@@ -494,19 +612,20 @@ p.get('/join', (c) =>
       'join',
       '',
       guestNoJs('회의 입장'),
-      `<a href="/app" class="ms12-p" style="display:inline-block;margin-bottom:0.5rem">← 시작화면</a>
+      `${MS12_HOME_LINK}
        <h1 class="ms12-h1">회의 입장</h1>
        <p class="ms12-p">초대받은 <strong>회의 코드</strong>를 넣으면, <span class="js-ms12-user-name" style="font-weight:600">—</span> 님 이름으로 참석자 목록에 올라갑니다.</p>
        <form id="ms12-form-join" style="margin-top:1rem">
          <label class="ms12-p" style="display:block;font-weight:500">회의 코드</label>
          <input class="ms12-input" name="code" type="text" required autocomplete="off" placeholder="8자리 코드" />
          <label class="ms12-p" style="display:block;margin-top:0.75rem;font-weight:500">목록에 쓸 이름(선택)</label>
-         <input class="ms12-input" name="displayName" type="text" maxlength="40" placeholder="없으면 '게스트'" />
+         <input class="ms12-input" id="ms12-input-join-displayname" name="displayName" type="text" maxlength="40" placeholder="없으면 '게스트'" autocomplete="name" />
          <p style="margin-top:1rem"><button type="submit" class="ms12-btn">입장</button></p>
        </form>
        <p id="ms12-join-err" class="ms12-p" style="color:rgb(185 28 28);display:none"></p>
        ${loginAside('/app/join', kakao, google)}`,
       getAuthMode(c),
+      '/app/join',
     ),
   ),
 )
@@ -518,12 +637,13 @@ p.get('/records', (c) =>
       'records',
       '',
       guestNoJs('회의 기록'),
-      `<a href="/app" class="ms12-p" style="display:inline-block;margin-bottom:0.5rem">← 시작화면</a>
+      `${MS12_HOME_LINK}
        <h1 class="ms12-h1">회의 기록</h1>
        <p class="ms12-p">참여한 회의·저장·요약(연동 예정)을 한곳에 모읍니다. 아래는 참여·개설한 모임 기준입니다.</p>
        <div id="ms12-records-list" class="ms12-p" style="margin-top:1rem">불러오는 중…</div>
        ${loginAside('/app/records', kakao, google)}`,
       getAuthMode(c),
+      '/app/records',
     ),
   ),
 )
@@ -535,7 +655,7 @@ p.get('/archive', (c) =>
       'archive',
       '',
       guestNoJs('회의 보관함'),
-      `<a href="/app" class="ms12-p" style="display:inline-block;margin-bottom:0.5rem">← 시작화면</a>
+      `${MS12_HOME_LINK}
        <h1 class="ms12-h1">회의 보관함</h1>
        <p class="ms12-p">저장한 회의를 날짜·분류·태그·검색어로 다시 열 수 있습니다. (D1 0079)</p>
        <form id="ms12-ar-filter" class="ms12-toolbar" style="margin:0.75rem 0;flex-wrap:wrap;align-items:center;gap:0.5rem">
@@ -557,6 +677,7 @@ p.get('/archive', (c) =>
        <div id="ms12-ar-list" class="ms12-p">불러오는 중…</div>
        ${loginAside('/app/archive', kakao, google)}`,
       getAuthMode(c),
+      '/app/archive',
     ),
   ),
 )
@@ -616,6 +737,7 @@ p.get('/meeting-record/:rid', (c) => {
        </form>
        ${loginAside('/app/meeting-record/' + id, kakao, google)}`,
       getAuthMode(c),
+      `/app/meeting-record/${id}`,
     ),
   )
 })
@@ -627,7 +749,7 @@ p.get('/library', (c) =>
       'library',
       '',
       guestNoJs('문서 자산'),
-      `<a href="/app" class="ms12-p" style="display:inline-block;margin-bottom:0.5rem">← 시작화면</a>
+      `${MS12_HOME_LINK}
        <h1 class="ms12-h1">문서 자산</h1>
        <p class="ms12-p">제안서·기획서·보고서 메타를 구조화해 저장하고, 키워드·AI 자연어로 찾고, 문서를 결합해 초안을 만듭니다. (D1 0077·R2·AI 키가 필요한 기능이 있습니다.)</p>
        <div class="ms12-panel" style="margin-top:0.75rem">
@@ -686,23 +808,66 @@ p.get('/meeting', (c) =>
       'meeting',
       '',
       guestNoJs('회의'),
-      `<a href="/app" class="ms12-p" style="display:inline-block;margin-bottom:0.5rem">← 시작화면</a>
-       <h1 class="ms12-h1">회의 허브</h1>
-       <p class="ms12-p">새로 만들거나 코드로 참여하거나, 기록·문서·보관함으로 이어갈 수 있습니다.</p>
-       <p class="ms12-p" style="margin-top:0.5rem">표시 이름: <span class="js-ms12-user-name" style="font-weight:600">—</span> <span class="js-ms12-user-suffix" style="font-weight:400">님</span></p>
-       <p style="margin-top:0.75rem">
-         <a class="ms12-btn" href="/app/meeting/new" style="background:rgb(15 118 110)">회의 시작</a>
-         <a class="ms12-btn" href="/app/join" style="margin-left:0.5rem">회의 참여</a>
-         <a class="ms12-btn" href="/app/records" style="margin-left:0.5rem">기록 보기</a>
-       </p>
-       <p style="margin-top:0.5rem">
-         <a class="ms12-btn ms12-btn--muted" href="/app/archive">회의 보관함</a>
-         <a class="ms12-btn ms12-btn--muted" href="/app/library" style="margin-left:0.5rem">문서 보관함</a>
-       </p>
-       <p class="ms12-muted" style="margin-top:0.75rem;font-size:0.88rem">회의실: 메모·전사·요약(기본/실행/보고)·서버 보관, 실행 항목, AI 질의·문서 초안(보고·계획·제안·홍보), 참석자 목록.</p>
-       <p style="margin-top:0.5rem"><a href="/app" class="ms12-p">← 시작화면</a></p>
-       ${loginAside('/app/meeting', kakao, google)}`,
+      `<div class="ms12-mh">
+       <header class="ms12-mh-top">
+         <div>${MS12_HOME_LINK}</div>
+         <div class="ms12-mh-user">
+           <p class="ms12-mh-user-line" style="margin:0">표시 이름: <span class="js-ms12-user-name" style="font-weight:700">—</span><span class="js-ms12-user-suffix" style="font-weight:400"></span></p>
+         </div>
+       </header>
+       <section class="ms12-mh-hero" aria-labelledby="ms12-mh-title">
+         <h1 id="ms12-mh-title" class="ms12-mh-title">오늘 회의를 시작하세요</h1>
+         <p class="ms12-mh-sub">기록하면 실행·문서로 이어집니다. 로그인 후 개설 시 서버 저장·초대가 됩니다.</p>
+         <button type="button" class="ms12-mh-cta" data-ms12-action="meeting-start">회의 시작</button>
+         <p class="ms12-mh-cta-hint">로그인 전에는 안내에 따라 로그인한 뒤 같은 흐름으로 개설됩니다.</p>
+         <p class="ms12-mh-policy js-ms12-policy" style="margin:0.4rem auto 0;max-width:22rem;font-size:0.78rem;line-height:1.45;color:rgb(100 116 139);text-align:center" aria-label="플랜 안내"></p>
+         <p id="ms12-mh-status" class="ms12-mh-status" role="status" aria-live="polite"></p>
+         <div class="ms12-mh-quick" aria-label="빠른 시작">
+           <p class="ms12-mh-quick-label">빠른 시작</p>
+           <div class="ms12-mh-chips">
+             <button type="button" class="ms12-mh-chip" data-ms12-action="meeting-start-quick" data-ms12-type="team" data-ms12-title="팀 회의">팀</button>
+             <button type="button" class="ms12-mh-chip" data-ms12-action="meeting-start-quick" data-ms12-type="class" data-ms12-title="수업 회의">수업</button>
+             <button type="button" class="ms12-mh-chip" data-ms12-action="meeting-start-quick" data-ms12-type="counseling" data-ms12-title="상담 기록">상담</button>
+             <button type="button" class="ms12-mh-chip" data-ms12-action="meeting-start-quick" data-ms12-type="planning" data-ms12-title="기획 회의">기획</button>
+           </div>
+         </div>
+       </section>
+       <nav class="ms12-mh-secondary" aria-label="보조 메뉴">
+         <button type="button" class="ms12-mh-sec" data-ms12-action="meeting-join">회의 참여</button>
+         <button type="button" class="ms12-mh-sec" data-ms12-action="records-open">기록 보기</button>
+         <button type="button" class="ms12-mh-sec" data-ms12-action="app-archive">회의 보관함</button>
+         <button type="button" class="ms12-mh-sec" data-ms12-action="app-library">문서 보관함</button>
+       </nav>
+       <div class="ms12-mh-card" role="status" aria-live="polite">
+         <p style="margin:0;font-size:0.95rem">아직 진행 중인 회의가 없습니다.</p>
+         <p>새 회의를 시작하거나, 코드로 회의에 참여하세요.</p>
+         <button type="button" class="ms12-mh-card-btn" data-ms12-action="meeting-start">새 회의 시작</button>
+       </div>
+       <section class="ms12-mh-recent-grid" aria-label="최근 항목">
+         <div class="ms12-mh-panel">
+           <h3>최근 회의</h3>
+           <div id="ms12-home-recent" class="ms12-muted" style="font-size:0.88rem;min-height:2.5rem">불러오는 중…</div>
+         </div>
+         <div class="ms12-mh-panel">
+           <h3>최근 문서</h3>
+           <div id="ms12-dash-docs" class="ms12-muted" style="font-size:0.88rem;min-height:2.5rem">불러오는 중…</div>
+         </div>
+         <div class="ms12-mh-panel">
+           <h3>미완료 실행 항목</h3>
+           <div id="ms12-dash-actions" class="ms12-muted" style="font-size:0.88rem;min-height:2.5rem">불러오는 중…</div>
+         </div>
+       </section>
+       <div class="ms12-mh-foot">
+         <p class="js-ms12-mh-guest-line" style="display:none">로그인 없이 참여·이 기기 메모는 가능하고, <strong>회의 개설</strong>·서버 기록·보관함은 로그인 후 이용할 수 있습니다.</p>
+         <p class="js-ms12-mh-auth-line" style="display:none">기록·보관이 계정에 연결됩니다.</p>
+         <p class="ms12-mh-oauth js-ms12-mh-guest-line" style="display:none;margin-top:0.5rem">
+           <a href="${kakao('/app/meeting')}" data-ms12-login-lnk${OAUTH_A_ATTRS}>카카오</a> · <a href="${google('/app/meeting')}" data-ms12-login-lnk${OAUTH_A_ATTRS}>Google</a>
+         </p>
+       </div>
+       ${loginAside('/app/meeting', kakao, google)}
+       </div>`,
       getAuthMode(c),
+      '/app/meeting',
     ),
   ),
 )
@@ -718,9 +883,21 @@ p.get('/meeting/:id', (c) => {
       'meeting_room',
       `data-ms12-meeting-id="${escapeHtml(id)}"`,
       guestNoJs('회의'),
-      `<a href="/app" class="ms12-p" style="display:inline-block;margin-bottom:0.5rem">← 시작화면</a>
+      `${MS12_HOME_LINK}
        <h1 class="ms12-h1">회의 <span class="ms12-room-title js-ms12-room-title">—</span></h1>
        <p class="ms12-p">코드: <code class="js-ms12-room-code">—</code> · <span class="js-ms12-user-name" style="font-weight:600">—</span> 님</p>
+       <p class="ms12-p ms12-muted" style="font-size:0.82rem;display:none" id="ms12-room-login-hint">서버에 기록을 저장·보관하려면 로그인이 필요합니다.</p>
+       <div id="ms12-room-invite" class="ms12-panel" style="display:none;margin:0.5rem 0;max-width:40rem;padding:0.75rem 1rem;border:1px solid rgb(199 210 254);background:rgb(238 242 255);font-size:0.88rem" role="region" aria-label="초대">
+         <p class="ms12-p" style="font-weight:600;margin:0 0 0.35rem 0">회의가 시작되었습니다. 팀원을 초대하세요.</p>
+         <p class="ms12-muted" style="font-size:0.8rem;margin:0 0 0.5rem 0">초대 링크(코드: <code class="js-ms12-invite-code">—</code>)</p>
+         <p style="word-break:break-all;font-size:0.82rem;margin:0.25rem 0 0.6rem" id="ms12-invite-url-line"><a class="text-indigo-600" id="ms12-invite-url" href="#" rel="nofollow">—</a></p>
+         <div style="display:flex;flex-wrap:wrap;gap:0.45rem;align-items:center">
+           <button type="button" class="ms12-btn" id="ms12-invite-copy" style="font-size:0.84rem">링크 복사</button>
+           <a class="ms12-btn ms12-btn--muted" id="ms12-invite-kakao" href="#" rel="noopener noreferrer" target="_blank" style="font-size:0.84rem;text-decoration:none;box-sizing:border-box">카카오로 공유</a>
+           <a class="ms12-btn ms12-btn--muted" id="ms12-invite-sms" href="#" style="font-size:0.84rem;text-decoration:none;box-sizing:border-box">문자로 보내기</a>
+         </div>
+       </div>
+       <div id="ms12-room-free-notice" class="ms12-panel" style="display:none;margin:0.5rem 0;max-width:40rem;padding:0.5rem 0.75rem;border:1px solid rgb(251 191 36);background:rgb(255 251 235);font-size:0.86rem;line-height:1.45" role="status"></div>
        <p class="ms12-p ms12-muted" style="font-size:0.88rem" id="ms12-room-local-note">핵심 메모·전사·요약은 이 브라우저에 자동 저장됩니다.</p>
        <div id="ms12-linked-ann" class="ms12-panel" style="display:none;margin:0.75rem 0;max-width:40rem;padding:0.75rem 1rem;border:1px solid rgb(199 210 254);background:rgb(238 242 255)">
          <p class="ms12-p" style="font-weight:600;margin:0 0 0.25rem 0">연결된 공모·지원 공고</p>
@@ -913,6 +1090,7 @@ p.get('/meeting/:id', (c) => {
        ${loginAside('/app/meeting/' + id, kakao, google)}
        <p id="ms12-room-err" class="ms12-p" style="color:rgb(185 28 28);display:none"></p>`,
       getAuthMode(c),
+      `/app/meeting/${id}`,
     ),
   )
 })
@@ -924,7 +1102,7 @@ p.get('/announcements', (c) =>
       'announcements',
       '',
       guestNoJs('공모사업'),
-      `<a href="/app" class="ms12-p" style="display:inline-block;margin-bottom:0.5rem">← 시작화면</a>
+      `${MS12_HOME_LINK}
        <h1 class="ms12-h1">공모·지원사업</h1>
        <p class="ms12-p">공고는 <strong>구조화(D1)</strong>된 뒤 검색·회의·제안서로 연결됩니다. 수집은 기관 API·RSS·배치 크롤 → <code>POST /api/ms12/announcements/ingest</code>로 적재합니다.</p>
        <div class="ms12-panel" style="margin-top:0.75rem">
@@ -954,6 +1132,7 @@ p.get('/announcements', (c) =>
        <div id="ms12-ann-list" class="ms12-p" style="margin-top:0.5rem;min-height:3rem">불러오는 중…</div>
        ${loginAside('/app/announcements', kakao, google)}`,
       getAuthMode(c),
+      '/app/announcements',
     ),
   ),
 )
@@ -988,6 +1167,7 @@ p.get('/announcements/:aid', (c) => {
        </div>
        ${loginAside('/app/announcements/' + aid, kakao, google)}`,
       getAuthMode(c),
+      `/app/announcements/${aid}`,
     ),
   )
 })
@@ -1009,40 +1189,46 @@ p.get('/login', (c) => {
       'login',
       '',
       guestNoJs('로그인'),
-      `<a href="/app" class="ms12-p" style="display:inline-block;margin-bottom:0.5rem">← 시작화면</a>
+      `${MS12_HOME_LINK}
        <h1 class="ms12-h1">로그인</h1>
        <p class="ms12-p">계정을 연결하면 기기를 바꿔도 이어 쓰기·동기화에 유리합니다. 로그인 없이도 회의·로컬 저장은 가능합니다.</p>
        <p id="ms12-login-next-hint" class="ms12-muted" style="font-size:0.86rem;margin:0.35rem 0 0;display:none"></p>
        <div class="ms12-panel" id="ms12-login-known" style="display:none;margin-top:0.75rem">
          <p class="ms12-p" style="font-weight:600;margin:0 0 0.35rem 0">이미 로그인된 상태입니다</p>
          <p class="ms12-muted" style="font-size:0.9rem;margin:0 0 0.5rem 0">회의장으로 가거나, 첫 화면·새 회의로 이동할 수 있습니다. (이 페이지에선 자동 이동하지 않습니다.)</p>
-         <a class="ms12-btn" href="/app/desk">홈(데스크)</a>
+         <a class="ms12-btn" href="/app/meeting">회의 허브</a>
          <a class="ms12-btn ms12-btn--teal" href="/app/meeting/new" style="margin-left:0.5rem">새 회의</a>
          <a class="ms12-btn ms12-btn--muted" href="/app" style="margin-left:0.5rem">시작(연출)</a>
          <a class="ms12-btn ms12-btn--muted" href="/app/hub" style="margin-left:0.5rem">대시보드</a>
        </div>
        <div id="ms12-login-pending" style="margin-top:0.75rem">
-         <p class="ms12-p" style="font-weight:600;margin:0 0 0.35rem 0">이메일 로그인</p>
-         <p class="ms12-muted" style="font-size:0.86rem;margin:0 0 0.4rem 0">이 사이트에 가입한 이메일·비밀번호로 로그인합니다.</p>
+         <p class="ms12-p" style="font-weight:600;margin:0 0 0.35rem 0">카카오·Google</p>
+         <p class="ms12-muted" style="font-size:0.86rem;margin:0 0 0.5rem 0">가장 빠르게 입장·연결합니다.</p>
+         <p style="margin-top:0.5rem;max-width:22rem">
+           <a class="ms12-btn ms12-btn--kakao" href="${kakao('/app/login')}" data-ms12-login-lnk${OAUTH_A_ATTRS} style="display:block;width:100%;text-align:center;box-sizing:border-box">카카오로 계속하기</a>
+         </p>
+         <p style="margin-top:0.65rem;max-width:22rem">
+           <a class="ms12-btn ms12-btn--google" href="${google('/app/login')}" data-ms12-login-lnk${OAUTH_A_ATTRS}><svg class="ms12-login-oauth__ic" width="22" height="22" viewBox="0 0 48 48" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.8 7.18l7.73 6c4.51-4.18 7.11-10.32 7.11-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg><span class="ms12-login-oauth__label">Google로 계속하기</span></a>
+         </p>
+         <p class="ms12-muted" style="text-align:center;margin:1rem 0 0.6rem 0;font-size:0.8rem;letter-spacing:0.12em;opacity:0.75">또는</p>
+         <p class="ms12-p" style="font-weight:600;margin:0 0 0.35rem 0">이메일 로그인 <span class="ms12-muted" style="font-size:0.8rem;font-weight:400">(이 사이트에 가입한 계정)</span></p>
+         <p class="ms12-muted" style="font-size:0.86rem;margin:0 0 0.4rem 0">이메일·비밀번호는 회원가입 후에만 사용됩니다.</p>
          <form id="ms12-login-email-form" class="ms12-panel" style="max-width:22rem;padding:0.75rem;margin:0" autocomplete="on">
            <label class="ms12-muted" style="font-size:0.8rem;display:block" for="ms12-login-email">이메일</label>
            <input class="ms12-input" id="ms12-login-email" name="email" type="email" inputmode="email" autocomplete="username" required style="width:100%;max-width:100%;margin:0.2rem 0 0.5rem" />
            <label class="ms12-muted" style="font-size:0.8rem;display:block" for="ms12-login-password">비밀번호</label>
            <input class="ms12-input" id="ms12-login-password" name="password" type="password" autocomplete="current-password" required style="width:100%;max-width:100%;margin:0.2rem 0 0.5rem" />
-           <button type="submit" class="ms12-btn ms12-btn--teal" id="ms12-login-email-submit" style="margin:0.35rem 0 0 0">로그인</button>
+           <button type="submit" class="ms12-btn ms12-btn--teal" id="ms12-login-email-submit" style="margin:0.35rem 0 0 0">이메일로 로그인</button>
            <p id="ms12-login-email-msg" class="ms12-p" style="font-size:0.86rem;margin:0.5rem 0 0;min-height:1.1rem" aria-live="polite"></p>
          </form>
-         <p class="ms12-muted" style="font-size:0.82rem;margin:0.6rem 0 0.25rem 0">아직 이메일 계정이 없다면 <a href="/register" class="text-indigo-600" style="text-decoration:underline">회원가입</a>을 마친 뒤, 위에서 같은 이메일로 로그인하세요.</p>
-         <p class="ms12-p" style="font-weight:600;margin:0.9rem 0 0.35rem 0">소셜 로그인</p>
-         <p style="margin-top:0.5rem">
-           <a class="ms12-btn" href="${kakao('/app/login')}">카카오</a>
-           <a class="ms12-btn ms12-btn--muted" href="${google('/app/login')}" style="margin-left:0.5rem">Google</a>
-         </p>
+         <p class="ms12-muted" style="font-size:0.82rem;margin:0.6rem 0 0.25rem 0">이메일 계정이 없다면 <a href="/register" class="text-indigo-600" style="text-decoration:underline">회원가입</a> 후 위에서 로그인하세요.</p>
        </div>
        ${loginAside('/app/login', kakao, google)}`,
       mode,
+      '/app/login',
     ),
   )
 })
 
+export { renderEntryPage }
 export default p
