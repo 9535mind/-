@@ -24,30 +24,19 @@ import forestGasReportPublic from './routes/forest-gas-report-public'
 import forestGasWebhook from './routes/forest-gas-webhook'
 import ms12Pages, { renderEntryPage } from './routes/ms12-pages'
 import { FOOTER_HTML_REVISION } from './utils/site-footer-legal'
-import {
-  LEGACY_PAGES_HOSTNAMES,
-  isMs12Hostname,
-  isCloudflarePagesPreviewHost,
-} from './utils/oauth-public'
+import { isMs12Hostname, isCloudflarePagesPreviewHost } from './utils/oauth-public'
 
 /** /app·/app/ 일치(메인이 strict true면 /app/ 만 404로 떨어질 수 있음) */
 const app = new Hono<{ Bindings: Bindings }>({ strict: false })
 
 app.use('*', logger())
 
-// 구 mslms Pages 호스트 → ms12.org 로 통일(세션·쿠키) — /api/* 는 리다이렉트 금지
+// www.ms12.org → apex(공식)만 308. mslms.pages.dev·mindstory 등은 ms12.org로 보내지 않음(forest QA 등).
 app.use('*', async (c, next) => {
   const raw = c.req.header('x-forwarded-host') || c.req.header('host') || ''
   const host = raw.split(',')[0].trim().split(':')[0]
   const url = new URL(c.req.url)
   const isApi = url.pathname.startsWith('/api/')
-  if (LEGACY_PAGES_HOSTNAMES.includes(host)) {
-    if (isApi) {
-      await next()
-      return
-    }
-    return c.redirect(`https://ms12.org${url.pathname}${url.search}`, 308)
-  }
   if (host === 'www.ms12.org' && !isApi) {
     return c.redirect(`https://ms12.org${url.pathname}${url.search}`, 308)
   }

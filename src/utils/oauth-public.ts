@@ -3,6 +3,7 @@
  */
 import { Context } from 'hono'
 
+/** MS12 공식 사이트(루트). 슬래시 없이 origin 만 — 경로는 `${SITE_PUBLIC_ORIGIN}/app` 형태로 이어 씀. */
 export const SITE_PUBLIC_ORIGIN = 'https://ms12.org'
 
 /**
@@ -13,18 +14,20 @@ export const KAKAO_OAUTH_REDIRECT_URI = `${SITE_PUBLIC_ORIGIN}/auth/kakao/callba
 
 export const GOOGLE_OAUTH_REDIRECT_URI = `${SITE_PUBLIC_ORIGIN}/api/auth/google/callback`
 
-export const OAUTH_SUCCESS_LANDING_URL = `${SITE_PUBLIC_ORIGIN}/app/desk?oauth_sync=1`
+export const OAUTH_SUCCESS_LANDING_URL = `${SITE_PUBLIC_ORIGIN}/app/meeting`
 
-/** 구 mslms Pages 북마크 — 필요 시 308(미들웨어) */
-export const LEGACY_PAGES_HOSTNAMES: readonly string[] = [
-  'mslms.pages.dev',
-  'www.mslms.pages.dev',
-  'main.mslms.pages.dev',
-]
+/** x-forwarded-host / Host: FQDN 끝 점·앞뒤 공백 정리(비교·루프 방지) */
+export function normalizeOauthRequestHostname(input: string): string {
+  const s = (input || '').split(',')[0].trim()
+  if (!s) return ''
+  const noPort = s.split(':')[0] ?? s
+  return noPort.toLowerCase().replace(/\.$/, '')
+}
 
 /** ms12.org, ms12.pages.dev, www.ms12.org */
 export function isMs12Hostname(hostname: string): boolean {
-  const h = (hostname || '').toLowerCase()
+  const h = normalizeOauthRequestHostname(hostname)
+  if (!h) return false
   if (h === 'ms12.org' || h === 'www.ms12.org') return true
   if (h.endsWith('.ms12.org') && h.length > 9) return true
   if (h === 'ms12.pages.dev' || h.endsWith('.ms12.pages.dev')) return true
@@ -88,9 +91,9 @@ export function getSafeRequestOrigin(c: Context): string {
   return SITE_PUBLIC_ORIGIN.replace(/\/$/, '') || 'https://ms12.org'
 }
 
-/** OAuth 콜백 직후 — 로그인 성공 시 홈(데스크)으로 */
+/** OAuth·로그인 성공 후 랜딩(단일) */
 export function oauthSuccessLandingUrl(c: Context): string {
-  return `${getSafeRequestOrigin(c)}/app/desk?oauth_sync=1`
+  return `${getSafeRequestOrigin(c)}/app/meeting`
 }
 
 export function isLocalDevHostname(hostname: string): boolean {
