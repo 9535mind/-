@@ -54,6 +54,11 @@ export type Bindings = {
   MS12_AUTH_MODE?: string
   /** 1|true|yes 이면 AUTH_MODE=required 를 그대로 적용(희귀). MS12 기본은 공개·게스트 우선 */
   MS12_AUTH_STRICT?: string
+  /**
+   * 임시: `GET /api/auth/debug-session-db` 활성화(1|true). 진단 후 끄고 엔드포인트 제거 권장.
+   * @see src/routes/auth.ts
+   */
+  MS12_DEBUG_SESSION_DB?: string
 
   /** JTT 숲 시트 GAS 웹앱 /exec URL — GET 보고서(/api/forest-gas-report)·POST 시트(/api/forest-gas-webhook) 프록시에 사용 */
   FOREST_GAS_WEBHOOK_URL?: string;

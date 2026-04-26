@@ -18,6 +18,7 @@ import {
   addDays,
   SQL_SESSION_EXPIRED,
   getCurrentUser,
+  getSessionTokenFromRequest,
   formatSessionExpiresAtForDb,
 } from '../utils/helpers'
 import { requireAuth } from '../middleware/auth'
@@ -702,6 +703,84 @@ auth.post('/phone/confirm', async (c) => {
     console.error('Phone confirm error:', error)
     return c.json(errorResponse('서버 오류가 발생했습니다.'), 500)
   }
+})
+
+/**
+ * GET /api/auth/debug-session-db
+ * 임시: D1 `sessions`·현재 쿠키 토큰 대조(카카오/로그인 로직·쿠키 정책 미변경).
+ * `MS12_DEBUG_SESSION_DB=1` (또는 true)일 때만 200, 아니면 404. 진단 후 라우트·바인딩 제거.
+ */
+auth.get('/debug-session-db', async (c) => {
+  const on =
+    c.env.MS12_DEBUG_SESSION_DB === '1' ||
+    (c.env.MS12_DEBUG_SESSION_DB || '').toLowerCase() === 'true'
+  if (!on) {
+    return c.text('Not Found', 404)
+  }
+  c.header('Cache-Control', 'private, no-store')
+  const token = getSessionTokenFromRequest(c)
+  const hasCookie = !!token
+  const hasDb = !!c.env.DB
+  if (!hasDb) {
+    return c.json({
+      success: true,
+      hasDb: false,
+      sessionsTableExists: false,
+      columns: [] as { name: string; type: string }[],
+      recentCount: 0,
+      hasCookie,
+      currentSessionFound: false,
+    })
+  }
+  const DB = c.env.DB
+  let sessionsTableExists = false
+  let columns: { name: string; type: string }[] = []
+  let recentCount = 0
+  let currentSessionFound = false
+  let error: string | null = null
+  try {
+    const trow = await DB.prepare(
+      `SELECT 1 AS x FROM sqlite_master WHERE type = 'table' AND name = 'sessions'`
+    )
+      .first<{ x: number }>()
+    sessionsTableExists = !!trow
+    if (sessionsTableExists) {
+      const pragma = await DB.prepare(`PRAGMA table_info(sessions)`).all<{
+        name: string
+        type: string
+      }>()
+      for (const row of pragma.results || []) {
+        if (row && (row as { name?: string }).name) {
+          const r = row as { name: string; type: string }
+          columns.push({ name: r.name, type: String(r.type || '') })
+        }
+      }
+      const recent = await DB.prepare(
+        `SELECT id FROM sessions ORDER BY id DESC LIMIT 5`
+      ).all<{ id: number }>()
+      recentCount = (recent.results || []).length
+      if (hasCookie) {
+        const hit = await DB.prepare(
+          `SELECT 1 AS o FROM sessions WHERE session_token = ?`
+        )
+          .bind(token)
+          .first<{ o: number }>()
+        currentSessionFound = !!hit
+      }
+    }
+  } catch (e) {
+    error = e instanceof Error ? e.message : String(e)
+  }
+  return c.json({
+    success: !error,
+    hasDb: true,
+    sessionsTableExists,
+    columns,
+    recentCount,
+    hasCookie,
+    currentSessionFound,
+    ...(error ? { error: error.slice(0, 500) } : {}),
+  })
 })
 
 export default auth
