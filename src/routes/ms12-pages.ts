@@ -8,7 +8,7 @@ import { SITE_PUBLIC_ORIGIN } from '../utils/oauth-public'
 const p = new Hono<{ Bindings: Bindings }>({ strict: false })
 
 /** Pages 배포·소스 ?v= 일치(배포 후 페이지 소스에 이 주석이 보이면 새 Worker) */
-const MS12_BUILD = '20260428kakaoAccountHint'
+const MS12_BUILD = '20260429sessionCookieDebug'
 const MS12_ACTIONS_SCRIPT = `/static/js/ms12-actions.js?v=${MS12_BUILD}`
 const MS12_APP_SCRIPT = `/static/js/ms12-app.js?v=${MS12_BUILD}`
 const waitBlock = '<p class="ms12-p" id="ms12-wait" style="color:rgb(100 116 139)">불러오는 중…</p>'
@@ -171,8 +171,6 @@ function loginAside(
     <p class="ms12-login-aside__links" style="margin:0.4rem 0 0 0;line-height:1.5">기기를 바꿔도 이어 쓰려면 연동할 수 있습니다.
       <a href="${k(nextPath)}" data-ms12-login-lnk${OAUTH_A_ATTRS}>카카오</a> ·
       <a href="${g(nextPath)}" data-ms12-login-lnk${OAUTH_A_ATTRS}>Google</a>
-    <p class="ms12-muted" style="font-size:0.78rem;line-height:1.45;margin:0.45rem 0 0;padding-top:0.35rem;border-top:1px solid rgb(241 245 249)">
-      다른 카카오 계정으로 쓰려면 먼저 <a href="https://accounts.kakao.com" target="_blank" rel="noopener noreferrer" class="text-indigo-600" style="text-decoration:underline">카카오 계정(웹)</a>에서 로그아웃한 뒤 다시 시도하세요. 시크릿 창만으로는 카카오에 이미 로그인된 상태가 유지될 수 있습니다.
     </p>
   </details>
   <p class="ms12-js-logout-line" style="margin:0.6rem 0 0 0">

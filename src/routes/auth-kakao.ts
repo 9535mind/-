@@ -793,7 +793,6 @@ export async function handleKakaoOAuthCallback(c: Context<{ Bindings: Bindings }
       HttpOnly: true,
       SameSite: 'None',
       Secure: true,
-      Partitioned: true,
       Domain: '(unset or .ms12.org; see session-cookie)',
     })
     console.log(
