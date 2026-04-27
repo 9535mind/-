@@ -1,6 +1,7 @@
 /**
  * HttpOnly 세션 쿠키 — MS12 (Cloudflare Workers / Pages)
- * 크로스 사이트(OAuth) 이후에도 전송되도록 SameSite=None; Secure 고정.
+ * 카카오/Google 로그인 후 최종 리다이렉트는 최상위 네비게이션이므로 SameSite=Lax 로 저장 가능.
+ * 이후 /api 호출은 동일 사이트이므로 Lax 로 Cookie 전송된다.
  */
 import { Context } from 'hono'
 import { deleteCookie, generateCookie } from 'hono/cookie'
@@ -36,7 +37,8 @@ function sessionTokenDomainForSetCookie(c: Context): string | null {
 }
 
 /**
- * Path=/, HttpOnly, Secure, SameSite=None — 프로덕션은 Domain=.ms12.org (sessionTokenDomainForSetCookie).
+ * Path=/, HttpOnly — Secure·SameSite=Lax 는 요청 스킴에 맞춤 (localhost http 지원).
+ * 프로덕션(ms12.org): Domain=.ms12.org (sessionTokenDomainForSetCookie).
  */
 export function applySessionCookie(
   c: Context,
@@ -44,11 +46,12 @@ export function applySessionCookie(
   maxAgeSeconds: number,
 ): string {
   const domain = sessionTokenDomainForSetCookie(c)
+  const secure = isSecureCookieRequest(c)
   const line = generateCookie('session_token', token, {
     path: '/',
     httpOnly: true,
-    secure: true,
-    sameSite: 'None',
+    secure,
+    sameSite: 'Lax',
     domain: domain || undefined,
     maxAge: Math.floor(maxAgeSeconds),
   })

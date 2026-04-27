@@ -467,10 +467,10 @@ authGoogle.get('/callback', async (c) => {
     console.log('[GOOGLE_CALLBACK] Setting session cookie and redirecting...')
     console.log('[GOOGLE_CALLBACK] Login SUCCESS for user:', user.name)
     
-    const sessionCookie = applySessionCookie(c, sessionToken, 7 * 24 * 60 * 60)
-    console.log('[GOOGLE_CALLBACK] Session cookie set successfully')
+    applySessionCookie(c, sessionToken, 7 * 24 * 60 * 60)
+    console.log('[GOOGLE_CALLBACK] Session cookie applied; redirect /app/meeting (302)')
 
-    return redirectAfterOAuthOrDefault(c, sessionCookie)
+    return redirectAfterOAuthOrDefault(c)
     
   } catch (error) {
     console.error('[GOOGLE_CALLBACK] ===== ERROR OCCURRED =====')

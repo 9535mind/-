@@ -1,8 +1,7 @@
 /**
- * OAuth 콜백 직후: 세션 set 후 /app/meeting 으로 이동.
- * Set-Cookie + 302 를 한 응답에 넣을 때 일부 환경에서 쿠키가 버려지는 경우가 있어,
- * 동일 응답은 200 HTML(클라이언트 location.replace)으로 이동한다.
- * session 쿠키 문자열은 `applySessionCookie` 가 반환한 값을 그대로 넣는다(헤더 재수집 없음).
+ * OAuth 콜백 직후: 호출 전에 `applySessionCookie` 로 세션을 컨텍스트에 넣은 뒤
+ * 본 함수에서 `oauth_post_login` 만 지우고 Hono `c.redirect(302)` 로 이동한다.
+ * (구현: `new Response` 직조립 대신 Hono 가 Set-Cookie + Location 을 한 응답으로 합친다.)
  */
 import { setCookie } from 'hono/cookie'
 import type { Context } from 'hono'
@@ -63,33 +62,32 @@ export function setPostLoginPathCookie(c: Context, pathWithQuery: string) {
   })
 }
 
-/** OAuth 콜백 동일 응답: 상대 경로로 이동 + Set-Cookie (applySessionCookie 반환 문자열) */
-export function redirectAfterOAuthOrDefault(c: Context, sessionCookie?: string) {
-  const target = '/app/meeting'
+/** oauth_post_login 안내 쿠키만 만료 — 세션은 호출부에서 이미 applySessionCookie 로 설정됨 */
+export function clearOAuthPostLoginCookies(c: Context): void {
   const secure = isSecureCookieRequest(c)
-
-  const body = `<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"/><title>MS12</title></head><body><script>location.replace(${JSON.stringify(target)})</script></body></html>`
-
-  const headers = new Headers()
-  headers.set('Content-Type', 'text/html; charset=UTF-8')
-  headers.set('Cache-Control', 'no-store, must-revalidate, private')
-  headers.set('Pragma', 'no-cache')
-
-  if (sessionCookie) {
-    headers.append('Set-Cookie', sessionCookie)
-  }
-
-  headers.append(
-    'Set-Cookie',
-    `${OAUTH_POST_LOGIN_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax${secure ? '; Secure' : ''}`,
-  )
-
+  setCookie(c, OAUTH_POST_LOGIN_COOKIE, '', {
+    path: '/',
+    maxAge: 0,
+    httpOnly: true,
+    sameSite: 'Lax',
+    secure,
+  })
   if (secure) {
-    headers.append(
-      'Set-Cookie',
-      `${OAUTH_POST_LOGIN_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=None; Secure`,
-    )
+    setCookie(c, OAUTH_POST_LOGIN_COOKIE, '', {
+      path: '/',
+      maxAge: 0,
+      httpOnly: true,
+      sameSite: 'None',
+      secure: true,
+    })
   }
+}
 
-  return new Response(body, { status: 200, headers })
+/**
+ * OAuth 성공 후 기본 랜딩. `_legacySessionCookie` 는 예전 호환용(무시).
+ */
+export function redirectAfterOAuthOrDefault(c: Context, _legacySessionCookie?: string) {
+  void _legacySessionCookie
+  clearOAuthPostLoginCookies(c)
+  return c.redirect('/app/meeting', 302)
 }

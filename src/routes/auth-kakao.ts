@@ -785,21 +785,18 @@ export async function handleKakaoOAuthCallback(c: Context<{ Bindings: Bindings }
     // 7. HttpOnly 쿠키 설정 + 리다이렉트 (Domain 미지정 — session-cookie.ts)
     console.log('[KAKAO_CALLBACK] Login SUCCESS for user:', user.name)
     const maxAgeSec = 7 * 24 * 60 * 60
-    const sessionCookie = applySessionCookie(c, sessionToken, maxAgeSec)
-    console.log('[KAKAO_CALLBACK] Set-Cookie preview (first 140 chars):', sessionCookie.slice(0, 140))
-    console.log('[KAKAO_CALLBACK] set-cookie-options', {
+    applySessionCookie(c, sessionToken, maxAgeSec)
+    console.log('[KAKAO_CALLBACK] session cookie applied', {
       session_prefix: sessionPrefix,
       Path: '/',
       HttpOnly: true,
-      SameSite: 'None',
-      Secure: true,
+      SameSite: 'Lax',
+      Secure: '(forwarded proto — see session-cookie)',
       Domain: '(unset or .ms12.org; see session-cookie)',
     })
-    console.log(
-      '[KAKAO_CALLBACK] next: 200 HTML + location.replace(/app/meeting) — Set-Cookie on same response as HTML body',
-    )
+    console.log('[KAKAO_CALLBACK] next: 302 Location /app/meeting — Set-Cookie merged via Hono context')
 
-    return redirectAfterOAuthOrDefault(c, sessionCookie)
+    return redirectAfterOAuthOrDefault(c)
     
   } catch (error) {
     console.error('[KAKAO_CALLBACK] ===== ERROR OCCURRED =====')
