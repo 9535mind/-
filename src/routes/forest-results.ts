@@ -1,4 +1,6 @@
 /**
+ * ═══ FOREST ZONE (FROZEN) ═══ 임의 수정·MS12 API와 합치기·리팩터 금지. docs/FOREST-FROZEN.md
+ *
  * POST /api/forest-results — JTT-Kinder 집단 결과 D1 저장 (로그인 필수, request_id·user_id 기록)
  * GET  /api/forest-results/:id — 단건 조회 (본인 또는 관리자)
  */

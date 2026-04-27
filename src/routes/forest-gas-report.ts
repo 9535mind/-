@@ -1,8 +1,10 @@
 /**
+ * ═══ FOREST ZONE (FROZEN) ═══ 임의 수정·MS12 병합·리팩터 금지. docs/FOREST-FROZEN.md
+ *
  * GET /api/forest-gas-report?id=REQUEST_ID
  * 브라우저 → Worker → Google Apps Script doGet (?view=report&id=)
  * 본인 소유(request_id → user_id) 또는 관리자만 GAS 프록시 허용.
- * FOREST_GAS_WEBHOOK_URL: Pages Secret 권장. 미설정 시 GAS 웹앱 /exec 폴백 (forest-gas-webhook.ts 와 동일).
+ * FOREST_GAS_WEBHOOK_URL: Pages Secret 권장. **값/폴백 변경은 승인 절차.** 미설정 시 GAS /exec 폴백 (forest-gas-webhook.ts 와 동일).
  */
 
 import { Hono } from 'hono'
@@ -10,9 +12,9 @@ import type { Bindings } from '../types/database'
 import { getCurrentUser } from '../utils/helpers'
 import { isForestAdminRole } from '../utils/forest-admin'
 
-/** GAS 웹앱 — Secret 미바인딩 시 GET upstream 폴백 (public/forest.html FOREST_SHEETS_WEBHOOK_URL 과 동일) */
+/** FROZEN: 폴백 URL — forest-gas-webhook / public/forest.html 과 동기 */
 const FOREST_GAS_WEBHOOK_URL_FALLBACK =
-  'https://script.google.com/macros/s/AKfycbykAF9oeJuarWapeOYPPW_qtQ8svVvSb6N_Y1_U5MSpBVo679I6_pratwPVcbNnucq0/exec'
+  'https://script.google.com/macros/s/AKfycbyKAgk_MEojQZvEeV1b7lSoaLjNAO-KaoUU5odf3i4f38xzqxYk4iWhluKW9HpeJQXC/exec'
 
 const forestGasReport = new Hono<{ Bindings: Bindings }>()
 

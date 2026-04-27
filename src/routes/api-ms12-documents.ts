@@ -20,6 +20,14 @@ d.use(async (c, next) => {
     return next()
   }
   if (!c.env?.DB) {
+    const p = (c.req.path || '').split('?')[0] || c.req.path
+    const isDocListGet =
+      c.req.method === 'GET' &&
+      /\/documents\/?$/.test(p) &&
+      !/\/documents\//.test(p.replace(/\/$/, ''))
+    if (isDocListGet) {
+      return c.json(successResponse({ items: [], count: 0 }))
+    }
     return c.json(errorResponse('DB 연결 없음. D1 바인딩을 확인하세요.'), 503)
   }
   return next()
@@ -97,7 +105,7 @@ d.get('/documents', ms12Access, async (c) => {
   } catch (e) {
     const m = e instanceof Error ? e.message : String(e)
     if (/no such table/i.test(m)) {
-      return c.json(errorResponse('문서 자산 테이블이 없습니다. D1에 마이그레이션 0077을 적용해 주세요.'), 503)
+      return c.json(successResponse({ items: [], count: 0 }))
     }
     console.error('[ms12] documents list', m.slice(0, 200))
     return c.json(errorResponse('목록을 불러올 수 없습니다.'), 500)

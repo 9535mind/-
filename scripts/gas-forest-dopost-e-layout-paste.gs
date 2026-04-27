@@ -1,7 +1,17 @@
 /**
+ * ═══ FOREST ZONE (GAS — canonical text for copy-paste) FROZEN ═══
+ * live Apps Script 는 이 파일과 수동 동기. `/exec`·FOREST_GAS_WEBHOOK_URL 변경은 docs/FOREST-FROZEN.md 승인.
+ *
  * JTT 숲 → 구글 시트 — appendForest2026Row_ = 정확히 41열 (A~AO)
  * A입력시간 B기관유형 C기관명 D사전·사후 E리포트링크(드라이브 PDF URL 우선, 없으면 웹 보고서 URL) F~AC Q1~12 AD~AG 4축 AH~AO 부가
  * doGet 보고서 조회: ForestReports 없어도 탭 '2026'·'2026초등' 메인 시트에서 E(URL)·AN(requestId)로 검색
+ *
+ * --- 운영 배포(41열·우측 컬럼 누락 시 필수) ---
+ * 1) 이 파일 전체를 Apps Script 편집기(Code.gs 등)에 반영(기존 doPost/appendForest2026Row_ 덮어쓰기).
+ * 2) [배포] → [새 배포] → 유형: 웹 앱 → 액세스: 모든 사용자 → 배포. 생성된 /exec URL 복사.
+ * 3) Cloudflare Pages → mslms → Settings → Environment variables → FOREST_GAS_WEBHOOK_URL = 위 URL(Production/Preview).
+ * 4) Worker 폴백(코드의 AKfyc…/exec)과 같으면 시크릿 생략 가능. 다르면 시크릿이 우선.
+ * 5) POST 응답 JSON에 _gasBuild 가 있고 값이 41col-2026-04 이면 최신 41열 빌드가 실제로 구동 중.
  *
  * ■ Drive 자동 저장(선택): 프로젝트 속성에 FOREST_DRIVE_REPORT_FOLDER_ID 를 넣으면,
  *   POST 성공 시 같은 JSON으로 Google Doc + PDF 를 해당 폴더에 생성합니다.
@@ -64,7 +74,9 @@ function doPost(e) {
       success: true,
       sheet: sheetName,
       requestId: String(data.requestId || ''),
-      drive: driveResult
+      drive: driveResult,
+      // 41열 appendForest2026Row_ 배포 식별(구 GAS 는 이 필드 없음)
+      _gasBuild: '41col-2026-04-26',
     });
   } catch (err) {
     return jsonOut_({ success: false, error: String(err) });

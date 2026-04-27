@@ -10,8 +10,12 @@ import { FOOTER_HTML_REVISION } from '../utils/site-footer-legal'
 import { successResponse, errorResponse, getCurrentUser } from '../utils/helpers'
 import type { AppActor } from '../utils/actor'
 import { participantKey } from '../utils/actor'
+import { assertIsRoomParticipant } from '../utils/ms12-room-participant-check'
 import { getAuthMode } from '../utils/auth-mode'
 import { generateTextGeminiOrOpenAI } from '../utils/ai-text-generation'
+import { getUserMs12Plan, getMs12Capabilities, type Ms12Plan } from '../utils/ms12-plan'
+import type { Ms12Capabilities } from '../lib/ms12-plan'
+import { assertRoomOpenForMutations } from '../lib/ms12-room-mutation-guard'
 
 type Ctx = Context<{ Bindings: Bindings; Variables: { actor: AppActor } }>
 
@@ -24,6 +28,11 @@ api.use(async (c, next) => {
     return next()
   }
   if (!c.env?.DB) {
+    // 대시보드 읽기 전용: D1 미바인딩·엣지 이슈에도 503(서버다운 느낌) 대신 빈 목록(200)
+    const pathOnly = (p || '').split('?')[0] || p
+    if (c.req.method === 'GET' && pathOnly.includes('open-action-items')) {
+      return c.json(successResponse({ items: [] as unknown[] }))
+    }
     return c.json(
       errorResponse(
         'DB 연결 없음. Cloudflare Pages → ms12 → Settings → D1 `DB` → ms12-production 바인딩을 확인하세요.',
@@ -56,6 +65,30 @@ function nowIso(): string {
   return new Date().toISOString()
 }
 
+function ms12LogPlanEnabled(c: Ctx): boolean {
+  const v = c.env?.MS12_LOG_PLAN
+  return v === '1' || (typeof v === 'string' && v.toLowerCase() === 'true')
+}
+
+function logMs12PlanIf(c: Ctx, plan: Ms12Plan, cap: Ms12Capabilities) {
+  if (ms12LogPlanEnabled(c)) {
+    console.log('[MS12 PLAN]', plan, cap)
+  }
+}
+
+/** 보고서·AI 요약·콘텐츠 초안 — Pro 전용(무료는 수동 메모·기본 저장) */
+async function requireProPlan(c: Ctx, actor: AppActor) {
+  if (actor.type !== 'user') {
+    return c.json(errorResponse('이 기능을 사용하려면 로그인이 필요합니다.'), 403)
+  }
+  const plan: Ms12Plan = await getUserMs12Plan(c, parseInt(actor.id, 10))
+  const cap = getMs12Capabilities(plan)
+  if (!cap.canUseAI) {
+    return c.json(errorResponse('Pro 플랜에서 이용할 수 있는 기능입니다.'), 403)
+  }
+  return null
+}
+
 function userDisplayNameRow(u: { name?: string | null; email?: string | null }): string {
   const n = (u.name || '').trim()
   if (n) return n
@@ -77,20 +110,15 @@ async function requireRoomParticipant(
   meetingId: string,
   actor: AppActor
 ): Promise<void> {
-  const k = participantKey(actor)
-  const row = await c.env.DB.prepare(
-    `SELECT 1 AS ok FROM ms12_room_participants
-     WHERE meeting_id = ? AND participant_key = ? AND left_at IS NULL`
-  )
-    .bind(meetingId, k)
-    .first()
-  if (row) return
-  throw new HTTPException(403, { message: '이 회의에 입장한 참석자만 볼 수 있습니다.' })
+  await assertIsRoomParticipant(c.env.DB, meetingId, actor)
 }
 
 /** 내가 참가한 회의의 미완료(open) 실행 항목 — 시작 화면 대시보드용 */
 api.get('/my/open-action-items', ms12Access, async (c) => {
   const actor = c.get('actor')
+  if (actor.type !== 'user') {
+    return c.json(successResponse({ items: [] as unknown[] }))
+  }
   const k = participantKey(actor)
   const limit = Math.min(40, Math.max(1, parseInt(c.req.query('limit') || '20', 10) || 20))
   try {
@@ -122,8 +150,7 @@ api.get('/my/open-action-items', ms12Access, async (c) => {
     const m = e instanceof Error ? e.message : String(e)
     if (/no such table|no such column/i.test(m)) {
       return c.json(
-        errorResponse('실행 항목 테이블이 없습니다. D1 마이그레이션(0076 등)을 확인하세요.'),
-        503,
+        successResponse({ items: [] as unknown[] }),
       )
     }
     console.error('[ms12] my/open-action-items', m.slice(0, 200))
@@ -215,17 +242,49 @@ api.get('/meetings/:id', ms12Access, async (c) => {
   const actor = c.get('actor')
   const meetingId = c.req.param('id')
   await requireRoomParticipant(c, meetingId, actor)
-  const r = await c.env.DB.prepare(
-    `SELECT r.id, r.host_actor_type, r.host_user_id, r.host_guest_id, r.title, r.meeting_code, r.status, r.created_at, r.updated_at,
+  const selWithFree = `SELECT r.id, r.host_actor_type, r.host_user_id, r.host_guest_id, r.title, r.meeting_code, r.status, r.created_at, r.updated_at,
+            r.free_end_at, r.linked_announcement_id, a.title AS ann_title, a.source_url AS ann_source_url, a.organization AS ann_organization
+     FROM ms12_rooms r
+     LEFT JOIN ms12_announcements a ON a.id = r.linked_announcement_id
+     WHERE r.id = ?`
+  const selNoFree = `SELECT r.id, r.host_actor_type, r.host_user_id, r.host_guest_id, r.title, r.meeting_code, r.status, r.created_at, r.updated_at,
             r.linked_announcement_id, a.title AS ann_title, a.source_url AS ann_source_url, a.organization AS ann_organization
      FROM ms12_rooms r
      LEFT JOIN ms12_announcements a ON a.id = r.linked_announcement_id
      WHERE r.id = ?`
-  )
-    .bind(meetingId)
-    .first<Record<string, unknown>>()
+  let r: Record<string, unknown> | null = null
+  try {
+    r = await c.env.DB.prepare(selWithFree).bind(meetingId).first<Record<string, unknown>>()
+  } catch (e) {
+    const m = e instanceof Error ? e.message : String(e)
+    if (!/no such column[:\s].*free_end_at|SQLITE_ERROR.*\bfree_end_at/i.test(m)) {
+      throw e
+    }
+    r = await c.env.DB.prepare(selNoFree).bind(meetingId).first<Record<string, unknown>>()
+  }
   if (!r) {
     return c.json(errorResponse('회의를 찾을 수 없습니다.'), 404)
+  }
+  let statusOut = String(r.status || 'open')
+  const freeEndRaw = r.free_end_at != null ? String(r.free_end_at) : ''
+  if (freeEndRaw && statusOut === 'open') {
+    const endMs = Date.parse(freeEndRaw)
+    if (!Number.isNaN(endMs) && Date.now() > endMs) {
+      const t2 = nowIso()
+      await c.env.DB.prepare(`UPDATE ms12_rooms SET status = 'ended', updated_at = ? WHERE id = ? AND status = 'open'`)
+        .bind(t2, meetingId)
+        .run()
+      statusOut = 'ended'
+    }
+  }
+  const hType = String(r.host_actor_type || '')
+  const hUid = r.host_user_id
+  const hGid = r.host_guest_id
+  let isHost = false
+  if (hType === 'user' && actor.type === 'user' && hUid != null && String(hUid) === actor.id) {
+    isHost = true
+  } else if (hType === 'guest' && actor.type === 'guest' && hGid != null && String(hGid) === actor.id) {
+    isHost = true
   }
   return c.json(
     successResponse({
@@ -235,9 +294,12 @@ api.get('/meetings/:id', ms12Access, async (c) => {
       hostGuestId: r.host_guest_id,
       title: r.title,
       meetingCode: r.meeting_code,
-      status: r.status,
+      inviteCode: r.meeting_code,
+      isHost,
+      status: statusOut,
       createdAt: r.created_at,
       updatedAt: r.updated_at,
+      freeEndAt: freeEndRaw || null,
       linkedAnnouncementId: r.linked_announcement_id || null,
       linkedAnnouncement:
         r.linked_announcement_id != null
@@ -254,9 +316,14 @@ api.get('/meetings/:id', ms12Access, async (c) => {
 
 api.post('/meetings', ms12Access, async (c) => {
   const actor = c.get('actor')
-  let body: { title?: string; displayName?: string; announcementId?: string } = {}
+  let body: { title?: string; displayName?: string; announcementId?: string; type?: string } = {}
   try {
-    body = (await c.req.json()) as { title?: string; displayName?: string; announcementId?: string }
+    body = (await c.req.json()) as {
+      title?: string
+      displayName?: string
+      announcementId?: string
+      type?: string
+    }
   } catch {
     return c.json(errorResponse('JSON 본문이 필요합니다.'), 400)
   }
@@ -277,38 +344,61 @@ api.post('/meetings', ms12Access, async (c) => {
       annLink = raw
     }
   }
+  if (actor.type === 'guest') {
+    return c.json(errorResponse('회의를 개설하려면 로그인이 필요합니다.'), 403)
+  }
+  const uid = parseInt(actor.id, 10)
+  if (!Number.isFinite(uid)) {
+    return c.json(errorResponse('사용자 정보를 확인할 수 없습니다.'), 400)
+  }
   const dname = await displayNameFor(actor, body, c)
   const t = nowIso()
+  const plan = await getUserMs12Plan(c, uid)
+  const cap = getMs12Capabilities(plan)
+  logMs12PlanIf(c, plan, cap)
+  const freeEndAt =
+    cap.meetingDurationSec !== null
+      ? new Date(Date.now() + cap.meetingDurationSec * 1000).toISOString()
+      : null
   for (let attempt = 0; attempt < 12; attempt++) {
     const id = randomId()
     const code = randomMeetingCode(8)
     try {
-      if (actor.type === 'user') {
-        const uid = parseInt(actor.id, 10)
-        await c.env.DB.batch([
-          c.env.DB.prepare(
-            `INSERT INTO ms12_rooms (id, host_actor_type, host_user_id, host_guest_id, title, meeting_code, status, created_at, updated_at, linked_announcement_id)
-             VALUES (?, 'user', ?, NULL, ?, ?, 'open', ?, ?, ?)`
-          ).bind(id, uid, title, code, t, t, annLink),
-          c.env.DB.prepare(
-            `INSERT INTO ms12_room_participants
+      const runIns = async (withFree: boolean) => {
+        if (withFree) {
+          await c.env.DB.batch([
+            c.env.DB.prepare(
+              `INSERT INTO ms12_rooms (id, host_actor_type, host_user_id, host_guest_id, title, meeting_code, status, created_at, updated_at, linked_announcement_id, free_end_at)
+             VALUES (?, 'user', ?, NULL, ?, ?, 'open', ?, ?, ?, ?)`
+            ).bind(id, uid, title, code, t, t, annLink, freeEndAt),
+            c.env.DB.prepare(
+              `INSERT INTO ms12_room_participants
              (meeting_id, participant_key, actor_type, user_id, guest_id, display_name, role, joined_at, left_at, attendance_status)
              VALUES (?, ?, 'user', ?, NULL, ?, 'host', ?, NULL, 'in')`
-          ).bind(id, `u:${uid}`, uid, dname, t),
-        ])
-      } else {
-        const gid = actor.id
-        await c.env.DB.batch([
-          c.env.DB.prepare(
-            `INSERT INTO ms12_rooms (id, host_actor_type, host_user_id, host_guest_id, title, meeting_code, status, created_at, updated_at, linked_announcement_id)
-             VALUES (?, 'guest', NULL, ?, ?, ?, 'open', ?, ?, ?)`
-          ).bind(id, gid, title, code, t, t, annLink),
-          c.env.DB.prepare(
-            `INSERT INTO ms12_room_participants
+            ).bind(id, `u:${uid}`, uid, dname, t),
+          ])
+        } else {
+          await c.env.DB.batch([
+            c.env.DB.prepare(
+              `INSERT INTO ms12_rooms (id, host_actor_type, host_user_id, host_guest_id, title, meeting_code, status, created_at, updated_at, linked_announcement_id)
+             VALUES (?, 'user', ?, NULL, ?, ?, 'open', ?, ?, ?)`
+            ).bind(id, uid, title, code, t, t, annLink),
+            c.env.DB.prepare(
+              `INSERT INTO ms12_room_participants
              (meeting_id, participant_key, actor_type, user_id, guest_id, display_name, role, joined_at, left_at, attendance_status)
-             VALUES (?, ?, 'guest', NULL, ?, ?, 'host', ?, NULL, 'in')`
-          ).bind(id, `g:${gid}`, gid, dname, t),
-        ])
+             VALUES (?, ?, 'user', ?, NULL, ?, 'host', ?, NULL, 'in')`
+            ).bind(id, `u:${uid}`, uid, dname, t),
+          ])
+        }
+      }
+      try {
+        await runIns(true)
+      } catch (e0) {
+        const m0 = e0 instanceof Error ? e0.message : String(e0)
+        if (!/no such column[:\s].*free_end_at|SQLITE_ERROR.*\bfree_end_at/i.test(m0)) {
+          throw e0
+        }
+        await runIns(false)
       }
       return c.json(
         successResponse({
@@ -319,6 +409,8 @@ api.post('/meetings', ms12Access, async (c) => {
           createdAt: t,
           role: 'host',
           linkedAnnouncementId: annLink,
+          ms12Plan: plan,
+          freeEndAt: freeEndAt,
         })
       )
     } catch (e) {
@@ -326,7 +418,7 @@ api.post('/meetings', ms12Access, async (c) => {
       if (/UNIQUE|unique|constraint|SQLITE_CONSTRAINT/i.test(m)) continue
       console.error('[ms12] create meeting', e)
       const detail = /no such (table|column)/i.test(m)
-        ? 'D1에 ms12 마이그레이션(0074·0075)이 적용됐는지 확인하세요.'
+        ? 'D1에 ms12·0083 마이그레이션이 적용됐는지 확인하세요.'
         : '회의를 만들 수 없습니다.'
       return c.json(
         { success: false, error: detail, message: m.slice(0, 300) } as { success: false; error: string; message: string },
@@ -349,14 +441,55 @@ api.post('/meetings/join', ms12Access, async (c) => {
   if (raw.length < 4) {
     return c.json(errorResponse('회의 코드를 입력하세요.'), 400)
   }
-  const room = await c.env.DB.prepare(
-    `SELECT id, title, host_actor_type, host_user_id, host_guest_id, meeting_code, status FROM ms12_rooms
-     WHERE UPPER(meeting_code) = UPPER(?)`
-  )
-    .bind(raw)
-    .first<Record<string, unknown>>()
-  if (!room || (room.status as string) === 'ended') {
-    return c.json(errorResponse('해당 코드의 회의를 찾을 수 없습니다.'), 404)
+  let room: Record<string, unknown> | null = null
+  try {
+    room = await c.env.DB
+      .prepare(
+        `SELECT id, title, host_actor_type, host_user_id, host_guest_id, meeting_code, status, free_end_at FROM ms12_rooms
+     WHERE UPPER(meeting_code) = UPPER(?)`,
+      )
+      .bind(raw)
+      .first<Record<string, unknown>>()
+  } catch (e) {
+    const m = e instanceof Error ? e.message : String(e)
+    if (!/no such column[:\s].*free_end_at|SQLITE_ERROR.*\bfree_end_at/i.test(m)) {
+      throw e
+    }
+    room = await c.env.DB
+      .prepare(
+        `SELECT id, title, host_actor_type, host_user_id, host_guest_id, meeting_code, status FROM ms12_rooms
+     WHERE UPPER(meeting_code) = UPPER(?)`,
+      )
+      .bind(raw)
+      .first<Record<string, unknown>>()
+  }
+  if (!room) {
+    return c.json(
+      errorResponse('입장할 수 없는 회의입니다. 회의 개설자에게 새 링크를 요청해 주세요.'),
+      404,
+    )
+  }
+  if ((room.status as string) === 'ended') {
+    return c.json(
+      errorResponse('입장할 수 없는 회의입니다. (종료됨) 회의 개설자에게 새 링크를 요청해 주세요.'),
+      404,
+    )
+  }
+  const feJoin = room.free_end_at != null ? String(room.free_end_at) : ''
+  if (feJoin) {
+    const endMsJ = Date.parse(feJoin)
+    if (!Number.isNaN(endMsJ) && Date.now() > endMsJ) {
+      const tEnd = nowIso()
+      const rid = String(room.id)
+      await c.env.DB
+        .prepare(`UPDATE ms12_rooms SET status = 'ended', updated_at = ? WHERE id = ? AND status = 'open'`)
+        .bind(tEnd, rid)
+        .run()
+      return c.json(
+        errorResponse('입장할 수 없는 회의입니다. (이용 시간 종료) 회의 개설자에게 새 링크를 요청해 주세요.'),
+        404,
+      )
+    }
   }
   const id = String(room.id)
   const t = nowIso()
@@ -481,6 +614,10 @@ api.post('/meetings/:id/action-items/ai-suggest', ms12Access, async (c) => {
   const actor = c.get('actor')
   const meetingId = c.req.param('id')
   await requireRoomParticipant(c, meetingId, actor)
+  const roomBlock = await assertRoomOpenForMutations(c, meetingId)
+  if (roomBlock) return roomBlock
+  const proDeny = await requireProPlan(c, actor)
+  if (proDeny) return proDeny
   let body: {
     notes?: string
     transcript?: string
@@ -547,6 +684,8 @@ api.post('/meetings/:id/action-items', ms12Access, async (c) => {
   const actor = c.get('actor')
   const meetingId = c.req.param('id')
   await requireRoomParticipant(c, meetingId, actor)
+  const roomBlockAi = await assertRoomOpenForMutations(c, meetingId)
+  if (roomBlockAi) return roomBlockAi
   let body: {
     title?: string
     taskDetail?: string
@@ -620,6 +759,8 @@ api.patch('/meetings/:id/action-items/:itemId', ms12Access, async (c) => {
     return c.json(errorResponse('항목 id가 올바르지 않습니다.'), 400)
   }
   await requireRoomParticipant(c, meetingId, actor)
+  const roomBlockPatch = await assertRoomOpenForMutations(c, meetingId)
+  if (roomBlockPatch) return roomBlockPatch
   let body: {
     status?: string
     resultNote?: string | null
@@ -740,6 +881,10 @@ api.post('/meetings/:id/ai-qa', ms12Access, async (c) => {
   const actor = c.get('actor')
   const meetingId = c.req.param('id')
   await requireRoomParticipant(c, meetingId, actor)
+  const roomBlockQa = await assertRoomOpenForMutations(c, meetingId)
+  if (roomBlockQa) return roomBlockQa
+  const proDenyQa = await requireProPlan(c, actor)
+  if (proDenyQa) return proDenyQa
   let body: { question?: string; notes?: string; transcript?: string; summary?: string } = {}
   try {
     body = (await c.req.json()) as {
@@ -796,6 +941,10 @@ api.post('/meetings/:id/auto-summary', ms12Access, async (c) => {
   const actor = c.get('actor')
   const meetingId = c.req.param('id')
   await requireRoomParticipant(c, meetingId, actor)
+  const roomBlockAs = await assertRoomOpenForMutations(c, meetingId)
+  if (roomBlockAs) return roomBlockAs
+  const proDenyAs = await requireProPlan(c, actor)
+  if (proDenyAs) return proDenyAs
   let body: {
     notes?: string
     transcript?: string
@@ -921,6 +1070,10 @@ api.post('/meetings/:id/report-draft', ms12Access, async (c) => {
   const actor = c.get('actor')
   const meetingId = c.req.param('id')
   await requireRoomParticipant(c, meetingId, actor)
+  const roomBlockRd = await assertRoomOpenForMutations(c, meetingId)
+  if (roomBlockRd) return roomBlockRd
+  const proDenyRd = await requireProPlan(c, actor)
+  if (proDenyRd) return proDenyRd
   let body: { notes?: string; transcript?: string; summary?: string; kind?: string } = {}
   try {
     body = (await c.req.json()) as typeof body
@@ -973,6 +1126,10 @@ api.post('/meetings/:id/content-draft', ms12Access, async (c) => {
   const actor = c.get('actor')
   const meetingId = c.req.param('id')
   await requireRoomParticipant(c, meetingId, actor)
+  const roomBlockCd = await assertRoomOpenForMutations(c, meetingId)
+  if (roomBlockCd) return roomBlockCd
+  const proDenyCd = await requireProPlan(c, actor)
+  if (proDenyCd) return proDenyCd
   let body: { notes?: string; transcript?: string; summary?: string; channel?: string } = {}
   try {
     body = (await c.req.json()) as typeof body

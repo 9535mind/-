@@ -2,12 +2,11 @@
  * /api/ms12/announcements* — 구조화 공고 자산, 검색, 회의·제안서 연계
  */
 import { Hono } from 'hono'
-import { HTTPException } from 'hono/http-exception'
 import { Bindings } from '../types/database'
 import { ms12Access } from '../middleware/ms12-access'
 import { successResponse, errorResponse } from '../utils/helpers'
 import type { AppActor } from '../utils/actor'
-import { participantKey } from '../utils/actor'
+import { assertIsRoomParticipant } from '../utils/ms12-room-participant-check'
 import { generateTextGeminiOrOpenAI } from '../utils/ai-text-generation'
 
 type Ctx = { Bindings: Bindings; Variables: { actor: AppActor } }
@@ -61,15 +60,7 @@ async function requireRoomParticipant(
   meetingId: string,
   actor: AppActor
 ): Promise<void> {
-  const k = participantKey(actor)
-  const row = await c.env.DB.prepare(
-    `SELECT 1 AS ok FROM ms12_room_participants
-     WHERE meeting_id = ? AND participant_key = ? AND left_at IS NULL`
-  )
-    .bind(meetingId, k)
-    .first()
-  if (row) return
-  throw new HTTPException(403, { message: '이 회의에 입장한 참석자만 볼 수 있습니다.' })
+  await assertIsRoomParticipant(c.env.DB, meetingId, actor)
 }
 
 /** 구조화 목록 + 필터 */

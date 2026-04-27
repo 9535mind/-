@@ -2,6 +2,7 @@
   "name": "MS12",
   "short_name": "MS12",
   "description": "회의·협업",
+  "id": "https://ms12.org/",
   "start_url": "/app",
   "scope": "/",
   "display": "standalone",

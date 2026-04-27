@@ -1,6 +1,11 @@
 /**
  * forest · mindstory-lms 등 교육 계열 호스트에서 MS12(/app, 회의, OAuth) 경로 차단.
  * — 리다이렉트 없음, ms12.org로 보내지 않음.
+ *
+ * ═══ FOREST ZONE (FROZEN) — 아래 `isLmsHostForestPath` / `isForestPathAllowed` / `isForestApiPath` 블록 ═══
+ * forest 전용 URL 허용 목록은 public/forest.html·/api/forest* 와 1:1. 임의 변경·경로 «공유» 금지.
+ * 변경은 docs/FOREST-FROZEN.md 승인 절차 후에만. MS12 라우트와 합치지 말 것.
+ * ═══════════════════════════════════════════════════════════════════════════════════
  */
 import type { Context, Next } from 'hono'
 import { Bindings } from '../types/database'
@@ -50,6 +55,7 @@ function isMs12SurfacePath(p: string): boolean {
   return false
 }
 
+// --- FOREST ZONE: forest 호스트(숲)에서 허용할 경로 식별 (forest.html `educationHostGuard`와 동기) ---
 function isLmsHostForestPath(p: string): boolean {
   if (p === '/forest' || p.startsWith('/forest/')) return true
   if (p === '/forest.html') return true
@@ -62,11 +68,13 @@ function isLmsHostForestPath(p: string): boolean {
 /**
  * forest 전용 API — MS12(/api/ms12)·OAuth와 경로가 겹치지 않음. 접두 /api/forest* 로 GAS + forest-results 를 한 번에 커버.
  * ( forest-gas-webhook, forest-gas-report, forest-gas-report-public, forest-results, … )
+ * FROZEN: `/api/forest` 접두·동작을 MS12 공통 API에 합치지 말 것.
  */
 function isForestApiPath(n: string): boolean {
   return n.startsWith('/api/forest')
 }
 
+// --- FOREST ZONE: isForestProductHost(숲 전용 Host)에만 사용 — 정적·API 허용 목록 ---
 function isForestPathAllowed(p: string): boolean {
   const n = normalizeForGuard(p)
   if (n === '/') return true

@@ -4,6 +4,8 @@ globs:
 alwaysApply: true
 ---
 
+동결·수정 정책(FOREST / MS12 경계)은 `docs/FOREST-FROZEN.md`·`.cursor/rules/forest-frozen.mdc` 를 따른다.
+
 # 도메인·프로젝트 고정 (저장소 단일 dist, 프로젝트별 Custom domain)
 
 | 역할 | 호스트(예) | 루트 `/` 동작(Worker) |

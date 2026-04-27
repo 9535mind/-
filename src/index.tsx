@@ -19,6 +19,7 @@ import apiMs12 from './routes/api-ms12'
 import apiMs12Documents from './routes/api-ms12-documents'
 import apiMs12MeetingRecords from './routes/api-ms12-meeting-records'
 import apiMs12Announcements from './routes/api-ms12-announcements'
+// ═══ FOREST ZONE (FROZEN) — JTT 숲 전용. MS12 라우트·모듈과 합치지 말 것. docs/FOREST-FROZEN.md ═══
 import forestGasWebhook from './routes/forest-gas-webhook'
 import forestGasReport from './routes/forest-gas-report'
 import forestGasReportPublic from './routes/forest-gas-report-public'
@@ -27,7 +28,6 @@ import landing from './routes/landing'
 import ms12Pages, { renderEntryPage } from './routes/ms12-pages'
 import { FOOTER_HTML_REVISION } from './utils/site-footer-legal'
 import {
-  isCloudflarePagesPreviewHost,
   isForestProductHost,
   isLifelongLmsProductHost,
   isMs12Hostname,
@@ -91,32 +91,26 @@ app.use('/api/auth/google/*', async (c, next) => {
   c.res.headers.set('Cache-Control', 'private, no-store, must-revalidate')
 })
 
-function corsResolveOrigin(origin: string, c: Context): string | null {
-  if (origin) {
-    try {
-      const u = new URL(origin)
-      if (u.protocol !== 'https:') return null
-      const h = u.hostname
-      if (isMs12Hostname(h)) return origin
-      if (h === 'localhost' || h === '127.0.0.1') return null
-      return null
-    } catch {
-      return null
-    }
+/**
+ * credentialed CORS: 요청 `Origin`을 그대로 반사(빈 값이면 URL 기준 origin).
+ * `*` + credentials 는 불가이므로 이 패턴이 사실상 "전면 허용"에 가장 가깝다.
+ */
+function corsOpenOrigin(origin: string, c: Context): string {
+  const o = (origin || '').trim()
+  if (o) return o
+  try {
+    return new URL(c.req.url).origin
+  } catch {
+    return ''
   }
-  const raw = c.req.header('x-forwarded-host') || c.req.header('host') || ''
-  const host = raw.split(',')[0].trim().split(':')[0]
-  if (isMs12Hostname(host)) return `https://${host}`
-  if (isCloudflarePagesPreviewHost(host)) return `https://${host}`
-  return null
 }
 
 app.use(
   '/api/*',
   cors({
-    origin: corsResolveOrigin,
+    origin: corsOpenOrigin,
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization'],
+    allowHeaders: ['Cookie', 'Content-Type', 'Authorization'],
     exposeHeaders: [
       'Content-Length',
       'X-Request-Id',
@@ -168,13 +162,13 @@ app.get('/api/health', (c) => {
   })
 })
 
-// JTT 유아숲 — GAS·시트 프록시·D1 집단 결과(forest.html `educationHostGuard` 허용 경로와 맞출 것)
+// ─── FOREST ZONE: `/api/forest-*` — 경로·핸들러 임의 변경·MS12 통합 금지 (↔ `educationHostGuard` `/api/forest*`) ───
 app.route('/api/forest-gas-webhook', forestGasWebhook)
 app.route('/api/forest-gas-report', forestGasReport)
 app.route('/api/forest-gas-report-public', forestGasReportPublic)
 app.route('/api/forest-results', forestResults)
 
-// JTT 유아숲 — 별칭(북마크·구 URL). /forest ↔ /forest.html 302 루프(CF 308) 방지: redirect 없이 ASSETS 로 동일 HTML.
+// FOREST ZONE: HTML 별칭 — `/forest` ↔ `forest.html` 루프 방지(redirect 없이 ASSETS)
 app.get('/forest_v9.html', (c) => serveForestHtmlFromAssets(c))
 app.get('/forest_v9', (c) => serveForestHtmlFromAssets(c))
 app.get('/forest', (c) => serveForestHtmlFromAssets(c))

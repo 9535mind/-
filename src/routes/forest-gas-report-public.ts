@@ -1,4 +1,6 @@
 /**
+ * ═══ FOREST ZONE (FROZEN) ═══ 임의 수정·MS12 병합·리팩터 금지. docs/FOREST-FROZEN.md
+ *
  * GET /api/forest-gas-report-public?id=REQUEST_ID
  * 로그인 없이 GAS doGet(?view=report&id=) 스냅샷만 프록시 — 시트·구글 드라이브 링크를 연 관리자 PC 등
  * (기존 /api/forest-gas-report 는 로그인·소유권 검사용)
@@ -7,8 +9,9 @@
 import { Hono } from 'hono'
 import type { Bindings } from '../types/database'
 
+/** FROZEN: forest-gas-webhook / forest.html GET URL 과 동기 */
 const FOREST_GAS_WEBHOOK_URL_FALLBACK =
-  'https://script.google.com/macros/s/AKfycbykAF9oeJuarWapeOYPPW_qtQ8svVvSb6N_Y1_U5MSpBVo679I6_pratwPVcbNnucq0/exec'
+  'https://script.google.com/macros/s/AKfycbyKAgk_MEojQZvEeV1b7lSoaLjNAO-KaoUU5odf3i4f38xzqxYk4iWhluKW9HpeJQXC/exec'
 
 const forestGasReportPublic = new Hono<{ Bindings: Bindings }>()
 

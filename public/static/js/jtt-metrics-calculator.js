@@ -1,4 +1,6 @@
 /**
+ * ═══ FOREST ZONE (FROZEN) ═══ 임의 수정·리팩터 금지. public/forest.html 전용. docs/FOREST-FROZEN.md
+ *
  * JTT-Kinder metrics (browser) — mirrors src/utils/metricsCalculator.ts
  */
 (function (global) {

@@ -1,7 +1,7 @@
 import type { Context } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
 import type { Bindings } from '../types/database'
-import { getCurrentUser } from './helpers'
+import { getCurrentUser, getMs12GuestIdFromRequest } from './helpers'
 import { isSecureCookieRequest } from './session-cookie'
 import { getAuthMode } from './auth-mode'
 
@@ -30,9 +30,13 @@ export async function getOrCreateActor(
   if (getAuthMode(c) === 'required') {
     return null
   }
-  let gid = (getCookie(c, GUEST_COOKIE) || '').trim()
+  let gid =
+    getMs12GuestIdFromRequest(c) ||
+    (getCookie(c, GUEST_COOKIE) || '').trim()
   if (!gid || !isUuidLike(gid)) {
     gid = crypto.randomUUID()
+  }
+  if ((getCookie(c, GUEST_COOKIE) || '').trim() !== gid) {
     setCookie(c, GUEST_COOKIE, gid, {
       path: '/',
       httpOnly: true,

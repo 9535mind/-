@@ -27,13 +27,38 @@
   var g_ms12DraftKind = 'report_int'
   var g_ms12DraftMeeting = ''
 
+  var _nativeFetch = typeof fetch === 'function' ? fetch : null
+  /** 동일 출처 API: 쿠키 전송 + 응답 캐시로 인한 옛 게스트 표시 방지 */
+  function ms12Fetch(input, init) {
+    if (!_nativeFetch) {
+      return Promise.reject(new Error('fetch unavailable'))
+    }
+    init = init || {}
+    var o = {}
+    for (var k in init) {
+      if (Object.prototype.hasOwnProperty.call(init, k)) o[k] = init[k]
+    }
+    o.credentials = 'include'
+    if (o.cache === undefined) o.cache = 'no-store'
+    return _nativeFetch(input, o)
+  }
+
   function isOpenAuthMode(m) {
     return m === 'optional' || m === 'disabled' || m === 'demo' || m === 'required'
   }
 
   var activeStoreKey = 'ms12_demo_v1'
   function actorKeyFromMe(j) {
-    if (j && j.data && j.data.id != null) return 'u:' + String(j.data.id)
+    if (j && j.data && j.data != null && typeof j.data === 'object' && !Array.isArray(j.data)) {
+      if (j.data.type === 'guest' && j.data.id != null && j.data.id !== '') {
+        return 'g:' + String(j.data.id)
+      }
+      var dId = j.data.id
+      if (dId != null && dId !== '') {
+        var n = typeof dId === 'number' && isFinite(dId) ? dId : parseInt(String(dId), 10)
+        if (typeof n === 'number' && isFinite(n) && n >= 1) return 'u:' + String(n)
+      }
+    }
     if (j && j.actor && j.actor.type === 'user' && j.actor.id) return 'u:' + j.actor.id
     if (j && j.actor && j.actor.id) return 'g:' + j.actor.id
     return 'g:' + ensureLocalOnlyActorId()
@@ -297,18 +322,46 @@
     return typeof location !== 'undefined' && location.pathname ? location.pathname : '/app'
   }
 
+  /**
+   * /api/auth/me — 로그인: 서버 `actor.type === 'user'` + data.id 가 정수 유저 id일 때만.
+   * (data.id만 보면 캐시/구스크립트·UUID 선두 파싱 등으로 ‘가짜 로그인’ → 로그인 링크 숨김 / 로그아웃만 보임)
+   */
   function isAuthedFromMe(json) {
     if (!json || json.success !== true) return false
+    if (json.actor && json.actor.type === 'guest') return false
     var d = json.data
-    if (d == null) return false
-    if (typeof d !== 'object' || Array.isArray(d)) return false
-    return (
-      d.id != null ||
-      !!d.email ||
-      !!d.session_token ||
-      d.role != null ||
-      !!d.name
-    )
+    if (d == null || typeof d !== 'object' || Array.isArray(d)) return false
+    if (d.type === 'guest') return false
+    var id = d.id
+    if (id == null || id === '') return false
+    if (json.actor && json.actor.type === 'user') {
+      if (typeof id === 'number' && isFinite(id) && id >= 1) return true
+      var su = String(id).trim()
+      if (!/^\d+$/.test(su)) return false
+      var nu = parseInt(su, 10)
+      return isFinite(nu) && nu >= 1
+    }
+    if (typeof id === 'number' && isFinite(id) && id >= 1) return true
+    var s = String(id).trim()
+    if (!/^\d+$/.test(s)) return false
+    var n = parseInt(s, 10)
+    return isFinite(n) && n >= 1
+  }
+
+  /** 화면 표시: 이름 → 이메일(로컬@앞) → 회사명; 서버 `type:'guest'` 는 /api/auth/me data */
+  function displayNameFromUser(u) {
+    if (!u || typeof u !== 'object') return '사용자'
+    if (u.type === 'guest') return (u.name != null && String(u.name).trim()) || '게스트'
+    var name = (u.name != null && String(u.name).trim()) || ''
+    if (name) return name
+    var em = (u.email != null && String(u.email).trim()) || ''
+    if (em) {
+      var at = em.indexOf('@')
+      return at > 0 ? em.slice(0, at) : em
+    }
+    var co = (u.company_name != null && String(u.company_name).trim()) || ''
+    if (co) return co
+    return '사용자'
   }
 
   function applyNextToOAuthLinks() {
@@ -342,7 +395,7 @@
     var r
     if (typeof AbortController === 'undefined') {
       try {
-        r = await fetch('/api/auth/me', fetchOpts)
+        r = await ms12Fetch('/api/auth/me', fetchOpts)
       } catch (e) {
         return { status: 0, json: null, _err: e }
       }
@@ -354,7 +407,7 @@
         } catch (e) {}
       }, 10000)
       try {
-        r = await fetch('/api/auth/me', Object.assign({}, fetchOpts, { signal: ctrl.signal }))
+        r = await ms12Fetch('/api/auth/me', Object.assign({}, fetchOpts, { signal: ctrl.signal }))
       } catch (e) {
         clearTimeout(t)
         return { status: 0, json: null, _err: e }
@@ -397,11 +450,16 @@
     if (g) g.style.display = phase === 'login' ? 'block' : 'none'
     if (a) a.style.display = phase === 'app' ? 'block' : 'none'
     var demoMode = !!options.demoMode
+    var sessionAuthed = !!options.sessionAuthed
+    var guestId = !!options.guestIdentified
+    var loggedIn = sessionAuthed
     var nameText = '사용자'
-    if (options.user) {
-      nameText = options.user.name || options.user.email || '사용자'
+    if (loggedIn) {
+      nameText = displayNameFromUser(options.user) || (options.user && options.user.name) || '사용자'
+    } else if (guestId && options.user) {
+      nameText = displayNameFromUser(options.user)
     } else if (options.isGuest) {
-      nameText = demoMode ? '이용자' : '이용자'
+      nameText = '게스트 이용 중'
     }
     var nodes = document.querySelectorAll('.js-ms12-user-name')
     for (var n = 0; n < nodes.length; n++) {
@@ -409,13 +467,16 @@
     }
     var sufs = document.querySelectorAll('.js-ms12-user-suffix')
     for (var s = 0; s < sufs.length; s++) {
-      sufs[s].textContent = options.isGuest ? '' : ' 님'
+      sufs[s].textContent = loggedIn || guestId || !options.isGuest ? '님' : ''
     }
     var badges = document.querySelectorAll('.js-ms12-badge')
     for (var b = 0; b < badges.length; b++) {
-      if (options.user) {
+      if (loggedIn) {
         badges[b].textContent = '로그인됨'
         badges[b].setAttribute('style', 'background:rgb(220 252 231);color:rgb(22 101 52)')
+      } else if (guestId) {
+        badges[b].textContent = '게스트(식별됨)'
+        badges[b].setAttribute('style', 'background:rgb(224 242 254);color:rgb(30 64 175)')
       } else if (options.isGuest) {
         badges[b].textContent = '게스트'
         badges[b].setAttribute('style', 'background:rgb(241 245 249);color:rgb(71 85 105)')
@@ -427,38 +488,103 @@
     var dets = document.querySelectorAll('.ms12-login-aside details')
     var lix = 0
     for (lix = 0; lix < dets.length; lix++) {
-      dets[lix].style.display = options.user ? 'none' : 'block'
+      dets[lix].style.display = loggedIn ? 'none' : 'block'
     }
     var ll = document.querySelectorAll('.ms12-js-logout-line')
     for (var lj = 0; lj < ll.length; lj++) {
-      ll[lj].style.display = options.user ? 'block' : 'none'
+      ll[lj].style.display = loggedIn ? 'block' : 'none'
     }
-    var lout = document.querySelectorAll('[data-ms12-logout]')
+    var lout = document.querySelectorAll('[data-ms12-logout], #ms12-logout')
     for (var lo = 0; lo < lout.length; lo++) {
-      lout[lo].style.display = options.user ? 'inline-block' : 'none'
+      lout[lo].style.display = loggedIn ? 'inline-block' : 'none'
     }
     var lnk = document.querySelectorAll('[data-ms12-login-lnk]')
     for (var li = 0; li < lnk.length; li++) {
-      lnk[li].style.display = options.isGuest || !options.user ? 'inline' : 'none'
+      lnk[li].style.display = loggedIn ? 'none' : ''
+    }
+    var entryHost = document.getElementById('ms12-entry-login')
+    if (entryHost) {
+      if (loggedIn) {
+        entryHost.setAttribute('data-ms12-entry-session', '1')
+        var oaH = document.querySelector('.ms12-entry-oauth-btns')
+        if (oaH) oaH.style.display = 'none'
+      } else {
+        entryHost.removeAttribute('data-ms12-entry-session')
+        var oaS = document.querySelector('.ms12-entry-oauth-btns')
+        if (oaS) oaS.style.display = 'flex'
+      }
+    }
+    try {
+      document.body.setAttribute('data-ms12-logged-in', loggedIn ? '1' : '0')
+      document.body.setAttribute('data-ms12-guest-identified', guestId ? '1' : '0')
+    } catch (e) {}
+    if (loggedIn) {
+      if (getRoute() !== 'entry') {
+        ensureMs12LogoutButton()
+      }
+    } else {
+      var elg = document.getElementById('ms12-logout')
+      if (elg) elg.style.display = 'none'
     }
   }
 
+  function ensureMs12LogoutButton() {
+    var btn = document.getElementById('ms12-logout')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.id = 'ms12-logout'
+      btn.setAttribute('data-ms12-logout', '1')
+      btn.setAttribute('aria-label', '로그아웃')
+      btn.textContent = '로그아웃'
+      btn.className = 'ms12-btn'
+      btn.style.cssText = 'margin-left:0.45rem;vertical-align:baseline;font-size:0.88rem;'
+      var nameEl = document.querySelector('.js-ms12-user-name')
+      if (nameEl && nameEl.parentNode) {
+        nameEl.parentNode.insertBefore(btn, nameEl.nextSibling)
+      } else {
+        var host = document.getElementById('ms12-authed') || document.body
+        host.insertBefore(btn, host.firstChild)
+      }
+    }
+    btn.style.display = 'inline-block'
+  }
+
   function wireLogout() {
-    var btns = document.querySelectorAll('[data-ms12-logout]')
+    var btns = document.querySelectorAll('[data-ms12-logout], #ms12-logout')
     for (var i = 0; i < btns.length; i++) {
       ;(function (btn) {
         if (btn.getAttribute('data-ms12-logout-wired') === '1') return
         btn.setAttribute('data-ms12-logout-wired', '1')
         btn.addEventListener('click', function () {
-          fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
-            .then(function () {
+          ms12Fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
+            .then(function (r) {
               try {
                 localStorage.removeItem('user')
               } catch (e) {}
-              window.location.href = '/app'
+              try {
+                localStorage.removeItem('ms12_actor')
+              } catch (e2) {}
+              if (r && r.ok) {
+                if (typeof location !== 'undefined' && location.reload) {
+                  location.reload()
+                } else {
+                  window.location.href = '/app'
+                }
+                return
+              }
+              if (typeof location !== 'undefined' && location.reload) {
+                location.reload()
+              } else {
+                window.location.href = '/app'
+              }
             })
             .catch(function () {
-              window.location.href = '/app'
+              if (typeof location !== 'undefined' && location.reload) {
+                location.reload()
+              } else {
+                window.location.href = '/app'
+              }
             })
         })
       })(btns[i])
@@ -531,7 +657,7 @@
     var el = document.getElementById('ms12-home-recent')
     if (!el) return
     initResumeBlock()
-    fetch('/api/ms12/meetings/my?limit=5', { credentials: 'include' })
+    ms12Fetch('/api/ms12/meetings/my?limit=5', { credentials: 'include' })
       .then(function (r) {
         return jsonFromResponse(r)
       })
@@ -584,7 +710,7 @@
       var dn = (fd.get('displayName') || '').toString().trim()
       var payload = { title: title }
       if (dn) payload.displayName = dn
-      fetch('/api/ms12/meetings', {
+      ms12Fetch('/api/ms12/meetings', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -630,7 +756,7 @@
       var dn2 = (fd.get('displayName') || '').toString().trim()
       var joinBody = { meetingCode: code }
       if (dn2) joinBody.displayName = dn2
-      fetch('/api/ms12/meetings/join', {
+      ms12Fetch('/api/ms12/meetings/join', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -670,7 +796,7 @@
   function initRecordsList() {
     var el = document.getElementById('ms12-records-list')
     if (!el) return
-    fetch('/api/ms12/meetings/my?limit=50', { credentials: 'include' })
+    ms12Fetch('/api/ms12/meetings/my?limit=50', { credentials: 'include' })
       .then(function (r) {
         return jsonFromResponse(r)
       })
@@ -915,7 +1041,7 @@
     var docs = document.getElementById('ms12-dash-docs')
     var acts = document.getElementById('ms12-dash-actions')
     if (docs) {
-      fetch('/api/ms12/documents?limit=5', { credentials: 'include' })
+      ms12Fetch('/api/ms12/documents?limit=5', { credentials: 'include' })
         .then(function (r) {
           return jsonFromResponse(r)
         })
@@ -954,7 +1080,7 @@
         })
     }
     if (acts) {
-      fetch('/api/ms12/my/open-action-items?limit=12', { credentials: 'include' })
+      ms12Fetch('/api/ms12/my/open-action-items?limit=12', { credentials: 'include' })
         .then(function (r) {
           return jsonFromResponse(r)
         })
@@ -1017,7 +1143,7 @@
   }
 
   function loadParticipants(id) {
-    return fetch('/api/ms12/meetings/' + encodeURIComponent(id) + '/participants', {
+    return ms12Fetch('/api/ms12/meetings/' + encodeURIComponent(id) + '/participants', {
       credentials: 'include',
     })
       .then(function (r) {
@@ -1314,7 +1440,7 @@
         return
       }
       if (statEl) statEl.textContent = 'AI 요약 요청 중…'
-      fetch('/api/ms12/meetings/' + encodeURIComponent(id) + '/auto-summary', {
+      ms12Fetch('/api/ms12/meetings/' + encodeURIComponent(id) + '/auto-summary', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -1374,7 +1500,7 @@
         if (isManual && statEl) statEl.textContent = '메모·전사·요약을 조금 더 입력하세요.'
         return
       }
-      fetch('/api/ms12/meetings/' + encodeURIComponent(id) + '/action-items/ai-suggest', {
+      ms12Fetch('/api/ms12/meetings/' + encodeURIComponent(id) + '/action-items/ai-suggest', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -1465,7 +1591,7 @@
             : '보고요약'
       if (statEl) statEl.textContent = label + ' AI 정리 중…'
       summaryTabBusy = true
-      fetch('/api/ms12/meetings/' + encodeURIComponent(id) + '/auto-summary', {
+      ms12Fetch('/api/ms12/meetings/' + encodeURIComponent(id) + '/auto-summary', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -1590,7 +1716,7 @@
           loadActionItems()
           return
         }
-        fetch(
+        ms12Fetch(
           '/api/ms12/meetings/' + encodeURIComponent(id) + '/action-items/' + encodeURIComponent(itemId),
           {
             method: 'PATCH',
@@ -1604,7 +1730,7 @@
           })
           .then(function (j) {
             if (j && j.success) {
-              return fetch('/api/ms12/meetings/' + encodeURIComponent(id) + '/action-items', {
+              return ms12Fetch('/api/ms12/meetings/' + encodeURIComponent(id) + '/action-items', {
                 credentials: 'include',
               })
             }
@@ -1650,7 +1776,7 @@
       if (field === 'assignee') payload.assignee = value ? value : null
       if (field === 'dueAt') payload.dueAt = value ? value : null
       if (field === 'title' && !String(value || '').trim()) return
-      fetch(
+      ms12Fetch(
         '/api/ms12/meetings/' + encodeURIComponent(id) + '/action-items/' + encodeURIComponent(numId),
         {
           method: 'PATCH',
@@ -1746,7 +1872,7 @@
         if (w.taskDetail) p.taskDetail = String(w.taskDetail)
         if (w.assignee) p.assignee = String(w.assignee)
         if (w.dueAt) p.dueAt = String(w.dueAt).slice(0, 10)
-        fetch('/api/ms12/meetings/' + encodeURIComponent(id) + '/action-items', {
+        ms12Fetch('/api/ms12/meetings/' + encodeURIComponent(id) + '/action-items', {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
@@ -1783,7 +1909,7 @@
     }
 
     function loadActionItems() {
-      fetch('/api/ms12/meetings/' + encodeURIComponent(id) + '/action-items', { credentials: 'include' })
+      ms12Fetch('/api/ms12/meetings/' + encodeURIComponent(id) + '/action-items', { credentials: 'include' })
         .then(function (r) {
           return jsonFromResponse(r)
         })
@@ -1816,7 +1942,7 @@
         if (dueIn && dueIn.value) payload.dueAt = String(dueIn.value)
         if (prIn && prIn.value) payload.priority = String(prIn.value).trim()
         if (icIn && icIn.value) payload.itemCategory = String(icIn.value).trim()
-        fetch('/api/ms12/meetings/' + encodeURIComponent(id) + '/action-items', {
+        ms12Fetch('/api/ms12/meetings/' + encodeURIComponent(id) + '/action-items', {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
@@ -1831,7 +1957,7 @@
               if (taskIn) taskIn.value = ''
               if (assIn) assIn.value = ''
               if (dueIn) dueIn.value = ''
-              return fetch('/api/ms12/meetings/' + encodeURIComponent(id) + '/action-items', {
+              return ms12Fetch('/api/ms12/meetings/' + encodeURIComponent(id) + '/action-items', {
                 credentials: 'include',
               })
             }
@@ -1895,7 +2021,7 @@
         }
         aiSend.disabled = true
         if (aiOut) aiOut.textContent = '응답을 기다리는 중…'
-        fetch('/api/ms12/meetings/' + encodeURIComponent(id) + '/ai-qa', {
+        ms12Fetch('/api/ms12/meetings/' + encodeURIComponent(id) + '/ai-qa', {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
@@ -2124,7 +2250,7 @@
           body.roomId = id
         }
         if (saveServerMsg) saveServerMsg.textContent = '저장 중…'
-        fetch(url, {
+        ms12Fetch(url, {
           method: method,
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
@@ -2170,7 +2296,7 @@
         return
       }
       draftOut.value = '초안을 생성하는 중…'
-      fetch('/api/ms12/meetings/' + encodeURIComponent(id) + path, {
+      ms12Fetch('/api/ms12/meetings/' + encodeURIComponent(id) + path, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -2247,7 +2373,7 @@
 
     loadActionItems()
 
-    fetch('/api/ms12/meetings/' + encodeURIComponent(id), { credentials: 'include' })
+    ms12Fetch('/api/ms12/meetings/' + encodeURIComponent(id), { credentials: 'include' })
       .then(function (r) {
         return jsonFromResponse(r).then(function (j) {
           return { status: r.status, j: j }
@@ -2382,7 +2508,7 @@
         msg.textContent = '로그인 중…'
         msg.style.color = 'rgb(71 85 105)'
       }
-      fetch('/api/auth/login', {
+      ms12Fetch('/api/auth/login', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -2447,7 +2573,7 @@
       if (db) u.set('deadlineBefore', db)
       u.set('limit', '40')
       listEl.textContent = '불러오는 중…'
-      fetch('/api/ms12/announcements?' + u.toString(), { credentials: 'include' })
+      ms12Fetch('/api/ms12/announcements?' + u.toString(), { credentials: 'include' })
         .then(function (r) {
           return jsonFromResponse(r)
         })
@@ -2499,7 +2625,7 @@
           nlNote.style.display = 'block'
           nlNote.textContent = '해석 중…'
         }
-        fetch('/api/ms12/announcements/parse-query', {
+        ms12Fetch('/api/ms12/announcements/parse-query', {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
@@ -2555,7 +2681,7 @@
     var roomIn = document.getElementById('ms12-ann-room-id')
     var mrIn = document.getElementById('ms12-ann-mr-id')
     var docIn = document.getElementById('ms12-ann-doc-ids')
-    fetch('/api/ms12/announcements/' + encodeURIComponent(id), { credentials: 'include' })
+    ms12Fetch('/api/ms12/announcements/' + encodeURIComponent(id), { credentials: 'include' })
       .then(function (r) {
         return jsonFromResponse(r)
       })
@@ -2593,7 +2719,7 @@
       })
     if (btnMeet) {
       btnMeet.addEventListener('click', function () {
-        fetch('/api/ms12/announcements/' + encodeURIComponent(id), { credentials: 'include' })
+        ms12Fetch('/api/ms12/announcements/' + encodeURIComponent(id), { credentials: 'include' })
           .then(function (r) {
             return jsonFromResponse(r)
           })
@@ -2605,7 +2731,7 @@
             var t0 = (j.data.title || '공고').toString()
             var t = '[공고] ' + t0
             if (t.length > 200) t = t.slice(0, 197) + '…'
-            return fetch('/api/ms12/meetings', {
+            return ms12Fetch('/api/ms12/meetings', {
               method: 'POST',
               credentials: 'include',
               headers: { 'Content-Type': 'application/json' },
@@ -2654,7 +2780,7 @@
           var sid = sessionStorage.getItem('ms12_proposal_room_for_ann_' + id)
           if (sid && !payload.roomId) payload.roomId = sid
         } catch (e) {}
-        fetch('/api/ms12/announcements/' + encodeURIComponent(id) + '/proposal-draft', {
+        ms12Fetch('/api/ms12/announcements/' + encodeURIComponent(id) + '/proposal-draft', {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
@@ -2682,8 +2808,120 @@
     } catch (e) {}
   }
 
+  /** Ms12Actions.createMeeting 403 시 저장 — 로그인 직후 한 번만 재시도 */
+  function consumePendingCreateMeeting() {
+    var A = typeof globalThis !== 'undefined' && globalThis.Ms12Actions
+    if (!A || typeof A.createMeeting !== 'function') return
+    var raw
+    try {
+      raw = sessionStorage.getItem('ms12_pending_create_meeting')
+    } catch (e) {
+      return
+    }
+    if (!raw) return
+    var o
+    try {
+      o = JSON.parse(raw)
+    } catch (e) {
+      try {
+        sessionStorage.removeItem('ms12_pending_create_meeting')
+      } catch (e2) {}
+      return
+    }
+    if (!o || typeof o !== 'object' || !o.title) {
+      try {
+        sessionStorage.removeItem('ms12_pending_create_meeting')
+      } catch (e) {}
+      return
+    }
+    try {
+      sessionStorage.removeItem('ms12_pending_create_meeting')
+    } catch (e) {}
+    A.createMeeting({
+      title: String(o.title),
+      type: o.type != null ? String(o.type) : undefined,
+      displayName: o.displayName != null ? String(o.displayName) : undefined,
+    })
+  }
+
+  function initEntryPage() {
+    var card = document.getElementById('ms12-entry-login')
+    var statusEl = document.getElementById('ms12-entry-status')
+    if (!card) return
+    function setSt(t) {
+      if (statusEl) statusEl.textContent = t || ''
+    }
+    function doCreate(title, type) {
+      var A = typeof globalThis !== 'undefined' && globalThis.Ms12Actions
+      if (!A || typeof A.createMeeting !== 'function') {
+        setSt('잠시 후 다시 시도해 주세요.')
+        return
+      }
+      setSt('회의를 준비하는 중…')
+      var payload = { title: title || '새 회의' }
+      if (type) payload.type = type
+      A.createMeeting(payload)
+        .then(function (res) {
+          if (res && res.kind === 'error') setSt((res && res.error) || '로그인이 필요할 수 있습니다.')
+          else setSt('')
+        })
+        .catch(function () {
+          setSt('요청에 실패했습니다.')
+        })
+    }
+    card.addEventListener('click', function (ev) {
+      var t = ev.target
+      if (!t || !t.getAttribute) return
+      var qs = t.getAttribute('data-ms12-entry-qs')
+      if (!qs) return
+      ev.preventDefault()
+      if (qs === 'start') {
+        doCreate('새 회의', '')
+        return
+      }
+      if (qs === 'quick') {
+        doCreate(
+          t.getAttribute('data-ms12-title') || '새 회의',
+          t.getAttribute('data-ms12-type') || ''
+        )
+      }
+    })
+  }
+
+  function initMeetingHub() {
+    document.body.addEventListener('click', function (ev) {
+      var t = ev.target
+      if (!t || !t.closest) return
+      if (getRoute() !== 'meeting') return
+      var el = t.closest('[data-ms12-action]')
+      if (!el) return
+      var A = typeof globalThis !== 'undefined' && globalThis.Ms12Actions
+      if (!A) return
+      var act = el.getAttribute('data-ms12-action') || ''
+      if (!act) return
+      ev.preventDefault()
+      if (act === 'meeting-start') {
+        A.createMeeting({ title: '새 회의' })
+        return
+      }
+      if (act === 'meeting-start-quick') {
+        A.createMeeting({
+          title: el.getAttribute('data-ms12-title') || '새 회의',
+          type: el.getAttribute('data-ms12-type') || undefined,
+        })
+        return
+      }
+      if (act === 'meeting-join' && A.openAppPath) A.openAppPath('/app/join')
+      else if (act === 'records-open' && A.openAppPath) A.openAppPath('/app/records')
+      else if (act === 'app-archive' && A.openAppPath) A.openAppPath('/app/archive')
+      else if (act === 'app-library' && A.openAppPath) A.openAppPath('/app/library')
+    })
+  }
+
   function initAuthedPage() {
     var route = getRoute()
+    if (route === 'entry') initEntryPage()
+    if (route === 'meeting') initMeetingHub()
     if (route === 'desk') {
       initDeskHome()
     }
@@ -2746,7 +2984,7 @@
         if (p[k]) u.set(k, p[k])
       })
       if (el) el.textContent = '불러오는 중…'
-      fetch('/api/ms12/meeting-records?' + u.toString(), { credentials: 'include' })
+      ms12Fetch('/api/ms12/meeting-records?' + u.toString(), { credentials: 'include' })
         .then(function (r) {
           return jsonFromResponse(r)
         })
@@ -2777,7 +3015,7 @@
     var f = document.getElementById('ms12-mr-form')
     var msg = document.getElementById('ms12-mr-msg')
     var meta = document.getElementById('ms12-mr-meta')
-    fetch('/api/ms12/meeting-records/' + encodeURIComponent(rid), { credentials: 'include' })
+    ms12Fetch('/api/ms12/meeting-records/' + encodeURIComponent(rid), { credentials: 'include' })
       .then(function (r) {
         return jsonFromResponse(r)
       })
@@ -2835,7 +3073,7 @@
           summaryAction: (fd.get('summaryAction') || '').toString() || null,
           summaryReport: (fd.get('summaryReport') || '').toString() || null,
         }
-        fetch('/api/ms12/meeting-records/' + encodeURIComponent(rid), {
+        ms12Fetch('/api/ms12/meeting-records/' + encodeURIComponent(rid), {
           method: 'PATCH',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
@@ -2912,7 +3150,7 @@
       if (q.year) u.set('year', q.year)
       u.set('limit', '30')
       if (listEl) listEl.textContent = '불러오는 중…'
-      fetch('/api/ms12/documents?' + u.toString(), { credentials: 'include' })
+      ms12Fetch('/api/ms12/documents?' + u.toString(), { credentials: 'include' })
         .then(function (r) {
           return jsonFromResponse(r)
         })
@@ -2945,7 +3183,7 @@
         if (!q) return
         showErr('')
         if (listEl) listEl.textContent = 'AI 검색 중…'
-        fetch('/api/ms12/documents/ai-search', {
+        ms12Fetch('/api/ms12/documents/ai-search', {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
@@ -2980,7 +3218,7 @@
         e.preventDefault()
         if (upMsg) upMsg.textContent = '업로드 중…'
         var fd2 = new FormData(upForm)
-        fetch('/api/ms12/documents', {
+        ms12Fetch('/api/ms12/documents', {
           method: 'POST',
           credentials: 'include',
           body: fd2,
@@ -3020,7 +3258,7 @@
           return
         }
         combOut.value = '생성 중…'
-        fetch('/api/ms12/documents/combine-draft', {
+        ms12Fetch('/api/ms12/documents/combine-draft', {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
@@ -3091,10 +3329,13 @@
       var lid3 = ensureLocalOnlyActorId()
       j = Object.assign({}, j, { actor: { type: 'guest', id: lid3, source: 'local' } })
     }
-    var user = authed && j && j.data ? j.data : null
-    var isGuest = !authed
+    var guestIdentified = !!(j && j.data && j.data.type === 'guest' && j.data.id)
+    var user = null
+    if (authed && j && j.data) user = j.data
+    else if (guestIdentified) user = j.data
+    var isAnon = !authed && !guestIdentified
     _lastIsAuthed = authed
-    var demoMode = isGuest || pageMode === 'demo'
+    var demoMode = isAnon || pageMode === 'demo'
     if (j && j.actor && j.actor.type === 'guest') {
       try {
         localStorage.setItem('ms12_actor', JSON.stringify(j.actor))
@@ -3110,12 +3351,23 @@
       stripOauthParam()
     }
 
-    var showApp = openMode || authed
+    var showApp = openMode || authed || guestIdentified
     if (showApp) {
       applyNextToOAuthLinks()
-      applyShell('app', { user: user, isGuest: !!isGuest, demoMode: demoMode })
+      applyShell('app', {
+        user: user,
+        isGuest: isAnon,
+        guestIdentified: guestIdentified,
+        sessionAuthed: authed,
+        demoMode: demoMode,
+      })
       wireLogout()
       initAuthedPage()
+      if (authed) {
+        try {
+          consumePendingCreateMeeting()
+        } catch (e) {}
+      }
     } else {
       applyNextToOAuthLinks()
       applyShell('app', { user: null, isGuest: true, demoMode: true })

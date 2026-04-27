@@ -156,6 +156,13 @@ GET /api/certificates/:number
 
 ---
 
+## JTT-Kinder (FOREST) — 동결
+
+- 유아숲·GAS·시트 연동은 **완성된 독립 서비스(FOREST ZONE)**. MS12와 **통합·라우트 공유·리팩터** 없이, 승인된 변경만 한다.
+- 정책·파일 목록·검증 3단계(제출 / 시트 / `_gasBuild`)는 [`docs/FOREST-FROZEN.md`](docs/FOREST-FROZEN.md) 참고. `.cursor/rules/forest-frozen.mdc` 가 동일 취지.
+
+---
+
 ## 🚀 **로컬 개발 가이드**
 
 ### **1. 환경 설정**

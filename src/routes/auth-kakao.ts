@@ -57,6 +57,16 @@ function resolveKakaoDisplayName(kakaoUser: KakaoMeResponse, emailForFallback: s
 
 const authKakao = new Hono<{ Bindings: Bindings }>()
 
+/** D1 `.run().meta` — google 콜백과 동일 (lastRowId 변형 대비) */
+function d1LastInsertUserId(
+  meta: { last_row_id?: number; lastRowId?: number } | null | undefined,
+): number {
+  const raw = meta?.last_row_id ?? meta?.lastRowId
+  if (raw == null) return 0
+  const n = typeof raw === 'bigint' ? Number(raw) : Number(raw)
+  return Number.isFinite(n) && n > 0 ? Math.trunc(n) : 0
+}
+
 /** 콜백·오류 후 이동 — MS12 회의 앱 로그인 */
 function kakaoErrorLandingPath(c: Context<{ Bindings: Bindings }>): string {
   const h = requestHostname(c)
@@ -340,7 +350,8 @@ authKakao.get('/login', async (c) => {
     kakaoAuthUrl.searchParams.set('client_id', clientId)
     kakaoAuthUrl.searchParams.set('redirect_uri', redirectUri)
     kakaoAuthUrl.searchParams.set('response_type', 'code')
-    kakaoAuthUrl.searchParams.set('scope', 'profile_nickname profile_image account_email')
+    // [동의 항목]에 없는 scope 를 넣으면 invalid_scope(예: profile_image). 콘솔에서 닉/프로필을 켠 뒤 아래에 profile_nickname·profile_image 추가
+    kakaoAuthUrl.searchParams.set('scope', 'account_email')
 
     const marketingParam = c.req.query('marketing')
     const marketing =
@@ -593,8 +604,12 @@ export async function handleKakaoOAuthCallback(c: Context<{ Bindings: Bindings }
 
     if (existingUser) {
       // 기존 사용자 - 로그인 처리
-      console.log('[KAKAO_CALLBACK] Existing user found, ID:', existingUser.id)
-      userId = existingUser.id
+      const uid = Number(existingUser.id)
+      if (!Number.isFinite(uid) || uid < 1) {
+        throw new Error('Invalid existing user id from database (Kakao)')
+      }
+      console.log('[KAKAO_CALLBACK] Existing user found, ID:', uid)
+      userId = uid
       user = existingUser
 
       const displayName = resolveKakaoDisplayName(
@@ -658,12 +673,16 @@ export async function handleKakaoOAuthCallback(c: Context<{ Bindings: Bindings }
         profileImageUrl,
         marketingForNewUser
       ).run()
-        if (!result.success || result.meta?.last_row_id == null) {
+        if (!result.success) {
           throw new Error(
             String((result as { error?: string }).error || 'INSERT users (full) failed'),
           )
         }
-        userId = result.meta.last_row_id as number
+        const lid = d1LastInsertUserId(result.meta)
+        if (!lid) {
+          throw new Error('D1 last_row_id missing after users INSERT (full, Kakao)')
+        }
+        userId = lid
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
         if (
@@ -684,12 +703,16 @@ export async function handleKakaoOAuthCallback(c: Context<{ Bindings: Bindings }
           kakaoUser.id.toString(),
           profileImageUrl,
         ).run()
-        if (!result.success || result.meta?.last_row_id == null) {
+        if (!result.success) {
           throw new Error(
             String((result as { error?: string }).error) || msg,
           )
         }
-        userId = result.meta.last_row_id as number
+        const lidFb = d1LastInsertUserId(result.meta)
+        if (!lidFb) {
+          throw new Error('D1 last_row_id missing after users INSERT (fallback, Kakao)')
+        }
+        userId = lidFb
         console.warn(
           '[KAKAO_CALLBACK] users 약관 컬럼 없음—폴백 INSERT. D1에 migrations/0072_users_terms_privacy_marketing.sql 적용 권장.',
         )
@@ -707,6 +730,18 @@ export async function handleKakaoOAuthCallback(c: Context<{ Bindings: Bindings }
       
       user = newUser
     }
+
+    userId = Number(userId)
+    if (!Number.isFinite(userId) || userId < 1) {
+      throw new Error('Invalid user id before session (Kakao NaN/0)')
+    }
+    const userRowCheck = await DB.prepare('SELECT id FROM users WHERE id = ?')
+      .bind(userId)
+      .first<{ id: number }>()
+    if (!userRowCheck) {
+      throw new Error('User row not found for session (Kakao orphan id check)')
+    }
+    console.log(`[KAKAO USER UPSERT] userId=${userId}`)
 
     await ensureListedAdminRole(DB, user.email, userId)
     
@@ -737,16 +772,35 @@ export async function handleKakaoOAuthCallback(c: Context<{ Bindings: Bindings }
       throw new Error('세션을 저장하지 못했습니다.')
     }
 
+    const sessionPrefix = sessionToken.slice(0, 8)
+    console.log('[KAKAO_CALLBACK] sessions INSERT ok', {
+      success: kakaoIns.success,
+      user_id: userId,
+      session_prefix: sessionPrefix,
+      last_row_id: kakaoIns.meta?.last_row_id ?? null,
+    })
+
     // 6. 로그인 시간 업데이트는 생략 (컬럼 없음)
 
-    // 7. HttpOnly 쿠키 설정 + 리다이렉트
-    console.log('[KAKAO_CALLBACK] Setting session cookie and redirecting...')
+    // 7. HttpOnly 쿠키 설정 + 리다이렉트 (Domain 미지정 — session-cookie.ts)
     console.log('[KAKAO_CALLBACK] Login SUCCESS for user:', user.name)
-    
-    applySessionCookie(c, sessionToken, 7 * 24 * 60 * 60)
-    console.log('[KAKAO_CALLBACK] Session cookie set successfully')
+    const maxAgeSec = 7 * 24 * 60 * 60
+    const sessionCookie = applySessionCookie(c, sessionToken, maxAgeSec)
+    console.log('[KAKAO_CALLBACK] Set-Cookie preview (first 140 chars):', sessionCookie.slice(0, 140))
+    console.log('[KAKAO_CALLBACK] set-cookie-options', {
+      session_prefix: sessionPrefix,
+      Path: '/',
+      HttpOnly: true,
+      SameSite: 'None',
+      Secure: true,
+      Partitioned: true,
+      Domain: '(unset or .ms12.org; see session-cookie)',
+    })
+    console.log(
+      '[KAKAO_CALLBACK] next: 200 HTML + location.replace(/app/meeting) — Set-Cookie on same response as HTML body',
+    )
 
-    return redirectAfterOAuthOrDefault(c)
+    return redirectAfterOAuthOrDefault(c, sessionCookie)
     
   } catch (error) {
     console.error('[KAKAO_CALLBACK] ===== ERROR OCCURRED =====')

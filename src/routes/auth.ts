@@ -19,12 +19,15 @@ import {
   SQL_SESSION_EXPIRED,
   getCurrentUser,
   getSessionTokenFromRequest,
+  parseSessionTokenFromCookieHeaderString,
   formatSessionExpiresAtForDb,
+  SQL_SESSION_S_VALID,
 } from '../utils/helpers'
 import { requireAuth } from '../middleware/auth'
-import { ensureListedAdminRole, isListedAdminEmail } from '../utils/admin-emails'
 import { getAuthMode, isOpenGuestMode } from '../utils/auth-mode'
 import { ensureActorForMeEndpoint, type AppActor } from '../utils/actor'
+import { buildMeAuthDebug } from '../utils/auth-me-diagnostics'
+import { getUserMs12Plan } from '../utils/ms12-plan'
 
 const auth = new Hono<{ Bindings: Bindings }>()
 
@@ -244,26 +247,7 @@ auth.post('/login', async (c) => {
 auth.post('/logout', requireAuth, async (c) => {
   try {
     const user = c.get('user') as { id: number }
-    // Hono 내장 쿠키 파서 우선 사용 (Workers 환경)
-    let sessionToken = getCookie(c, 'session_token') || null
-    // 호환 fallback: Cookie 헤더 직접 파싱
-    if (!sessionToken) {
-      const cookieHeader = c.req.header('Cookie')
-      const match = cookieHeader?.match(/(?:^|;\s*)session_token=([^;]+)/)
-      let v = match?.[1]?.trim() || null
-      if (v && ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'")))) {
-        v = v.slice(1, -1)
-      }
-      sessionToken = v
-    }
-    if (sessionToken) {
-      try {
-        sessionToken = decodeURIComponent(sessionToken)
-      } catch {
-        /* ignore malformed encoding */
-      }
-      sessionToken = sessionToken.trim()
-    }
+    const sessionToken = getSessionTokenFromRequest(c)
 
     const { DB } = c.env
 
@@ -299,29 +283,138 @@ const ME_NO_STORE = { 'Cache-Control': 'private, no-store, must-revalidate' as c
 auth.get('/me', async (c) => {
   try {
     const mode = getAuthMode(c)
-    const user = await getCurrentUser(c)
-    let actor: AppActor | null = null
-    if (isOpenGuestMode(mode)) {
-      actor = await ensureActorForMeEndpoint(c)
-    } else {
-      if (user) {
-        actor = { type: 'user', id: String((user as User).id) }
+    let token = getSessionTokenFromRequest(c)
+    if (!token) {
+      const merged = [
+        c.req.header('Cookie') || c.req.header('cookie') || '',
+        typeof c.req.raw?.headers?.get === 'function'
+          ? c.req.raw.headers.get('Cookie') || c.req.raw.headers.get('cookie') || ''
+          : '',
+      ]
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .join('; ')
+      token = parseSessionTokenFromCookieHeaderString(merged)
+    }
+    if (!token) {
+      const g = getCookie(c, 'session_token')
+      if (g && g.trim()) token = g.trim()
+    }
+    const user = (await getCurrentUser(
+      c,
+      token ?? undefined,
+    )) as Record<string, unknown> | null
+    let diag = await buildMeAuthDebug(c, user, token)
+
+    // sessions는 있는데 users와 맞지 않으면(고아 user_id, 탈퇴 등) 고착 방지: 토큰 삭제 + 쿠키 무효
+    if (!user && token && c.env?.DB && diag.guestReason === 'user_not_found') {
+      try {
+        await c.env.DB.prepare('DELETE FROM sessions WHERE session_token = ?').bind(token).run()
+        clearSessionCookie(c)
+        console.warn(
+          '[AUTH ME] session removed: user_not_found (orphan or invalid user_id; client must re-login)',
+        )
+        diag = await buildMeAuthDebug(c, null, undefined)
+      } catch (e) {
+        console.error('[AUTH ME] failed to remove invalid session', e)
       }
     }
-    if (!user) {
+
+    let sessionUserIdLog: string | number = 'n/a'
+    if (token && c.env?.DB) {
+      try {
+        const sr = await c.env.DB.prepare(
+          `SELECT s.user_id FROM sessions s WHERE s.session_token = ? AND ${SQL_SESSION_S_VALID}`,
+        )
+          .bind(token)
+          .first<{ user_id: number }>()
+        sessionUserIdLog = sr?.user_id ?? 'n/a'
+      } catch {
+        sessionUserIdLog = 'query_err'
+      }
+    }
+    console.log(`[AUTH ME SESSION] userId=${String(sessionUserIdLog)}`)
+    console.log(`[AUTH ME USER FOUND] ${user ? 'yes' : 'no'}`)
+
+    const cookieHeader = c.req.header('Cookie') || c.req.header('cookie') || ''
+    const hasSessionTokenInHeader =
+      /(?:^|;\s*)session_token=/i.test(cookieHeader) ||
+      /(?:^|;\s*)ms12_guest=/i.test(cookieHeader)
+    const tokenPrefix = token ? token.slice(0, 8) : null
+
+    console.log('[API_AUTH_ME]', {
+      has_session_in_cookie_header: hasSessionTokenInHeader,
+      session_prefix: tokenPrefix,
+      sessionFound: diag.sessionFound,
+      sessionExpired: diag.sessionExpired,
+      userFound: diag.userFound,
+      guestReason: user ? 'ok' : diag.guestReason,
+    })
+
+    // 1순위: 세션(로그인) — authMode=demo 여도 게스트로 덮지 않음
+    if (user) {
+      const u = user
+      const { password_hash: _h, password: _p, ...userWithoutPassword } = u
+      const uid = Number(u.id)
+      const ms12_plan = Number.isFinite(uid) ? await getUserMs12Plan(c, uid) : 'free'
+      const actor: AppActor = { type: 'user', id: String(u.id) }
+      const nameVal = u.name != null ? String(u.name) : ''
+      const emailVal = u.email != null ? String(u.email) : ''
       return c.json(
-        { success: true, data: null, authMode: mode, actor, message: undefined },
+        {
+          success: true,
+          data: {
+            ...userWithoutPassword,
+            ms12_plan: ms12_plan,
+            name: nameVal || null,
+            email: emailVal || null,
+          },
+          authMode: mode,
+          actor,
+          message: undefined,
+          hasCookie: diag.hasCookie,
+          sessionPrefix: diag.sessionPrefix,
+          sessionFound: diag.sessionFound,
+          userFound: diag.userFound,
+          sessionExpired: diag.sessionExpired,
+          guestReason: diag.guestReason,
+        },
         200,
         ME_NO_STORE
       )
     }
-    const u = user as Record<string, unknown>
-    const { password_hash: _h, password: _p, ...userWithoutPassword } = u
-    if (actor == null) {
-      actor = { type: 'user', id: String(u.id) }
+
+    // 2순위: 세션 없음 — optional/demo 등에서만 게스트 actor
+    let actor: AppActor | null = null
+    if (isOpenGuestMode(mode)) {
+      console.log('[API_AUTH_ME] guest-fallback', {
+        reason: diag.guestReason,
+        hasCookie: diag.hasCookie,
+        sessionPrefix: diag.sessionPrefix,
+        sessionFound: diag.sessionFound,
+        sessionExpired: diag.sessionExpired,
+        userFound: diag.userFound,
+      })
+      actor = await ensureActorForMeEndpoint(c)
     }
+    const guestData =
+      actor && actor.type === 'guest'
+        ? { type: 'guest' as const, id: String(actor.id), name: '게스트' }
+        : null
     return c.json(
-      { success: true, data: userWithoutPassword, authMode: mode, actor, message: undefined },
+      {
+        success: true,
+        data: guestData,
+        authMode: mode,
+        actor,
+        message: undefined,
+        hasCookie: diag.hasCookie,
+        sessionPrefix: diag.sessionPrefix,
+        sessionFound: diag.sessionFound,
+        userFound: diag.userFound,
+        sessionExpired: diag.sessionExpired,
+        guestReason: diag.guestReason,
+      },
       200,
       ME_NO_STORE
     )

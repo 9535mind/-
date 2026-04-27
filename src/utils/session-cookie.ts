@@ -1,9 +1,9 @@
 /**
- * HttpOnly 세션 쿠키 — MS12 (ms12.org, ms12.pages.dev)
- * OAuth(카카오 등) 302 top-level + 크로스 사이트 탐색에서도 저장되게 하려면 SameSite=None; Secure(HTTPS)일 때만.(로컬 http 는 Lax)
+ * HttpOnly 세션 쿠키 — MS12 (Cloudflare Workers / Pages)
+ * 크로스 사이트(OAuth) 이후에도 전송되도록 SameSite=None; Secure 고정.
  */
 import { Context } from 'hono'
-import { deleteCookie, setCookie } from 'hono/cookie'
+import { deleteCookie, generateCookie } from 'hono/cookie'
 import { isLocalDevHostname, isMs12Hostname, requestHostname } from './oauth-public'
 
 function isPublicHttpsHost(hostname: string): boolean {
@@ -22,33 +22,62 @@ export function isSecureCookieRequest(c: Context): boolean {
   return new URL(c.req.url).protocol === 'https:'
 }
 
-export function sessionCookieDomain(_c: Context): string | undefined {
-  /** Domain 미지정(호스트 전용) — Domain=… 지정 시 리다이렉트 직후 세션이 누락되는 사례 완화 */
-  return undefined
+/** apex·www·하위호스트 쿠키 공유 — `Domain=.ms12.org` (점 포함)로 고정 */
+export const MS12_SESSION_COOKIE_DOMAIN = '.ms12.org'
+
+function sessionTokenDomainForSetCookie(c: Context): string | null {
+  const h = (requestHostname(c) || '').toLowerCase()
+  if (isLocalDevHostname(h)) return null
+  if (h.includes('pages.dev')) return null
+  if (h === 'ms12.org' || h === 'www.ms12.org' || h.endsWith('.ms12.org')) {
+    return MS12_SESSION_COOKIE_DOMAIN
+  }
+  return null
 }
 
-export function applySessionCookie(c: Context, token: string, maxAgeSeconds: number) {
-  const domain = sessionCookieDomain(c)
-  const secure = isSecureCookieRequest(c)
-  /** SameSite=None 은 Secure 필수 — 로컬 http 에서는 Lax */
-  const sameSite = secure ? ('None' as const) : ('Lax' as const)
-  setCookie(c, 'session_token', token, {
+/**
+ * Path=/, HttpOnly, Secure, SameSite=None — 프로덕션은 Domain=.ms12.org (sessionTokenDomainForSetCookie).
+ */
+export function applySessionCookie(
+  c: Context,
+  token: string,
+  maxAgeSeconds: number,
+): string {
+  const domain = sessionTokenDomainForSetCookie(c)
+  const line = generateCookie('session_token', token, {
     path: '/',
     httpOnly: true,
-    secure,
-    sameSite,
+    secure: true,
+    sameSite: 'None',
+    domain: domain || undefined,
     maxAge: Math.floor(maxAgeSeconds),
-    ...(domain ? { domain } : {}),
   })
+  c.header('Set-Cookie', line, { append: true })
+  return line
 }
 
-export function clearSessionCookie(c: Context) {
+export function clearSessionCookie(c: Context): void {
   const secure = isSecureCookieRequest(c)
   const sameSiteLax = { path: '/', secure, sameSite: 'Lax' as const }
   const sameSiteNone = { path: '/', secure, sameSite: 'None' as const }
+  const domainOpts = [undefined, 'ms12.org', 'ms12.pages.dev', '.ms12.org'] as const
   for (const base of [sameSiteLax, sameSiteNone]) {
-    deleteCookie(c, 'session_token', base)
-    deleteCookie(c, 'session_token', { ...base, domain: 'ms12.org' })
-    deleteCookie(c, 'session_token', { ...base, domain: 'ms12.pages.dev' })
+    for (const domain of domainOpts) {
+      deleteCookie(c, 'session_token', domain ? { ...base, domain } : base)
+    }
+  }
+  if (secure) {
+    const domain = sessionTokenDomainForSetCookie(c)
+    const clearVal = 'session_token=; Path=/; HttpOnly; Max-Age=0'
+    const domPart = domain ? `; Domain=${domain}` : ''
+    c.header(
+      'Set-Cookie',
+      `${clearVal}${domPart}; SameSite=None; Secure`,
+      { append: true },
+    )
+  } else {
+    c.header('Set-Cookie', 'session_token=; Path=/; HttpOnly; Max-Age=0; SameSite=Lax', {
+      append: true,
+    })
   }
 }

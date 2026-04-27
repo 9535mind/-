@@ -1,4 +1,6 @@
 /**
+ * ═══ FOREST ZONE (FROZEN) ═══ 임의 수정·리팩터 금지. MS12와 통합 금지. docs/FOREST-FROZEN.md
+ *
  * 유아부(preschool) JTT-Kinder — 8문항 · 세모(△)/네모(□) · 황금 밸런스(축당 △2·□2)
  * 초등부(elementary) 12문항 — 세모(△)/네모(□) · 황금 밸런스(축당 △3·□3)
  * forest.html SCHEMA.rawOTotalsFromCounts 공식·문항 순서·id(ps21_* / el_*)와 반드시 맞출 것

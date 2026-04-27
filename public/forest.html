@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- ═══ FOREST ZONE (FROZEN) ═══ 이 파일·forest 연동은 완성된 독립 서비스. 임의 수정 금지. 변경은 문서·승인: docs/FOREST-FROZEN.md · .cursor/rules/forest-frozen.mdc ═══ -->
 <!-- 공식 접속 URL: https://mindstory.kr/forest.html (JTT-Kinder · Jahreszeiten Temperament-Test für Kinder) -->
 <html lang="ko">
 <head>
@@ -962,10 +963,10 @@
      * GAS 웹앱 /exec URL — 로컬·디버그용. 운영 POST 는 Worker 의 FOREST_GAS_WEBHOOK_URL(Pages Secrets 등)을 씁니다.
      * 시트 POST 는 동일 출처 POST /api/forest-gas-webhook → Worker→GAS (클라이언트가 이 상수를 직접 호출하지 않음).
      * GAS doPost: JSON.parse(e.postData.contents), 응답은 JSON MIME 권장. 배포 액세스: 모든 사용자.
-     * 배포 갱신 시: 이 URL과 Cloudflare 의 FOREST_GAS_WEBHOOK_URL 을 동일한 /exec 로 맞출 것. (예: v65 2026-04-18)
+     * 배포 갱신 시: 이 URL과 Cloudflare 의 FOREST_GAS_WEBHOOK_URL 을 동일한 /exec 로 맞출 것. (예: v78 2026-04-26 41열)
      */
     const FOREST_SHEETS_WEBHOOK_URL =
-        'https://script.google.com/macros/s/AKfycbykAF9oeJuarWapeOYPPW_qtQ8svVvSb6N_Y1_U5MSpBVo679I6_pratwPVcbNnucq0/exec';
+        'https://script.google.com/macros/s/AKfycbyKAgk_MEojQZvEeV1b7lSoaLjNAO-KaoUU5odf3i4f38xzqxYk4iWhluKW9HpeJQXC/exec';
 
     /** forest_auth_debug — 예비 플래그(숲 앱은 세션 API를 호출하지 않음). */
     /** ?forest_report_debug=1 또는 ms_forest_report_debug=1 — /api/forest-gas-report 응답 상태·본문 앞부분 로깅 */

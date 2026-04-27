@@ -7,22 +7,17 @@ import { Bindings } from '../types/database'
 import { ms12Access } from '../middleware/ms12-access'
 import { successResponse, errorResponse } from '../utils/helpers'
 import type { AppActor } from '../utils/actor'
-import { participantKey } from '../utils/actor'
+import { assertIsRoomParticipant } from '../utils/ms12-room-participant-check'
+import { getUserMs12Plan, getMs12Capabilities, type Ms12Plan } from '../utils/ms12-plan'
+import type { Ms12Capabilities } from '../lib/ms12-plan'
+import { assertRoomOpenForMutations } from '../lib/ms12-room-mutation-guard'
 
 async function requireRoomParticipant(
   c: { env: { DB: D1Database } },
   meetingId: string,
   actor: AppActor
 ): Promise<void> {
-  const k = participantKey(actor)
-  const row = await c.env.DB.prepare(
-    `SELECT 1 AS ok FROM ms12_room_participants
-     WHERE meeting_id = ? AND participant_key = ? AND left_at IS NULL`
-  )
-    .bind(meetingId, k)
-    .first()
-  if (row) return
-  throw new HTTPException(403, { message: '이 회의에 입장한 참석자만 볼 수 있습니다.' })
+  await assertIsRoomParticipant(c.env.DB, meetingId, actor)
 }
 
 type Ctx = { Bindings: Bindings; Variables: { actor: AppActor } }
@@ -42,6 +37,17 @@ const VIS = ['public_internal', 'restricted', 'private_admin'] as const
 
 function nowIso() {
   return new Date().toISOString()
+}
+
+function logMs12PlanIf(
+  c: { env: { MS12_LOG_PLAN?: string } },
+  plan: Ms12Plan,
+  cap: Ms12Capabilities,
+) {
+  const v = c.env?.MS12_LOG_PLAN
+  if (v === '1' || (typeof v === 'string' && v.toLowerCase() === 'true')) {
+    console.log('[MS12 PLAN]', plan, cap)
+  }
 }
 
 function randomId(): string {
@@ -82,6 +88,9 @@ function canReadRecord(row: Record<string, unknown>, byKey: string): boolean {
 }
 
 r.get('/meeting-records', ms12Access, async (c) => {
+  if (c.get('actor').type === 'guest') {
+    return c.json(errorResponse('로그인한 뒤 회의 기록을 조회할 수 있습니다.'), 403)
+  }
   const by = participantKey(c.get('actor'))
   const q = (c.req.query('q') || '').trim()
   const category = (c.req.query('category') || '').trim()
@@ -160,6 +169,9 @@ r.get('/meeting-records/:rid', ms12Access, async (c) => {
 
 r.post('/meeting-records', ms12Access, async (c) => {
   const actor = c.get('actor')
+  if (actor.type === 'guest') {
+    return c.json(errorResponse('서버에 저장하려면 로그인이 필요합니다.'), 403)
+  }
   const by = participantKey(actor)
   let body: Record<string, unknown> = {}
   try {
@@ -220,6 +232,8 @@ r.post('/meeting-records', ms12Access, async (c) => {
       }
       throw e
     }
+    const roomGuard = await assertRoomOpenForMutations(c, roomId)
+    if (roomGuard) return roomGuard
   }
   try {
     const exists = await c.env.DB.prepare(`SELECT 1 AS o FROM ms12_meeting_records WHERE id = ?`)
@@ -227,6 +241,28 @@ r.post('/meeting-records', ms12Access, async (c) => {
       .first()
     if (exists) {
       return c.json(errorResponse('이미 사용 중인 id 입니다. id를 생략하면 새로 발급됩니다.'), 409)
+    }
+    if (actor.type === 'user') {
+      const plan = await getUserMs12Plan(c, parseInt(actor.id, 10))
+      const cap = getMs12Capabilities(plan)
+      logMs12PlanIf(c, plan, cap)
+      if (cap.maxRecords !== Infinity) {
+        const cnt = await c.env.DB.prepare(
+          `SELECT COUNT(*) AS n FROM ms12_meeting_records WHERE created_by_key = ?`
+        )
+          .bind(by)
+          .first<{ n: number }>()
+        if ((cnt?.n ?? 0) >= cap.maxRecords) {
+          const old = await c.env.DB.prepare(
+            `SELECT id FROM ms12_meeting_records WHERE created_by_key = ? ORDER BY created_at ASC, id ASC LIMIT 1`
+          )
+            .bind(by)
+            .first<{ id: string }>()
+          if (old?.id) {
+            await c.env.DB.prepare(`DELETE FROM ms12_meeting_records WHERE id = ?`).bind(old.id).run()
+          }
+        }
+      }
     }
     await c.env.DB.prepare(
       `INSERT INTO ms12_meeting_records
@@ -268,6 +304,9 @@ r.post('/meeting-records', ms12Access, async (c) => {
 })
 
 r.patch('/meeting-records/:rid', ms12Access, async (c) => {
+  if (c.get('actor').type === 'guest') {
+    return c.json(errorResponse('로그인한 뒤 기록을 수정할 수 있습니다.'), 403)
+  }
   const by = participantKey(c.get('actor'))
   const id = c.req.param('rid')
   if (!/^[a-f0-9]+$/i.test(id)) {

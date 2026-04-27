@@ -126,6 +126,11 @@ export function isLifelongLmsProductHost(hostname: string): boolean {
   return false
 }
 
+/** forest · LMS(교육 계열) — MS12-only 경로는 Worker에서 차단(리다이렉트·ms12.org 이동 없음) */
+export function isEducationProductHost(hostname: string): boolean {
+  return isForestProductHost(hostname) || isLifelongLmsProductHost(hostname)
+}
+
 export function isPrivateLanHostname(hostname: string): boolean {
   const h0 = (hostname || '').replace(/^\[|\]$/g, '')
   if (!h0) return false
