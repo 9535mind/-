@@ -2316,7 +2316,15 @@
         if (!saveDateEl.value) saveDateEl.value = new Date().toISOString().slice(0, 10)
       } catch (e) {}
     }
-    if (localRow && localRow.title && saveTitleEl) saveTitleEl.value = localRow.title
+    if (saveTitleEl) {
+      if (localRow && localRow.title) {
+        var lt0 = String(localRow.title).trim()
+        saveTitleEl.value = lt0 === '새 회의' ? ms12SuggestedTitleOncePerRoom(id) : localRow.title
+      } else if (!String(saveTitleEl.value || '').trim()) {
+        saveTitleEl.value = ms12SuggestedTitleOncePerRoom(id)
+      }
+    }
+    initMeetingCategoryPickers()
     if (saveBtn) {
       saveBtn.addEventListener('click', function () {
         var titleS = saveTitleEl && saveTitleEl.value ? String(saveTitleEl.value).trim() : ''
@@ -2524,8 +2532,13 @@
         try {
           recordMeetingLocal(d)
         } catch (e) {}
-        for (var i = 0; i < titleEls.length; i++) titleEls[i].textContent = d.title || '회의'
-        if (saveTitleEl && d.title) saveTitleEl.value = d.title
+        for (var i = 0; i < titleEls.length; i++)
+          titleEls[i].textContent = ms12DisplayTitle(id, d.title || '회의')
+        if (saveTitleEl) {
+          var sv = d.title != null ? String(d.title).trim() : ''
+          if (!sv || sv === '새 회의') saveTitleEl.value = ms12SuggestedTitleOncePerRoom(id)
+          else saveTitleEl.value = sv
+        }
         for (var jn = 0; jn < codeEls.length; jn++) codeEls[jn].textContent = d.meetingCode || '—'
         var lnkB = document.getElementById('ms12-linked-ann')
         var lnkL = document.getElementById('ms12-linked-ann-line')
@@ -2899,7 +2912,7 @@
         return
       }
       setSt('회의를 준비하는 중…')
-      var payload = { title: title || '새 회의' }
+      var payload = { title: title || ms12NextMeetingTitleForToday() }
       if (type) payload.type = type
       A.createMeeting(payload)
         .then(function (res) {
@@ -2919,12 +2932,12 @@
       if (!qs) return
       ev.preventDefault()
       if (qs === 'start') {
-        doCreate('새 회의', '')
+        doCreate(ms12NextMeetingTitleForToday(), '')
         return
       }
       if (qs === 'quick') {
         doCreate(
-          trig.getAttribute('data-ms12-title') || '새 회의',
+          trig.getAttribute('data-ms12-title') || ms12NextMeetingTitleForToday(),
           trig.getAttribute('data-ms12-type') || ''
         )
       }
@@ -2963,12 +2976,12 @@
           })
       }
       if (act === 'meeting-start') {
-        runCreate({ title: '새 회의' })
+        runCreate({ title: ms12NextMeetingTitleForToday() })
         return
       }
       if (act === 'meeting-start-quick') {
         runCreate({
-          title: el.getAttribute('data-ms12-title') || '새 회의',
+          title: el.getAttribute('data-ms12-title') || ms12NextMeetingTitleForToday(),
           type: el.getAttribute('data-ms12-type') || undefined,
         })
         return
