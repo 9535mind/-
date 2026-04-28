@@ -1,4 +1,4 @@
-/** MS12 /app* — 공개·게스트 기본, OAuth 는 loginAside 만 */
+/** MS12 /app* — 공개 모드 (계정 없음) */
 import { Hono, type Context } from 'hono'
 import { Bindings } from '../types/database'
 import { getAuthMode } from '../utils/auth-mode'
@@ -8,13 +8,13 @@ import { SITE_PUBLIC_ORIGIN } from '../utils/oauth-public'
 const p = new Hono<{ Bindings: Bindings }>({ strict: false })
 
 /** Pages 배포·소스 ?v= 일치(배포 후 페이지 소스에 이 주석이 보이면 새 Worker) */
-const MS12_BUILD = '20260429sessionCookieDebug'
+const MS12_BUILD = '20260429roomFormV2'
 const MS12_ACTIONS_SCRIPT = `/static/js/ms12-actions.js?v=${MS12_BUILD}`
 const MS12_APP_SCRIPT = `/static/js/ms12-app.js?v=${MS12_BUILD}`
 const waitBlock = '<p class="ms12-p" id="ms12-wait" style="color:rgb(100 116 139)">불러오는 중…</p>'
 /** /app(엔트리)로 가는 뒤로가기: 텍스트 «시작화면» 대신 홈 아이콘 */
 const MS12_HOME_LINK =
-  '<a href="/app" class="ms12-home-link" title="시작 화면" aria-label="시작 화면(홈)"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></a>'
+  '<a href="/app/meeting" class="ms12-home-link" title="회의 허브" aria-label="회의 허브(홈)"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></a>'
 
 const commonStyles = `
   .ms12-wrap{max-width:48rem;margin:0 auto;padding:2rem max(1.25rem, env(safe-area-inset-left)) 2rem max(1.25rem, env(safe-area-inset-right));padding-bottom:max(2rem, calc(0.75rem + env(safe-area-inset-bottom)))}
@@ -87,6 +87,12 @@ const commonStyles = `
   .ms12-input{width:100%;max-width:24rem;padding:0.5rem 0.65rem;border:1px solid rgb(203 213 225);border-radius:0.5rem;font-size:1rem;}
   .ms12-room-wrap{display:grid;gap:1rem;}
   @media (min-width: 768px) { .ms12-room-wrap{grid-template-columns:1fr 280px;} }
+  body[data-ms12-route=meeting_room] .ms12-wrap{padding-bottom:max(10rem,calc(8rem + env(safe-area-inset-bottom)))}
+  .ms12-live-caption-wrap{position:fixed;left:0;right:0;bottom:0;z-index:40;padding:0 max(0.65rem, env(safe-area-inset-left)) max(0.55rem, env(safe-area-inset-bottom)) max(0.65rem, env(safe-area-inset-right));pointer-events:none}
+  .ms12-live-caption-inner{pointer-events:auto;max-width:min(1120px,100%);margin:0 auto;padding:0.55rem 0.75rem 0.65rem;border-radius:0.65rem 0.65rem 0 0;background:rgba(15,23,42,0.9);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 -8px 32px rgba(0,0,0,0.18);border:1px solid rgba(255,255,255,0.08);border-bottom:0}
+  .ms12-live-caption-label{margin:0 0 0.3rem 0;font-size:0.68rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5)}
+  .ms12-live-caption-text{margin:0;font-size:clamp(0.95rem,2.6vw,1.18rem);line-height:1.48;color:rgba(248,250,252,0.98);white-space:pre-wrap;word-break:break-word;max-height:6.8rem;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .ms12-live-caption-text--idle{font-size:0.82rem;line-height:1.45;color:rgba(226,232,240,0.72)!important;font-weight:400}
   .ms12-panel{padding:0.9rem 1rem;border:1px solid rgb(226 232 240);border-radius:0.75rem;background:#fff;}
   .ms12-notes{min-height:12rem;width:100%;padding:0.6rem 0.75rem;border:1px solid rgb(203 213 225);border-radius:0.5rem;font-size:0.95rem;resize:vertical;}
   .ms12-part-list{list-style:none;padding:0;margin:0.5rem 0 0 0;}
@@ -94,7 +100,11 @@ const commonStyles = `
   .ms12-ai-out{min-height:4.5rem;font-size:0.88rem;white-space:pre-wrap;color:rgb(55 65 81);line-height:1.45;}
   .ms12-mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:0.82rem;}
   .ms12-action-row{display:flex;flex-wrap:wrap;align-items:center;gap:0.4rem 0.6rem;padding:0.4rem 0;border-bottom:1px solid rgb(241 245 249);font-size:0.88rem;}
-  .ms12-tab-bar{display:flex;flex-wrap:wrap;gap:0.35rem;margin:0 0 0.25rem 0;align-items:center}
+  .ms12-cat-picker summary{list-style:none}
+  .ms12-cat-picker summary::-webkit-details-marker{display:none}
+  .ms12-cat-chip{display:inline-block;padding:0.28rem 0.55rem;border-radius:0.45rem;border:1px solid rgb(226 232 240);background:rgb(255 255 255);color:rgb(51 65 85);font-size:0.8rem;cursor:pointer;font-family:inherit}
+  .ms12-cat-chip:hover{border-color:rgb(165 180 252);background:rgb(238 242 255)}
+  .ms12-cat-chip--on{border-color:rgb(79 70 229);background:rgb(238 242 255);color:rgb(49 46 129);font-weight:600}
   .ms12-tab{display:inline-block;padding:0.38rem 0.7rem;border-radius:9999px;border:1px solid rgb(203 213 225);background:rgb(248 250 252);color:rgb(51 65 85);font-size:0.86rem;cursor:pointer;font-weight:500}
   .ms12-tab:hover{border-color:rgb(165 180 252);background:rgb(238 242 255)}
   .ms12-tab--active{background:rgb(79 70 229);color:#fff;border-color:rgb(79 70 229)}
@@ -156,27 +166,24 @@ const commonStyles = `
 
 function guestNoJs(heading: string): string {
   return `<h1 class="ms12-h1">${heading}</h1>
-  <p class="ms12-p" style="font-size:0.9rem">JS 필요. <a href="/app" class="text-indigo-600">이동</a></p>`
+  <p class="ms12-p" style="font-size:0.9rem">JS 필요. <a href="/app/meeting" class="text-indigo-600">이동</a></p>`
 }
 
 function loginAside(
-  nextPath: string,
-  k: (n: string) => string,
-  g: (n: string) => string,
-  openByDefault = true
+  _nextPath: string,
+  _k: (n: string) => string,
+  _g: (n: string) => string,
+  _openByDefault = true,
 ): string {
-  return `<aside class="ms12-login-aside" aria-label="계정·로그인(선택)">
-  <details${openByDefault ? ' open' : ''}>
-    <summary>계정 · 로그인 (선택)</summary>
-    <p class="ms12-login-aside__links" style="margin:0.4rem 0 0 0;line-height:1.5">기기를 바꿔도 이어 쓰려면 연동할 수 있습니다.
-      <a href="${k(nextPath)}" data-ms12-login-lnk${OAUTH_A_ATTRS}>카카오</a> ·
-      <a href="${g(nextPath)}" data-ms12-login-lnk${OAUTH_A_ATTRS}>Google</a>
-    </p>
-  </details>
-  <p class="ms12-js-logout-line" style="margin:0.6rem 0 0 0">
-    <button type="button" class="ms12-btn ms12-btn--muted" style="font-size:0.8rem;padding:0.3rem 0.6rem" data-ms12-logout>로그아웃</button>
-  </p>
-</aside>`
+  return ''
+}
+
+/** 레거시 템플릿 인자 호환 — OAuth 비활성화 */
+function kakao(_next: string): string {
+  return ''
+}
+function google(_next: string): string {
+  return ''
 }
 
 type Ms12Route =
@@ -238,14 +245,6 @@ ${canTag}  <link rel="stylesheet" href="/static/css/app.css" />
 </html>`
 }
 
-const oauthNext = (path: string) => encodeURIComponent(path)
-const kakao = (next: string) => `/api/auth/kakao/login?next=${oauthNext(next)}`
-const google = (next: string) => `/api/auth/google/start?next=${oauthNext(next)}`
-/** iframe·인앱 브라우저에서 OAuth가 막히는 것 방지 — 항상 최상위 창에서 시작 */
-const OAUTH_A_ATTRS = ' target="_top" rel="noopener noreferrer"'
-/** OAuth·이메일 로그인 후 기본 복귀(로그인 직후 첫 화면 — 데스크) */
-const POST_LOGIN_LANDING = '/app/meeting'
-
 const ENTRY_MARQUEE_LINES: readonly [string, string, string] = [
   '회의를 기록하면, 생각이 정리됩니다.',
   '생각이 정리되면, 실행이 쉬워집니다.',
@@ -269,10 +268,8 @@ function entryMarqueeFlow(): string {
 </div>`
 }
 
-/** 첫 화면: 연출(어두운 캔버스) + MS Platform + 로그인, 하단 느린 흐름 문구 */
+/** 첫 화면: 연출 + 회의 시작 */
 function layoutEntry(authMode: string): string {
-  const emailLogin = `/app/login?next=${oauthNext(POST_LOGIN_LANDING)}`
-
   const entryStyles = `
   .ms12-entry-root{min-height:100dvh;overflow-x:hidden;position:relative;
     background:radial-gradient(120% 80% at 50% 20%,#0c1222 0%,#04060d 45%,#020308 100%);
@@ -410,13 +407,6 @@ function layoutEntry(authMode: string): string {
       <div class="ms12-entry-card" id="ms12-entry-login">
         <button type="button" class="ms12-entry-startbtn" data-ms12-entry-qs="start" aria-label="새 회의로 시작">회의 시작</button>
         <p id="ms12-entry-status" class="ms12-entry-status" role="status" aria-live="polite"></p>
-        <div class="ms12-entry-oauth-btns">
-          <a class="ms12-entry-kakao" href="${kakao(POST_LOGIN_LANDING)}" data-ms12-login-lnk${OAUTH_A_ATTRS}>카카오로 계속하기</a>
-          <a class="ms12-entry-googlebtn" href="${google(POST_LOGIN_LANDING)}" data-ms12-login-lnk${OAUTH_A_ATTRS}><svg class="ms12-entry-oauth__ic" width="20" height="20" viewBox="0 0 48 48" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.8 7.18l7.73 6c4.51-4.18 7.11-10.32 7.11-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg><span class="ms12-entry-oauth__label">Google로 계속하기</span></a>
-        </div>
-        <p class="ms12-entry-or" data-ms12-login-lnk>또는</p>
-        <a class="ms12-entry-mail-sec" href="${emailLogin}" data-ms12-login-lnk>이메일·비밀번호로 로그인</a>
-        <p class="ms12-entry-card__p ms12-js-login-only-copy" data-ms12-login-lnk style="margin-top:0.85rem">로그인하면 서버에 저장·초대 링크·다른 기기에서 이어쓰기가 됩니다.</p>
         <div class="ms12-entry-chips" aria-label="빠른 시작">
           <button type="button" class="ms12-entry-chip" data-ms12-entry-qs="quick" data-ms12-type="team" data-ms12-title="팀 회의">팀</button>
           <button type="button" class="ms12-entry-chip" data-ms12-entry-qs="quick" data-ms12-type="class" data-ms12-title="수업 회의">수업</button>
@@ -424,11 +414,8 @@ function layoutEntry(authMode: string): string {
           <button type="button" class="ms12-entry-chip" data-ms12-entry-qs="quick" data-ms12-type="planning" data-ms12-title="기획 회의">기획</button>
         </div>
         <p class="ms12-entry-policy-line js-ms12-policy" style="margin:0.7rem 0 0 0;font-size:0.7rem;line-height:1.45;color:rgba(186,198,220,0.88);text-align:center" aria-label="플랜 안내"></p>
-        <p class="ms12-js-logout-line" style="margin-top:0.9rem;text-align:center">
-          <button type="button" class="ms12-btn ms12-btn--muted" style="font-size:0.78rem;padding:0.28rem 0.6rem" data-ms12-logout>로그아웃</button>
-        </p>
       </div>
-      <p class="ms12-entry-breadcrumb"><a href="/app/meeting">로그인 후 회의</a> · <a href="/app/hub">전체 메뉴</a></p>
+      <p class="ms12-entry-breadcrumb"><a href="/app/meeting">회의 허브</a> · <a href="/app/hub">전체 메뉴</a></p>
     </div>
   </div>
   ${entryMarqueeFlow()}
@@ -448,7 +435,7 @@ const HUB_INNER = `<div class="ms12-header-row">
          <div><span class="ms12-badge js-ms12-badge" style="background:rgb(220 252 231);color:rgb(22 101 52)">준비됨</span></div>
        </div>
        <p class="ms12-p" style="margin-top:0.5rem">안녕하세요, <span class="js-ms12-user-name" style="font-weight:600">—</span> <span class="js-ms12-user-suffix" style="font-weight:400">님</span></p>
-       <p class="ms12-p ms12-muted" style="margin-top:0.25rem">회의·기록·문서·보관함까지 한 흐름으로 이용할 수 있습니다. (<a href="/app/login" class="text-indigo-600" style="text-decoration:underline">로그인</a>은 선택입니다.)</p>
+       <p class="ms12-p ms12-muted" style="margin-top:0.25rem">회의·기록·문서·보관함까지 한 흐름으로 이용할 수 있습니다.</p>
        <p class="ms12-subtitle" style="margin-top:1.25rem">빠른 작업</p>
        <div class="ms12-card-grid" style="margin-top:0.5rem;grid-template-columns:repeat(auto-fill,minmax(200px,1fr))">
          <a class="ms12-big-btn" href="/app/meeting/new" style="text-decoration:none">
@@ -594,8 +581,8 @@ p.get('/meeting/new', (c) =>
          <p class="ms12-p" style="font-size:0.88rem;color:rgb(100 116 139);margin:0 0 0.75rem 0">여기서 제목을 입력한 뒤「회의 열기」로 회의방이 만들어집니다.</p>
          <label class="ms12-p" style="display:block;font-weight:500">회의 제목</label>
          <input class="ms12-input" name="title" type="text" required maxlength="200" placeholder="예: 4월 운영 모임" />
-         <label class="ms12-p" style="display:block;margin-top:0.75rem;font-weight:500">호스트로 표시할 이름(선택·게스트)</label>
-         <input class="ms12-input" id="ms12-input-new-displayname" name="displayName" type="text" maxlength="40" placeholder="없으면 '게스트'" autocomplete="name" />
+         <label class="ms12-p" style="display:block;margin-top:0.75rem;font-weight:500">표시 이름(선택)</label>
+         <input class="ms12-input" id="ms12-input-new-displayname" name="displayName" type="text" maxlength="40" placeholder="없으면 방문 사용자" autocomplete="name" />
          <p style="margin-top:1rem"><button type="submit" class="ms12-btn ms12-btn--teal">회의 열기</button></p>
        </form>
        ${loginAside('/app/meeting/new', kakao, google)}`,
@@ -619,7 +606,7 @@ p.get('/join', (c) =>
          <label class="ms12-p" style="display:block;font-weight:500">회의 코드</label>
          <input class="ms12-input" name="code" type="text" required autocomplete="off" placeholder="8자리 코드" />
          <label class="ms12-p" style="display:block;margin-top:0.75rem;font-weight:500">목록에 쓸 이름(선택)</label>
-         <input class="ms12-input" id="ms12-input-join-displayname" name="displayName" type="text" maxlength="40" placeholder="없으면 '게스트'" autocomplete="name" />
+         <input class="ms12-input" id="ms12-input-join-displayname" name="displayName" type="text" maxlength="40" placeholder="없으면 방문 사용자" autocomplete="name" />
          <p style="margin-top:1rem"><button type="submit" class="ms12-btn">입장</button></p>
        </form>
        <p id="ms12-join-err" class="ms12-p" style="color:rgb(185 28 28);display:none"></p>
@@ -817,9 +804,8 @@ p.get('/meeting', (c) =>
        </header>
        <section class="ms12-mh-hero" aria-labelledby="ms12-mh-title">
          <h1 id="ms12-mh-title" class="ms12-mh-title">오늘 회의를 시작하세요</h1>
-         <p class="ms12-mh-sub">기록하면 실행·문서로 이어집니다. 로그인 후 개설 시 서버 저장·초대가 됩니다.</p>
+         <p class="ms12-mh-sub">기록하면 실행·문서로 이어집니다.</p>
          <button type="button" class="ms12-mh-cta" data-ms12-action="meeting-start">회의 시작</button>
-         <p class="ms12-mh-cta-hint">로그인 전에는 안내에 따라 로그인한 뒤 같은 흐름으로 개설됩니다.</p>
          <p class="ms12-mh-policy js-ms12-policy" style="margin:0.4rem auto 0;max-width:22rem;font-size:0.78rem;line-height:1.45;color:rgb(100 116 139);text-align:center" aria-label="플랜 안내"></p>
          <p id="ms12-mh-status" class="ms12-mh-status" role="status" aria-live="polite"></p>
          <div class="ms12-mh-quick" aria-label="빠른 시작">
@@ -858,11 +844,7 @@ p.get('/meeting', (c) =>
          </div>
        </section>
        <div class="ms12-mh-foot">
-         <p class="js-ms12-mh-guest-line" style="display:none">로그인 없이 참여·이 기기 메모는 가능하고, <strong>회의 개설</strong>·서버 기록·보관함은 로그인 후 이용할 수 있습니다.</p>
-         <p class="js-ms12-mh-auth-line" style="display:none">기록·보관이 계정에 연결됩니다.</p>
-         <p class="ms12-mh-oauth js-ms12-mh-guest-line" style="display:none;margin-top:0.5rem">
-           <a href="${kakao('/app/meeting')}" data-ms12-login-lnk${OAUTH_A_ATTRS}>카카오</a> · <a href="${google('/app/meeting')}" data-ms12-login-lnk${OAUTH_A_ATTRS}>Google</a>
-         </p>
+         <p class="ms12-muted" style="font-size:0.86rem;margin:0">MS12 회의 플랫폼 — 계정 없이 바로 이용합니다.</p>
        </div>
        ${loginAside('/app/meeting', kakao, google)}
        </div>`,
@@ -884,21 +866,29 @@ p.get('/meeting/:id', (c) => {
       `data-ms12-meeting-id="${escapeHtml(id)}"`,
       guestNoJs('회의'),
       `${MS12_HOME_LINK}
-       <h1 class="ms12-h1">회의 <span class="ms12-room-title js-ms12-room-title">—</span></h1>
-       <p class="ms12-p">코드: <code class="js-ms12-room-code">—</code> · <span class="js-ms12-user-name" style="font-weight:600">—</span> 님</p>
-       <p class="ms12-p ms12-muted" style="font-size:0.82rem;display:none" id="ms12-room-login-hint">서버에 기록을 저장·보관하려면 로그인이 필요합니다.</p>
+       <h1 class="ms12-h1" style="margin-bottom:0.35rem;line-height:1.3">
+         <span class="js-ms12-room-host-line" style="display:block;font-size:0.78rem;font-weight:600;color:rgb(100 116 139);margin-bottom:0.35rem">주관 회의</span>
+         <span class="ms12-room-title js-ms12-room-title">—</span>
+       </h1>
+       <p class="ms12-p">회의 코드 <code class="js-ms12-room-code">—</code><span class="ms12-muted" style="font-size:0.82rem"> (같은 방 참가자 모두 동일)</span> · 내 표시 이름 <span class="js-ms12-user-name" style="font-weight:600">—</span><span class="js-ms12-user-suffix">님</span></p>
+       <p class="ms12-p ms12-muted" style="font-size:0.82rem;display:none" id="ms12-room-login-hint"></p>
        <div id="ms12-room-invite" class="ms12-panel" style="display:none;margin:0.5rem 0;max-width:40rem;padding:0.75rem 1rem;border:1px solid rgb(199 210 254);background:rgb(238 242 255);font-size:0.88rem" role="region" aria-label="초대">
          <p class="ms12-p" style="font-weight:600;margin:0 0 0.35rem 0">회의가 시작되었습니다. 팀원을 초대하세요.</p>
          <p class="ms12-muted" style="font-size:0.8rem;margin:0 0 0.5rem 0">초대 링크(코드: <code class="js-ms12-invite-code">—</code>)</p>
          <p style="word-break:break-all;font-size:0.82rem;margin:0.25rem 0 0.6rem" id="ms12-invite-url-line"><a class="text-indigo-600" id="ms12-invite-url" href="#" rel="nofollow">—</a></p>
          <div style="display:flex;flex-wrap:wrap;gap:0.45rem;align-items:center">
            <button type="button" class="ms12-btn" id="ms12-invite-copy" style="font-size:0.84rem">링크 복사</button>
-           <a class="ms12-btn ms12-btn--muted" id="ms12-invite-kakao" href="#" rel="noopener noreferrer" target="_blank" style="font-size:0.84rem;text-decoration:none;box-sizing:border-box">카카오로 공유</a>
+           <a class="ms12-btn ms12-btn--muted" id="ms12-invite-kakao" href="#" rel="noopener noreferrer" target="_blank" style="font-size:0.84rem;text-decoration:none;box-sizing:border-box">링크 공유</a>
            <a class="ms12-btn ms12-btn--muted" id="ms12-invite-sms" href="#" style="font-size:0.84rem;text-decoration:none;box-sizing:border-box">문자로 보내기</a>
          </div>
        </div>
        <div id="ms12-room-free-notice" class="ms12-panel" style="display:none;margin:0.5rem 0;max-width:40rem;padding:0.5rem 0.75rem;border:1px solid rgb(251 191 36);background:rgb(255 251 235);font-size:0.86rem;line-height:1.45" role="status"></div>
-       <p class="ms12-p ms12-muted" style="font-size:0.88rem" id="ms12-room-local-note">핵심 메모·전사·요약은 이 브라우저에 자동 저장됩니다.</p>
+       <div id="ms12-live-caption-wrap" class="ms12-live-caption-wrap" role="region" aria-label="실시간 음성 자막">
+         <div class="ms12-live-caption-inner">
+           <p class="ms12-live-caption-label">실시간 자막</p>
+           <p id="ms12-live-caption-text" class="ms12-live-caption-text ms12-live-caption-text--idle">음성 인식을 켜면 말하는 내용이 여기(화면 하단)와 「메모·전사」탭의 전사 칸에 함께 표시됩니다.</p>
+         </div>
+       </div>
        <div id="ms12-linked-ann" class="ms12-panel" style="display:none;margin:0.75rem 0;max-width:40rem;padding:0.75rem 1rem;border:1px solid rgb(199 210 254);background:rgb(238 242 255)">
          <p class="ms12-p" style="font-weight:600;margin:0 0 0.25rem 0">연결된 공모·지원 공고</p>
          <p class="ms12-p" id="ms12-linked-ann-line" style="font-size:0.9rem;margin:0"></p>
@@ -906,22 +896,24 @@ p.get('/meeting/:id', (c) => {
        </div>
        <div class="ms12-panel" style="margin:0.75rem 0 0.75rem 0;max-width:32rem">
          <p class="ms12-p" style="font-weight:600;margin:0 0 0.35rem 0">서버 보관함에 저장</p>
-         <p class="ms12-muted" style="font-size:0.8rem;margin:0 0 0.4rem 0">제목·날짜·분류·메모(원문)는 필수입니다. 저장 후 <a href="/app/archive" class="text-indigo-600" style="text-decoration:underline">회의 보관함</a>에서 불러올 수 있습니다.</p>
-         <input class="ms12-input" id="ms12-save-title" type="text" placeholder="회의 제목" maxlength="200" style="max-width:100%"/>
+         <p class="ms12-muted" style="font-size:0.8rem;margin:0 0 0.4rem 0">필수 항목을 채운 뒤 저장하면 <a href="/app/archive" class="text-indigo-600" style="text-decoration:underline">회의 보관함</a>에 쌓입니다. 목록에서 열어 덮어쓰기·참고할 수 있습니다.</p>
+         <input class="ms12-input" id="ms12-save-title" type="text" placeholder="예: 260428 회의" maxlength="200" style="max-width:100%"/>
          <div style="display:grid;gap:0.35rem;margin-top:0.4rem;max-width:22rem">
            <label class="ms12-muted" style="font-size:0.8rem">회의 날짜</label>
            <input class="ms12-input" id="ms12-save-meeting-date" type="date" />
            <label class="ms12-muted" style="font-size:0.8rem">회의 분류</label>
-           <input class="ms12-input" id="ms12-save-category" type="text" value="일반" list="ms12-cat-dl" />
-           <datalist id="ms12-cat-dl">
-             <option value="일반"></option>
-             <option value="운영회의"></option>
-             <option value="기획"></option>
-             <option value="사업"></option>
-             <option value="상담"></option>
-           </datalist>
-           <label class="ms12-muted" style="font-size:0.8rem">태그(쉼표)</label>
-           <input class="ms12-input" id="ms12-save-tags" type="text" placeholder="부모교육,공모" />
+           <input class="ms12-input" id="ms12-save-category" type="text" value="일반" maxlength="80" autocomplete="off" style="max-width:100%"/>
+           <details class="ms12-cat-picker" style="margin:0;border:1px solid rgb(226 232 240);border-radius:0.5rem;padding:0.45rem 0.55rem;background:rgb(248 250 252)">
+             <summary style="cursor:pointer;font-size:0.82rem;font-weight:600;color:rgb(71 85 105);user-select:none">미리 정해 둔 분류에서 고르기 · 직접 추가</summary>
+             <div id="ms12-cat-chip-wrap" style="display:flex;flex-wrap:wrap;gap:0.35rem;margin-top:0.5rem"></div>
+             <div style="display:flex;flex-wrap:wrap;gap:0.35rem;margin-top:0.45rem;align-items:center">
+               <input class="ms12-input" id="ms12-save-category-add-input" type="text" placeholder="새 분류(추가 후 계속 사용)" maxlength="40" style="flex:1;min-width:8rem;margin:0;font-size:0.88rem"/>
+               <button type="button" class="ms12-btn ms12-btn--muted" id="ms12-save-category-add-btn" style="font-size:0.82rem;padding:0.35rem 0.55rem;min-height:auto">추가</button>
+             </div>
+           </details>
+           <datalist id="ms12-cat-dl"></datalist>
+           <label class="ms12-muted" style="font-size:0.8rem">태그 <span style="font-weight:400;color:rgb(148 163 184)">(보관함 검색·주제별 묶기, 쉼표로 구분)</span></label>
+           <input class="ms12-input" id="ms12-save-tags" type="text" placeholder="예: 부모교육, 공모, 점검" />
            <label class="ms12-muted" style="font-size:0.8rem">공개 수준</label>
            <select class="ms12-input" id="ms12-save-vis" style="max-width:16rem">
              <option value="public_internal">내부 전체(기본)</option>
@@ -947,7 +939,7 @@ p.get('/meeting/:id', (c) => {
              <p class="ms12-p" style="font-weight:600;margin:0 0 0.5rem 0">회의 메모</p>
              <textarea class="ms12-notes" id="ms12-room-notes" placeholder="핵심 메모 (자동 저장)"></textarea>
              <p class="ms12-p" style="font-weight:600;margin:0.75rem 0 0.4rem 0">전사</p>
-             <p class="ms12-p" style="font-size:0.82rem;margin:0 0 0.35rem 0" id="ms12-stt-hint">회의실에 들어오면 마이크 권한을 요청한 뒤 음성 전사가 자동으로 켜집니다. (Chrome·Edge 권장 · HTTPS 필요)</p>
+             <p class="ms12-p" style="font-size:0.82rem;margin:0 0 0.35rem 0" id="ms12-stt-hint">회의실에서는 마이크·음성 전사가 기본으로 켜집니다. 말하는 내용은 화면 하단 실시간 자막과 아래 전사 칸에 같이 쌓입니다. 필요 시 «음성 끄기»로 끌 수 있습니다.</p>
              <div class="ms12-toolbar" style="margin:0 0 0.4rem 0">
                <button type="button" class="ms12-btn ms12-btn--teal" id="ms12-stt-toggle">음성 켜기</button>
                <span class="ms12-muted ms12-mono" id="ms12-stt-status" style="font-size:0.8rem">준비 중…</span>
@@ -957,6 +949,7 @@ p.get('/meeting/:id', (c) => {
                <button type="button" class="ms12-btn ms12-btn--muted" id="ms12-room-flush">지금 이 브라우저에 저장</button>
                <button type="button" class="ms12-btn" id="ms12-room-export">JSON 내보내기</button>
              </div>
+             <p class="ms12-muted" id="ms12-room-flush-msg" style="font-size:0.78rem;min-height:1rem;margin:0.35rem 0 0 0"></p>
              </div>
            </div>
            <div id="ms12-rpanel-summary" class="ms12-rpanel" data-panel="summary" style="display:none">
@@ -1180,54 +1173,10 @@ function escapeHtml(s: string): string {
     .replace(/"/g, '&quot;')
 }
 
-/** /app/login — 수동 이동 전용(자동 redirect 없음). JS가 /api/auth/me로 이미 로그인 여부 표시 */
+/** 레거시 `/app/login` → 회의 허브 */
 p.get('/login', (c) => {
-  const mode = getAuthMode(c)
-  return c.html(
-    layout(
-      '로그인 — MS12',
-      'login',
-      '',
-      guestNoJs('로그인'),
-      `${MS12_HOME_LINK}
-       <h1 class="ms12-h1">로그인</h1>
-       <p class="ms12-p">계정을 연결하면 기기를 바꿔도 이어 쓰기·동기화에 유리합니다. 로그인 없이도 회의·로컬 저장은 가능합니다.</p>
-       <p id="ms12-login-next-hint" class="ms12-muted" style="font-size:0.86rem;margin:0.35rem 0 0;display:none"></p>
-       <div class="ms12-panel" id="ms12-login-known" style="display:none;margin-top:0.75rem">
-         <p class="ms12-p" style="font-weight:600;margin:0 0 0.35rem 0">이미 로그인된 상태입니다</p>
-         <p class="ms12-muted" style="font-size:0.9rem;margin:0 0 0.5rem 0">회의장으로 가거나, 첫 화면·새 회의로 이동할 수 있습니다. (이 페이지에선 자동 이동하지 않습니다.)</p>
-         <a class="ms12-btn" href="/app/meeting">회의 허브</a>
-         <a class="ms12-btn ms12-btn--teal" href="/app/meeting/new" style="margin-left:0.5rem">새 회의</a>
-         <a class="ms12-btn ms12-btn--muted" href="/app" style="margin-left:0.5rem">시작(연출)</a>
-         <a class="ms12-btn ms12-btn--muted" href="/app/hub" style="margin-left:0.5rem">대시보드</a>
-       </div>
-       <div id="ms12-login-pending" style="margin-top:0.75rem">
-         <p class="ms12-p" style="font-weight:600;margin:0 0 0.35rem 0">카카오·Google</p>
-         <p class="ms12-muted" style="font-size:0.86rem;margin:0 0 0.5rem 0">가장 빠르게 입장·연결합니다.</p>
-         <p style="margin-top:0.5rem;max-width:22rem">
-           <a class="ms12-btn ms12-btn--kakao" href="${kakao('/app/login')}" data-ms12-login-lnk${OAUTH_A_ATTRS} style="display:block;width:100%;text-align:center;box-sizing:border-box">카카오로 계속하기</a>
-         </p>
-         <p style="margin-top:0.65rem;max-width:22rem">
-           <a class="ms12-btn ms12-btn--google" href="${google('/app/login')}" data-ms12-login-lnk${OAUTH_A_ATTRS}><svg class="ms12-login-oauth__ic" width="22" height="22" viewBox="0 0 48 48" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.8 7.18l7.73 6c4.51-4.18 7.11-10.32 7.11-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg><span class="ms12-login-oauth__label">Google로 계속하기</span></a>
-         </p>
-         <p class="ms12-muted" style="text-align:center;margin:1rem 0 0.6rem 0;font-size:0.8rem;letter-spacing:0.12em;opacity:0.75">또는</p>
-         <p class="ms12-p" style="font-weight:600;margin:0 0 0.35rem 0">이메일 로그인 <span class="ms12-muted" style="font-size:0.8rem;font-weight:400">(이 사이트에 가입한 계정)</span></p>
-         <p class="ms12-muted" style="font-size:0.86rem;margin:0 0 0.4rem 0">이메일·비밀번호는 회원가입 후에만 사용됩니다.</p>
-         <form id="ms12-login-email-form" class="ms12-panel" style="max-width:22rem;padding:0.75rem;margin:0" autocomplete="on">
-           <label class="ms12-muted" style="font-size:0.8rem;display:block" for="ms12-login-email">이메일</label>
-           <input class="ms12-input" id="ms12-login-email" name="email" type="email" inputmode="email" autocomplete="username" required style="width:100%;max-width:100%;margin:0.2rem 0 0.5rem" />
-           <label class="ms12-muted" style="font-size:0.8rem;display:block" for="ms12-login-password">비밀번호</label>
-           <input class="ms12-input" id="ms12-login-password" name="password" type="password" autocomplete="current-password" required style="width:100%;max-width:100%;margin:0.2rem 0 0.5rem" />
-           <button type="submit" class="ms12-btn ms12-btn--teal" id="ms12-login-email-submit" style="margin:0.35rem 0 0 0">이메일로 로그인</button>
-           <p id="ms12-login-email-msg" class="ms12-p" style="font-size:0.86rem;margin:0.5rem 0 0;min-height:1.1rem" aria-live="polite"></p>
-         </form>
-         <p class="ms12-muted" style="font-size:0.82rem;margin:0.6rem 0 0.25rem 0">이메일 계정이 없다면 <a href="/register" class="text-indigo-600" style="text-decoration:underline">회원가입</a> 후 위에서 로그인하세요.</p>
-       </div>
-       ${loginAside('/app/login', kakao, google)}`,
-      mode,
-      '/app/login',
-    ),
-  )
+  const q = new URL(c.req.url).search || ''
+  return c.redirect('/app/meeting' + q, 302)
 })
 
 export { renderEntryPage }

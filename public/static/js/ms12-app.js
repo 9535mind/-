@@ -1,7 +1,7 @@
 /**
- * MS12 /app* — /api/auth/me + optional/demo 모드.
- * OAuth 직후(oauth_sync=1)만 레거시 경로 → /app 정리. 셸은 AUTH_MODE와 무관하게 항상 앱(게스트/로그인) — required 는 API 쓰기에서만 제한.
- * 데모/optional: actor 없어도 앱 셸 유지, 로컬( ms12_demo_v1 )에 회의·메모·전사·요약 백업.
+ * MS12 /app* — 공개 모드(/api/auth/me), 방문 사용자 표시.
+ * oauth_sync=1 쿼리는 제거 후 회의 허브 유지.
+ * 로컬(ms12_demo_v1)에 회의·메모·전사·요약 백업.
  */
 ;(function () {
   if (typeof window !== 'undefined' && window.addEventListener) {
@@ -21,14 +21,14 @@
     })
   }
   var pageMode = 'demo'
-  /** run()이 /api/auth/me로 확정한 뒤, 로그인 페이지 등에서 동일 기준으로 UI 분기 */
+  /** run() 확정 후 UI 표시 이름 등에 사용 */
   var _lastIsAuthed = false
   /** 회의실 문서 초안 유형(탭) — saveRoomDraft에서 draftByKind에 반영 */
   var g_ms12DraftKind = 'report_int'
   var g_ms12DraftMeeting = ''
 
   var _nativeFetch = typeof fetch === 'function' ? fetch : null
-  /** 동일 출처 API: 쿠키 전송 + 응답 캐시로 인한 옛 게스트 표시 방지 */
+  /** 동일 출처 API — 쿠키 포함·응답 캐시 방지(no-store) */
   function ms12Fetch(input, init) {
     if (!_nativeFetch) {
       return Promise.reject(new Error('fetch unavailable'))
@@ -43,13 +43,140 @@
     return _nativeFetch(input, o)
   }
 
+  function ms12DateTitleStem() {
+    var d = new Date()
+    var y = String(d.getFullYear()).slice(-2)
+    var mo = ('0' + (d.getMonth() + 1)).slice(-2)
+    var da = ('0' + d.getDate()).slice(-2)
+    return y + mo + da
+  }
+  /** 같은 날 새 회의를 만들 때마다 260428 회의 → 260428-1 회의 식으로 증가 */
+  function ms12NextMeetingTitleForToday() {
+    var dayKey = ms12DateTitleStem()
+    var key = 'ms12_title_seq_' + dayKey
+    var seq = 0
+    try {
+      seq = parseInt(sessionStorage.getItem(key) || '0', 10) || 0
+    } catch (e) {}
+    seq += 1
+    try {
+      sessionStorage.setItem(key, String(seq))
+    } catch (e2) {}
+    if (seq <= 1) return dayKey + ' 회의'
+    return dayKey + '-' + (seq - 1) + ' 회의'
+  }
+  /** 방마다 한 번만 할당한 서버 저장용 제목(기존 «새 회의» 대체용) */
+  function ms12SuggestedTitleOncePerRoom(roomId) {
+    var k = 'ms12_room_save_title_' + String(roomId || '')
+    try {
+      var ex = sessionStorage.getItem(k)
+      if (ex) return ex
+      var t = ms12NextMeetingTitleForToday()
+      sessionStorage.setItem(k, t)
+      return t
+    } catch (e) {
+      return ms12DateTitleStem() + ' 회의'
+    }
+  }
+  function ms12DisplayTitle(roomId, rawTitle) {
+    var t = rawTitle != null ? String(rawTitle).trim() : ''
+    if (!t || t === '새 회의') return ms12SuggestedTitleOncePerRoom(roomId)
+    return t
+  }
+
+  var MS12_CAT_STORE = 'ms12_category_user_v1'
+  var MS12_CAT_DEFAULTS = ['일반', '운영회의', '기획', '사업', '상담']
+  function ms12CategoryListMerged() {
+    var raw = []
+    try {
+      raw = JSON.parse(localStorage.getItem(MS12_CAT_STORE) || '[]')
+    } catch (e) {}
+    if (!Array.isArray(raw)) raw = []
+    var out = MS12_CAT_DEFAULTS.slice()
+    for (var i = 0; i < raw.length; i++) {
+      var x = raw[i] != null ? String(raw[i]).trim() : ''
+      if (x && out.indexOf(x) < 0) out.push(x)
+    }
+    return out
+  }
+  function ms12CategoryPersistExtra(name) {
+    var n = String(name || '').trim()
+    if (!n || MS12_CAT_DEFAULTS.indexOf(n) >= 0) return
+    var cur = []
+    try {
+      cur = JSON.parse(localStorage.getItem(MS12_CAT_STORE) || '[]')
+    } catch (e2) {}
+    if (!Array.isArray(cur)) cur = []
+    if (cur.indexOf(n) >= 0) return
+    cur.push(n)
+    try {
+      localStorage.setItem(MS12_CAT_STORE, JSON.stringify(cur))
+    } catch (e3) {}
+  }
+  function ms12FillCategoryDatalist(dl, list) {
+    if (!dl) return
+    dl.innerHTML = ''
+    for (var i = 0; i < list.length; i++) {
+      var o = document.createElement('option')
+      o.value = list[i]
+      dl.appendChild(o)
+    }
+  }
+  function initMeetingCategoryPickers() {
+    var inp = document.getElementById('ms12-save-category')
+    var wrap = document.getElementById('ms12-cat-chip-wrap')
+    var dl = document.getElementById('ms12-cat-dl')
+    var addIn = document.getElementById('ms12-save-category-add-input')
+    var addBtn = document.getElementById('ms12-save-category-add-btn')
+    if (!inp || !wrap) return
+    function paint() {
+      var list = ms12CategoryListMerged()
+      ms12FillCategoryDatalist(dl, list)
+      var cur = String(inp.value || '').trim()
+      wrap.innerHTML = ''
+      for (var ci = 0; ci < list.length; ci++) {
+        ;(function (label) {
+          var b = document.createElement('button')
+          b.type = 'button'
+          b.className = 'ms12-cat-chip' + (cur === label ? ' ms12-cat-chip--on' : '')
+          b.textContent = label
+          b.addEventListener('click', function () {
+            inp.value = label
+            paint()
+          })
+        })(list[ci])
+      }
+    }
+    inp.addEventListener('input', paint)
+    inp.addEventListener('change', paint)
+    function addOne() {
+      var v = addIn && addIn.value ? String(addIn.value).trim() : ''
+      if (!v) return
+      ms12CategoryPersistExtra(v)
+      inp.value = v
+      if (addIn) addIn.value = ''
+      paint()
+    }
+    if (addBtn) addBtn.addEventListener('click', addOne)
+    paint()
+  }
+
   function isOpenAuthMode(m) {
-    return m === 'optional' || m === 'disabled' || m === 'demo' || m === 'required'
+    return (
+      m === 'public' ||
+      m === 'optional' ||
+      m === 'disabled' ||
+      m === 'demo' ||
+      m === 'required'
+    )
   }
 
   var activeStoreKey = 'ms12_demo_v1'
   function actorKeyFromMe(j) {
     if (j && j.data && j.data != null && typeof j.data === 'object' && !Array.isArray(j.data)) {
+      if (j.data.type === 'public') {
+        return 'g:' + ensureLocalOnlyActorId()
+      }
       if (j.data.type === 'guest' && j.data.id != null && j.data.id !== '') {
         return 'g:' + String(j.data.id)
       }
@@ -59,8 +186,8 @@
         if (typeof n === 'number' && isFinite(n) && n >= 1) return 'u:' + String(n)
       }
     }
+    if (j && j.actor && j.actor.type === 'public' && j.actor.id) return 'g:' + ensureLocalOnlyActorId()
     if (j && j.actor && j.actor.type === 'user' && j.actor.id) return 'u:' + j.actor.id
-    if (j && j.actor && j.actor.id) return 'g:' + j.actor.id
     return 'g:' + ensureLocalOnlyActorId()
   }
   function migrateLegacyStore() {
@@ -174,7 +301,7 @@
         ? crypto.randomUUID()
         : 'g_' + String(Date.now()) + '_' + Math.random().toString(36).slice(2, 9)
     try {
-      localStorage.setItem('ms12_local_actor', JSON.stringify({ type: 'guest', id: id, source: 'local' }))
+      localStorage.setItem('ms12_local_actor', JSON.stringify({ type: 'public', id: id, source: 'local' }))
     } catch (e) {}
     return id
   }
@@ -296,6 +423,13 @@
     })
   }
 
+  /** 텍스트 노드 클릭 시 target 에 closest 없음 → 부모 요소로 보정 */
+  function clickTargetElement(ev) {
+    var t = ev && ev.target
+    if (!t) return null
+    return t.nodeType === 1 ? t : t.parentElement
+  }
+
   function getRoute() {
     var b = document.body
     var attr = b && b.getAttribute('data-ms12-route')
@@ -323,35 +457,17 @@
   }
 
   /**
-   * /api/auth/me — 로그인: 서버 `actor.type === 'user'` + data.id 가 정수 유저 id일 때만.
-   * (data.id만 보면 캐시/구스크립트·UUID 선두 파싱 등으로 ‘가짜 로그인’ → 로그인 링크 숨김 / 로그아웃만 보임)
+   * 계정 로그인 없음 — 항상 비세션(표시만 방문 사용자).
    */
   function isAuthedFromMe(json) {
-    if (!json || json.success !== true) return false
-    if (json.actor && json.actor.type === 'guest') return false
-    var d = json.data
-    if (d == null || typeof d !== 'object' || Array.isArray(d)) return false
-    if (d.type === 'guest') return false
-    var id = d.id
-    if (id == null || id === '') return false
-    if (json.actor && json.actor.type === 'user') {
-      if (typeof id === 'number' && isFinite(id) && id >= 1) return true
-      var su = String(id).trim()
-      if (!/^\d+$/.test(su)) return false
-      var nu = parseInt(su, 10)
-      return isFinite(nu) && nu >= 1
-    }
-    if (typeof id === 'number' && isFinite(id) && id >= 1) return true
-    var s = String(id).trim()
-    if (!/^\d+$/.test(s)) return false
-    var n = parseInt(s, 10)
-    return isFinite(n) && n >= 1
+    return false
   }
 
-  /** 화면 표시: 이름 → 이메일(로컬@앞) → 회사명; 서버 `type:'guest'` 는 /api/auth/me data */
+  /** 화면 표시 이름 — 서버 type public/guest → 방문 사용자 */
   function displayNameFromUser(u) {
-    if (!u || typeof u !== 'object') return '사용자'
-    if (u.type === 'guest') return (u.name != null && String(u.name).trim()) || '게스트'
+    if (!u || typeof u !== 'object') return '방문 사용자'
+    if (u.type === 'guest' || u.type === 'public')
+      return (u.name != null && String(u.name).trim()) || '방문 사용자'
     var name = (u.name != null && String(u.name).trim()) || ''
     if (name) return name
     var em = (u.email != null && String(u.email).trim()) || ''
@@ -361,7 +477,7 @@
     }
     var co = (u.company_name != null && String(u.company_name).trim()) || ''
     if (co) return co
-    return '사용자'
+    return '방문 사용자'
   }
 
   function applyNextToOAuthLinks() {
@@ -453,13 +569,13 @@
     var sessionAuthed = !!options.sessionAuthed
     var guestId = !!options.guestIdentified
     var loggedIn = sessionAuthed
-    var nameText = '사용자'
+    var nameText = '방문 사용자'
     if (loggedIn) {
-      nameText = displayNameFromUser(options.user) || (options.user && options.user.name) || '사용자'
+      nameText = displayNameFromUser(options.user) || (options.user && options.user.name) || '방문 사용자'
     } else if (guestId && options.user) {
       nameText = displayNameFromUser(options.user)
     } else if (options.isGuest) {
-      nameText = '게스트 이용 중'
+      nameText = '방문 사용자'
     }
     var nodes = document.querySelectorAll('.js-ms12-user-name')
     for (var n = 0; n < nodes.length; n++) {
@@ -471,61 +587,38 @@
     }
     var badges = document.querySelectorAll('.js-ms12-badge')
     for (var b = 0; b < badges.length; b++) {
-      if (loggedIn) {
-        badges[b].textContent = '로그인됨'
-        badges[b].setAttribute('style', 'background:rgb(220 252 231);color:rgb(22 101 52)')
-      } else if (guestId) {
-        badges[b].textContent = '게스트(식별됨)'
-        badges[b].setAttribute('style', 'background:rgb(224 242 254);color:rgb(30 64 175)')
-      } else if (options.isGuest) {
-        badges[b].textContent = '게스트'
-        badges[b].setAttribute('style', 'background:rgb(241 245 249);color:rgb(71 85 105)')
-      } else {
-        badges[b].textContent = '준비됨'
-        badges[b].setAttribute('style', 'background:rgb(220 252 231);color:rgb(22 101 52)')
-      }
+      badges[b].textContent = '방문 사용자'
+      badges[b].setAttribute('style', 'background:rgb(241 245 249);color:rgb(71 85 105)')
     }
     var dets = document.querySelectorAll('.ms12-login-aside details')
     var lix = 0
     for (lix = 0; lix < dets.length; lix++) {
-      dets[lix].style.display = loggedIn ? 'none' : 'block'
+      dets[lix].style.display = 'none'
     }
     var ll = document.querySelectorAll('.ms12-js-logout-line')
     for (var lj = 0; lj < ll.length; lj++) {
-      ll[lj].style.display = loggedIn ? 'block' : 'none'
+      ll[lj].style.display = 'none'
     }
     var lout = document.querySelectorAll('[data-ms12-logout], #ms12-logout')
     for (var lo = 0; lo < lout.length; lo++) {
-      lout[lo].style.display = loggedIn ? 'inline-block' : 'none'
+      lout[lo].style.display = 'none'
     }
     var lnk = document.querySelectorAll('[data-ms12-login-lnk]')
     for (var li = 0; li < lnk.length; li++) {
-      lnk[li].style.display = loggedIn ? 'none' : ''
+      lnk[li].style.display = 'none'
     }
     var entryHost = document.getElementById('ms12-entry-login')
     if (entryHost) {
-      if (loggedIn) {
-        entryHost.setAttribute('data-ms12-entry-session', '1')
-        var oaH = document.querySelector('.ms12-entry-oauth-btns')
-        if (oaH) oaH.style.display = 'none'
-      } else {
-        entryHost.removeAttribute('data-ms12-entry-session')
-        var oaS = document.querySelector('.ms12-entry-oauth-btns')
-        if (oaS) oaS.style.display = 'flex'
-      }
+      entryHost.removeAttribute('data-ms12-entry-session')
+      var oaH = document.querySelector('.ms12-entry-oauth-btns')
+      if (oaH) oaH.style.display = 'none'
     }
     try {
-      document.body.setAttribute('data-ms12-logged-in', loggedIn ? '1' : '0')
+      document.body.setAttribute('data-ms12-logged-in', '0')
       document.body.setAttribute('data-ms12-guest-identified', guestId ? '1' : '0')
     } catch (e) {}
-    if (loggedIn) {
-      if (getRoute() !== 'entry') {
-        ensureMs12LogoutButton()
-      }
-    } else {
-      var elg = document.getElementById('ms12-logout')
-      if (elg) elg.style.display = 'none'
-    }
+    var elg = document.getElementById('ms12-logout')
+    if (elg) elg.style.display = 'none'
   }
 
   function ensureMs12LogoutButton() {
@@ -569,21 +662,21 @@
                 if (typeof location !== 'undefined' && location.reload) {
                   location.reload()
                 } else {
-                  window.location.href = '/app'
+                  window.location.href = '/app/meeting'
                 }
                 return
               }
               if (typeof location !== 'undefined' && location.reload) {
                 location.reload()
               } else {
-                window.location.href = '/app'
+                window.location.href = '/app/meeting'
               }
             })
             .catch(function () {
               if (typeof location !== 'undefined' && location.reload) {
                 location.reload()
               } else {
-                window.location.href = '/app'
+                window.location.href = '/app/meeting'
               }
             })
         })
@@ -1183,6 +1276,17 @@
     if (ul.innerHTML === '') {
       ul.innerHTML = '<li>참석자가 없습니다.</li>'
     }
+    var hostLine = document.querySelector('.js-ms12-room-host-line')
+    if (hostLine) {
+      var hostName = ''
+      for (var hi = 0; hi < list.length; hi++) {
+        if (list[hi].role === 'host' && list[hi].displayName) {
+          hostName = String(list[hi].displayName).trim()
+          break
+        }
+      }
+      hostLine.textContent = hostName ? hostName + ' 님이 주관하는 회의' : '주관 회의'
+    }
   }
 
   function initMeetingRoom() {
@@ -1200,11 +1304,6 @@
     try {
       if (sessionStorage.getItem('ms12_local_only') === '1') {
         sessionStorage.removeItem('ms12_local_only')
-        var lnote = document.getElementById('ms12-room-local-note')
-        if (lnote) {
-          lnote.textContent =
-            '이번 회의는 서버 없이 이 브라우저에서만 열었습니다. 메모·전사·요약은 이 기기에만 저장됩니다.'
-        }
       }
     } catch (e) {}
 
@@ -1223,7 +1322,7 @@
     } catch (e) {}
     if (localRow) {
       for (var li = 0; li < titleEls.length; li++) {
-        if (localRow.title) titleEls[li].textContent = localRow.title
+        if (localRow.title) titleEls[li].textContent = ms12DisplayTitle(id, localRow.title)
       }
       for (var lj = 0; lj < codeEls.length; lj++) {
         if (localRow.meetingCode) codeEls[lj].textContent = localRow.meetingCode
@@ -1306,14 +1405,14 @@
       })
     }
     var flush = document.getElementById('ms12-room-flush')
+    var flushMsg = document.getElementById('ms12-room-flush-msg')
     if (flush) {
       flush.addEventListener('click', function () {
         try {
           saveRoomDraft(id)
         } catch (e) {}
-        var ln = document.getElementById('ms12-room-local-note')
-        if (ln) {
-          ln.textContent = '이 브라우저에 저장했습니다. (' + new Date().toLocaleTimeString() + ')'
+        if (flushMsg) {
+          flushMsg.textContent = '이 브라우저에 저장했습니다. (' + new Date().toLocaleTimeString() + ')'
         }
       })
     }
@@ -2069,6 +2168,18 @@
     } else if (sttBtn && trEl) {
       var recog = new Rec()
       var sttOn = false
+      /** 음성 시작 시점의 사용자 입력(전사창 스냅샷) */
+      var sttUserBase = ''
+      /** 이번 세션에서 확정된 전사 누적 */
+      var sttFinalAccum = ''
+      function joinWithGap(left, right) {
+        var L = left != null ? String(left) : ''
+        var R = right != null ? String(right) : ''
+        if (!R) return L
+        if (!L) return R
+        if (/\s$/.test(L) || /^\s/.test(R)) return L + R
+        return L + ' ' + R
+      }
       recog.lang = 'ko-KR'
       recog.continuous = true
       recog.interimResults = true
@@ -2080,6 +2191,8 @@
         if (sttSt) sttSt.textContent = listening ? '듣는 중' : '대기'
       }
       function startListening() {
+        sttUserBase = trEl.value != null ? String(trEl.value) : ''
+        sttFinalAccum = ''
         sttOn = true
         setSttUi(true)
         try {
@@ -2102,19 +2215,17 @@
         } catch (e) {}
       }
       recog.onresult = function (ev) {
-        var inter = ''
-        var finalP = ''
+        var interim = ''
         for (var ri = ev.resultIndex; ri < ev.results.length; ri++) {
           var seg = (ev.results[ri] && ev.results[ri][0] && ev.results[ri][0].transcript) || ''
-          if (ev.results[ri].isFinal) finalP += seg
-          else inter += seg
+          if (ev.results[ri].isFinal) {
+            sttFinalAccum += seg
+          } else {
+            interim += seg
+          }
         }
-        if (finalP) {
-          var pre = (trEl.value && !/\s$/.test(trEl.value) && trEl.value.length ? trEl.value + ' ' : trEl.value)
-          trEl.value = pre + finalP + (inter ? inter : '')
-        } else if (inter) {
-          trEl.setAttribute('data-ms12-stt-temp', inter)
-        }
+        var committed = joinWithGap(sttUserBase, sttFinalAccum)
+        trEl.value = joinWithGap(committed, interim)
         try {
           saveRoomDraft(id)
         } catch (e) {}
@@ -2138,19 +2249,13 @@
           } catch (e) {}
         }
       }
-      sttBtn.addEventListener('click', function () {
-        if (sttOn) {
-          stopListening()
-        } else {
-          startListening()
-        }
-      })
-      function tryAutoStartVoice() {
-        if (sttSt) sttSt.textContent = '마이크 확인 중…'
-        var afterMic = function () {
+      function requestMicThenStart() {
+        if (sttSt) sttSt.textContent = '마이크 준비 중…'
+        var done = function () {
           startListening()
           if (sttHint && sttOn) {
-            sttHint.textContent = '음성 전사가 켜졌습니다. 끄려면 «음성 끄기»를 누르세요.'
+            sttHint.textContent =
+              '마이크·음성 전사가 켜졌습니다. 필요할 때만 «음성 끄기»를 누르세요.'
           }
         }
         if (navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') {
@@ -2162,30 +2267,44 @@
                   t.stop()
                 })
               } catch (e) {}
-              afterMic()
+              done()
             })
             .catch(function () {
               if (sttSt) sttSt.textContent = '대기'
               if (sttHint) {
                 sttHint.textContent =
-                  '마이크 권한이 없어 자동 음성을 켤 수 없습니다. 아래 «음성 켜기»를 눌러 권한을 허용해 주세요.'
+                  '마이크를 허용해야 전사가 켜집니다. 주소창 자물쇠에서 허용한 뒤 «음성 켜기»를 눌러 주세요.'
               }
             })
         } else {
-          afterMic()
+          done()
         }
+      }
+      sttBtn.addEventListener('click', function () {
+        if (sttOn) {
+          stopListening()
+          if (sttHint) {
+            sttHint.textContent = '음성 전사를 껐습니다. 다시 켜려면 «음성 켜기»를 누르세요.'
+          }
+        } else {
+          requestMicThenStart()
+        }
+      })
+      if (sttHint) {
+        sttHint.textContent =
+          '회의실에서는 마이크·음성 전사가 기본으로 켜집니다. HTTPS 환경에서 Chrome·Edge 사용을 권장합니다.'
       }
       setTimeout(function () {
         try {
-          tryAutoStartVoice()
+          requestMicThenStart()
         } catch (e) {
           if (sttSt) sttSt.textContent = '대기'
           if (sttHint) {
             sttHint.textContent =
-              '자동 음성 시작에 실패했습니다. «음성 켜기»를 눌러 주세요. (Chrome·Edge, HTTPS)'
+              '자동으로 마이크를 켤 수 없습니다. «음성 켜기»를 눌러 주세요.'
           }
         }
-      }, 400)
+      }, 450)
     }
 
     var saveTitleEl = document.getElementById('ms12-save-title')
@@ -2466,87 +2585,9 @@
   }
 
   function initLoginPage() {
-    var kn = document.getElementById('ms12-login-known')
-    var pe = document.getElementById('ms12-login-pending')
-    if (!kn && !pe) return
-    if (_lastIsAuthed) {
-      if (kn) kn.style.display = 'block'
-      if (pe) pe.style.display = 'none'
-    } else {
-      if (kn) kn.style.display = 'none'
-      if (pe) pe.style.display = 'block'
-    }
-    var form = document.getElementById('ms12-login-email-form')
-    if (!form || form.getAttribute('data-ms12-email-wired') === '1') return
-    form.setAttribute('data-ms12-email-wired', '1')
-    var nextHint = document.getElementById('ms12-login-next-hint')
-    var sn = sanitizeAppNext()
-    if (nextHint && sn) {
-      nextHint.textContent = '로그인 후 «' + sn + '»(으)로 이동합니다.'
-      nextHint.style.display = 'block'
-    } else if (nextHint) {
-      nextHint.style.display = 'none'
-    }
-    form.addEventListener('submit', function (e) {
-      e.preventDefault()
-      if (_lastIsAuthed) return
-      var em = form.querySelector('input[name="email"]')
-      var pw = form.querySelector('input[name="password"]')
-      var msg = document.getElementById('ms12-login-email-msg')
-      var btn = document.getElementById('ms12-login-email-submit')
-      var emv = em && em.value ? String(em.value).trim() : ''
-      var pwv = pw && pw.value ? String(pw.value) : ''
-      if (!emv || !pwv) {
-        if (msg) {
-          msg.textContent = '이메일과 비밀번호를 입력하세요.'
-          msg.style.color = 'rgb(185 28 28)'
-        }
-        return
-      }
-      if (btn) btn.disabled = true
-      if (msg) {
-        msg.textContent = '로그인 중…'
-        msg.style.color = 'rgb(71 85 105)'
-      }
-      ms12Fetch('/api/auth/login', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: emv, password: pwv }),
-      })
-        .then(function (r) {
-          return jsonFromResponse(r).then(function (j) {
-            return { ok: r.ok, j: j }
-          })
-        })
-        .then(function (o) {
-          if (o && o.j && o.j.success) {
-            var go = sanitizeAppNext() || '/app/desk'
-            try {
-              if (o.j.data && o.j.data.user) {
-                localStorage.setItem('user', JSON.stringify(o.j.data.user))
-              }
-            } catch (e) {}
-            window.location.href = go
-            return
-          }
-          var er =
-            (o && o.j && (o.j.error || o.j.message)) || '이메일 또는 비밀번호를 확인하세요.'
-          if (msg) {
-            msg.textContent = String(er)
-            msg.style.color = 'rgb(185 28 28)'
-          }
-        })
-        .catch(function () {
-          if (msg) {
-            msg.textContent = '네트워크 오류로 로그인에 실패했습니다.'
-            msg.style.color = 'rgb(185 28 28)'
-          }
-        })
-        .then(function () {
-          if (btn) btn.disabled = false
-        })
-    })
+    try {
+      window.location.replace('/app/meeting')
+    } catch (e) {}
   }
 
   function initAnnouncementsList() {
@@ -2808,7 +2849,7 @@
     } catch (e) {}
   }
 
-  /** Ms12Actions.createMeeting 403 시 저장 — 로그인 직후 한 번만 재시도 */
+  /** 레거시 sessionStorage pending 재시도(오류 시 저장했던 경우) */
   function consumePendingCreateMeeting() {
     var A = typeof globalThis !== 'undefined' && globalThis.Ms12Actions
     if (!A || typeof A.createMeeting !== 'function') return
@@ -2862,7 +2903,7 @@
       if (type) payload.type = type
       A.createMeeting(payload)
         .then(function (res) {
-          if (res && res.kind === 'error') setSt((res && res.error) || '로그인이 필요할 수 있습니다.')
+          if (res && res.kind === 'error') setSt((res && res.error) || '회의를 시작할 수 없습니다.')
           else setSt('')
         })
         .catch(function () {
@@ -2870,9 +2911,11 @@
         })
     }
     card.addEventListener('click', function (ev) {
-      var t = ev.target
-      if (!t || !t.getAttribute) return
-      var qs = t.getAttribute('data-ms12-entry-qs')
+      var base = clickTargetElement(ev)
+      if (!base || !base.closest) return
+      var trig = base.closest('[data-ms12-entry-qs]')
+      if (!trig) return
+      var qs = trig.getAttribute('data-ms12-entry-qs')
       if (!qs) return
       ev.preventDefault()
       if (qs === 'start') {
@@ -2881,31 +2924,50 @@
       }
       if (qs === 'quick') {
         doCreate(
-          t.getAttribute('data-ms12-title') || '새 회의',
-          t.getAttribute('data-ms12-type') || ''
+          trig.getAttribute('data-ms12-title') || '새 회의',
+          trig.getAttribute('data-ms12-type') || ''
         )
       }
     })
   }
 
   function initMeetingHub() {
+    var hubStatus = document.getElementById('ms12-mh-status')
+    function setHubStatus(msg) {
+      if (hubStatus) hubStatus.textContent = msg || ''
+    }
     document.body.addEventListener('click', function (ev) {
-      var t = ev.target
-      if (!t || !t.closest) return
+      var base = clickTargetElement(ev)
+      if (!base || !base.closest) return
       if (getRoute() !== 'meeting') return
-      var el = t.closest('[data-ms12-action]')
+      var el = base.closest('[data-ms12-action]')
       if (!el) return
       var A = typeof globalThis !== 'undefined' && globalThis.Ms12Actions
-      if (!A) return
+      if (!A || typeof A.createMeeting !== 'function') {
+        setHubStatus('프로그램을 불러오지 못했습니다. 페이지를 새로고침 해 주세요.')
+        return
+      }
       var act = el.getAttribute('data-ms12-action') || ''
       if (!act) return
       ev.preventDefault()
+      function runCreate(payload) {
+        setHubStatus('회의를 준비하는 중…')
+        A.createMeeting(payload)
+          .then(function (res) {
+            if (res && res.kind === 'error')
+              setHubStatus((res && res.error) || '회의를 시작할 수 없습니다.')
+            else setHubStatus('')
+          })
+          .catch(function () {
+            setHubStatus('요청에 실패했습니다.')
+          })
+      }
       if (act === 'meeting-start') {
-        A.createMeeting({ title: '새 회의' })
+        runCreate({ title: '새 회의' })
         return
       }
       if (act === 'meeting-start-quick') {
-        A.createMeeting({
+        runCreate({
           title: el.getAttribute('data-ms12-title') || '새 회의',
           type: el.getAttribute('data-ms12-type') || undefined,
         })
@@ -3320,23 +3382,28 @@
         success: true,
         data: null,
         authMode: pageMode,
-        actor: { type: 'guest', id: lid, source: 'offline' },
+        actor: { type: 'public', id: lid, source: 'offline' },
       }
       authed = false
-      authLog('me failed or offline; continue as local demo_guest', lid)
+      authLog('me failed or offline; continue as local public actor', lid)
     }
     if (openMode && !authed && j && j.success && j.data == null && (!j.actor || j.actor == null)) {
       var lid3 = ensureLocalOnlyActorId()
-      j = Object.assign({}, j, { actor: { type: 'guest', id: lid3, source: 'local' } })
+      j = Object.assign({}, j, { actor: { type: 'public', id: lid3, source: 'local' } })
     }
-    var guestIdentified = !!(j && j.data && j.data.type === 'guest' && j.data.id)
+    var guestIdentified = !!(
+      j &&
+      j.data &&
+      j.data.id &&
+      (j.data.type === 'guest' || j.data.type === 'public')
+    )
     var user = null
     if (authed && j && j.data) user = j.data
     else if (guestIdentified) user = j.data
     var isAnon = !authed && !guestIdentified
     _lastIsAuthed = authed
     var demoMode = isAnon || pageMode === 'demo'
-    if (j && j.actor && j.actor.type === 'guest') {
+    if (j && j.actor && (j.actor.type === 'guest' || j.actor.type === 'public')) {
       try {
         localStorage.setItem('ms12_actor', JSON.stringify(j.actor))
       } catch (e) {}
