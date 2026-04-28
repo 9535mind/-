@@ -161,6 +161,31 @@
     paint()
   }
 
+  function ms12CaptionTail(text, maxLen) {
+    var s = text != null ? String(text).trim() : ''
+    if (!s) return ''
+    var max = maxLen || 420
+    if (s.length <= max) return s
+    return '… ' + s.slice(-max)
+  }
+  /** 화면 하단 실시간 자막 — 전사 칸과 동일 문자열 반영 */
+  function ms12SyncLiveCaptionFromTranscript(fullText, opts) {
+    var cap = document.getElementById('ms12-live-caption-text')
+    if (!cap) return
+    opts = opts || {}
+    var idleMsg =
+      opts.idleMsg ||
+      '음성 인식을 켜면 말하는 내용이 여기와 「메모·전사」 전사 칸에 함께 표시됩니다.'
+    var display = ms12CaptionTail(fullText, opts.maxLen || 420)
+    if (!display) {
+      cap.textContent = idleMsg
+      cap.classList.add('ms12-live-caption-text--idle')
+      return
+    }
+    cap.textContent = display
+    cap.classList.remove('ms12-live-caption-text--idle')
+  }
+
   function isOpenAuthMode(m) {
     return (
       m === 'public' ||
@@ -393,6 +418,8 @@
     }
     if (sa && x.summaryAction != null) sa.value = x.summaryAction
     if (sr && x.summaryReport != null) sr.value = x.summaryReport
+    var trSync = document.getElementById('ms12-room-transcript')
+    if (trSync) ms12SyncLiveCaptionFromTranscript(trSync.value)
   }
 
   function authLog() {
@@ -1353,6 +1380,11 @@
       .forEach(function (el) {
         el.addEventListener('input', onDraftInput)
         el.addEventListener('change', onDraftInput)
+        if (el.id === 'ms12-room-transcript') {
+          el.addEventListener('input', function () {
+            ms12SyncLiveCaptionFromTranscript(el.value)
+          })
+        }
       })
     var exp = document.getElementById('ms12-room-export')
     if (exp) {
@@ -2157,21 +2189,49 @@
     var sttBtn = document.getElementById('ms12-stt-toggle')
     var sttSt = document.getElementById('ms12-stt-status')
     var sttHint = document.getElementById('ms12-stt-hint')
+    var streamCb = document.getElementById('ms12-stt-use-stream')
+    var streamWrap = document.getElementById('ms12-stt-stream-wrap')
     var trEl = document.getElementById('ms12-room-transcript')
     var Rec =
       (typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition)) || null
-    if (!Rec) {
-      if (sttHint) {
-        sttHint.textContent = '이 브라우저는 Web Speech 를 지원하지 않아 음성 전사는 사용할 수 없습니다.'
-      }
-      if (sttBtn) sttBtn.style.display = 'none'
-    } else if (sttBtn && trEl) {
-      var recog = new Rec()
+
+    var streamSttOk = false
+    ms12Fetch('/api/ms12/stt/status', { credentials: 'include' })
+      .then(function (r) {
+        return jsonFromResponse(r)
+      })
+      .then(function (j) {
+        if (j && j.success && j.data && j.data.streamingStt) streamSttOk = true
+        if (streamWrap) streamWrap.style.display = streamSttOk ? 'inline' : 'none'
+        if (!Rec && !streamSttOk && sttBtn) sttBtn.style.display = 'none'
+        if (!Rec && streamSttOk && sttHint) {
+          sttHint.textContent =
+            'Web Speech 미지원 브라우저입니다. 아래 «클라우드 실시간 STT»를 켠 뒤 «음성 켜기»를 눌러 주세요.'
+        }
+      })
+      .catch(function () {
+        if (streamWrap) streamWrap.style.display = 'none'
+      })
+
+    if (sttBtn && trEl) {
+      var recog = Rec ? new Rec() : null
       var sttOn = false
+      var usingDg = false
       /** 음성 시작 시점의 사용자 입력(전사창 스냅샷) */
       var sttUserBase = ''
       /** 이번 세션에서 확정된 전사 누적 */
       var sttFinalAccum = ''
+      var dgWs = null
+      var dgKa = null
+      var dgAudioCtx = null
+      var dgProcessor = null
+      var dgMute = null
+      var dgSource = null
+      var dgMedia = null
+      var dgCommitted = ''
+      var dgPartial = ''
+      var dgBaseSnap = ''
+
       function joinWithGap(left, right) {
         var L = left != null ? String(left) : ''
         var R = right != null ? String(right) : ''
@@ -2180,20 +2240,178 @@
         if (/\s$/.test(L) || /^\s/.test(R)) return L + R
         return L + ' ' + R
       }
-      recog.lang = 'ko-KR'
-      recog.continuous = true
-      recog.interimResults = true
-      try {
-        recog.maxAlternatives = 1
-      } catch (e) {}
+
+      function dgParseTranscript(raw) {
+        try {
+          var j = JSON.parse(raw)
+          if (
+            j.type === 'Results' &&
+            j.channel &&
+            j.channel.alternatives &&
+            j.channel.alternatives[0]
+          ) {
+            return {
+              text: String(j.channel.alternatives[0].transcript || ''),
+              isFinal: !!j.is_final,
+            }
+          }
+        } catch (e) {}
+        return null
+      }
+
+      function dgStop() {
+        if (dgKa) {
+          clearInterval(dgKa)
+          dgKa = null
+        }
+        if (dgWs) {
+          try {
+            dgWs.close()
+          } catch (e) {}
+          dgWs = null
+        }
+        if (dgProcessor) {
+          try {
+            dgProcessor.disconnect()
+          } catch (e) {}
+          dgProcessor = null
+        }
+        if (dgMute) {
+          try {
+            dgMute.disconnect()
+          } catch (e) {}
+          dgMute = null
+        }
+        if (dgSource) {
+          try {
+            dgSource.disconnect()
+          } catch (e) {}
+          dgSource = null
+        }
+        if (dgAudioCtx) {
+          try {
+            dgAudioCtx.close()
+          } catch (e) {}
+          dgAudioCtx = null
+        }
+        if (dgMedia) {
+          dgMedia.getTracks().forEach(function (t) {
+            try {
+              t.stop()
+            } catch (e) {}
+          })
+          dgMedia = null
+        }
+        dgCommitted = ''
+        dgPartial = ''
+        usingDg = false
+      }
+
       function setSttUi(listening) {
         sttBtn.textContent = listening ? '음성 끄기' : '음성 켜기'
         if (sttSt) sttSt.textContent = listening ? '듣는 중' : '대기'
       }
-      function startListening() {
+
+      function dgStart() {
+        dgStop()
+        dgBaseSnap = trEl.value != null ? String(trEl.value) : ''
+        dgCommitted = ''
+        dgPartial = ''
+        usingDg = true
+        sttOn = true
+        setSttUi(true)
+        if (sttSt) sttSt.textContent = '클라우드 연결 중…'
+        var wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:'
+        var u = wsProto + '//' + location.host + '/api/ms12/stt/stream?language=ko'
+        var socket = new WebSocket(u)
+        dgWs = socket
+        socket.onopen = function () {
+          dgKa = setInterval(function () {
+            if (socket.readyState === WebSocket.OPEN) {
+              try {
+                socket.send(JSON.stringify({ type: 'KeepAlive' }))
+              } catch (e) {}
+            }
+          }, 8000)
+          if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
+            if (sttHint) sttHint.textContent = '마이크 API를 사용할 수 없습니다.'
+            dgStop()
+            sttOn = false
+            setSttUi(false)
+            return
+          }
+          navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+            dgMedia = stream
+            var AC = window.AudioContext || window.webkitAudioContext
+            dgAudioCtx = new AC()
+            var inRate = dgAudioCtx.sampleRate
+            var outRate = 16000
+            var ratio = inRate / outRate
+            dgSource = dgAudioCtx.createMediaStreamSource(stream)
+            var bufSize = 4096
+            dgProcessor = dgAudioCtx.createScriptProcessor(bufSize, 1, 1)
+            dgProcessor.onaudioprocess = function (e) {
+              if (!socket || socket.readyState !== WebSocket.OPEN) return
+              var inputData = e.inputBuffer.getChannelData(0)
+              var n = Math.floor(inputData.length / ratio)
+              if (n <= 0) return
+              var pcm = new Int16Array(n)
+              for (var i = 0; i < n; i++) {
+                var idx = Math.floor(i * ratio)
+                var s = Math.max(-1, Math.min(1, inputData[idx]))
+                pcm[i] = s < 0 ? s * 0x8000 : s * 0x7fff
+              }
+              try {
+                socket.send(pcm.buffer)
+              } catch (err) {}
+            }
+            dgMute = dgAudioCtx.createGain()
+            dgMute.gain.value = 0
+            dgSource.connect(dgProcessor)
+            dgProcessor.connect(dgMute)
+            dgMute.connect(dgAudioCtx.destination)
+            if (sttSt) sttSt.textContent = '클라우드 STT 듣는 중'
+            if (sttHint && sttOn) {
+              sttHint.textContent =
+                '클라우드 실시간 전사 중입니다. 필요 시 «음성 끄기»를 누르세요.'
+            }
+          }).catch(function () {
+            if (sttHint) sttHint.textContent = '마이크를 허용해야 클라우드 STT가 동작합니다.'
+            dgStop()
+            sttOn = false
+            setSttUi(false)
+          })
+        }
+        socket.onmessage = function (ev) {
+          var raw = typeof ev.data === 'string' ? ev.data : ''
+          var pr = dgParseTranscript(raw)
+          if (!pr) return
+          if (pr.isFinal) {
+            dgCommitted = joinWithGap(dgCommitted, pr.text)
+            dgPartial = ''
+          } else {
+            dgPartial = pr.text
+          }
+          var line = joinWithGap(joinWithGap(dgBaseSnap, dgCommitted), dgPartial)
+          trEl.value = line
+          try {
+            ms12SyncLiveCaptionFromTranscript(trEl.value)
+          } catch (e0) {}
+          try {
+            saveRoomDraft(id)
+          } catch (e) {}
+        }
+        socket.onerror = function () {
+          if (sttSt) sttSt.textContent = '클라우드 STT 오류'
+        }
+      }
+
+      function startWebSpeechListening() {
+        if (!recog) return
         sttUserBase = trEl.value != null ? String(trEl.value) : ''
         sttFinalAccum = ''
         sttOn = true
+        usingDg = false
         setSttUi(true)
         try {
           recog.start()
@@ -2207,52 +2425,107 @@
           }
         }
       }
-      function stopListening() {
+
+      function stopWebSpeechListening() {
+        if (!recog) return
         sttOn = false
         setSttUi(false)
         try {
           recog.stop()
         } catch (e) {}
       }
-      recog.onresult = function (ev) {
-        var interim = ''
-        for (var ri = ev.resultIndex; ri < ev.results.length; ri++) {
-          var seg = (ev.results[ri] && ev.results[ri][0] && ev.results[ri][0].transcript) || ''
-          if (ev.results[ri].isFinal) {
-            sttFinalAccum += seg
-          } else {
-            interim += seg
-          }
-        }
-        var committed = joinWithGap(sttUserBase, sttFinalAccum)
-        trEl.value = joinWithGap(committed, interim)
-        try {
-          saveRoomDraft(id)
-        } catch (e) {}
-      }
-      recog.onerror = function (e) {
-        var code = e && e.error
-        if (sttSt) sttSt.textContent = code || (e && e.message) || '오류'
-        if (code === 'not-allowed' || code === 'service-not-allowed') {
+
+      function stopListeningChosen() {
+        if (usingDg || dgWs) {
+          dgStop()
           sttOn = false
           setSttUi(false)
-          if (sttHint) {
+          return
+        }
+        stopWebSpeechListening()
+      }
+
+      function startListeningChosen() {
+        if (streamSttOk && streamCb && streamCb.checked) {
+          dgStart()
+          return
+        }
+        if (recog) {
+          startWebSpeechListening()
+          if (sttHint && sttOn) {
             sttHint.textContent =
-              '마이크가 거절되었습니다. 주소창 자물쇠에서 마이크를 허용한 뒤 «음성 켜기»를 눌러 주세요.'
+              '마이크·음성 전사가 켜졌습니다. 필요할 때만 «음성 끄기»를 누르세요.'
+          }
+          return
+        }
+        if (sttHint) {
+          sttHint.textContent =
+            '사용 가능한 음성 엔진이 없습니다. 클라우드 STT를 쓰려면 서버에 DEEPGRAM_API_KEY 를 설정하세요.'
+        }
+      }
+
+      if (recog) {
+        recog.lang = 'ko-KR'
+        recog.continuous = true
+        recog.interimResults = true
+        try {
+          recog.maxAlternatives = 1
+        } catch (e) {}
+        recog.onresult = function (ev) {
+          var interim = ''
+          for (var ri = ev.resultIndex; ri < ev.results.length; ri++) {
+            var seg = (ev.results[ri] && ev.results[ri][0] && ev.results[ri][0].transcript) || ''
+            if (ev.results[ri].isFinal) {
+              sttFinalAccum += seg
+            } else {
+              interim += seg
+            }
+          }
+          var committed = joinWithGap(sttUserBase, sttFinalAccum)
+          trEl.value = joinWithGap(committed, interim)
+          try {
+            ms12SyncLiveCaptionFromTranscript(trEl.value)
+          } catch (e0) {}
+          try {
+            saveRoomDraft(id)
+          } catch (e) {}
+        }
+        recog.onerror = function (e) {
+          var code = e && e.error
+          if (sttSt) sttSt.textContent = code || (e && e.message) || '오류'
+          if (code === 'not-allowed' || code === 'service-not-allowed') {
+            sttOn = false
+            setSttUi(false)
+            if (sttHint) {
+              sttHint.textContent =
+                '마이크가 거절되었습니다. 주소창 자물쇠에서 마이크를 허용한 뒤 «음성 켜기»를 눌러 주세요.'
+            }
+          }
+        }
+        recog.onend = function () {
+          if (sttOn && recog && !usingDg) {
+            try {
+              recog.start()
+            } catch (e) {}
           }
         }
       }
-      recog.onend = function () {
-        if (sttOn) {
-          try {
-            recog.start()
-          } catch (e) {}
-        }
-      }
+
       function requestMicThenStart() {
+        if (streamSttOk && streamCb && streamCb.checked) {
+          dgStart()
+          return
+        }
+        if (!recog) {
+          if (sttHint && streamSttOk) {
+            sttHint.textContent =
+              '«클라우드 실시간 STT»를 체크한 뒤 다시 시도하거나 다른 브라우저를 사용해 주세요.'
+          }
+          return
+        }
         if (sttSt) sttSt.textContent = '마이크 준비 중…'
         var done = function () {
-          startListening()
+          startWebSpeechListening()
           if (sttHint && sttOn) {
             sttHint.textContent =
               '마이크·음성 전사가 켜졌습니다. 필요할 때만 «음성 끄기»를 누르세요.'
@@ -2282,7 +2555,7 @@
       }
       sttBtn.addEventListener('click', function () {
         if (sttOn) {
-          stopListening()
+          stopListeningChosen()
           if (sttHint) {
             sttHint.textContent = '음성 전사를 껐습니다. 다시 켜려면 «음성 켜기»를 누르세요.'
           }
@@ -2290,9 +2563,9 @@
           requestMicThenStart()
         }
       })
-      if (sttHint) {
+      if (sttHint && Rec) {
         sttHint.textContent =
-          '회의실에서는 마이크·음성 전사가 기본으로 켜집니다. HTTPS 환경에서 Chrome·Edge 사용을 권장합니다.'
+          '회의실에서는 마이크·음성 전사가 기본으로 켜집니다. 더 빠른 글자 표시는 «클라우드 실시간 STT»를 선택하세요. HTTPS · Chrome·Edge 권장.'
       }
       setTimeout(function () {
         try {

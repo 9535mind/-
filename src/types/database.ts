@@ -60,8 +60,8 @@ export type Bindings = {
    */
   MS12_DEBUG_SESSION_DB?: string
 
-  /** JTT 숲 시트 GAS 웹앱 /exec URL — GET 보고서(/api/forest-gas-report)·POST 시트(/api/forest-gas-webhook) 프록시에 사용 */
-  FOREST_GAS_WEBHOOK_URL?: string;
+  /** Deepgram 스트리밍 STT — `GET/WS /api/ms12/stt/*` */
+  DEEPGRAM_API_KEY?: string
   
   // JWT
   JWT_SECRET?: string;

@@ -8,7 +8,7 @@ import { SITE_PUBLIC_ORIGIN } from '../utils/oauth-public'
 const p = new Hono<{ Bindings: Bindings }>({ strict: false })
 
 /** Pages 배포·소스 ?v= 일치(배포 후 페이지 소스에 이 주석이 보이면 새 Worker) */
-const MS12_BUILD = '20260429roomFormV2'
+const MS12_BUILD = '20260429deepgramStt'
 const MS12_ACTIONS_SCRIPT = `/static/js/ms12-actions.js?v=${MS12_BUILD}`
 const MS12_APP_SCRIPT = `/static/js/ms12-app.js?v=${MS12_BUILD}`
 const waitBlock = '<p class="ms12-p" id="ms12-wait" style="color:rgb(100 116 139)">불러오는 중…</p>'
@@ -88,7 +88,7 @@ const commonStyles = `
   .ms12-room-wrap{display:grid;gap:1rem;}
   @media (min-width: 768px) { .ms12-room-wrap{grid-template-columns:1fr 280px;} }
   body[data-ms12-route=meeting_room] .ms12-wrap{padding-bottom:max(10rem,calc(8rem + env(safe-area-inset-bottom)))}
-  .ms12-live-caption-wrap{position:fixed;left:0;right:0;bottom:0;z-index:40;padding:0 max(0.65rem, env(safe-area-inset-left)) max(0.55rem, env(safe-area-inset-bottom)) max(0.65rem, env(safe-area-inset-right));pointer-events:none}
+  .ms12-live-caption-wrap{position:fixed;left:0;right:0;bottom:0;z-index:9999;padding:0 max(0.65rem, env(safe-area-inset-left)) max(0.55rem, env(safe-area-inset-bottom)) max(0.65rem, env(safe-area-inset-right));pointer-events:none}
   .ms12-live-caption-inner{pointer-events:auto;max-width:min(1120px,100%);margin:0 auto;padding:0.55rem 0.75rem 0.65rem;border-radius:0.65rem 0.65rem 0 0;background:rgba(15,23,42,0.9);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 -8px 32px rgba(0,0,0,0.18);border:1px solid rgba(255,255,255,0.08);border-bottom:0}
   .ms12-live-caption-label{margin:0 0 0.3rem 0;font-size:0.68rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.5)}
   .ms12-live-caption-text{margin:0;font-size:clamp(0.95rem,2.6vw,1.18rem);line-height:1.48;color:rgba(248,250,252,0.98);white-space:pre-wrap;word-break:break-word;max-height:6.8rem;overflow-y:auto;-webkit-overflow-scrolling:touch}
@@ -105,6 +105,7 @@ const commonStyles = `
   .ms12-cat-chip{display:inline-block;padding:0.28rem 0.55rem;border-radius:0.45rem;border:1px solid rgb(226 232 240);background:rgb(255 255 255);color:rgb(51 65 85);font-size:0.8rem;cursor:pointer;font-family:inherit}
   .ms12-cat-chip:hover{border-color:rgb(165 180 252);background:rgb(238 242 255)}
   .ms12-cat-chip--on{border-color:rgb(79 70 229);background:rgb(238 242 255);color:rgb(49 46 129);font-weight:600}
+  .ms12-tab-bar{display:flex;flex-wrap:wrap;gap:0.35rem;margin:0 0 0.25rem 0;align-items:center}
   .ms12-tab{display:inline-block;padding:0.38rem 0.7rem;border-radius:9999px;border:1px solid rgb(203 213 225);background:rgb(248 250 252);color:rgb(51 65 85);font-size:0.86rem;cursor:pointer;font-weight:500}
   .ms12-tab:hover{border-color:rgb(165 180 252);background:rgb(238 242 255)}
   .ms12-tab--active{background:rgb(79 70 229);color:#fff;border-color:rgb(79 70 229)}
@@ -886,7 +887,7 @@ p.get('/meeting/:id', (c) => {
        <div id="ms12-live-caption-wrap" class="ms12-live-caption-wrap" role="region" aria-label="실시간 음성 자막">
          <div class="ms12-live-caption-inner">
            <p class="ms12-live-caption-label">실시간 자막</p>
-           <p id="ms12-live-caption-text" class="ms12-live-caption-text ms12-live-caption-text--idle">음성 인식을 켜면 말하는 내용이 여기(화면 하단)와 「메모·전사」탭의 전사 칸에 함께 표시됩니다.</p>
+           <p id="ms12-live-caption-text" class="ms12-live-caption-text ms12-live-caption-text--idle" aria-live="polite">음성 인식을 켜면 말하는 내용이 여기(화면 하단)와 「메모·전사」탭의 전사 칸에 함께 표시됩니다.</p>
          </div>
        </div>
        <div id="ms12-linked-ann" class="ms12-panel" style="display:none;margin:0.75rem 0;max-width:40rem;padding:0.75rem 1rem;border:1px solid rgb(199 210 254);background:rgb(238 242 255)">
@@ -943,6 +944,11 @@ p.get('/meeting/:id', (c) => {
              <div class="ms12-toolbar" style="margin:0 0 0.4rem 0">
                <button type="button" class="ms12-btn ms12-btn--teal" id="ms12-stt-toggle">음성 켜기</button>
                <span class="ms12-muted ms12-mono" id="ms12-stt-status" style="font-size:0.8rem">준비 중…</span>
+               <span id="ms12-stt-stream-wrap" style="display:none;margin-left:0.45rem;font-size:0.8rem;color:rgb(71 85 105)">
+                 <label style="cursor:pointer;user-select:none;vertical-align:middle">
+                   <input type="checkbox" id="ms12-stt-use-stream" style="width:auto;vertical-align:middle;margin-right:0.25rem"/>클라우드 실시간 STT
+                 </label>
+               </span>
              </div>
              <textarea class="ms12-notes" id="ms12-room-transcript" placeholder="전사문 (입력·붙여넣기·음성, 자동 저장)" style="min-height:6rem"></textarea>
              <div class="ms12-toolbar" style="margin-top:0.6rem">
@@ -950,6 +956,7 @@ p.get('/meeting/:id', (c) => {
                <button type="button" class="ms12-btn" id="ms12-room-export">JSON 내보내기</button>
              </div>
              <p class="ms12-muted" id="ms12-room-flush-msg" style="font-size:0.78rem;min-height:1rem;margin:0.35rem 0 0 0"></p>
+             <p class="ms12-muted" style="font-size:0.77rem;margin:0.55rem 0 0 0;line-height:1.45;color:rgb(100 116 139)">내용 맨 아래에 키워드·태그를 적어 두면 나중에 찾기 좋습니다. 서버에 저장할 때는 위쪽 「태그」칸에도 같은 단어를 넣으면 보관함에서 검색하기 쉽습니다.</p>
              </div>
            </div>
            <div id="ms12-rpanel-summary" class="ms12-rpanel" data-panel="summary" style="display:none">

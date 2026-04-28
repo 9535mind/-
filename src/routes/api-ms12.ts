@@ -1,21 +1,22 @@
 /**
  * /api/ms12/* — MS12 회의방 (ms12_rooms, ms12_room_participants)
- * AUTH_MODE=optional 일 때 guest actor + ms12_guest 쿠키, required 일 때만 로그인 강제
+ * 계정 없음 — 방문자(actor public, 쿠키 기반 UUID)만 사용
  */
 import { Context, Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { Bindings } from '../types/database'
 import { ms12Access } from '../middleware/ms12-access'
 import { FOOTER_HTML_REVISION } from '../utils/site-footer-legal'
-import { successResponse, errorResponse, getCurrentUser } from '../utils/helpers'
+import { successResponse, errorResponse } from '../utils/helpers'
 import type { AppActor } from '../utils/actor'
 import { participantKey } from '../utils/actor'
 import { assertIsRoomParticipant } from '../utils/ms12-room-participant-check'
 import { getAuthMode } from '../utils/auth-mode'
 import { generateTextGeminiOrOpenAI } from '../utils/ai-text-generation'
-import { getUserMs12Plan, getMs12Capabilities, type Ms12Plan } from '../utils/ms12-plan'
+import { getMs12Capabilities, type Ms12Plan } from '../utils/ms12-plan'
 import type { Ms12Capabilities } from '../lib/ms12-plan'
 import { assertRoomOpenForMutations } from '../lib/ms12-room-mutation-guard'
+import apiMs12Stt from './api-ms12-stt'
 
 type Ctx = Context<{ Bindings: Bindings; Variables: { actor: AppActor } }>
 
@@ -27,6 +28,9 @@ api.use(async (c, next) => {
   if (segs[segs.length - 1] === 'health') {
     return next()
   }
+  if (p.includes('/stt/')) {
+    return next()
+  }
   if (!c.env?.DB) {
     // 대시보드 읽기 전용: D1 미바인딩·엣지 이슈에도 503(서버다운 느낌) 대신 빈 목록(200)
     const pathOnly = (p || '').split('?')[0] || p
@@ -35,13 +39,15 @@ api.use(async (c, next) => {
     }
     return c.json(
       errorResponse(
-        'DB 연결 없음. Cloudflare Pages → ms12 → Settings → D1 `DB` → ms12-production 바인딩을 확인하세요.',
+        'DB 연결 없음. Cloudflare Pages → ms12 → Settings → D1 `DB` → ms12-production-v2 바인딩을 확인하세요.',
       ),
       503,
     )
   }
   return next()
 })
+
+api.route('/stt', apiMs12Stt)
 
 const CODE_ALPH = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 
@@ -76,33 +82,14 @@ function logMs12PlanIf(c: Ctx, plan: Ms12Plan, cap: Ms12Capabilities) {
   }
 }
 
-/** 보고서·AI 요약·콘텐츠 초안 — Pro 전용(무료는 수동 메모·기본 저장) */
-async function requireProPlan(c: Ctx, actor: AppActor) {
-  if (actor.type !== 'user') {
-    return c.json(errorResponse('이 기능을 사용하려면 로그인이 필요합니다.'), 403)
-  }
-  const plan: Ms12Plan = await getUserMs12Plan(c, parseInt(actor.id, 10))
-  const cap = getMs12Capabilities(plan)
-  if (!cap.canUseAI) {
-    return c.json(errorResponse('Pro 플랜에서 이용할 수 있는 기능입니다.'), 403)
-  }
+/** 보고서·AI 등 — 로그인·플랜 게이트 없음 */
+async function requireProPlan(_c: Ctx, _actor: AppActor): Promise<Response | null> {
   return null
 }
 
-function userDisplayNameRow(u: { name?: string | null; email?: string | null }): string {
-  const n = (u.name || '').trim()
-  if (n) return n
-  const e = (u.email || '').trim()
-  if (e) return e.split('@')[0] || e
-  return '사용자'
-}
-
-async function displayNameFor(actor: AppActor, body: { displayName?: string }, c: Ctx): Promise<string> {
-  if (actor.type === 'user') {
-    const u = await getCurrentUser(c)
-    return u ? userDisplayNameRow(u) : '사용자'
-  }
-  return String(body.displayName || '').trim() || '게스트'
+async function displayNameFor(_actor: AppActor, body: { displayName?: string }): Promise<string> {
+  const d = String(body.displayName || '').trim()
+  return d || '방문 사용자'
 }
 
 async function requireRoomParticipant(
@@ -116,9 +103,6 @@ async function requireRoomParticipant(
 /** 내가 참가한 회의의 미완료(open) 실행 항목 — 시작 화면 대시보드용 */
 api.get('/my/open-action-items', ms12Access, async (c) => {
   const actor = c.get('actor')
-  if (actor.type !== 'user') {
-    return c.json(successResponse({ items: [] as unknown[] }))
-  }
   const k = participantKey(actor)
   const limit = Math.min(40, Math.max(1, parseInt(c.req.query('limit') || '20', 10) || 20))
   try {
@@ -278,12 +262,9 @@ api.get('/meetings/:id', ms12Access, async (c) => {
     }
   }
   const hType = String(r.host_actor_type || '')
-  const hUid = r.host_user_id
   const hGid = r.host_guest_id
   let isHost = false
-  if (hType === 'user' && actor.type === 'user' && hUid != null && String(hUid) === actor.id) {
-    isHost = true
-  } else if (hType === 'guest' && actor.type === 'guest' && hGid != null && String(hGid) === actor.id) {
+  if (hType === 'guest' && actor.type === 'public' && hGid != null && String(hGid) === actor.id) {
     isHost = true
   }
   return c.json(
@@ -344,16 +325,11 @@ api.post('/meetings', ms12Access, async (c) => {
       annLink = raw
     }
   }
-  if (actor.type === 'guest') {
-    return c.json(errorResponse('회의를 개설하려면 로그인이 필요합니다.'), 403)
-  }
-  const uid = parseInt(actor.id, 10)
-  if (!Number.isFinite(uid)) {
-    return c.json(errorResponse('사용자 정보를 확인할 수 없습니다.'), 400)
-  }
-  const dname = await displayNameFor(actor, body, c)
+  const gid = actor.id
+  const pk = participantKey(actor)
+  const dname = await displayNameFor(actor, body)
   const t = nowIso()
-  const plan = await getUserMs12Plan(c, uid)
+  const plan: Ms12Plan = 'free'
   const cap = getMs12Capabilities(plan)
   logMs12PlanIf(c, plan, cap)
   const freeEndAt =
@@ -369,25 +345,25 @@ api.post('/meetings', ms12Access, async (c) => {
           await c.env.DB.batch([
             c.env.DB.prepare(
               `INSERT INTO ms12_rooms (id, host_actor_type, host_user_id, host_guest_id, title, meeting_code, status, created_at, updated_at, linked_announcement_id, free_end_at)
-             VALUES (?, 'user', ?, NULL, ?, ?, 'open', ?, ?, ?, ?)`
-            ).bind(id, uid, title, code, t, t, annLink, freeEndAt),
+             VALUES (?, 'guest', NULL, ?, ?, ?, 'open', ?, ?, ?, ?)`
+            ).bind(id, gid, title, code, t, t, annLink, freeEndAt),
             c.env.DB.prepare(
               `INSERT INTO ms12_room_participants
              (meeting_id, participant_key, actor_type, user_id, guest_id, display_name, role, joined_at, left_at, attendance_status)
-             VALUES (?, ?, 'user', ?, NULL, ?, 'host', ?, NULL, 'in')`
-            ).bind(id, `u:${uid}`, uid, dname, t),
+             VALUES (?, ?, 'guest', NULL, ?, ?, 'host', ?, NULL, 'in')`
+            ).bind(id, pk, gid, dname, t),
           ])
         } else {
           await c.env.DB.batch([
             c.env.DB.prepare(
               `INSERT INTO ms12_rooms (id, host_actor_type, host_user_id, host_guest_id, title, meeting_code, status, created_at, updated_at, linked_announcement_id)
-             VALUES (?, 'user', ?, NULL, ?, ?, 'open', ?, ?, ?)`
-            ).bind(id, uid, title, code, t, t, annLink),
+             VALUES (?, 'guest', NULL, ?, ?, ?, 'open', ?, ?, ?)`
+            ).bind(id, gid, title, code, t, t, annLink),
             c.env.DB.prepare(
               `INSERT INTO ms12_room_participants
              (meeting_id, participant_key, actor_type, user_id, guest_id, display_name, role, joined_at, left_at, attendance_status)
-             VALUES (?, ?, 'user', ?, NULL, ?, 'host', ?, NULL, 'in')`
-            ).bind(id, `u:${uid}`, uid, dname, t),
+             VALUES (?, ?, 'guest', NULL, ?, ?, 'host', ?, NULL, 'in')`
+            ).bind(id, pk, gid, dname, t),
           ])
         }
       }
@@ -493,42 +469,18 @@ api.post('/meetings/join', ms12Access, async (c) => {
   }
   const id = String(room.id)
   const t = nowIso()
-  const dname = await displayNameFor(actor, body, c)
+  const dname = await displayNameFor(actor, body)
   const hostType = room.host_actor_type as string
-  const hostUserId = room.host_user_id as number | null
   const hostGuestId = room.host_guest_id as string | null
   let role: 'host' | 'participant' = 'participant'
-  if (hostType === 'user' && actor.type === 'user' && String(hostUserId) === actor.id) {
-    role = 'host'
-  } else if (hostType === 'guest' && actor.type === 'guest' && hostGuestId === actor.id) {
+  if (hostType === 'guest' && actor.type === 'public' && hostGuestId === actor.id) {
     role = 'host'
   }
   const pk = participantKey(actor)
-  if (actor.type === 'user') {
-    const uid = parseInt(actor.id, 10)
-    try {
-      await c.env.DB.prepare(
-        `INSERT INTO ms12_room_participants
-         (meeting_id, participant_key, actor_type, user_id, guest_id, display_name, role, joined_at, left_at, attendance_status)
-         VALUES (?, ?, 'user', ?, NULL, ?, ?, ?, NULL, 'in')
-         ON CONFLICT(meeting_id, participant_key) DO UPDATE SET
-           display_name = excluded.display_name,
-           role = excluded.role,
-           joined_at = excluded.joined_at,
-           left_at = NULL,
-           attendance_status = 'in'`
-      )
-        .bind(id, pk, uid, dname, role, t)
-        .run()
-    } catch (e) {
-      console.error('[ms12] join', e)
-      return c.json(errorResponse('입장에 실패했습니다.'), 500)
-    }
-  } else {
-    const gid = actor.id
-    try {
-      await c.env.DB.prepare(
-        `INSERT INTO ms12_room_participants
+  const gid = actor.id
+  try {
+    await c.env.DB.prepare(
+      `INSERT INTO ms12_room_participants
          (meeting_id, participant_key, actor_type, user_id, guest_id, display_name, role, joined_at, left_at, attendance_status)
          VALUES (?, ?, 'guest', NULL, ?, ?, ?, ?, NULL, 'in')
          ON CONFLICT(meeting_id, participant_key) DO UPDATE SET
@@ -536,14 +488,13 @@ api.post('/meetings/join', ms12Access, async (c) => {
            role = excluded.role,
            joined_at = excluded.joined_at,
            left_at = NULL,
-           attendance_status = 'in'`
-      )
-        .bind(id, pk, gid, dname, role, t)
-        .run()
-    } catch (e) {
-      console.error('[ms12] join', e)
-      return c.json(errorResponse('입장에 실패했습니다.'), 500)
-    }
+           attendance_status = 'in'`,
+    )
+      .bind(id, pk, gid, dname, role, t)
+      .run()
+  } catch (e) {
+    console.error('[ms12] join', e)
+    return c.json(errorResponse('입장에 실패했습니다.'), 500)
   }
   await c.env.DB.prepare(`UPDATE ms12_rooms SET updated_at = ? WHERE id = ?`).bind(t, id).run()
   return c.json(

@@ -9,16 +9,18 @@ pages_build_output_dir = "./dist"
 # Output을 public·dist/static 등으로만 두면 _worker.js 없이 정적만 배포되어 /api/* 가 로그인 SPA로 떨어짐.
 compatibility_flags = ["nodejs_compat"]
 
+# 기존 ms12-production(f6ed95cc-…)은 백업 보관용으로 유지 — Pages 바인딩은 v2만 사용
 [[d1_databases]]
 binding = "DB"
-database_name = "ms12-production"
-database_id = "f6ed95cc-c6b5-41bf-aa52-39ad8e44823c"
+database_name = "ms12-production-v2"
+database_id = "fbf84da4-1c4d-42ef-adcf-b438de71bbb9"
 
 [[r2_buckets]]
 binding = "R2"
 bucket_name = "ms12-storage"
 
-# 공개 var (OpenAI API 키는 넣지 말고 Secret 또는 .dev.vars 사용)
+# MS12 스트리밍 STT(선택): Deepgram — Dashboard 또는 `npx wrangler secret put DEEPGRAM_API_KEY`
+# OPENAI_API_KEY 는 Secrets 로만 (커밋 금지)
 [vars]
 # MS12: 로그인 없이 /app 진입·회의·로컬 저장 체험. 운영에서 로그인 강제 시 Pages/여기서 required 로 바꿀 것.
 AUTH_MODE = "demo"
