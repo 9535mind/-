@@ -52,20 +52,47 @@
     var da = ('0' + d.getDate()).slice(-2)
     return y + mo + da
   }
-  /** 같은 날 새 회의를 만들 때마다 260428 회의 → 260428-1 회의 식으로 증가 */
-  function ms12NextMeetingTitleForToday() {
-    var dayKey = ms12DateTitleStem()
-    var key = 'ms12_title_seq_' + dayKey
-    var seq = 0
+  /** 같은 날 마지막으로 소모한 번호 (260429-01 의 1) — sessionStorage */
+  function ms12MtSeqKey() {
+    return 'ms12_mt_seq_' + ms12DateTitleStem()
+  }
+  function ms12PadMeetingSuffix(n) {
+    var x = typeof n === 'number' ? n : parseInt(String(n), 10) || 0
+    if (x < 100) return ('0' + x).slice(-2)
+    return String(x)
+  }
+  /** 다음 번호 미리보기(폼 기본값). 카운터는 올리지 않음 → 제출 성공 시 한 번만 증가 */
+  function ms12PeekNextMeetingTitleYyMmDdNn() {
+    var last = 0
     try {
-      seq = parseInt(sessionStorage.getItem(key) || '0', 10) || 0
+      last = parseInt(sessionStorage.getItem(ms12MtSeqKey()) || '0', 10) || 0
     } catch (e) {}
-    seq += 1
+    var next = last + 1
+    return ms12DateTitleStem() + '-' + ms12PadMeetingSuffix(next)
+  }
+  /** 허브 «회의 시작» 등 즉시 생성 시 번호 소모 후 반환 */
+  function ms12ConsumeNextMeetingTitleYyMmDdNn() {
+    var key = ms12MtSeqKey()
+    var last = 0
     try {
-      sessionStorage.setItem(key, String(seq))
+      last = parseInt(sessionStorage.getItem(key) || '0', 10) || 0
+    } catch (e) {}
+    var next = last + 1
+    try {
+      sessionStorage.setItem(key, String(next))
     } catch (e2) {}
-    if (seq <= 1) return dayKey + ' 회의'
-    return dayKey + '-' + (seq - 1) + ' 회의'
+    return ms12DateTitleStem() + '-' + ms12PadMeetingSuffix(next)
+  }
+  /** 새 회의 폼에서 서버 생성 성공 후 번호 한 칸 진행 */
+  function ms12AdvanceMeetingTitleSeqAfterSuccessfulCreate() {
+    var key = ms12MtSeqKey()
+    var last = 0
+    try {
+      last = parseInt(sessionStorage.getItem(key) || '0', 10) || 0
+    } catch (e) {}
+    try {
+      sessionStorage.setItem(key, String(last + 1))
+    } catch (e2) {}
   }
   /** 방마다 한 번만 할당한 서버 저장용 제목(기존 «새 회의» 대체용) */
   function ms12SuggestedTitleOncePerRoom(roomId) {
@@ -73,11 +100,11 @@
     try {
       var ex = sessionStorage.getItem(k)
       if (ex) return ex
-      var t = ms12NextMeetingTitleForToday()
+      var t = ms12PeekNextMeetingTitleYyMmDdNn()
       sessionStorage.setItem(k, t)
       return t
     } catch (e) {
-      return ms12DateTitleStem() + ' 회의'
+      return ms12PeekNextMeetingTitleYyMmDdNn()
     }
   }
   function ms12DisplayTitle(roomId, rawTitle) {
@@ -511,6 +538,45 @@
     return '방문 사용자'
   }
 
+  /** 비로그인·공개 프로필일 때 폼용 안정적인 표시 이름(세션당 한 번) */
+  function ms12StableGuestDisplayName() {
+    try {
+      var x = sessionStorage.getItem('ms12_guest_dn_stable')
+      if (x) return x
+      var r = Math.floor(10000 + Math.random() * 89999)
+      x = '참가자 ' + r
+      sessionStorage.setItem('ms12_guest_dn_stable', x)
+      return x
+    } catch (e) {
+      return '참가자'
+    }
+  }
+
+  /** 브라우저에 남은 회원 프로필(localStorage user) — OAuth 직후 /api/auth/me 가 공개 스키마만 줄 때 보조 */
+  function ms12DisplayNameFromLocalStorageUser() {
+    try {
+      var raw = localStorage.getItem('user')
+      if (!raw) return ''
+      var u = JSON.parse(raw)
+      if (!u || typeof u !== 'object') return ''
+      var dn = displayNameFromUser(u)
+      if (dn && dn !== '방문 사용자') return dn
+    } catch (e) {}
+    return ''
+  }
+
+  /** /api/auth/me 우선, 공개 스키마만 올 때는 localStorage 캐시 회원명 보조 */
+  function defaultDisplayNameForNewMeeting(mePayload) {
+    var u = mePayload && mePayload.success && mePayload.data ? mePayload.data : null
+    if (u) {
+      var dn = displayNameFromUser(u)
+      if (dn && dn !== '방문 사용자') return dn
+    }
+    var ls = ms12DisplayNameFromLocalStorageUser()
+    if (ls) return ls
+    return ms12StableGuestDisplayName()
+  }
+
   function applyNextToOAuthLinks() {
     var next = new URLSearchParams(window.location.search || '').get('next')
     if (!next) return
@@ -826,6 +892,29 @@
   function initFormNew() {
     var f = document.getElementById('ms12-form-new')
     if (!f) return
+    var titleIn = document.getElementById('ms12-input-new-title') || f.querySelector('input[name="title"]')
+    var dnIn = document.getElementById('ms12-input-new-displayname')
+    if (titleIn && !(titleIn.value && String(titleIn.value).trim())) {
+      titleIn.value = ms12PeekNextMeetingTitleYyMmDdNn()
+    }
+    fetchMeOnce()
+      .then(function (o) {
+        var j = o && o.json
+        var dn = defaultDisplayNameForNewMeeting(j)
+        if (dnIn && !(dnIn.value && String(dnIn.value).trim())) {
+          dnIn.value = dn
+        }
+        var hl = document.getElementById('ms12-new-meeting-host-label')
+        if (hl) hl.textContent = dn + '님이 호스트로 입장합니다.'
+      })
+      .catch(function () {
+        var dn = defaultDisplayNameForNewMeeting(null)
+        if (dnIn && !(dnIn.value && String(dnIn.value).trim())) {
+          dnIn.value = dn
+        }
+        var hl = document.getElementById('ms12-new-meeting-host-label')
+        if (hl) hl.textContent = dn + '님이 호스트로 입장합니다.'
+      })
     f.addEventListener('submit', function (e) {
       e.preventDefault()
       var fd = new FormData(f)
@@ -848,6 +937,9 @@
         .then(function (o) {
           var j = o && o.j
           if (j && j.success && j.data && j.data.id) {
+            try {
+              ms12AdvanceMeetingTitleSeqAfterSuccessfulCreate()
+            } catch (eSeq) {}
             try {
               recordMeetingLocal(j.data)
             } catch (e) {}
@@ -1448,65 +1540,68 @@
           })
         }
       })
-    var exp = document.getElementById('ms12-room-export')
-    if (exp) {
-      exp.addEventListener('click', function () {
-        try {
-          saveRoomDraft(id)
-        } catch (e) {}
-        var st = readStore()
-        var pack = (st.byId && st.byId[id]) || {}
-        var name = (pack.title || 'meeting') + '-' + id.slice(0, 8) + '.json'
-        var blob = new Blob(
-          [
-            JSON.stringify(
-              {
-                version: 1,
-                meetingId: id,
-                title: pack.title,
-                meetingCode: pack.meetingCode,
-                savedAt: new Date().toISOString(),
-                notes: pack.notes || '',
-                transcript: pack.transcript || '',
-                summary: pack.summary || '',
-                summaryBasic: pack.summaryBasic,
-                summaryAction: pack.summaryAction,
-                summaryReport: pack.summaryReport,
-                draftByKind: pack.draftByKind,
-                aiSugBasic: pack.aiSugBasic,
-                aiSugAction: pack.aiSugAction,
-                aiSugReport: pack.aiSugReport,
-                actionItemsDraft: pack.actionItemsDraft,
-                actionItems: lastMergedActions && lastMergedActions.length
+    function performRoomJsonExport() {
+      try {
+        saveRoomDraft(id)
+      } catch (e) {}
+      var st = readStore()
+      var pack = (st.byId && st.byId[id]) || {}
+      var name = (pack.title || 'meeting') + '-' + id.slice(0, 8) + '.json'
+      var blob = new Blob(
+        [
+          JSON.stringify(
+            {
+              version: 1,
+              meetingId: id,
+              title: pack.title,
+              meetingCode: pack.meetingCode,
+              savedAt: new Date().toISOString(),
+              notes: pack.notes || '',
+              transcript: pack.transcript || '',
+              summary: pack.summary || '',
+              summaryBasic: pack.summaryBasic,
+              summaryAction: pack.summaryAction,
+              summaryReport: pack.summaryReport,
+              draftByKind: pack.draftByKind,
+              aiSugBasic: pack.aiSugBasic,
+              aiSugAction: pack.aiSugAction,
+              aiSugReport: pack.aiSugReport,
+              actionItemsDraft: pack.actionItemsDraft,
+              actionItems:
+                lastMergedActions && lastMergedActions.length
                   ? lastMergedActions
                   : mergeActionLists([], getLocalActionItemsOnly(id)),
-              },
-              null,
-              2
-            ),
-          ],
-          { type: 'application/json' }
-        )
-        var a = document.createElement('a')
-        a.href = URL.createObjectURL(blob)
-        a.download = name
-        a.click()
-        setTimeout(function () {
-          try {
-            URL.revokeObjectURL(a.href)
-          } catch (e) {}
-        }, 2000)
-      })
+            },
+            null,
+            2
+          ),
+        ],
+        { type: 'application/json' }
+      )
+      var a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = name
+      a.click()
+      setTimeout(function () {
+        try {
+          URL.revokeObjectURL(a.href)
+        } catch (e) {}
+      }, 2000)
+    }
+    var exp = document.getElementById('ms12-room-export')
+    if (exp) {
+      exp.addEventListener('click', performRoomJsonExport)
     }
     var flush = document.getElementById('ms12-room-flush')
     var flushMsg = document.getElementById('ms12-room-flush-msg')
     if (flush) {
       flush.addEventListener('click', function () {
-        try {
-          saveRoomDraft(id)
-        } catch (e) {}
+        performRoomJsonExport()
         if (flushMsg) {
-          flushMsg.textContent = '이 브라우저에 임시 저장되었습니다. (' + new Date().toLocaleTimeString() + ')'
+          flushMsg.textContent =
+            '이 브라우저에 저장했고 JSON 파일을 받았습니다. (' +
+            new Date().toLocaleTimeString() +
+            ')'
         }
       })
     }
@@ -3359,7 +3454,7 @@
           })
       }
       if (act === 'hub-start') {
-        runCreate({ title: ms12NextMeetingTitleForToday() })
+        runCreate({ title: ms12ConsumeNextMeetingTitleYyMmDdNn() })
         return
       }
       if (act === 'hub-open-join' && A.openAppPath) A.openAppPath('/app/join')

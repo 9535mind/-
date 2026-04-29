@@ -8,7 +8,7 @@ import { SITE_PUBLIC_ORIGIN } from '../utils/oauth-public'
 const p = new Hono<{ Bindings: Bindings }>({ strict: false })
 
 /** Pages 배포·소스 ?v= 일치(배포 후 페이지 소스에 이 주석이 보이면 새 Worker) */
-const MS12_BUILD = '20260422ms12entryFix'
+const MS12_BUILD = '20260429newMeetingDnLs'
 const MS12_ACTIONS_SCRIPT = `/static/js/ms12-actions.js?v=${MS12_BUILD}`
 const MS12_APP_SCRIPT = `/static/js/ms12-app.js?v=${MS12_BUILD}`
 const waitBlock = '<p class="ms12-p" id="ms12-wait" style="color:rgb(100 116 139)">불러오는 중…</p>'
@@ -114,6 +114,10 @@ const commonStyles = `
   .ms12-subtab{display:inline-block;padding:0.28rem 0.55rem;border-radius:0.4rem;border:1px solid rgb(226 232 240);background:rgb(255 255 255);color:rgb(71 85 105);font-size:0.78rem;cursor:pointer}
   .ms12-subtab--active{border-color:rgb(129 140 248);background:rgb(238 242 255);color:rgb(49 46 129);font-weight:600}
   .ms12-toolbar{display:flex;flex-wrap:wrap;gap:0.5rem;margin-top:0.75rem;}
+  .ms12-details-as-btn > summary{display:inline-flex;align-items:center;justify-content:flex-start;gap:0.35rem;width:100%;box-sizing:border-box;list-style:none;padding:0.5rem 0.85rem;border-radius:0.55rem;border:1px solid rgb(203 213 225);background:linear-gradient(180deg,rgb(255 255 255) 0%,rgb(248 250 252) 100%);color:rgb(51 65 85);font-size:0.88rem;font-weight:600;cursor:pointer;user-select:none;text-align:left}
+  .ms12-details-as-btn > summary::-webkit-details-marker{display:none}
+  .ms12-details-as-btn[open] > summary{border-color:rgb(165 180 252);background:rgb(238 242 255);color:rgb(49 46 129)}
+  .ms12-details-as-btn > summary:hover{border-color:rgb(165 180 252)}
   .ms12-login-aside{clear:both;margin-top:1.75rem;padding:0.75rem 0.9rem;border-radius:0.5rem;border:1px solid rgb(241 245 249);background:rgb(248 250 252);max-width:100%}
   .ms12-login-aside summary{cursor:pointer;list-style:none;font-size:0.82rem;color:rgb(100 116 139);user-select:none}
   .ms12-login-aside summary::-webkit-details-marker{display:none}
@@ -509,13 +513,13 @@ p.get('/meeting/new', (c) =>
       guestNoJs('새 회의'),
       `${MS12_HOME_LINK}
        <h1 class="ms12-h1">새 회의</h1>
-       <p class="ms12-p">제목을 입력하면 회의 코드가 자동으로 만들어지고, <span class="js-ms12-user-name" style="font-weight:600">—</span> 님은 호스트로 입장됩니다.</p>
+       <p class="ms12-p" id="ms12-new-meeting-intro"><span id="ms12-new-meeting-host-label">표시 이름을 불러오는 중…</span></p>
        <form id="ms12-form-new" style="margin-top:1rem">
-         <p class="ms12-p" style="font-size:0.88rem;color:rgb(100 116 139);margin:0 0 0.75rem 0">여기서 제목을 입력한 뒤「회의 열기」로 회의방이 만들어집니다.</p>
+         <p class="ms12-p" style="font-size:0.88rem;color:rgb(100 116 139);margin:0 0 0.75rem 0">회의 제목은 날짜·번호 형식(예: 260429-01)으로 자동 채워지며 필요하면 고칠 수 있습니다.</p>
          <label class="ms12-p" style="display:block;font-weight:500">회의 제목</label>
-         <input class="ms12-input" name="title" type="text" required maxlength="200" placeholder="예: 4월 운영 모임" />
-         <label class="ms12-p" style="display:block;margin-top:0.75rem;font-weight:500">표시 이름(선택)</label>
-         <input class="ms12-input" id="ms12-input-new-displayname" name="displayName" type="text" maxlength="40" placeholder="없으면 방문 사용자" autocomplete="name" />
+         <input class="ms12-input" id="ms12-input-new-title" name="title" type="text" required maxlength="200" autocomplete="off" />
+         <label class="ms12-p" style="display:block;margin-top:0.75rem;font-weight:500">표시 이름</label>
+         <input class="ms12-input" id="ms12-input-new-displayname" name="displayName" type="text" maxlength="40" autocomplete="name" />
          <p style="margin-top:1rem"><button type="submit" class="ms12-btn ms12-btn--teal">회의 열기</button></p>
        </form>
        ${loginAside('/app/meeting/new', kakao, google)}`,
@@ -804,16 +808,10 @@ p.get('/room/:id', (c) => {
          </div>
        </div>
        <div id="ms12-room-free-notice" class="ms12-panel" style="display:none;margin:0.5rem 0;max-width:40rem;padding:0.5rem 0.75rem;border:1px solid rgb(251 191 36);background:rgb(255 251 235);font-size:0.86rem;line-height:1.45" role="status"></div>
-       <div class="ms12-toolbar" style="margin:0.35rem 0 0.5rem 0;flex-wrap:wrap;gap:0.5rem;align-items:center">
-         <button type="button" class="ms12-btn ms12-btn--muted" id="ms12-room-end-meeting">회의 종료</button>
-         <span class="ms12-muted" id="ms12-room-end-msg" style="font-size:0.82rem;min-height:1.2rem" role="status" aria-live="polite"></span>
-       </div>
        <div class="ms12-room-wrap" style="margin-top:0.75rem">
          <div>
            <div class="ms12-panel">
-             <p class="ms12-p" style="font-weight:600;margin:0 0 0.5rem 0">회의 메모</p>
-             <textarea class="ms12-notes" id="ms12-room-notes" placeholder="핵심 메모 (자동 저장)"></textarea>
-             <p class="ms12-p" style="font-weight:600;margin:0.75rem 0 0.4rem 0">전사</p>
+             <p class="ms12-p" style="font-weight:600;margin:0 0 0.5rem 0">전사</p>
              <p class="ms12-p" style="font-size:0.82rem;margin:0 0 0.35rem 0" id="ms12-stt-hint">«음성 켜기»를 누르면 브라우저에서 마이크 권한을 요청합니다. 허용 후 말한 내용은 화면 하단 실시간 자막과 아래 전사 칸에 쌓입니다.</p>
              <div class="ms12-toolbar" style="margin:0 0 0.4rem 0">
                <button type="button" class="ms12-btn ms12-btn--teal" id="ms12-stt-toggle">음성 켜기</button>
@@ -825,15 +823,16 @@ p.get('/room/:id', (c) => {
                </span>
              </div>
              <textarea class="ms12-notes" id="ms12-room-transcript" placeholder="전사문 (입력·붙여넣기·음성, 자동 저장)" style="min-height:6rem"></textarea>
+             <p class="ms12-p" style="font-weight:600;margin:0.75rem 0 0.4rem 0">회의 메모</p>
+             <textarea class="ms12-notes" id="ms12-room-notes" placeholder="핵심 메모 (자동 저장)" style="min-height:8rem"></textarea>
              <div class="ms12-toolbar" style="margin-top:0.6rem">
-               <button type="button" class="ms12-btn ms12-btn--muted" id="ms12-room-flush">이 브라우저에 임시 저장</button>
-               <button type="button" class="ms12-btn" id="ms12-room-export">JSON 내보내기</button>
+               <button type="button" class="ms12-btn ms12-btn--muted" id="ms12-room-flush">이 브라우저에 임시 저장 · JSON 받기</button>
              </div>
              <p class="ms12-muted" id="ms12-room-flush-msg" style="font-size:0.78rem;min-height:1rem;margin:0.35rem 0 0 0"></p>
-             <p class="ms12-muted" style="font-size:0.77rem;margin:0.55rem 0 0 0;line-height:1.45;color:rgb(100 116 139)">내용 맨 아래에 키워드·태그를 적어 두면 나중에 찾기 좋습니다. 서버에 반영할 때는 아래 「서버에 회의 저장」 블록의 태그 칸에 같은 단어를 넣으면 보관함 검색에 도움이 됩니다.</p>
+             <p class="ms12-muted" style="font-size:0.77rem;margin:0.55rem 0 0 0;line-height:1.45;color:rgb(100 116 139)">전사·메모 아래에 키워드·태그를 적어 두면 나중에 찾기 좋습니다. 서버에 반영할 때는 아래 「서버에 회의 저장」 블록의 태그 칸에 같은 단어를 넣으면 보관함 검색에 도움이 됩니다.</p>
            </div>
-           <details class="ms12-panel" style="margin-top:0.75rem">
-             <summary style="cursor:pointer;font-weight:600;padding:0.35rem 0;list-style:none">수동 요약 (기본 · 실행 · 보고)</summary>
+           <details class="ms12-panel ms12-details-as-btn" style="margin-top:0.75rem">
+             <summary>수동 요약 (기본 · 실행 · 보고)</summary>
              <div style="margin-top:0.5rem">
                <p class="ms12-muted" style="font-size:0.82rem;margin:0 0 0.65rem 0">직접 입력합니다. 이 브라우저에 자동 저장됩니다.</p>
                <label class="ms12-muted" style="font-size:0.78rem;display:block;margin:0 0 0.15rem 0" for="ms12-room-summary-basic">기본 요약</label>
@@ -863,8 +862,8 @@ p.get('/room/:id', (c) => {
          <p class="ms12-p" id="ms12-linked-ann-line" style="font-size:0.9rem;margin:0"></p>
          <a id="ms12-linked-ann-link" class="text-indigo-600" style="font-size:0.88rem;text-decoration:underline;display:none" href="#">공고 상세</a>
        </div>
-       <details class="ms12-panel" style="margin:0.75rem 0 0.75rem 0;max-width:32rem">
-         <summary style="cursor:pointer;font-weight:600;padding:0.35rem 0;list-style:none">서버에 회의 저장 (보관함·제목·날짜)</summary>
+       <details class="ms12-panel ms12-details-as-btn" style="margin:0.75rem 0 0.75rem 0;max-width:32rem">
+         <summary>서버에 회의 저장 (보관함·제목·날짜)</summary>
          <div style="margin-top:0.45rem">
          <p class="ms12-muted" style="font-size:0.8rem;margin:0 0 0.4rem 0">필수 항목을 채운 뒤 저장하면 <a href="/app/archive" class="text-indigo-600" style="text-decoration:underline">회의 보관함</a>에 쌓입니다. 목록에서 열어 덮어쓰기·참고할 수 있습니다.</p>
          <input class="ms12-input" id="ms12-save-title" type="text" placeholder="예: 260428 회의" maxlength="200" style="max-width:100%"/>
@@ -891,8 +890,14 @@ p.get('/room/:id', (c) => {
              <option value="private_admin">관리자만</option>
            </select>
          </div>
-         <button type="button" class="ms12-btn ms12-btn--teal" id="ms12-meeting-save-server" style="margin-top:0.5rem">서버에 회의 저장</button>
-         <p class="ms12-muted" id="ms12-save-server-msg" style="font-size:0.8rem;margin:0.35rem 0 0 0"></p>
+         <div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;margin-top:0.5rem">
+         <button type="button" class="ms12-btn ms12-btn--teal" id="ms12-meeting-save-server">서버에 회의 저장</button>
+         <button type="button" class="ms12-btn ms12-btn--muted" id="ms12-room-end-meeting">회의 종료</button>
+         </div>
+         <div style="margin-top:0.35rem;display:flex;flex-wrap:wrap;gap:0.75rem;align-items:baseline;font-size:0.82rem">
+           <span class="ms12-muted" id="ms12-save-server-msg" style="margin:0"></span>
+           <span class="ms12-muted" id="ms12-room-end-msg" style="min-height:1.2rem;margin:0" role="status" aria-live="polite"></span>
+         </div>
          </div>
        </details>
        ${loginAside('/app/room/' + id, kakao, google)}
