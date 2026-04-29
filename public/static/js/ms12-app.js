@@ -29,6 +29,218 @@
   /** 회의실: 서버 isHost — 참석자 목록에서 공동 호스트 지정 버튼 표시 */
   var g_ms12RoomIsHost = false
 
+  function ms12ActiveRoomId() {
+    try {
+      var b = typeof document !== 'undefined' ? document.body : null
+      return b ? String(b.getAttribute('data-ms12-meeting-id') || '').trim() : ''
+    } catch (e) {
+      return ''
+    }
+  }
+
+  /** 회의록(다글로식) — 방 페이지에서만 채워짐 */
+  var ms12RoomTranscriptSegs = null
+  /** { speaker, startSec, text } | null — 말하는 중 미리보기 */
+  var ms12RoomTranscriptLive = null
+
+  function ms12FmtMmSs(sec) {
+    var x = sec != null && isFinite(Number(sec)) ? Number(sec) : 0
+    if (x < 0) x = 0
+    var m = Math.floor(x / 60)
+    var s = Math.floor(x % 60)
+    return ('0' + m).slice(-2) + ':' + ('0' + s).slice(-2)
+  }
+
+  function ms12LastSegEnd(segs) {
+    if (!segs || !segs.length) return 0
+    var max = 0
+    for (var i = 0; i < segs.length; i++) {
+      var t = segs[i] && segs[i].startSec
+      var n = t != null ? Number(t) : 0
+      if (isFinite(n) && n > max) max = n
+    }
+    return max
+  }
+
+  function ms12SegsToPlain(segs) {
+    if (!segs || !segs.length) return ''
+    var lines = []
+    for (var i = 0; i < segs.length; i++) {
+      var s = segs[i]
+      var sn = s && s.speaker != null ? Number(s.speaker) : 0
+      if (!isFinite(sn) || sn < 0) sn = 0
+      var t = ms12FmtMmSs(s && s.startSec != null ? Number(s.startSec) : 0)
+      var tx = s && s.text != null ? String(s.text).trim() : ''
+      lines.push('[화자' + (sn + 1) + '] ' + t + ' ' + tx)
+    }
+    return lines.join('\n')
+  }
+
+  /** 레거시 줄 단위 문자열 → 세그먼트 */
+  function ms12ParseLegacyTranscript(txt) {
+    var raw = txt != null ? String(txt).trim() : ''
+    if (!raw) return []
+    var lines = raw.split(/\r?\n/)
+    var out = []
+    var synth = 0
+    var lineRe = /^\[화자\s*(\d+)\]\s*(?:(\d{1,3}):(\d{2}))?\s*(.*)$/i
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim()
+      if (!line) continue
+      var m = line.match(lineRe)
+      if (m) {
+        var sn = parseInt(m[1], 10) - 1
+        if (!isFinite(sn) || sn < 0) sn = 0
+        var sec = 0
+        if (m[2] != null && m[2] !== '') {
+          sec = parseInt(m[2], 10) * 60 + parseInt(m[3], 10)
+        } else {
+          sec = synth
+          synth += 1
+        }
+        out.push({ speaker: sn, startSec: sec, text: (m[4] || '').trim() })
+      } else {
+        if (out.length) {
+          var prev = out[out.length - 1]
+          prev.text = (prev.text + ' ' + line).trim()
+        } else {
+          out.push({ speaker: 0, startSec: 0, text: line })
+        }
+      }
+    }
+    return out
+  }
+
+  function ms12RoomTranscriptPalette(idx) {
+    var palettes = [
+      'rgb(239 246 255)',
+      'rgb(254 243 242)',
+      'rgb(236 253 245)',
+      'rgb(254 252 232)',
+    ]
+    var borders = [
+      'rgb(129 140 248)',
+      'rgb(248 113 113)',
+      'rgb(52 211 153)',
+      'rgb(234 179 8)',
+    ]
+    var ii = idx % palettes.length
+    return { bg: palettes[ii], bd: borders[ii] }
+  }
+
+  function ms12RoomTranscriptRender() {
+    var list = document.getElementById('ms12-room-transcript-list')
+    var ta = document.getElementById('ms12-room-transcript')
+    var segs = ms12RoomTranscriptSegs || []
+    if (ta) ta.value = ms12SegsToPlain(segs)
+    if (!list) return
+    list.innerHTML = ''
+    for (var si = 0; si < segs.length; si++) {
+      ;(function (seg, idx) {
+        var sn = seg.speaker != null ? Number(seg.speaker) : 0
+        if (!isFinite(sn) || sn < 0) sn = 0
+        var pal = ms12RoomTranscriptPalette(sn)
+        var row = document.createElement('div')
+        row.className = 'ms12-tr-seg'
+        row.setAttribute('data-ms12-tr-idx', String(idx))
+        var av = document.createElement('div')
+        av.className = 'ms12-tr-avatar'
+        av.setAttribute(
+          'style',
+          'background:' +
+            pal.bg +
+            ';border:2px solid ' +
+            pal.bd +
+            ';color:rgb(51 65 85)',
+        )
+        av.textContent = '화'
+        var body = document.createElement('div')
+        body.className = 'ms12-tr-body'
+        var meta = document.createElement('div')
+        meta.className = 'ms12-tr-meta'
+        meta.innerHTML =
+          '<strong>화자 ' +
+          (sn + 1) +
+          '</strong> <span class="ms12-tr-time">' +
+          ms12FmtMmSs(seg.startSec) +
+          '</span>'
+        var tx = document.createElement('div')
+        tx.className = 'ms12-tr-text'
+        tx.textContent = seg.text != null ? String(seg.text) : ''
+        body.appendChild(meta)
+        body.appendChild(tx)
+        row.appendChild(av)
+        row.appendChild(body)
+        list.appendChild(row)
+      })(segs[si], si)
+    }
+    if (ms12RoomTranscriptLive && ms12RoomTranscriptLive.text) {
+      var lv = ms12RoomTranscriptLive
+      var sn2 = lv.speaker != null ? Number(lv.speaker) : 0
+      if (!isFinite(sn2) || sn2 < 0) sn2 = 0
+      var pal2 = ms12RoomTranscriptPalette(sn2)
+      var row2 = document.createElement('div')
+      row2.className = 'ms12-tr-seg ms12-tr-seg--live'
+      var av2 = document.createElement('div')
+      av2.className = 'ms12-tr-avatar'
+      av2.setAttribute(
+        'style',
+        'background:' +
+          pal2.bg +
+          ';border:2px solid ' +
+          pal2.bd +
+          ';color:rgb(51 65 85)',
+      )
+      av2.textContent = '화'
+      var body2 = document.createElement('div')
+      body2.className = 'ms12-tr-body'
+      var meta2 = document.createElement('div')
+      meta2.className = 'ms12-tr-meta'
+      meta2.innerHTML =
+        '<strong>화자 ' +
+        (sn2 + 1) +
+        '</strong> <span class="ms12-tr-time">' +
+        ms12FmtMmSs(lv.startSec) +
+        '</span>'
+      var tx2 = document.createElement('div')
+      tx2.className = 'ms12-tr-text'
+      tx2.textContent = lv.text != null ? String(lv.text) : ''
+      body2.appendChild(meta2)
+      body2.appendChild(tx2)
+      row2.appendChild(av2)
+      row2.appendChild(body2)
+      list.appendChild(row2)
+      try {
+        row2.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      } catch (e1) {}
+    } else if (list.lastChild) {
+      try {
+        list.lastChild.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      } catch (e2) {}
+    }
+  }
+
+  function ms12RoomTranscriptApply(opts) {
+    opts = opts || {}
+    if (opts.segs) ms12RoomTranscriptSegs = opts.segs.slice()
+    if (opts.live !== undefined) ms12RoomTranscriptLive = opts.live
+    ms12RoomTranscriptRender()
+    try {
+      var capText = ms12SegsToPlain(ms12RoomTranscriptSegs || [])
+      if (ms12RoomTranscriptLive && ms12RoomTranscriptLive.text) {
+        capText =
+          (capText ? capText + '\n' : '') +
+          '[화자' +
+          ((ms12RoomTranscriptLive.speaker != null ? Number(ms12RoomTranscriptLive.speaker) : 0) + 1) +
+          '] ' +
+          ms12FmtMmSs(ms12RoomTranscriptLive.startSec) +
+          ' ' +
+          ms12RoomTranscriptLive.text
+      }
+      ms12SyncLiveCaptionFromTranscript(capText)
+    } catch (e0) {}
+  }
+
   var _nativeFetch = typeof fetch === 'function' ? fetch : null
   /** 동일 출처 API — 쿠키 포함·응답 캐시 방지(no-store) */
   function ms12Fetch(input, init) {
@@ -204,7 +416,7 @@
     opts = opts || {}
     var idleMsg =
       opts.idleMsg ||
-      '음성 인식을 켜면 말하는 내용이 여기와 「메모·전사」 전사 칸에 함께 표시됩니다.'
+      '음성 인식을 켜면 말하는 내용이 여기와 「회의록」 목록에 함께 표시됩니다.'
     var display = ms12CaptionTail(fullText, opts.maxLen || 420)
     if (!display) {
       cap.textContent = idleMsg
@@ -323,6 +535,7 @@
         updatedAt: now,
         notes: prev.notes,
         transcript: prev.transcript,
+        transcriptSegs: prev.transcriptSegs,
         summary: prev.summary,
         actionItemsLocal: prev.actionItemsLocal
       }
@@ -404,6 +617,10 @@
     if (!st.byId[meetingId]) st.byId[meetingId] = { id: meetingId }
     st.byId[meetingId].notes = n ? n.value : (st.byId[meetingId].notes || '')
     st.byId[meetingId].transcript = tr ? tr.value : (st.byId[meetingId].transcript || '')
+    var rid = ms12ActiveRoomId()
+    if (rid && String(meetingId) === rid && ms12RoomTranscriptSegs !== null) {
+      st.byId[meetingId].transcriptSegs = ms12RoomTranscriptSegs.slice()
+    }
     if (sb) st.byId[meetingId].summaryBasic = sb.value
     if (sa) st.byId[meetingId].summaryAction = sa.value
     if (sr) st.byId[meetingId].summaryReport = sr.value
@@ -440,7 +657,28 @@
     var sa = document.getElementById('ms12-room-summary-action')
     var sr = document.getElementById('ms12-room-summary-report')
     if (n && x.notes != null) n.value = x.notes
-    if (tr && x.transcript != null) tr.value = x.transcript
+    var rid = ms12ActiveRoomId()
+    if (
+      tr &&
+      rid &&
+      String(meetingId) === rid &&
+      Array.isArray(x.transcriptSegs)
+    ) {
+      ms12RoomTranscriptSegs = x.transcriptSegs.slice()
+      ms12RoomTranscriptLive = null
+      tr.value = ms12SegsToPlain(ms12RoomTranscriptSegs)
+      ms12RoomTranscriptRender()
+    } else if (tr && x.transcript != null) {
+      tr.value = x.transcript
+      ms12RoomTranscriptSegs = ms12ParseLegacyTranscript(tr.value)
+      ms12RoomTranscriptLive = null
+      ms12RoomTranscriptRender()
+    } else if (tr && rid && String(meetingId) === rid) {
+      ms12RoomTranscriptSegs = []
+      ms12RoomTranscriptLive = null
+      tr.value = ''
+      ms12RoomTranscriptRender()
+    }
     if (sb) {
       if (x.summaryBasic != null) sb.value = x.summaryBasic
       else if (x.summary != null) sb.value = x.summary
@@ -449,6 +687,12 @@
     if (sr && x.summaryReport != null) sr.value = x.summaryReport
     var trSync = document.getElementById('ms12-room-transcript')
     if (trSync) ms12SyncLiveCaptionFromTranscript(trSync.value)
+    try {
+      ms12RoomMaterialsRender(meetingId)
+    } catch (eMat) {}
+    try {
+      ms12RoomSyncAiPreview()
+    } catch (eAiP) {}
   }
 
   function authLog() {
@@ -1233,6 +1477,86 @@
       .replace(/</g, '&lt;')
   }
 
+  function ms12FmtBytes(n) {
+    if (n == null || !isFinite(Number(n))) return ''
+    var x = Number(n)
+    if (x < 0) x = 0
+    if (x < 1024) return Math.round(x) + ' B'
+    if (x < 1024 * 1024) return (x / 1024).toFixed(1) + ' KB'
+    return (x / (1024 * 1024)).toFixed(1) + ' MB'
+  }
+
+  /** 회의 저장 시 raw_notes 하단에 붙일 마크다운 (DB 변경 없음) */
+  function ms12MaterialsMarkdownAppend(materials) {
+    if (!materials || !materials.length) return ''
+    var lines = ['', '---', '## 회의 자료 (회의실 첨부 목록)']
+    for (var i = 0; i < materials.length; i++) {
+      var m = materials[i]
+      var nm = String(m.name || '파일').replace(/\r|\n/g, ' ')
+      lines.push(
+        '- **' +
+          nm +
+          '**' +
+          (m.size != null ? ' (' + ms12FmtBytes(m.size) + ')' : '') +
+          (m.mime ? ', `' + String(m.mime).replace(/`/g, '') + '`' : ''),
+      )
+      if (m.preview && String(m.preview).trim()) {
+        var pv = String(m.preview).trim().slice(0, 1500)
+        lines.push('  ' + pv.replace(/\n/g, '\n  '))
+      }
+    }
+    return '\n' + lines.join('\n')
+  }
+
+  function ms12RoomSyncAiPreview() {
+    var el = document.getElementById('ms12-room-ai-sum-preview-body')
+    if (!el) return
+    var b = document.getElementById('ms12-room-summary-basic')
+    var a = document.getElementById('ms12-room-summary-action')
+    var r = document.getElementById('ms12-room-summary-report')
+    var bs = b ? String(b.value || '').trim() : ''
+    var as = a ? String(a.value || '').trim() : ''
+    var rs = r ? String(r.value || '').trim() : ''
+    if (!bs && !as && !rs) {
+      el.textContent = '—'
+      return
+    }
+    el.textContent =
+      '[기본 요약]\n' +
+      (bs || '—') +
+      '\n\n[실행 요약]\n' +
+      (as || '—') +
+      '\n\n[보고 요약]\n' +
+      (rs || '—')
+  }
+
+  function ms12RoomMaterialsRender(meetingId) {
+    var ml = document.getElementById('ms12-room-material-list')
+    if (!ml || !meetingId) return
+    var st = readStore()
+    var mats = (st.byId[meetingId] && st.byId[meetingId].materialAttachments) || []
+    if (!mats.length) {
+      ml.innerHTML = ''
+      return
+    }
+    ml.innerHTML = mats
+      .map(function (m, ix) {
+        var nm = escapeForHtml(String(m.name || '파일'))
+        var sz = m.size != null ? ' · ' + escapeForHtml(ms12FmtBytes(m.size)) : ''
+        var pv = m.preview ? ' · 미리보기' : ''
+        return (
+          '<li style="margin:0.15rem 0">' +
+          nm +
+          sz +
+          pv +
+          ' <button type="button" class="ms12-btn ms12-btn--muted" style="font-size:0.72rem;padding:0.08rem 0.35rem;margin-left:0.25rem;vertical-align:baseline" data-ms12-mat-del="' +
+          ix +
+          '">제거</button></li>'
+        )
+      })
+      .join('')
+  }
+
   function formatDueForInput(d) {
     if (!d) return ''
     var t = String(d)
@@ -1442,10 +1766,13 @@
     var id = b.getAttribute('data-ms12-meeting-id') || ''
     if (!id) return
     roomServerOk = false
+    ms12RoomTranscriptSegs = null
+    ms12RoomTranscriptLive = null
     g_ms12RoomIsHost = false
     /** GET /meetings/:id — roomIsModerator: 호스트·공동 호스트(녹음 중 전사 붙여넣기 등) */
     var roomIsHost = false
     var roomIsModerator = false
+    var roomAiAvail = false
     var lastMergedActions = []
     var lastServerActionItems = []
     var titleEls = document.querySelectorAll('.js-ms12-room-title')
@@ -1461,6 +1788,163 @@
     try {
       loadRoomDraftToDom(id)
     } catch (e) {}
+
+    var liveSumTimer = null
+    var liveSumLastRun = 0
+    var liveSumBusy = false
+    var liveSumStat = document.getElementById('ms12-live-summary-status')
+    function applyMeetingSummaryData(d) {
+      if (!d) return
+      var sba = document.getElementById('ms12-room-summary-basic')
+      var sac = document.getElementById('ms12-room-summary-action')
+      var srp = document.getElementById('ms12-room-summary-report')
+      if (sba && d.summaryBasic != null && String(d.summaryBasic).trim()) sba.value = String(d.summaryBasic)
+      if (sac && d.summaryAction != null && String(d.summaryAction).trim()) sac.value = String(d.summaryAction)
+      if (srp && d.summaryReport != null && String(d.summaryReport).trim()) srp.value = String(d.summaryReport)
+      try {
+        saveRoomDraft(id)
+      } catch (e2) {}
+      try {
+        ms12RoomSyncAiPreview()
+      } catch (ePr) {}
+      if (liveSumStat) {
+        liveSumStat.textContent =
+          '실시간 요약 마지막 갱신: ' +
+          new Date().toLocaleTimeString() +
+          (d.source ? ' · ' + d.source : '')
+      }
+    }
+    function tryRollingManualSummaryRun() {
+      if (!roomServerOk) return
+      if (liveSumBusy) return
+      var now = Date.now()
+      if (liveSumLastRun && now - liveSumLastRun < 36000) return
+      var n = document.getElementById('ms12-room-notes')
+      var tr = document.getElementById('ms12-room-transcript')
+      var combined = String((n && n.value) || '') + '\n' + String((tr && tr.value) || '')
+      if (combined.trim().length < 72) return
+      var sba = document.getElementById('ms12-room-summary-basic')
+      var sac = document.getElementById('ms12-room-summary-action')
+      var srp = document.getElementById('ms12-room-summary-report')
+      liveSumBusy = true
+      if (liveSumStat) {
+        liveSumStat.style.display = 'block'
+        liveSumStat.textContent = '실시간 요약 반영 중…'
+      }
+      ms12Fetch('/api/ms12/meetings/' + encodeURIComponent(id) + '/auto-summary', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          notes: n ? n.value : '',
+          transcript: tr ? tr.value : '',
+          summaryBasic: sba ? sba.value : '',
+          summaryAction: sac ? sac.value : '',
+          summaryReport: srp ? srp.value : '',
+        }),
+      })
+        .then(function (r) {
+          return jsonFromResponse(r)
+        })
+        .then(function (j) {
+          if (j && j.success && j.data) {
+            applyMeetingSummaryData(j.data)
+          } else {
+            if (liveSumStat) liveSumStat.textContent = (j && j.error) || '실시간 요약 실패'
+          }
+        })
+        .catch(function () {
+          if (liveSumStat) liveSumStat.textContent = '실시간 요약 요청 실패'
+        })
+        .finally(function () {
+          liveSumBusy = false
+          liveSumLastRun = Date.now()
+        })
+    }
+    function runManualAutoSummaryNow() {
+      if (!roomServerOk) {
+        var h0 = document.getElementById('ms12-room-ai-sum-hint')
+        if (h0) h0.textContent = '서버에 입장한 뒤 요약을 요청할 수 있습니다.'
+        return
+      }
+      if (!roomAiAvail) return
+      if (liveSumBusy) {
+        var h1 = document.getElementById('ms12-room-ai-sum-hint')
+        if (h1) h1.textContent = '이전 요약 요청이 처리 중입니다. 잠시 후 다시 시도하세요.'
+        return
+      }
+      var n = document.getElementById('ms12-room-notes')
+      var tr = document.getElementById('ms12-room-transcript')
+      var sba = document.getElementById('ms12-room-summary-basic')
+      var sac = document.getElementById('ms12-room-summary-action')
+      var srp = document.getElementById('ms12-room-summary-report')
+      var combined = String((n && n.value) || '') + '\n' + String((tr && tr.value) || '')
+      if (combined.trim().length < 12) {
+        var h2 = document.getElementById('ms12-room-ai-sum-hint')
+        if (h2) h2.textContent = '메모·회의록을 조금 더 채운 뒤 요약을 요청하세요.'
+        return
+      }
+      var hGo = document.getElementById('ms12-room-ai-sum-hint')
+      if (hGo) hGo.textContent = 'AI 요약 요청 중…'
+      liveSumBusy = true
+      if (liveSumStat) {
+        liveSumStat.style.display = 'block'
+        liveSumStat.textContent = 'AI 요약 요청 중…'
+      }
+      ms12Fetch('/api/ms12/meetings/' + encodeURIComponent(id) + '/auto-summary', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          notes: n ? n.value : '',
+          transcript: tr ? tr.value : '',
+          summaryBasic: sba ? sba.value : '',
+          summaryAction: sac ? sac.value : '',
+          summaryReport: srp ? srp.value : '',
+        }),
+      })
+        .then(function (r) {
+          return jsonFromResponse(r)
+        })
+        .then(function (j) {
+          if (j && j.success && j.data) {
+            applyMeetingSummaryData(j.data)
+            var hOk = document.getElementById('ms12-room-ai-sum-hint')
+            if (hOk)
+              hOk.textContent =
+                '요약을 갱신했습니다. 세부 수정은 아래 「수동 요약」에서 할 수 있습니다.'
+          } else {
+            if (liveSumStat) liveSumStat.textContent = (j && j.error) || '요약 실패'
+            var hEr = document.getElementById('ms12-room-ai-sum-hint')
+            if (hEr) hEr.textContent = (j && j.error) || '요약 실패'
+          }
+        })
+        .catch(function () {
+          if (liveSumStat) liveSumStat.textContent = '요약 요청 실패'
+          var hEr2 = document.getElementById('ms12-room-ai-sum-hint')
+          if (hEr2) hEr2.textContent = '요약 요청에 실패했습니다.'
+        })
+        .finally(function () {
+          liveSumBusy = false
+        })
+    }
+    function bumpRollingManualSummarySchedule() {
+      if (!roomServerOk) return
+      var n = document.getElementById('ms12-room-notes')
+      var tr = document.getElementById('ms12-room-transcript')
+      var combined = String((n && n.value) || '') + '\n' + String((tr && tr.value) || '')
+      if (combined.trim().length < 72) {
+        if (liveSumTimer) clearTimeout(liveSumTimer)
+        liveSumTimer = null
+        return
+      }
+      if (liveSumTimer) clearTimeout(liveSumTimer)
+      liveSumTimer = setTimeout(function () {
+        liveSumTimer = null
+        tryRollingManualSummaryRun()
+      }, 26000)
+    }
+
     g_ms12DraftMeeting = id
     g_ms12DraftKind = 'report_int'
     var partWrap = document.getElementById('ms12-part-wrap')
@@ -1540,6 +2024,39 @@
           })
         }
       })
+    ;(function bindRollingNotesTranscript() {
+      var nRolling = document.getElementById('ms12-room-notes')
+      var trRolling = document.getElementById('ms12-room-transcript')
+      var rbounce = null
+      function onNotesTranscriptBump() {
+        if (rbounce) clearTimeout(rbounce)
+        rbounce = setTimeout(function () {
+          bumpRollingManualSummarySchedule()
+        }, 400)
+      }
+      if (nRolling) {
+        nRolling.addEventListener('input', onNotesTranscriptBump)
+        nRolling.addEventListener('change', onNotesTranscriptBump)
+      }
+      if (trRolling) {
+        trRolling.addEventListener('input', onNotesTranscriptBump)
+        trRolling.addEventListener('change', onNotesTranscriptBump)
+      }
+    })()
+    ;['ms12-room-summary-basic', 'ms12-room-summary-action', 'ms12-room-summary-report'].forEach(function (tid) {
+      var sx = document.getElementById(tid)
+      if (sx) {
+        sx.addEventListener('input', function () {
+          ms12RoomSyncAiPreview()
+        })
+        sx.addEventListener('change', function () {
+          ms12RoomSyncAiPreview()
+        })
+      }
+    })
+    try {
+      ms12RoomSyncAiPreview()
+    } catch (eApr) {}
     function performRoomJsonExport() {
       try {
         saveRoomDraft(id)
@@ -1558,6 +2075,7 @@
               savedAt: new Date().toISOString(),
               notes: pack.notes || '',
               transcript: pack.transcript || '',
+              transcriptSegs: pack.transcriptSegs || null,
               summary: pack.summary || '',
               summaryBasic: pack.summaryBasic,
               summaryAction: pack.summaryAction,
@@ -1571,6 +2089,7 @@
                 lastMergedActions && lastMergedActions.length
                   ? lastMergedActions
                   : mergeActionLists([], getLocalActionItemsOnly(id)),
+              materialAttachments: pack.materialAttachments || [],
             },
             null,
             2
@@ -1603,6 +2122,184 @@
             new Date().toLocaleTimeString() +
             ')'
         }
+      })
+    }
+
+    var quickIn = document.getElementById('ms12-room-quick-text')
+    var quickMsg = document.getElementById('ms12-room-quick-msg')
+    var matMsg = document.getElementById('ms12-room-material-msg')
+    function appendQuickLineToNotes(line) {
+      var n = document.getElementById('ms12-room-notes')
+      if (!n) return
+      var t = String(line || '').trim()
+      if (!t) return
+      var ts = '[' + new Date().toLocaleTimeString() + '] '
+      n.value = (n.value ? n.value.replace(/\s+$/, '') + '\n' : '') + ts + t + '\n'
+      try {
+        saveRoomDraft(id)
+      } catch (eSv) {}
+      try {
+        bumpRollingManualSummarySchedule()
+      } catch (eB) {}
+      if (quickMsg) quickMsg.textContent = '메모에 한 줄을 추가했습니다.'
+    }
+    function appendQuickLineToTranscript(line) {
+      if (!roomIsModerator) {
+        if (quickMsg)
+          quickMsg.textContent =
+            '회의록(발언 목록) 추가는 호스트·공동 호스트만 할 수 있습니다.'
+        return
+      }
+      var t = String(line || '').trim()
+      if (!t) return
+      if (!ms12RoomTranscriptSegs) ms12RoomTranscriptSegs = []
+      ms12RoomTranscriptSegs.push({
+        speaker: 0,
+        startSec: ms12LastSegEnd(ms12RoomTranscriptSegs),
+        text: t,
+      })
+      ms12RoomTranscriptLive = null
+      ms12RoomTranscriptApply({})
+      try {
+        saveRoomDraft(id)
+      } catch (eSv2) {}
+      try {
+        bumpRollingManualSummarySchedule()
+      } catch (eB2) {}
+      if (quickMsg) quickMsg.textContent = '회의록에 한 줄을 추가했습니다.'
+    }
+    var btnQuickNotes = document.getElementById('ms12-room-quick-to-notes')
+    var btnQuickTr = document.getElementById('ms12-room-quick-to-transcript')
+    if (btnQuickNotes) {
+      btnQuickNotes.addEventListener('click', function () {
+        var q = quickIn ? String(quickIn.value || '').trim() : ''
+        if (!q) {
+          if (quickMsg) quickMsg.textContent = '추가할 텍스트를 입력하세요.'
+          return
+        }
+        appendQuickLineToNotes(q)
+        if (quickIn) quickIn.value = ''
+      })
+    }
+    if (btnQuickTr) {
+      btnQuickTr.addEventListener('click', function () {
+        var q = quickIn ? String(quickIn.value || '').trim() : ''
+        if (!q) {
+          if (quickMsg) quickMsg.textContent = '추가할 텍스트를 입력하세요.'
+          return
+        }
+        appendQuickLineToTranscript(q)
+        if (quickIn) quickIn.value = ''
+      })
+    }
+
+    var matList = document.getElementById('ms12-room-material-list')
+    var matInput = document.getElementById('ms12-room-material-input')
+    function pushMeetingMaterial(meta) {
+      var st = readStore()
+      if (!st.byId[id]) st.byId[id] = { id: id }
+      var arr = st.byId[id].materialAttachments || []
+      if (arr.length >= 24) return false
+      arr.push(meta)
+      st.byId[id].materialAttachments = arr
+      writeStore(st)
+      ms12RoomMaterialsRender(id)
+      try {
+        saveRoomDraft(id)
+      } catch (eM) {}
+      return true
+    }
+    if (matList && !matList.getAttribute('data-ms12-mat-del-bound')) {
+      matList.setAttribute('data-ms12-mat-del-bound', '1')
+      matList.addEventListener('click', function (ev) {
+        var delBtn = ev.target && ev.target.closest && ev.target.closest('[data-ms12-mat-del]')
+        if (!delBtn) return
+        var ix = parseInt(delBtn.getAttribute('data-ms12-mat-del'), 10)
+        if (!isFinite(ix) || ix < 0) return
+        var st = readStore()
+        var arr = (st.byId[id] && st.byId[id].materialAttachments) || []
+        arr.splice(ix, 1)
+        if (!st.byId[id]) st.byId[id] = { id: id }
+        st.byId[id].materialAttachments = arr
+        writeStore(st)
+        ms12RoomMaterialsRender(id)
+        try {
+          saveRoomDraft(id)
+        } catch (eD) {}
+        if (matMsg) matMsg.textContent = '목록에서 제거했습니다.'
+      })
+    }
+    if (matInput) {
+      matInput.addEventListener('change', function (ev) {
+        var inp = ev.target
+        var files = inp && inp.files
+        if (!files || !files.length) return
+        var pending = files.length
+        var okAny = false
+        function doneOne() {
+          pending--
+          if (pending <= 0) {
+            try {
+              inp.value = ''
+            } catch (eVe) {}
+            if (okAny && matMsg)
+              matMsg.textContent = '자료 목록에 추가했습니다. 저장 시 메모 하단에 요약이 붙습니다.'
+            else if (!okAny && matMsg)
+              matMsg.textContent =
+                '첨부하지 못했습니다. 파일 개수(최대 24개)를 확인하거나 작은 파일을 선택해 보세요.'
+          }
+        }
+        for (var fi = 0; fi < files.length; fi++) {
+          ;(function (file) {
+            if (!file) return doneOne()
+            var nm = file.name || '파일'
+            var mime = file.type || ''
+            var meta = {
+              name: nm,
+              size: file.size != null ? file.size : 0,
+              mime: mime,
+              addedAt: new Date().toISOString(),
+              preview: '',
+            }
+            var maxPrev = 64000
+            var takePreview =
+              file.size <= maxPrev &&
+              (mime.indexOf('text/') === 0 ||
+                mime === 'application/json' ||
+                /\.(txt|md|csv|log)$/i.test(nm))
+            if (takePreview) {
+              var fr = new FileReader()
+              fr.onload = function () {
+                try {
+                  var txt = typeof fr.result === 'string' ? fr.result : ''
+                  meta.preview = txt.slice(0, 4000)
+                } catch (eTxt) {}
+                if (pushMeetingMaterial(meta)) okAny = true
+                doneOne()
+              }
+              fr.onerror = function () {
+                if (pushMeetingMaterial(meta)) okAny = true
+                doneOne()
+              }
+              try {
+                fr.readAsText(file)
+              } catch (eRead) {
+                if (pushMeetingMaterial(meta)) okAny = true
+                doneOne()
+              }
+            } else {
+              if (pushMeetingMaterial(meta)) okAny = true
+              doneOne()
+            }
+          })(files[fi])
+        }
+      })
+    }
+
+    var btnAiNow = document.getElementById('ms12-room-ai-sum-now')
+    if (btnAiNow) {
+      btnAiNow.addEventListener('click', function () {
+        runManualAutoSummaryNow()
       })
     }
 
@@ -2382,10 +3079,11 @@
       var recog = Rec ? new Rec() : null
       var sttOn = false
       var usingDg = false
-      /** 음성 시작 시점의 사용자 입력(전사창 스냅샷) */
-      var sttUserBase = ''
-      /** 이번 세션에서 확정된 전사 누적 */
-      var sttFinalAccum = ''
+      /** 브라우저 Web Speech — 발언 순서마다 화자 순환 (단일 마이크 한계) */
+      var wsSessionStartMs = 0
+      var wsStreamOffsetSec = 0
+      var wsPendingStartMs = null
+      var wsCurSpeakIdx = 0
       var dgWs = null
       var dgKa = null
       var dgAudioCtx = null
@@ -2393,17 +3091,41 @@
       var dgMute = null
       var dgSource = null
       var dgMedia = null
-      var dgCommitted = ''
-      var dgPartial = ''
-      var dgBaseSnap = ''
+      /** 클라우드 STT 오디오 스트림 시작 시점 대비 초 단위 오프셋 */
+      var dgStreamOffsetSec = 0
 
-      function joinWithGap(left, right) {
-        var L = left != null ? String(left) : ''
-        var R = right != null ? String(right) : ''
-        if (!R) return L
-        if (!L) return R
-        if (/\s$/.test(L) || /^\s/.test(R)) return L + R
-        return L + ' ' + R
+      /** Deepgram words → 세그먼트 배열 (speaker 0부터, startSec은 회의록 타임라인 초) */
+      function dgSegmentsFromWords(words, streamOff, msgStartFallback) {
+        var off = streamOff != null && isFinite(Number(streamOff)) ? Number(streamOff) : 0
+        var fb = msgStartFallback != null && isFinite(Number(msgStartFallback)) ? Number(msgStartFallback) : 0
+        if (!words || !words.length) return []
+        var out = []
+        var sp = null
+        var buf = []
+        var lineStart = null
+        function flush() {
+          if (sp === null || !buf.length) return
+          var fs = lineStart != null ? off + lineStart : off + fb
+          out.push({
+            speaker: Number(sp),
+            startSec: fs,
+            text: buf.join(' '),
+          })
+          buf = []
+          lineStart = null
+        }
+        for (var wi = 0; wi < words.length; wi++) {
+          var w = words[wi]
+          var s = w && w.speaker != null ? Number(w.speaker) : 0
+          var piece = String((w && (w.punctuated_word || w.word)) || '').trim()
+          if (!piece) continue
+          if (sp !== null && s !== sp) flush()
+          sp = s
+          if (lineStart === null && w.start != null) lineStart = Number(w.start)
+          buf.push(piece)
+        }
+        flush()
+        return out
       }
 
       function dgParseTranscript(raw) {
@@ -2415,9 +3137,12 @@
             j.channel.alternatives &&
             j.channel.alternatives[0]
           ) {
+            var alt = j.channel.alternatives[0]
             return {
-              text: String(j.channel.alternatives[0].transcript || ''),
+              text: String(alt.transcript || ''),
               isFinal: !!j.is_final,
+              words: alt.words || null,
+              utteranceStart: j.start != null ? Number(j.start) : null,
             }
           }
         } catch (e) {}
@@ -2467,8 +3192,11 @@
           })
           dgMedia = null
         }
-        dgCommitted = ''
-        dgPartial = ''
+        dgStreamOffsetSec = 0
+        ms12RoomTranscriptLive = null
+        try {
+          ms12RoomTranscriptRender()
+        } catch (eR) {}
         usingDg = false
       }
 
@@ -2479,9 +3207,8 @@
 
       function dgStart() {
         dgStop()
-        dgBaseSnap = trEl.value != null ? String(trEl.value) : ''
-        dgCommitted = ''
-        dgPartial = ''
+        if (!ms12RoomTranscriptSegs) ms12RoomTranscriptSegs = []
+        dgStreamOffsetSec = ms12LastSegEnd(ms12RoomTranscriptSegs)
         usingDg = true
         sttOn = true
         setSttUi(true)
@@ -2551,20 +3278,41 @@
           var raw = typeof ev.data === 'string' ? ev.data : ''
           var pr = dgParseTranscript(raw)
           if (!pr) return
+          if (!ms12RoomTranscriptSegs) ms12RoomTranscriptSegs = []
+          var fb = pr.utteranceStart != null ? pr.utteranceStart : 0
           if (pr.isFinal) {
-            dgCommitted = joinWithGap(dgCommitted, pr.text)
-            dgPartial = ''
+            var parts = dgSegmentsFromWords(pr.words || [], dgStreamOffsetSec, fb)
+            if (!parts.length && pr.text && String(pr.text).trim()) {
+              parts.push({
+                speaker: 0,
+                startSec: dgStreamOffsetSec + fb,
+                text: String(pr.text).trim(),
+              })
+            }
+            for (var pi = 0; pi < parts.length; pi++) {
+              ms12RoomTranscriptSegs.push(parts[pi])
+            }
+            ms12RoomTranscriptLive = null
           } else {
-            dgPartial = pr.text
+            var altSp = 0
+            var altStart = dgStreamOffsetSec + fb
+            var altTxt = String(pr.text || '').trim()
+            if (pr.words && pr.words.length) {
+              var w0 = pr.words[0]
+              altSp = w0 && w0.speaker != null ? Number(w0.speaker) : 0
+              if (w0 && w0.start != null) altStart = dgStreamOffsetSec + Number(w0.start)
+            }
+            ms12RoomTranscriptLive = altTxt
+              ? { speaker: altSp, startSec: altStart, text: altTxt }
+              : null
           }
-          var line = joinWithGap(joinWithGap(dgBaseSnap, dgCommitted), dgPartial)
-          trEl.value = line
-          try {
-            ms12SyncLiveCaptionFromTranscript(trEl.value)
-          } catch (e0) {}
+          ms12RoomTranscriptApply({})
           try {
             saveRoomDraft(id)
           } catch (e) {}
+          try {
+            bumpRollingManualSummarySchedule()
+          } catch (eRoll) {}
         }
         socket.onerror = function () {
           if (sttSt) sttSt.textContent = '클라우드 STT 오류'
@@ -2573,8 +3321,11 @@
 
       function startWebSpeechListening() {
         if (!recog) return
-        sttUserBase = trEl.value != null ? String(trEl.value) : ''
-        sttFinalAccum = ''
+        if (!ms12RoomTranscriptSegs) ms12RoomTranscriptSegs = []
+        wsSessionStartMs = Date.now()
+        wsStreamOffsetSec = ms12LastSegEnd(ms12RoomTranscriptSegs)
+        wsPendingStartMs = null
+        wsCurSpeakIdx = 0
         sttOn = true
         usingDg = false
         setSttUi(true)
@@ -2595,6 +3346,10 @@
         if (!recog) return
         sttOn = false
         setSttUi(false)
+        ms12RoomTranscriptLive = null
+        try {
+          ms12RoomTranscriptRender()
+        } catch (eR) {}
         try {
           recog.stop()
         } catch (e) {}
@@ -2637,23 +3392,50 @@
           recog.maxAlternatives = 1
         } catch (e) {}
         recog.onresult = function (ev) {
+          if (!ms12RoomTranscriptSegs) ms12RoomTranscriptSegs = []
           var interim = ''
+          var fi = 0
           for (var ri = ev.resultIndex; ri < ev.results.length; ri++) {
             var seg = (ev.results[ri] && ev.results[ri][0] && ev.results[ri][0].transcript) || ''
             if (ev.results[ri].isFinal) {
-              sttFinalAccum += seg
+              var chunk = String(seg || '').trim()
+              if (chunk) {
+                var utterMs = wsPendingStartMs || Date.now()
+                var stSec = wsStreamOffsetSec + (utterMs - wsSessionStartMs) / 1000
+                var spk = wsCurSpeakIdx
+                wsCurSpeakIdx = (wsCurSpeakIdx + 1) % 3
+                ms12RoomTranscriptSegs.push({
+                  speaker: spk,
+                  startSec: stSec,
+                  text: chunk,
+                })
+                wsPendingStartMs = null
+                fi++
+              }
             } else {
               interim += seg
             }
           }
-          var committed = joinWithGap(sttUserBase, sttFinalAccum)
-          trEl.value = joinWithGap(committed, interim)
-          try {
-            ms12SyncLiveCaptionFromTranscript(trEl.value)
-          } catch (e0) {}
+          var it = String(interim || '').trim()
+          if (it) {
+            if (!wsPendingStartMs) wsPendingStartMs = Date.now()
+            ms12RoomTranscriptLive = {
+              speaker: wsCurSpeakIdx,
+              startSec: wsStreamOffsetSec + (wsPendingStartMs - wsSessionStartMs) / 1000,
+              text: it,
+            }
+          } else if (!fi) {
+            ms12RoomTranscriptLive = null
+          } else {
+            ms12RoomTranscriptLive = null
+          }
+          ms12RoomTranscriptApply({})
           try {
             saveRoomDraft(id)
           } catch (e) {}
+          try {
+            bumpRollingManualSummarySchedule()
+          } catch (eRoll) {}
         }
         recog.onerror = function (e) {
           var code = e && e.error
@@ -2733,14 +3515,14 @@
           '«음성 켜기»를 누르면 마이크 권한을 요청합니다. 더 빠른 글자 표시가 필요하면 «클라우드 실시간 STT»를 선택하세요. HTTPS · Chrome·Edge 권장.'
       }
 
-      trEl.addEventListener('paste', function (e) {
+      function onTranscriptPasteWhileListening(e) {
         if (!sttOn) return
         if (!roomIsModerator) {
           e.preventDefault()
           if (sttHint) {
             var prevH = sttHint.textContent
             sttHint.textContent =
-              '녹음·전사 중 붙여넣기는 회의 호스트·공동 호스트만 가능합니다.'
+              '녹음·회의록 중 붙여넣기는 회의 호스트·공동 호스트만 가능합니다.'
             setTimeout(function () {
               if (sttHint) sttHint.textContent = prevH
             }, 3200)
@@ -2756,30 +3538,31 @@
               : ''
         } catch (err) {}
         if (pasted === '') return
-        var val = trEl.value != null ? String(trEl.value) : ''
-        var start = typeof trEl.selectionStart === 'number' ? trEl.selectionStart : val.length
-        var end = typeof trEl.selectionEnd === 'number' ? trEl.selectionEnd : start
-        var newVal = val.slice(0, start) + pasted + val.slice(end)
-        trEl.value = newVal
-        var caret = start + pasted.length
-        try {
-          trEl.selectionStart = trEl.selectionEnd = caret
-        } catch (e2) {}
-        if (usingDg) {
-          dgBaseSnap = newVal
-          dgCommitted = ''
-          dgPartial = ''
+        if (!ms12RoomTranscriptSegs) ms12RoomTranscriptSegs = []
+        var parsed = ms12ParseLegacyTranscript(pasted)
+        if (parsed.length) {
+          for (var pi = 0; pi < parsed.length; pi++) {
+            ms12RoomTranscriptSegs.push(parsed[pi])
+          }
         } else {
-          sttUserBase = newVal
-          sttFinalAccum = ''
+          ms12RoomTranscriptSegs.push({
+            speaker: 0,
+            startSec: ms12LastSegEnd(ms12RoomTranscriptSegs),
+            text: pasted.trim(),
+          })
         }
-        try {
-          ms12SyncLiveCaptionFromTranscript(trEl.value)
-        } catch (e0) {}
+        if (usingDg) dgStreamOffsetSec = ms12LastSegEnd(ms12RoomTranscriptSegs)
+        ms12RoomTranscriptLive = null
+        ms12RoomTranscriptApply({})
         try {
           saveRoomDraft(id)
         } catch (e) {}
-      })
+        try {
+          bumpRollingManualSummarySchedule()
+        } catch (eRoll) {}
+      }
+      var trPasteShell = document.getElementById('ms12-room-transcript-shell')
+      if (trPasteShell) trPasteShell.addEventListener('paste', onTranscriptPasteWhileListening)
     }
 
     var saveTitleEl = document.getElementById('ms12-save-title')
@@ -2826,6 +3609,12 @@
       var cat = catEl && catEl.value ? String(catEl.value).trim() : '일반'
       var tag = tagEl && tagEl.value ? String(tagEl.value).trim() : ''
       var vis = visEl && visEl.value ? String(visEl.value) : 'public_internal'
+      var stExtra = readStore()
+      var mats =
+        stExtra.byId && stExtra.byId[roomId] && stExtra.byId[roomId].materialAttachments
+          ? stExtra.byId[roomId].materialAttachments
+          : []
+      var rawComposed = String(raw).trim() + ms12MaterialsMarkdownAppend(mats)
       var recKey = 'ms12_record_for_room_' + roomId
       var existing = null
       try {
@@ -2839,7 +3628,7 @@
         title: titleS,
         meetingDate: saveDateEl.value,
         category: cat,
-        rawNotes: String(raw).trim(),
+        rawNotes: rawComposed,
         transcript: trs && trs.value ? String(trs.value) : null,
         tags: tag || null,
         visibility: vis,
@@ -3051,6 +3840,25 @@
         roomIsModerator =
           typeof d.isModerator === 'boolean' ? d.isModerator : !!d.isHost
         roomServerOk = true
+        roomAiAvail = !!d.aiAvailable
+        var btnAiHdr = document.getElementById('ms12-room-ai-sum-now')
+        var hintTop = document.getElementById('ms12-room-ai-sum-hint')
+        if (btnAiHdr) btnAiHdr.style.display = roomAiAvail ? 'inline-block' : 'none'
+        if (hintTop) {
+          if (!roomAiAvail) {
+            hintTop.textContent =
+              '메모·회의록이 쌓이면 여기에 요약 미리보기가 표시됩니다. 서버에 AI 키가 없으면 자동 요약은 제공되지 않으며, 「수동 요약」란에 직접 적을 수 있습니다.'
+          } else {
+            hintTop.textContent =
+              '메모·회의록이 쌓이면 여기에 요약 미리보기가 표시됩니다. 서버에 AI가 설정되어 있으면 자동으로 갱신되거나 「지금 요약 갱신」으로 즉시 요청할 수 있습니다.'
+          }
+        }
+        try {
+          ms12RoomSyncAiPreview()
+        } catch (eSy) {}
+        try {
+          bumpRollingManualSummarySchedule()
+        } catch (eRoll) {}
         try {
           recordMeetingLocal(d)
         } catch (e) {}
@@ -3555,83 +4363,494 @@
     load()
   }
 
+  function ms12ParseRecordExtrasFinal(raw) {
+    function emptyReport() {
+      return {
+        overview: '',
+        purpose: '',
+        discussion: '',
+        decisions: '',
+        execution: '',
+        schedule: '',
+        conclusion: '',
+      }
+    }
+    var rawStr = raw != null ? String(raw).trim() : ''
+    if (!rawStr) {
+      return { v: 1, actionItems: [], reportSections: emptyReport(), legacyFinalNotes: '' }
+    }
+    try {
+      var o = JSON.parse(rawStr)
+      if (o && o.v === 1 && typeof o === 'object') {
+        var rs = emptyReport()
+        if (o.reportSections && typeof o.reportSections === 'object') {
+          var keys = Object.keys(rs)
+          for (var ki = 0; ki < keys.length; ki++) {
+            var kk = keys[ki]
+            if (typeof o.reportSections[kk] === 'string') rs[kk] = o.reportSections[kk]
+          }
+        }
+        return {
+          v: 1,
+          actionItems: Array.isArray(o.actionItems) ? o.actionItems : [],
+          reportSections: rs,
+          legacyFinalNotes: typeof o.legacyFinalNotes === 'string' ? o.legacyFinalNotes : '',
+        }
+      }
+    } catch (e1) {}
+    return { v: 1, actionItems: [], reportSections: emptyReport(), legacyFinalNotes: rawStr }
+  }
+
+  function ms12SerializeRecordExtras(ex) {
+    var keys = ['overview', 'purpose', 'discussion', 'decisions', 'execution', 'schedule', 'conclusion']
+    var rs = {}
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i]
+      rs[k] =
+        ex.reportSections && typeof ex.reportSections[k] === 'string'
+          ? ex.reportSections[k]
+          : ''
+    }
+    return JSON.stringify({
+      v: 1,
+      actionItems: Array.isArray(ex.actionItems) ? ex.actionItems : [],
+      reportSections: rs,
+      legacyFinalNotes: ex.legacyFinalNotes != null ? String(ex.legacyFinalNotes) : '',
+    })
+  }
+
+  function ms12CopyToClipboard(text, okEl, okMsg) {
+    var t = text != null ? String(text) : ''
+    function done(ok) {
+      if (okEl) okEl.textContent = ok ? okMsg || '복사했습니다.' : '복사에 실패했습니다.'
+      if (ok && okEl) {
+        setTimeout(function () {
+          try {
+            okEl.textContent = ''
+          } catch (e2) {}
+        }, 2800)
+      }
+    }
+    if (!t.trim()) {
+      done(false)
+      return
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(t).then(
+        function () {
+          done(true)
+        },
+        function () {
+          done(false)
+        }
+      )
+      return
+    }
+    try {
+      var ta = document.createElement('textarea')
+      ta.value = t
+      ta.style.position = 'fixed'
+      ta.style.left = '-9999px'
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+      done(true)
+    } catch (e0) {
+      done(false)
+    }
+  }
+
   function initMeetingRecord() {
     var b = document.body
     var rid = b.getAttribute('data-ms12-record-id') || ''
     if (!rid) return
-    var f = document.getElementById('ms12-mr-form')
-    var msg = document.getElementById('ms12-mr-msg')
-    var meta = document.getElementById('ms12-mr-meta')
+
+    var extras = ms12ParseRecordExtrasFinal('')
+    var aiAvailGlobal = false
+
+    var el = function (id) {
+      return document.getElementById(id)
+    }
+
+    function collectExtrasFromDom() {
+      var tb = el('ms12-rec-actions-body')
+      var rows = tb ? tb.querySelectorAll('tr[data-ms12-ai-row]') : []
+      var items = []
+      for (var ri = 0; ri < rows.length; ri++) {
+        var row = rows[ri]
+        var task = row.querySelector('[data-field="task"]')
+        var assignee = row.querySelector('[data-field="assignee"]')
+        var due = row.querySelector('[data-field="due"]')
+        var status = row.querySelector('[data-field="status"]')
+        var evidence = row.querySelector('[data-field="evidence"]')
+        items.push({
+          task: task ? task.value : '',
+          assignee: assignee ? assignee.value : '',
+          due: due ? due.value : '',
+          status: status ? status.value : 'open',
+          evidence: evidence ? evidence.value : '',
+        })
+      }
+      extras.actionItems = items
+      extras.reportSections = {
+        overview: el('ms12-rec-r-overview') ? el('ms12-rec-r-overview').value : '',
+        purpose: el('ms12-rec-r-purpose') ? el('ms12-rec-r-purpose').value : '',
+        discussion: el('ms12-rec-r-discussion') ? el('ms12-rec-r-discussion').value : '',
+        decisions: el('ms12-rec-r-decisions') ? el('ms12-rec-r-decisions').value : '',
+        execution: el('ms12-rec-r-execution') ? el('ms12-rec-r-execution').value : '',
+        schedule: el('ms12-rec-r-schedule') ? el('ms12-rec-r-schedule').value : '',
+        conclusion: el('ms12-rec-r-conclusion') ? el('ms12-rec-r-conclusion').value : '',
+      }
+      return extras
+    }
+
+    function buildPayload() {
+      collectExtrasFromDom()
+      return {
+        title: el('ms12-rec-title') ? String(el('ms12-rec-title').value || '').trim() : '',
+        meetingDate: el('ms12-rec-date') ? String(el('ms12-rec-date').value || '').trim() : '',
+        category: el('ms12-rec-cat') ? String(el('ms12-rec-cat').value || '').trim() || '일반' : '일반',
+        participantsJson: el('ms12-rec-parts')
+          ? String(el('ms12-rec-parts').value || '').trim() || null
+          : null,
+        visibility: el('ms12-rec-vis') ? String(el('ms12-rec-vis').value || 'public_internal') : 'public_internal',
+        tags: el('ms12-rec-tags') ? String(el('ms12-rec-tags').value || '').trim() || null : null,
+        projectName: el('ms12-rec-proj')
+          ? String(el('ms12-rec-proj').value || '').trim() || null
+          : null,
+        budgetRef: el('ms12-rec-bud') ? String(el('ms12-rec-bud').value || '').trim() || null : null,
+        targetGroup: el('ms12-rec-tg') ? String(el('ms12-rec-tg').value || '').trim() || null : null,
+        rawNotes: el('ms12-rec-raw') ? String(el('ms12-rec-raw').value || '') : '',
+        transcript: el('ms12-rec-tr') ? String(el('ms12-rec-tr').value || '').trim() || null : null,
+        finalNotes: ms12SerializeRecordExtras(extras),
+        summaryBasic: el('ms12-rec-s-basic') ? String(el('ms12-rec-s-basic').value || '').trim() || null : null,
+        summaryAction: el('ms12-rec-s-action')
+          ? String(el('ms12-rec-s-action').value || '').trim() || null
+          : null,
+        summaryReport: el('ms12-rec-s-report')
+          ? String(el('ms12-rec-s-report').value || '').trim() || null
+          : null,
+      }
+    }
+
+    function patchRecord(msgEl, globalToo) {
+      var payload = buildPayload()
+      if (!payload.title || !payload.meetingDate || !String(payload.rawNotes || '').trim()) {
+        if (msgEl) msgEl.textContent = '제목·날짜·회의 메모는 필수입니다.'
+        return Promise.resolve(null)
+      }
+      if (msgEl) msgEl.textContent = '저장 중…'
+      return ms12Fetch('/api/ms12/meeting-records/' + encodeURIComponent(rid), {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+        .then(function (r) {
+          return jsonFromResponse(r)
+        })
+        .then(function (j) {
+          if (j && j.success && j.data) {
+            var st =
+              '저장됨 · 최종 수정 ' +
+              (j.data.updatedAt ? String(j.data.updatedAt).slice(0, 19).replace('T', ' ') : '—')
+            if (msgEl) msgEl.textContent = st
+            if (globalToo) {
+              var mg = el('ms12-rec-save-global')
+              if (mg) mg.textContent = st
+            }
+            var metaLine = el('ms12-rec-meta')
+            if (metaLine && j.data) {
+              metaLine.textContent =
+                (j.data.meetingDate || '') +
+                ' · ' +
+                (j.data.category || '') +
+                ' · 수정 ' +
+                (j.data.updatedAt || '').slice(0, 16).replace('T', ' ')
+            }
+            return j.data
+          }
+          if (msgEl) msgEl.textContent = (j && j.error) || '실패'
+          return null
+        })
+        .catch(function () {
+          if (msgEl) msgEl.textContent = '요청 실패'
+          return null
+        })
+    }
+
+    function renderActionRows(items) {
+      var tb = el('ms12-rec-actions-body')
+      if (!tb) return
+      tb.innerHTML = ''
+      var list = items && items.length ? items : [{ task: '', assignee: '', due: '', status: 'open', evidence: '' }]
+      for (var i = 0; i < list.length; i++) {
+        var it = list[i]
+        var tr = document.createElement('tr')
+        tr.setAttribute('data-ms12-ai-row', '1')
+        tr.innerHTML =
+          '<td><input type="text" data-field="task" value="' +
+          escapeAttr(it.task || '') +
+          '" /></td>' +
+          '<td><input type="text" data-field="assignee" value="' +
+          escapeAttr(it.assignee || '') +
+          '" /></td>' +
+          '<td><input type="date" data-field="due" value="' +
+          escapeAttr((it.due || '').slice(0, 10)) +
+          '" /></td>' +
+          '<td><select data-field="status">' +
+          '<option value="open"' +
+          (it.status === 'open' ? ' selected' : '') +
+          '>진행예정</option>' +
+          '<option value="progress"' +
+          (it.status === 'progress' ? ' selected' : '') +
+          '>진행중</option>' +
+          '<option value="done"' +
+          (it.status === 'done' ? ' selected' : '') +
+          '>완료</option>' +
+          '<option value="cancelled"' +
+          (it.status === 'cancelled' ? ' selected' : '') +
+          '>취소</option>' +
+          '</select></td>' +
+          '<td><input type="text" data-field="evidence" value="' +
+          escapeAttr(it.evidence || '') +
+          '" /></td>' +
+          '<td><button type="button" class="ms12-btn ms12-btn--muted" style="padding:0.2rem 0.35rem;font-size:0.75rem" data-ms12-del-ai-row>삭제</button></td>'
+        tb.appendChild(tr)
+      }
+    }
+
+    ;(function bindActionRowDeleteOnce() {
+      var tb = el('ms12-rec-actions-body')
+      if (!tb || tb.dataset.ms12AiDelBound === '1') return
+      tb.dataset.ms12AiDelBound = '1'
+      tb.addEventListener('click', function (ev) {
+        var btn = ev.target && ev.target.closest && ev.target.closest('[data-ms12-del-ai-row]')
+        if (!btn) return
+        var row = btn.closest('tr')
+        if (!row || !tb.contains(row)) return
+        row.remove()
+        if (!tb.querySelector('tr')) {
+          renderActionRows([])
+        }
+      })
+    })()
+
+    function setSummaryTab(which) {
+      var tabs = ['basic', 'action', 'report']
+      for (var ti = 0; ti < tabs.length; ti++) {
+        var k = tabs[ti]
+        var pane = el('ms12-rec-s-' + k)
+        var btn = el('ms12-rec-tab-' + k)
+        var on = k === which
+        if (pane) pane.style.display = on ? 'block' : 'none'
+        if (btn) {
+          if (on) btn.classList.add('ms12-subtab--active')
+          else btn.classList.remove('ms12-subtab--active')
+        }
+      }
+    }
+
+    function composeReportText() {
+      collectExtrasFromDom()
+      var rs = extras.reportSections || {}
+      var labels = [
+        ['① 회의 개요', 'overview'],
+        ['② 회의 목적', 'purpose'],
+        ['③ 주요 논의 내용', 'discussion'],
+        ['④ 결정 사항', 'decisions'],
+        ['⑤ 실행 계획', 'execution'],
+        ['⑥ 향후 일정', 'schedule'],
+        ['⑦ 종합 의견', 'conclusion'],
+      ]
+      var lines = []
+      for (var li = 0; li < labels.length; li++) {
+        lines.push(labels[li][0])
+        lines.push((rs[labels[li][1]] || '').trim() || '(내용 없음)')
+        lines.push('')
+      }
+      return lines.join('\n').trim()
+    }
+
+    function composeMinutesText(d) {
+      var parts = []
+      parts.push('# ' + (d && d.title ? d.title : el('ms12-rec-title').value))
+      parts.push('')
+      parts.push('## 전사')
+      parts.push(el('ms12-rec-tr') ? el('ms12-rec-tr').value.trim() || '—' : '—')
+      parts.push('')
+      parts.push('## 회의 메모')
+      parts.push(el('ms12-rec-raw') ? el('ms12-rec-raw').value.trim() || '—' : '—')
+      return parts.join('\n')
+    }
+
+    function composeFullExport(d) {
+      var pay = buildPayload()
+      var blocks = []
+      blocks.push('# ' + pay.title)
+      blocks.push('날짜: ' + pay.meetingDate + ' · 분류: ' + pay.category)
+      blocks.push('')
+      blocks.push('## 전사')
+      blocks.push(pay.transcript || '—')
+      blocks.push('')
+      blocks.push('## 회의 메모')
+      blocks.push(pay.rawNotes || '—')
+      blocks.push('')
+      blocks.push('## 기본 요약')
+      blocks.push(pay.summaryBasic || '—')
+      blocks.push('')
+      blocks.push('## 실행 요약')
+      blocks.push(pay.summaryAction || '—')
+      blocks.push('')
+      blocks.push('## 보고 요약')
+      blocks.push(pay.summaryReport || '—')
+      blocks.push('')
+      blocks.push('## 실행 항목')
+      var ais = extras.actionItems || []
+      if (!ais.length) blocks.push('—')
+      else {
+        for (var ai = 0; ai < ais.length; ai++) {
+          var x = ais[ai]
+          blocks.push(
+            '- ' +
+              (x.task || '(할 일)') +
+              ' | 담당:' +
+              (x.assignee || '—') +
+              ' | 기한:' +
+              (x.due || '—') +
+              ' | 상태:' +
+              (x.status || '—'),
+          )
+          if (x.evidence) blocks.push('  근거: ' + x.evidence)
+        }
+      }
+      blocks.push('')
+      blocks.push('## 보고서 초안')
+      blocks.push(composeReportText())
+      return blocks.join('\n')
+    }
+
     ms12Fetch('/api/ms12/meeting-records/' + encodeURIComponent(rid), { credentials: 'include' })
       .then(function (r) {
         return jsonFromResponse(r)
       })
       .then(function (j) {
         if (!j || !j.success || !j.data) {
+          var meta = el('ms12-rec-meta')
           if (meta) meta.textContent = (j && j.error) || '불러올 수 없습니다.'
           return
         }
         var d = j.data
-        if (meta) {
-          meta.textContent =
-            '최종 수정: ' + (d.updatedAt || '—') + ' · 공개: ' + (d.visibility || '—')
+        aiAvailGlobal = !!d.aiAvailable
+        extras = ms12ParseRecordExtrasFinal(d.finalNotes != null ? d.finalNotes : '')
+
+        if (el('ms12-rec-title')) el('ms12-rec-title').value = d.title || ''
+        if (el('ms12-rec-date')) el('ms12-rec-date').value = (d.meetingDate || '').slice(0, 10)
+        if (el('ms12-rec-cat')) el('ms12-rec-cat').value = d.category || '일반'
+        if (el('ms12-rec-vis')) el('ms12-rec-vis').value = d.visibility || 'public_internal'
+        if (el('ms12-rec-tags')) el('ms12-rec-tags').value = d.tags || ''
+        if (el('ms12-rec-parts')) el('ms12-rec-parts').value = d.participantsJson || ''
+        if (el('ms12-rec-proj')) el('ms12-rec-proj').value = d.projectName || ''
+        if (el('ms12-rec-bud')) el('ms12-rec-bud').value = d.budgetRef || ''
+        if (el('ms12-rec-tg')) el('ms12-rec-tg').value = d.targetGroup || ''
+        if (el('ms12-rec-tr')) el('ms12-rec-tr').value = d.transcript || ''
+        if (el('ms12-rec-raw')) el('ms12-rec-raw').value = d.rawNotes || ''
+        if (el('ms12-rec-s-basic')) el('ms12-rec-s-basic').value = d.summaryBasic || ''
+        if (el('ms12-rec-s-action')) el('ms12-rec-s-action').value = d.summaryAction || ''
+        if (el('ms12-rec-s-report')) el('ms12-rec-s-report').value = d.summaryReport || ''
+
+        var rs = extras.reportSections || {}
+        var rk = ['overview', 'purpose', 'discussion', 'decisions', 'execution', 'schedule', 'conclusion']
+        var rids = [
+          'overview',
+          'purpose',
+          'discussion',
+          'decisions',
+          'execution',
+          'schedule',
+          'conclusion',
+        ]
+        for (var rk_i = 0; rk_i < rk.length; rk_i++) {
+          var node = el('ms12-rec-r-' + rids[rk_i])
+          if (node) node.value = rs[rk[rk_i]] || ''
         }
-        var M = {
-          'ms12-mr-title': d.title,
-          'ms12-mr-date': (d.meetingDate || '').slice(0, 10),
-          'ms12-mr-cat': d.category,
-          'ms12-mr-parts': d.participantsJson || '',
-          'ms12-mr-vis': d.visibility,
-          'ms12-mr-tags': d.tags || '',
-          'ms12-mr-proj': d.projectName || '',
-          'ms12-mr-bud': d.budgetRef || '',
-          'ms12-mr-tg': d.targetGroup || '',
-          'ms12-mr-raw': d.rawNotes || '',
-          'ms12-mr-tr': d.transcript || '',
-          'ms12-mr-fin': d.finalNotes || '',
-          'ms12-mr-s0': d.summaryBasic || '',
-          'ms12-mr-s1': d.summaryAction || '',
-          'ms12-mr-s2': d.summaryReport || '',
+
+        renderActionRows(extras.actionItems)
+
+        var metaLine = el('ms12-rec-meta')
+        if (metaLine) {
+          metaLine.textContent =
+            (d.meetingDate || '') +
+            ' · ' +
+            (d.category || '') +
+            ' · 저장 상태: 수정 ' +
+            (d.updatedAt || '—').slice(0, 16).replace('T', ' ')
         }
-        Object.keys(M).forEach(function (k) {
-          var el2 = document.getElementById(k)
-          if (el2) el2.value = M[k] != null ? M[k] : ''
-        })
+
+        var wrap = el('ms12-rec-ai-sum-wrap')
+        var btnAiSum = el('ms12-rec-ai-sum')
+        var btnAiRep = el('ms12-rec-ai-report')
+        if (!aiAvailGlobal) {
+          if (wrap)
+            wrap.innerHTML =
+              '<p class="ms12-rec-ai-hint">AI 요약은 추후 제공됩니다. 현재는 직접 요약을 입력할 수 있습니다.</p>'
+          if (btnAiSum) btnAiSum.style.display = 'none'
+          if (btnAiRep) btnAiRep.style.display = 'none'
+        } else {
+          if (wrap) wrap.innerHTML = ''
+          if (btnAiSum) btnAiSum.style.display = ''
+          if (btnAiRep) btnAiRep.style.display = ''
+        }
+
+        setSummaryTab('basic')
       })
-    if (f) {
-      f.addEventListener('submit', function (e) {
-        e.preventDefault()
-        if (msg) msg.textContent = '저장 중…'
-        var fd = new FormData(f)
-        var payload = {
-          title: (fd.get('title') || '').toString().trim(),
-          meetingDate: (fd.get('meetingDate') || '').toString().trim(),
-          category: (fd.get('category') || '').toString().trim() || '일반',
-          participantsJson: (fd.get('participantsJson') || '').toString().trim() || null,
-          visibility: (fd.get('visibility') || 'public_internal').toString(),
-          tags: (fd.get('tags') || '').toString().trim() || null,
-          projectName: (fd.get('projectName') || '').toString().trim() || null,
-          budgetRef: (fd.get('budgetRef') || '').toString().trim() || null,
-          targetGroup: (fd.get('targetGroup') || '').toString().trim() || null,
-          rawNotes: (fd.get('rawNotes') || '').toString(),
-          transcript: (fd.get('transcript') || '').toString() || null,
-          finalNotes: (fd.get('finalNotes') || '').toString() || null,
-          summaryBasic: (fd.get('summaryBasic') || '').toString() || null,
-          summaryAction: (fd.get('summaryAction') || '').toString() || null,
-          summaryReport: (fd.get('summaryReport') || '').toString() || null,
-        }
-        ms12Fetch('/api/ms12/meeting-records/' + encodeURIComponent(rid), {
-          method: 'PATCH',
+
+    ;['basic', 'action', 'report'].forEach(function (w) {
+      var btn = el('ms12-rec-tab-' + w)
+      if (btn) {
+        btn.addEventListener('click', function () {
+          setSummaryTab(w)
+        })
+      }
+    })
+
+    var btnRaw = el('ms12-rec-save-raw')
+    if (btnRaw) btnRaw.addEventListener('click', function () { patchRecord(el('ms12-rec-msg-raw'), true) })
+
+    var btnSum = el('ms12-rec-save-sum')
+    if (btnSum) btnSum.addEventListener('click', function () { patchRecord(el('ms12-rec-msg-sum'), true) })
+
+    var btnAct = el('ms12-rec-save-actions')
+    if (btnAct) btnAct.addEventListener('click', function () { patchRecord(el('ms12-rec-msg-act'), true) })
+
+    var btnRep = el('ms12-rec-save-report')
+    if (btnRep) btnRep.addEventListener('click', function () { patchRecord(el('ms12-rec-msg-report'), true) })
+
+    var btnMeta = el('ms12-rec-save-meta')
+    if (btnMeta) btnMeta.addEventListener('click', function () { patchRecord(el('ms12-rec-msg-meta'), true) })
+
+    var btnAiSum = el('ms12-rec-ai-sum')
+    if (btnAiSum) {
+      btnAiSum.addEventListener('click', function () {
+        var msg = el('ms12-rec-msg-sum')
+        if (!aiAvailGlobal) return
+        if (msg) msg.textContent = 'AI 생성 중…'
+        ms12Fetch('/api/ms12/meeting-records/' + encodeURIComponent(rid) + '/ai-summaries', {
+          method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
+          body: JSON.stringify({}),
         })
           .then(function (r) {
             return jsonFromResponse(r)
           })
           .then(function (j) {
-            if (j && j.success) {
-              if (msg) msg.textContent = '저장됨 ' + new Date().toLocaleTimeString()
+            if (j && j.success && j.data) {
+              if (el('ms12-rec-s-basic')) el('ms12-rec-s-basic').value = j.data.summaryBasic || ''
+              if (el('ms12-rec-s-action')) el('ms12-rec-s-action').value = j.data.summaryAction || ''
+              if (el('ms12-rec-s-report')) el('ms12-rec-s-report').value = j.data.summaryReport || ''
+              patchRecord(msg, true)
             } else {
               if (msg) msg.textContent = (j && j.error) || '실패'
             }
@@ -3639,6 +4858,126 @@
           .catch(function () {
             if (msg) msg.textContent = '요청 실패'
           })
+      })
+    }
+
+    var btnAiRep = el('ms12-rec-ai-report')
+    if (btnAiRep) {
+      btnAiRep.addEventListener('click', function () {
+        var msg = el('ms12-rec-msg-report')
+        if (!aiAvailGlobal) return
+        if (msg) msg.textContent = '보고서 초안 생성 중…'
+        ms12Fetch('/api/ms12/meeting-records/' + encodeURIComponent(rid) + '/ai-report-sections', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        })
+          .then(function (r) {
+            return jsonFromResponse(r)
+          })
+          .then(function (j) {
+            if (j && j.success && j.data && j.data.sections) {
+              var sec = j.data.sections
+              if (el('ms12-rec-r-overview')) el('ms12-rec-r-overview').value = sec.overview || ''
+              if (el('ms12-rec-r-purpose')) el('ms12-rec-r-purpose').value = sec.purpose || ''
+              if (el('ms12-rec-r-discussion')) el('ms12-rec-r-discussion').value = sec.discussion || ''
+              if (el('ms12-rec-r-decisions')) el('ms12-rec-r-decisions').value = sec.decisions || ''
+              if (el('ms12-rec-r-execution')) el('ms12-rec-r-execution').value = sec.execution || ''
+              if (el('ms12-rec-r-schedule')) el('ms12-rec-r-schedule').value = sec.schedule || ''
+              if (el('ms12-rec-r-conclusion')) el('ms12-rec-r-conclusion').value = sec.conclusion || ''
+              patchRecord(msg, true)
+            } else {
+              if (msg) msg.textContent = (j && j.error) || '실패'
+            }
+          })
+          .catch(function () {
+            if (msg) msg.textContent = '요청 실패'
+          })
+      })
+    }
+
+    var btnBlank = el('ms12-rec-blank-report')
+    if (btnBlank) {
+      btnBlank.addEventListener('click', function () {
+        ;[
+          'overview',
+          'purpose',
+          'discussion',
+          'decisions',
+          'execution',
+          'schedule',
+          'conclusion',
+        ].forEach(function (key) {
+          var node = el('ms12-rec-r-' + key)
+          if (node && !node.value.trim()) node.value = ''
+        })
+        var msg = el('ms12-rec-msg-report')
+        if (msg) msg.textContent = '빈 양식을 채워 저장할 수 있습니다.'
+      })
+    }
+
+    var btnAdd = el('ms12-rec-add-action')
+    if (btnAdd) {
+      btnAdd.addEventListener('click', function () {
+        collectExtrasFromDom()
+        extras.actionItems.push({
+          task: '',
+          assignee: '',
+          due: '',
+          status: 'open',
+          evidence: '',
+        })
+        renderActionRows(extras.actionItems)
+      })
+    }
+
+    var btnCopyRepOnly = el('ms12-rec-copy-report-only')
+    if (btnCopyRepOnly) {
+      btnCopyRepOnly.addEventListener('click', function () {
+        ms12CopyToClipboard(composeReportText(), el('ms12-rec-msg-report'), '보고서가 클립보드에 복사되었습니다.')
+      })
+    }
+
+    var btnCopyAll = el('ms12-rec-copy-all')
+    if (btnCopyAll) {
+      btnCopyAll.addEventListener('click', function () {
+        ms12CopyToClipboard(
+          composeFullExport({}),
+          el('ms12-rec-msg-copy'),
+          '전체 내용을 복사했습니다.',
+        )
+      })
+    }
+
+    var btnCopyRepU = el('ms12-rec-copy-report-util')
+    if (btnCopyRepU) {
+      btnCopyRepU.addEventListener('click', function () {
+        ms12CopyToClipboard(composeReportText(), el('ms12-rec-msg-copy'), '보고서를 복사했습니다.')
+      })
+    }
+
+    var btnCopyMin = el('ms12-rec-copy-minutes')
+    if (btnCopyMin) {
+      btnCopyMin.addEventListener('click', function () {
+        ms12CopyToClipboard(
+          composeMinutesText({}),
+          el('ms12-rec-msg-copy'),
+          '회의록(전사·메모)을 복사했습니다.',
+        )
+      })
+    }
+
+    var btnCopyLink = el('ms12-rec-copy-link')
+    if (btnCopyLink) {
+      btnCopyLink.addEventListener('click', function () {
+        try {
+          var u =
+            typeof location !== 'undefined'
+              ? location.origin + '/app/record/' + encodeURIComponent(rid)
+              : ''
+          ms12CopyToClipboard(u, el('ms12-rec-msg-copy'), '공유 링크를 복사했습니다.')
+        } catch (e3) {}
       })
     }
   }
