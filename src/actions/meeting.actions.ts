@@ -59,7 +59,7 @@ export async function createMeeting(
       }
     }
     if (typeof location !== 'undefined') {
-      location.assign('/app/meeting/' + encodeURIComponent(String(j.data.id)))
+      location.assign('/app/room/' + encodeURIComponent(String(j.data.id)))
     }
     return { kind: 'created', j }
   }
@@ -109,7 +109,7 @@ export async function joinMeeting(
       }
     }
     if (typeof location !== 'undefined') {
-      location.assign('/app/meeting/' + encodeURIComponent(String(j.data.id)))
+      location.assign('/app/room/' + encodeURIComponent(String(j.data.id)))
     }
     return { kind: 'joined', j }
   }
@@ -121,7 +121,7 @@ export async function joinMeeting(
 export function openMeeting(id: string): void {
   const sid = String(id || '').trim()
   if (!sid || typeof location === 'undefined') return
-  location.assign('/app/meeting/' + encodeURIComponent(sid))
+  location.assign('/app/room/' + encodeURIComponent(sid))
 }
 
 /** `/app/...` 보조 링크(보관함 등) */

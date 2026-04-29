@@ -166,7 +166,7 @@ app.get('/forest_v9.html', (c) => serveForestHtmlFromAssets(c))
 app.get('/forest_v9', (c) => serveForestHtmlFromAssets(c))
 app.get('/forest', (c) => serveForestHtmlFromAssets(c))
 
-// 루트: Host 별 … (3) ms12… → MS12 회의 허브
+// 루트: Host 별 … (3) ms12… → MS12 시작(`/app`)
 app.get('/join/:code', (c) => {
   const raw = c.req.param('code') || ''
   const alnum = raw.replace(/[^A-Za-z0-9]/g, '')
@@ -184,19 +184,11 @@ app.get('/', (c) => {
   if (isLifelongLmsProductHost(h)) {
     return c.redirect('/legacy/mindstory-landing' + q, 302)
   }
-  return c.redirect('/app/meeting' + q, 302)
+  return c.redirect('/app' + q, 302)
 })
 /** mindstory-lms(평생교육원) — /legacy/mindstory-landing (GET / 는 Host 로 위에서 분기) */
 app.route('/', landing)
 
-app.get('/app', (c) => {
-  const q = new URL(c.req.url).search || ''
-  return c.redirect('/app/meeting' + q, 302)
-})
-app.get('/app/', (c) => {
-  const q = new URL(c.req.url).search || ''
-  return c.redirect('/app/meeting' + q, 302)
-})
 app.route('/app', ms12Pages)
 
 /**

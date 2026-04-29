@@ -45,6 +45,18 @@ export function sanitizeLmsPostLoginPath(p: string | null | undefined): string |
         return t
       }
     }
+    if (pathOnly.startsWith('/app/room/') && pathOnly.length > '/app/room/'.length) {
+      const rest = pathOnly.slice('/app/room/'.length)
+      if (rest && !rest.includes('..') && !rest.includes('//') && !rest.startsWith('.')) {
+        return t
+      }
+    }
+    if (pathOnly.startsWith('/app/record/') && pathOnly.length > '/app/record/'.length) {
+      const rest = pathOnly.slice('/app/record/'.length)
+      if (rest && !rest.includes('..') && !rest.includes('//') && !rest.startsWith('.')) {
+        return t
+      }
+    }
     return null
   }
   return t
@@ -89,5 +101,5 @@ export function clearOAuthPostLoginCookies(c: Context): void {
 export function redirectAfterOAuthOrDefault(c: Context, _legacySessionCookie?: string) {
   void _legacySessionCookie
   clearOAuthPostLoginCookies(c)
-  return c.redirect('/app/meeting', 302)
+  return c.redirect('/app', 302)
 }

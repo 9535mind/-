@@ -45,7 +45,7 @@
         }
       }
       if (typeof location !== "undefined") {
-        location.assign("/app/meeting/" + encodeURIComponent(String(j.data.id)));
+        location.assign("/app/room/" + encodeURIComponent(String(j.data.id)));
       }
       return { kind: "created", j };
     }
@@ -82,7 +82,7 @@
         }
       }
       if (typeof location !== "undefined") {
-        location.assign("/app/meeting/" + encodeURIComponent(String(j.data.id)));
+        location.assign("/app/room/" + encodeURIComponent(String(j.data.id)));
       }
       return { kind: "joined", j };
     }
@@ -92,7 +92,7 @@
   function openMeeting(id) {
     const sid = String(id || "").trim();
     if (!sid || typeof location === "undefined") return;
-    location.assign("/app/meeting/" + encodeURIComponent(sid));
+    location.assign("/app/room/" + encodeURIComponent(sid));
   }
   function openAppPath(path) {
     if (typeof location === "undefined") return;

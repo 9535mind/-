@@ -14,7 +14,7 @@ export const KAKAO_OAUTH_REDIRECT_URI = `${SITE_PUBLIC_ORIGIN}/auth/kakao/callba
 
 export const GOOGLE_OAUTH_REDIRECT_URI = `${SITE_PUBLIC_ORIGIN}/api/auth/google/callback`
 
-export const OAUTH_SUCCESS_LANDING_URL = `${SITE_PUBLIC_ORIGIN}/app/meeting`
+export const OAUTH_SUCCESS_LANDING_URL = `${SITE_PUBLIC_ORIGIN}/app`
 
 /** x-forwarded-host / Host: FQDN 끝 점·앞뒤 공백 정리(비교·루프 방지) */
 export function normalizeOauthRequestHostname(input: string): string {
@@ -93,7 +93,7 @@ export function getSafeRequestOrigin(c: Context): string {
 
 /** OAuth·로그인 성공 후 랜딩(단일) */
 export function oauthSuccessLandingUrl(c: Context): string {
-  return `${getSafeRequestOrigin(c)}/app/meeting`
+  return `${getSafeRequestOrigin(c)}/app`
 }
 
 export function isLocalDevHostname(hostname: string): boolean {
