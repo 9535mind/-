@@ -223,6 +223,7 @@
   }
 
   function ms12RoomTranscriptPalette(idx) {
+    var palettes = [
       'rgb(239 246 255)',
       'rgb(254 243 242)',
       'rgb(236 253 245)',
