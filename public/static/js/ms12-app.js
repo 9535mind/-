@@ -1332,6 +1332,8 @@
   function initFormNew() {
     var f = document.getElementById('ms12-form-new')
     if (!f) return
+    if (f.getAttribute('data-ms12-new-meeting-wired') === '1') return
+    f.setAttribute('data-ms12-new-meeting-wired', '1')
     var titleIn = document.getElementById('ms12-input-new-title') || f.querySelector('input[name="title"]')
     var dnIn = document.getElementById('ms12-input-new-displayname')
     try {
@@ -1373,14 +1375,20 @@
           hl.textContent = shown2 + '님이 호스트로 입장합니다.'
         }
       })
+    var creatingMeeting = false
     f.addEventListener('submit', function (e) {
       e.preventDefault()
+      if (creatingMeeting) return
       var fd = new FormData(f)
       var title = (fd.get('title') || '').toString().trim()
       if (!title) return
       var dn = (fd.get('displayName') || '').toString().trim()
       var payload = { title: title }
       if (dn) payload.displayName = dn
+      creatingMeeting = true
+      var submitBtn = f.querySelector('button[type="submit"]')
+      var prevBtnDisabled = submitBtn ? submitBtn.disabled : false
+      if (submitBtn) submitBtn.disabled = true
       ms12FetchCreateMeeting(payload)
         .then(function (r) {
           return jsonFromResponse(r).then(function (j) {
@@ -1389,14 +1397,15 @@
         })
         .then(function (o) {
           var j = o && o.j
-          if (j && j.success && j.data && j.data.id) {
+          var rid = j && j.data && j.data.id != null ? String(j.data.id).trim() : ''
+          if (j && j.success && rid) {
             try {
               ms12AdvanceMeetingTitleSeqAfterSuccessfulCreate()
             } catch (eSeq) {}
             try {
               recordMeetingLocal(j.data)
             } catch (e) {}
-            window.location.href = '/app/room/' + encodeURIComponent(j.data.id)
+            window.location.href = '/app/room/' + encodeURIComponent(rid)
             return
           }
           authLog('create meeting: server did not return id, open local only', (j && j.error) || '')
@@ -1405,6 +1414,10 @@
         .catch(function (err) {
           authLog('create meeting: fetch error, open local only', err)
           openMeetingLocalOnly(title, dn)
+        })
+        .finally(function () {
+          creatingMeeting = false
+          if (submitBtn) submitBtn.disabled = prevBtnDisabled
         })
     })
   }
@@ -5654,7 +5667,10 @@
       _lastIsAuthed = false
       applyShell('app', { user: null, isGuest: true, demoMode: dm })
       wireLogout()
-      initAuthedPage()
+      var fmNew = document.getElementById('ms12-form-new')
+      if (!fmNew || fmNew.getAttribute('data-ms12-new-meeting-wired') !== '1') {
+        initAuthedPage()
+      }
     })
   }
 
