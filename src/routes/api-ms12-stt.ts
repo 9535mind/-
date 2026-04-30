@@ -64,6 +64,7 @@ stt.get(
         channels: '1',
         interim_results: 'true',
         smart_format: 'true',
+        diarize: 'true',
       })
       const url = `wss://api.deepgram.com/v1/listen?${sp.toString()}`
       try {

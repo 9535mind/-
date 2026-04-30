@@ -8,7 +8,7 @@ import { SITE_PUBLIC_ORIGIN } from '../utils/oauth-public'
 const p = new Hono<{ Bindings: Bindings }>({ strict: false })
 
 /** Pages 배포·소스 ?v= 일치(배포 후 페이지 소스에 이 주석이 보이면 새 Worker) */
-const MS12_BUILD = '20260429roomPasteMaterialsAiV1'
+const MS12_BUILD = '20260429meetingTranscriptV1'
 const MS12_ACTIONS_SCRIPT = `/static/js/ms12-actions.js?v=${MS12_BUILD}`
 const MS12_APP_SCRIPT = `/static/js/ms12-app.js?v=${MS12_BUILD}`
 const waitBlock = '<p class="ms12-p" id="ms12-wait" style="color:rgb(100 116 139)">불러오는 중…</p>'
@@ -667,8 +667,8 @@ p.get('/record/:rid', (c) => {
          <details class="ms12-panel ms12-rec-span2" id="ms12-rec-raw-details">
            <summary>원문 기록</summary>
            <div style="margin-top:0.5rem">
-             <p class="ms12-rec-lead">회의 중 기록된 전사와 메모입니다.</p>
-             <label class="ms12-muted" style="font-size:0.78rem" for="ms12-rec-tr">전사</label>
+             <p class="ms12-rec-lead">회의 중 기록된 회의록 내용과 메모입니다.</p>
+             <label class="ms12-muted" style="font-size:0.78rem" for="ms12-rec-tr">회의록 내용</label>
              <textarea id="ms12-rec-tr" class="ms12-notes" style="min-height:7rem;margin-top:0.2rem"></textarea>
              <label class="ms12-muted" style="font-size:0.78rem;display:block;margin-top:0.45rem" for="ms12-rec-raw">회의 메모</label>
              <textarea id="ms12-rec-raw" class="ms12-notes" required style="min-height:7rem;margin-top:0.2rem" placeholder="핵심 메모"></textarea>
@@ -933,7 +933,7 @@ p.get('/room/:id', (c) => {
          <div>
            <div class="ms12-panel">
              <p class="ms12-p" style="font-weight:600;margin:0 0 0.5rem 0">회의록</p>
-             <p class="ms12-p" style="font-size:0.82rem;margin:0 0 0.35rem 0" id="ms12-stt-hint">«음성 켜기»를 누르면 브라우저에서 마이크 권한을 요청합니다. 발언은 화자·시각과 함께 아래 회의록에 쌓이고, 화면 하단 실시간 자막에는 최근 내용이 표시됩니다.</p>
+             <p class="ms12-p" style="font-size:0.82rem;margin:0 0 0.35rem 0" id="ms12-stt-hint">«음성 켜기»를 누르면 브라우저에서 마이크 권한을 요청합니다. 발언은 아래 회의록 목록에 시간·화자와 함께 누적되고, 화면 하단 실시간 자막에는 지금 말하는 내용만 표시됩니다.</p>
              <div class="ms12-toolbar" style="margin:0 0 0.4rem 0">
                <button type="button" class="ms12-btn ms12-btn--teal" id="ms12-stt-toggle">음성 켜기</button>
                <span class="ms12-muted ms12-mono" id="ms12-stt-status" style="font-size:0.8rem">준비 중…</span>
@@ -950,7 +950,14 @@ p.get('/room/:id', (c) => {
                </div>
              </div>
              <textarea class="ms12-notes ms12-tr-sr-only" id="ms12-room-transcript" rows="3" tabindex="-1" aria-hidden="true" autocomplete="off"></textarea>
-             <div class="ms12-panel ms12-room-quick-add" style="margin-top:0.45rem;padding:0.55rem 0.65rem;border-style:dashed;border-color:rgb(203 213 225)">
+             <p class="ms12-p" style="font-weight:600;margin:0.65rem 0 0.4rem 0">회의 메모</p>
+             <textarea class="ms12-notes" id="ms12-room-notes" placeholder="핵심 메모 (자동 저장)" style="min-height:8rem"></textarea>
+             <div class="ms12-toolbar" style="margin-top:0.6rem">
+               <button type="button" class="ms12-btn ms12-btn--muted" id="ms12-room-flush">이 브라우저에 임시 저장 · JSON 받기</button>
+             </div>
+             <p class="ms12-muted" id="ms12-room-flush-msg" style="font-size:0.78rem;min-height:1rem;margin:0.35rem 0 0 0"></p>
+             <p class="ms12-muted" style="font-size:0.77rem;margin:0.45rem 0 0 0;line-height:1.45;color:rgb(100 116 139)">회의 메모에는 키워드·태그를 적어 두면 나중에 찾기 좋습니다. 서버에 반영할 때는 아래 「서버에 회의 저장」 블록의 태그 칸에 같은 단어를 넣으면 보관함 검색에 도움이 됩니다.</p>
+             <div class="ms12-panel ms12-room-quick-add" style="margin-top:0.55rem;padding:0.55rem 0.65rem;border-style:dashed;border-color:rgb(203 213 225)">
                <p class="ms12-muted" style="font-size:0.76rem;margin:0 0 0.4rem 0;line-height:1.45">텍스트 붙여넣기 · 짧게 입력한 뒤 아래 버튼으로 회의 내용에 넣을 수 있습니다.</p>
                <div class="ms12-toolbar" style="flex-wrap:wrap;gap:0.35rem;align-items:stretch;margin:0">
                  <input type="text" id="ms12-room-quick-text" class="ms12-input" style="flex:1;min-width:12rem;margin:0;font-size:0.88rem" placeholder="붙여넣거나 한 줄 입력…" autocomplete="off" maxlength="8000" />
@@ -975,13 +982,6 @@ p.get('/room/:id', (c) => {
                <div id="ms12-room-ai-sum-preview-body" class="ms12-muted" style="font-size:0.82rem;line-height:1.45;white-space:pre-wrap;max-height:14rem;overflow:auto;border-radius:0.35rem;padding:0.45rem;background:#fff;border:1px solid rgb(226 232 240)">—</div>
                <p class="ms12-muted" style="font-size:0.74rem;margin:0.45rem 0 0 0;line-height:1.45">세부 수정은 아래 「수동 요약」란에서 할 수 있습니다.</p>
              </section>
-             <p class="ms12-p" style="font-weight:600;margin:0.75rem 0 0.4rem 0">회의 메모</p>
-             <textarea class="ms12-notes" id="ms12-room-notes" placeholder="핵심 메모 (자동 저장)" style="min-height:8rem"></textarea>
-             <div class="ms12-toolbar" style="margin-top:0.6rem">
-               <button type="button" class="ms12-btn ms12-btn--muted" id="ms12-room-flush">이 브라우저에 임시 저장 · JSON 받기</button>
-             </div>
-             <p class="ms12-muted" id="ms12-room-flush-msg" style="font-size:0.78rem;min-height:1rem;margin:0.35rem 0 0 0"></p>
-             <p class="ms12-muted" style="font-size:0.77rem;margin:0.55rem 0 0 0;line-height:1.45;color:rgb(100 116 139)">회의록·메모 아래에 키워드·태그를 적어 두면 나중에 찾기 좋습니다. 서버에 반영할 때는 아래 「서버에 회의 저장」 블록의 태그 칸에 같은 단어를 넣으면 보관함 검색에 도움이 됩니다.</p>
            </div>
              <details class="ms12-panel ms12-details-as-btn" style="margin-top:0.75rem">
              <summary>수동 요약 (기본 · 실행 · 보고)</summary>
@@ -1007,7 +1007,7 @@ p.get('/room/:id', (c) => {
        <div id="ms12-live-caption-wrap" class="ms12-live-caption-wrap" role="region" aria-label="실시간 음성 자막">
          <div class="ms12-live-caption-inner">
            <p class="ms12-live-caption-label">실시간 자막</p>
-           <p id="ms12-live-caption-text" class="ms12-live-caption-text ms12-live-caption-text--idle" aria-live="polite">«음성 켜기» 후 발언 내용이 여기(화면 하단)와 위 회의록에 함께 표시됩니다.</p>
+           <p id="ms12-live-caption-text" class="ms12-live-caption-text ms12-live-caption-text--idle" aria-live="polite">«음성 켜기» 후 현재 발언이 여기에 표시되고, 전체 회의록은 위 목록에 누적됩니다.</p>
          </div>
        </div>
        <div id="ms12-linked-ann" class="ms12-panel" style="display:none;margin:0.75rem 0;max-width:40rem;padding:0.75rem 1rem;border:1px solid rgb(199 210 254);background:rgb(238 242 255)">

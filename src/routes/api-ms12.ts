@@ -20,6 +20,10 @@ import apiMs12Stt from './api-ms12-stt'
 
 type Ctx = Context<{ Bindings: Bindings; Variables: { actor: AppActor } }>
 
+function ms12AiKeysPresent(env: Bindings): boolean {
+  return !!(env.GEMINI_API_KEY?.trim() || env.OPENAI_API_KEY?.trim())
+}
+
 const api = new Hono<{ Bindings: Bindings; Variables: { actor: AppActor } }>()
 
 api.use(async (c, next) => {
@@ -302,6 +306,7 @@ api.get('/meetings/:id', ms12Access, async (c) => {
   return c.json(
     successResponse({
       id: String(r.id),
+      aiAvailable: ms12AiKeysPresent(c.env),
       hostActorType: r.host_actor_type,
       hostUserId: r.host_user_id,
       hostGuestId: r.host_guest_id,

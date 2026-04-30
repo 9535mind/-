@@ -1,7 +1,7 @@
 /**
  * MS12 /app* — 공개 모드(/api/auth/me), 방문 사용자 표시.
  * oauth_sync=1 쿼리는 제거 후 회의 허브 유지.
- * 로컬(ms12_demo_v1)에 회의·메모·전사·요약 백업.
+ * 로컬(ms12_demo_v1)에 회의·메모·회의록·요약 백업.
  */
 ;(function () {
   if (typeof window !== 'undefined' && window.addEventListener) {
@@ -43,12 +43,25 @@
   /** { speaker, startSec, text } | null — 말하는 중 미리보기 */
   var ms12RoomTranscriptLive = null
 
+  /** mm:ss — UI 보조용(구버전) */
   function ms12FmtMmSs(sec) {
     var x = sec != null && isFinite(Number(sec)) ? Number(sec) : 0
     if (x < 0) x = 0
     var m = Math.floor(x / 60)
     var s = Math.floor(x % 60)
     return ('0' + m).slice(-2) + ':' + ('0' + s).slice(-2)
+  }
+  /** 회의록 줄·라벨: HH:MM:SS (세션 시작 기준 초) */
+  function ms12FmtHms(sec) {
+    var x = sec != null && isFinite(Number(sec)) ? Number(sec) : 0
+    if (x < 0) x = 0
+    var total = Math.floor(x)
+    var hh = Math.floor(total / 3600)
+    var mm = Math.floor((total % 3600) / 60)
+    var ss = total % 60
+    return (
+      ('0' + hh).slice(-2) + ':' + ('0' + mm).slice(-2) + ':' + ('0' + ss).slice(-2)
+    )
   }
 
   function ms12LastSegEnd(segs) {
@@ -62,57 +75,154 @@
     return max
   }
 
+  function ms12SegSpeakerDisplayName(seg) {
+    if (!seg) return '화자 1'
+    var sp = seg.speaker
+    if (typeof sp === 'string' && sp.trim()) return sp.trim()
+    var n = sp != null ? Number(sp) : 0
+    if (!isFinite(n) || n < 0) n = 0
+    return '화자 ' + (n + 1)
+  }
+
+  function ms12NormalizeTranscriptSegment(seg, defaultSource) {
+    if (!seg || typeof seg !== 'object') return null
+    var startSec = seg.startSec != null && isFinite(Number(seg.startSec)) ? Number(seg.startSec) : 0
+    if (startSec < 0) startSec = 0
+    var startLabel =
+      typeof seg.startLabel === 'string' && seg.startLabel.trim()
+        ? seg.startLabel.trim()
+        : ms12FmtHms(startSec)
+    var spk = ms12SegSpeakerDisplayName(seg)
+    var text = seg.text != null ? String(seg.text).trim() : ''
+    var src =
+      seg.source === 'speech' || seg.source === 'manual' || seg.source === 'cloud'
+        ? seg.source
+        : defaultSource === 'speech' || defaultSource === 'manual' || defaultSource === 'cloud'
+          ? defaultSource
+          : 'speech'
+    return {
+      startSec: startSec,
+      startLabel: startLabel,
+      speaker: spk,
+      text: text,
+      source: src,
+    }
+  }
+
+  function ms12NormalizeTranscriptSegmentsArray(arr, defaultSource) {
+    if (!arr || !arr.length) return []
+    var out = []
+    for (var i = 0; i < arr.length; i++) {
+      var x = ms12NormalizeTranscriptSegment(arr[i], defaultSource)
+      if (x) out.push(x)
+    }
+    return out
+  }
+
+  /** rawTranscriptText — DB transcript·textarea 공통 */
   function ms12SegsToPlain(segs) {
     if (!segs || !segs.length) return ''
     var lines = []
     for (var i = 0; i < segs.length; i++) {
-      var s = segs[i]
-      var sn = s && s.speaker != null ? Number(s.speaker) : 0
-      if (!isFinite(sn) || sn < 0) sn = 0
-      var t = ms12FmtMmSs(s && s.startSec != null ? Number(s.startSec) : 0)
-      var tx = s && s.text != null ? String(s.text).trim() : ''
-      lines.push('[화자' + (sn + 1) + '] ' + t + ' ' + tx)
+      var raw = segs[i]
+      var s = ms12NormalizeTranscriptSegment(raw)
+      if (!s || !s.text) continue
+      lines.push('[' + s.startLabel + '] ' + s.speaker + ': ' + s.text)
     }
     return lines.join('\n')
   }
 
-  /** 레거시 줄 단위 문자열 → 세그먼트 */
+  /** 레거시·붙여넣기 ─ [00:00:05] 화자 1: 텍스트 / [화자1] mm:ss … */
   function ms12ParseLegacyTranscript(txt) {
     var raw = txt != null ? String(txt).trim() : ''
     if (!raw) return []
     var lines = raw.split(/\r?\n/)
     var out = []
     var synth = 0
-    var lineRe = /^\[화자\s*(\d+)\]\s*(?:(\d{1,3}):(\d{2}))?\s*(.*)$/i
+    var hmsRe =
+      /^\[(\d{2}:\d{2}:\d{2})\]\s*([^:\n]+?)\s*:\s*(.*)$/i
+    var lineReLegacy = /^\[화자\s*(\d+)\]\s*(?:(\d{1,3}):(\d{2}))?\s*(.*)$/i
     for (var i = 0; i < lines.length; i++) {
       var line = lines[i].trim()
       if (!line) continue
-      var m = line.match(lineRe)
+      var mNew = line.match(hmsRe)
+      if (mNew) {
+        var label = mNew[1]
+        var speaker = (mNew[2] || '').trim() || '화자 1'
+        var rest = (mNew[3] || '').trim()
+        var sec = 0
+        var p = label.split(':')
+        if (p.length === 3) {
+          sec = parseInt(p[0], 10) * 3600 + parseInt(p[1], 10) * 60 + parseInt(p[2], 10)
+          if (!isFinite(sec)) sec = 0
+        }
+        out.push({
+          startSec: sec,
+          startLabel: label,
+          speaker: speaker,
+          text: rest,
+          source: 'manual',
+        })
+        continue
+      }
+      var m = line.match(lineReLegacy)
       if (m) {
         var sn = parseInt(m[1], 10) - 1
         if (!isFinite(sn) || sn < 0) sn = 0
-        var sec = 0
+        var sec2 = 0
         if (m[2] != null && m[2] !== '') {
-          sec = parseInt(m[2], 10) * 60 + parseInt(m[3], 10)
+          sec2 = parseInt(m[2], 10) * 60 + parseInt(m[3], 10)
         } else {
-          sec = synth
+          sec2 = synth
           synth += 1
         }
-        out.push({ speaker: sn, startSec: sec, text: (m[4] || '').trim() })
+        var label2 = ms12FmtHms(sec2)
+        out.push({
+          startSec: sec2,
+          startLabel: label2,
+          speaker: '화자 ' + (sn + 1),
+          text: (m[4] || '').trim(),
+          source: 'speech',
+        })
       } else {
         if (out.length) {
           var prev = out[out.length - 1]
           prev.text = (prev.text + ' ' + line).trim()
         } else {
-          out.push({ speaker: 0, startSec: 0, text: line })
+          out.push({
+            startSec: 0,
+            startLabel: ms12FmtHms(0),
+            speaker: '화자 1',
+            text: line,
+            source: 'speech',
+          })
         }
       }
     }
-    return out
+    return ms12NormalizeTranscriptSegmentsArray(out, null)
+  }
+
+  function ms12SegsFromLegacyNumberArray(oldSegs) {
+    if (!oldSegs || !oldSegs.length) return []
+    var o = []
+    for (var i = 0; i < oldSegs.length; i++) {
+      var s = oldSegs[i]
+      if (!s) continue
+      var spn = s.speaker != null ? Number(s.speaker) : 0
+      if (!isFinite(spn) || spn < 0) spn = 0
+      var ss = s.startSec != null && isFinite(Number(s.startSec)) ? Number(s.startSec) : 0
+      o.push({
+        startSec: ss,
+        startLabel: ms12FmtHms(ss),
+        speaker: '화자 ' + (spn + 1),
+        text: s.text != null ? String(s.text).trim() : '',
+        source: 'speech',
+      })
+    }
+    return o
   }
 
   function ms12RoomTranscriptPalette(idx) {
-    var palettes = [
       'rgb(239 246 255)',
       'rgb(254 243 242)',
       'rgb(236 253 245)',
@@ -137,9 +247,11 @@
     list.innerHTML = ''
     for (var si = 0; si < segs.length; si++) {
       ;(function (seg, idx) {
-        var sn = seg.speaker != null ? Number(seg.speaker) : 0
-        if (!isFinite(sn) || sn < 0) sn = 0
-        var pal = ms12RoomTranscriptPalette(sn)
+        var norm = ms12NormalizeTranscriptSegment(seg)
+        var name = norm ? norm.speaker : '화자 1'
+        var msp = (name || '').match(/^화자\s*(\d+)/)
+        var palIdx = msp ? (parseInt(msp[1], 10) - 1) % 4 : idx % 4
+        var pal = ms12RoomTranscriptPalette(palIdx)
         var row = document.createElement('div')
         row.className = 'ms12-tr-seg'
         row.setAttribute('data-ms12-tr-idx', String(idx))
@@ -153,20 +265,21 @@
             pal.bd +
             ';color:rgb(51 65 85)',
         )
-        av.textContent = '화'
+        av.textContent = name ? name.trim().slice(0, 1) : '화'
         var body = document.createElement('div')
         body.className = 'ms12-tr-body'
         var meta = document.createElement('div')
         meta.className = 'ms12-tr-meta'
+        var timeDisp = norm ? norm.startLabel : ms12FmtHms(seg.startSec)
         meta.innerHTML =
-          '<strong>화자 ' +
-          (sn + 1) +
+          '<strong>' +
+          escapeForHtml(name) +
           '</strong> <span class="ms12-tr-time">' +
-          ms12FmtMmSs(seg.startSec) +
+          escapeForHtml(timeDisp) +
           '</span>'
         var tx = document.createElement('div')
         tx.className = 'ms12-tr-text'
-        tx.textContent = seg.text != null ? String(seg.text) : ''
+        tx.textContent = norm && norm.text != null ? norm.text : seg.text != null ? String(seg.text) : ''
         body.appendChild(meta)
         body.appendChild(tx)
         row.appendChild(av)
@@ -176,9 +289,10 @@
     }
     if (ms12RoomTranscriptLive && ms12RoomTranscriptLive.text) {
       var lv = ms12RoomTranscriptLive
-      var sn2 = lv.speaker != null ? Number(lv.speaker) : 0
-      if (!isFinite(sn2) || sn2 < 0) sn2 = 0
-      var pal2 = ms12RoomTranscriptPalette(sn2)
+      var normLv = ms12NormalizeTranscriptSegment(lv)
+      var name2 = normLv ? normLv.speaker : '화자 1'
+      var msp2 = (name2 || '').match(/^화자\s*(\d+)/)
+      var palLv = ms12RoomTranscriptPalette(msp2 ? (parseInt(msp2[1], 10) - 1) % 4 : 0)
       var row2 = document.createElement('div')
       row2.className = 'ms12-tr-seg ms12-tr-seg--live'
       var av2 = document.createElement('div')
@@ -186,21 +300,26 @@
       av2.setAttribute(
         'style',
         'background:' +
-          pal2.bg +
+          palLv.bg +
           ';border:2px solid ' +
-          pal2.bd +
+          palLv.bd +
           ';color:rgb(51 65 85)',
       )
-      av2.textContent = '화'
+      av2.textContent = name2 ? String(name2).trim().slice(0, 1) : '화'
       var body2 = document.createElement('div')
       body2.className = 'ms12-tr-body'
       var meta2 = document.createElement('div')
       meta2.className = 'ms12-tr-meta'
+      var lvTime = normLv
+        ? normLv.startLabel
+        : lv.startLabel != null
+          ? String(lv.startLabel)
+          : ms12FmtHms(lv.startSec)
       meta2.innerHTML =
-        '<strong>화자 ' +
-        (sn2 + 1) +
+        '<strong>' +
+        escapeForHtml(name2) +
         '</strong> <span class="ms12-tr-time">' +
-        ms12FmtMmSs(lv.startSec) +
+        escapeForHtml(lvTime) +
         '</span>'
       var tx2 = document.createElement('div')
       tx2.className = 'ms12-tr-text'
@@ -220,24 +339,38 @@
     }
   }
 
+  function ms12RoomCaptionLineFromPartial(lv) {
+    if (!lv || !lv.text) return ''
+    var sp = ms12SegSpeakerDisplayName(lv)
+    var lbl =
+      lv.startLabel != null && String(lv.startLabel).trim()
+        ? String(lv.startLabel).trim()
+        : ms12FmtHms(lv.startSec != null ? Number(lv.startSec) : 0)
+    return '[' + lbl + '] ' + sp + ': ' + String(lv.text).trim()
+  }
+
+  function ms12RoomLatestCaptionPlain() {
+    if (ms12RoomTranscriptLive && ms12RoomTranscriptLive.text) {
+      return ms12RoomCaptionLineFromPartial(ms12RoomTranscriptLive)
+    }
+    var segs = ms12RoomTranscriptSegs || []
+    if (!segs.length) return ''
+    var last = segs[segs.length - 1]
+    var s = ms12NormalizeTranscriptSegment(last)
+    if (!s || !s.text) return ''
+    return '[' + s.startLabel + '] ' + s.speaker + ': ' + s.text
+  }
+
   function ms12RoomTranscriptApply(opts) {
     opts = opts || {}
     if (opts.segs) ms12RoomTranscriptSegs = opts.segs.slice()
     if (opts.live !== undefined) ms12RoomTranscriptLive = opts.live
     ms12RoomTranscriptRender()
     try {
-      var capText = ms12SegsToPlain(ms12RoomTranscriptSegs || [])
-      if (ms12RoomTranscriptLive && ms12RoomTranscriptLive.text) {
-        capText =
-          (capText ? capText + '\n' : '') +
-          '[화자' +
-          ((ms12RoomTranscriptLive.speaker != null ? Number(ms12RoomTranscriptLive.speaker) : 0) + 1) +
-          '] ' +
-          ms12FmtMmSs(ms12RoomTranscriptLive.startSec) +
-          ' ' +
-          ms12RoomTranscriptLive.text
-      }
-      ms12SyncLiveCaptionFromTranscript(capText)
+      ms12SyncLiveCaptionFromTranscript(ms12RoomLatestCaptionPlain(), {
+        idleMsg:
+          '음성 인식을 켜면 말하는 내용이 여기와 「회의록」 목록에 함께 표시됩니다.',
+      })
     } catch (e0) {}
   }
 
@@ -535,6 +668,8 @@
         updatedAt: now,
         notes: prev.notes,
         transcript: prev.transcript,
+        rawTranscriptText: prev.rawTranscriptText,
+        transcriptSegments: prev.transcriptSegments,
         transcriptSegs: prev.transcriptSegs,
         summary: prev.summary,
         actionItemsLocal: prev.actionItemsLocal
@@ -619,7 +754,10 @@
     st.byId[meetingId].transcript = tr ? tr.value : (st.byId[meetingId].transcript || '')
     var rid = ms12ActiveRoomId()
     if (rid && String(meetingId) === rid && ms12RoomTranscriptSegs !== null) {
-      st.byId[meetingId].transcriptSegs = ms12RoomTranscriptSegs.slice()
+      var normSegs = ms12NormalizeTranscriptSegmentsArray(ms12RoomTranscriptSegs, null)
+      st.byId[meetingId].transcriptSegments = normSegs
+      st.byId[meetingId].transcriptSegs = normSegs
+      st.byId[meetingId].rawTranscriptText = ms12SegsToPlain(ms12RoomTranscriptSegs || [])
     }
     if (sb) st.byId[meetingId].summaryBasic = sb.value
     if (sa) st.byId[meetingId].summaryAction = sa.value
@@ -658,27 +796,24 @@
     var sr = document.getElementById('ms12-room-summary-report')
     if (n && x.notes != null) n.value = x.notes
     var rid = ms12ActiveRoomId()
-    if (
-      tr &&
-      rid &&
-      String(meetingId) === rid &&
-      Array.isArray(x.transcriptSegs)
-    ) {
-      ms12RoomTranscriptSegs = x.transcriptSegs.slice()
+    if (tr && rid && String(meetingId) === rid) {
       ms12RoomTranscriptLive = null
-      tr.value = ms12SegsToPlain(ms12RoomTranscriptSegs)
+      if (Array.isArray(x.transcriptSegments) && x.transcriptSegments.length) {
+        ms12RoomTranscriptSegs = ms12NormalizeTranscriptSegmentsArray(x.transcriptSegments.slice(), null)
+      } else if (Array.isArray(x.transcriptSegs) && x.transcriptSegs.length) {
+        ms12RoomTranscriptSegs = ms12SegsFromLegacyNumberArray(x.transcriptSegs)
+      } else if (x.rawTranscriptText != null && String(x.rawTranscriptText).trim()) {
+        tr.value = String(x.rawTranscriptText)
+        ms12RoomTranscriptSegs = ms12ParseLegacyTranscript(tr.value)
+      } else if (x.transcript != null && String(x.transcript).trim()) {
+        tr.value = x.transcript
+        ms12RoomTranscriptSegs = ms12ParseLegacyTranscript(tr.value)
+      } else {
+        ms12RoomTranscriptSegs = []
+        tr.value = ''
+      }
+      tr.value = ms12SegsToPlain(ms12RoomTranscriptSegs || [])
       ms12RoomTranscriptRender()
-    } else if (tr && x.transcript != null) {
-      tr.value = x.transcript
-      ms12RoomTranscriptSegs = ms12ParseLegacyTranscript(tr.value)
-      ms12RoomTranscriptLive = null
-      ms12RoomTranscriptRender()
-    } else if (tr && rid && String(meetingId) === rid) {
-      ms12RoomTranscriptSegs = []
-      ms12RoomTranscriptLive = null
-      tr.value = ''
-      ms12RoomTranscriptRender()
-    }
     if (sb) {
       if (x.summaryBasic != null) sb.value = x.summaryBasic
       else if (x.summary != null) sb.value = x.summary
@@ -686,7 +821,7 @@
     if (sa && x.summaryAction != null) sa.value = x.summaryAction
     if (sr && x.summaryReport != null) sr.value = x.summaryReport
     var trSync = document.getElementById('ms12-room-transcript')
-    if (trSync) ms12SyncLiveCaptionFromTranscript(trSync.value)
+    if (trSync) ms12SyncLiveCaptionFromTranscript(ms12RoomLatestCaptionPlain())
     try {
       ms12RoomMaterialsRender(meetingId)
     } catch (eMat) {}
@@ -2020,7 +2155,7 @@
         el.addEventListener('change', onDraftInput)
         if (el.id === 'ms12-room-transcript') {
           el.addEventListener('input', function () {
-            ms12SyncLiveCaptionFromTranscript(el.value)
+            ms12SyncLiveCaptionFromTranscript(ms12RoomLatestCaptionPlain())
           })
         }
       })
@@ -2076,6 +2211,8 @@
               notes: pack.notes || '',
               transcript: pack.transcript || '',
               transcriptSegs: pack.transcriptSegs || null,
+              transcriptSegments: pack.transcriptSegments || null,
+              rawTranscriptText: pack.rawTranscriptText || '',
               summary: pack.summary || '',
               summaryBasic: pack.summaryBasic,
               summaryAction: pack.summaryAction,
@@ -2153,10 +2290,13 @@
       var t = String(line || '').trim()
       if (!t) return
       if (!ms12RoomTranscriptSegs) ms12RoomTranscriptSegs = []
+      var ssQt = ms12LastSegEnd(ms12RoomTranscriptSegs)
       ms12RoomTranscriptSegs.push({
-        speaker: 0,
-        startSec: ms12LastSegEnd(ms12RoomTranscriptSegs),
+        speaker: '화자 1',
+        startSec: ssQt,
+        startLabel: ms12FmtHms(ssQt),
         text: t,
+        source: 'manual',
       })
       ms12RoomTranscriptLive = null
       ms12RoomTranscriptApply({})
@@ -3106,10 +3246,14 @@
         function flush() {
           if (sp === null || !buf.length) return
           var fs = lineStart != null ? off + lineStart : off + fb
+          var snum = Number(sp)
+          if (!isFinite(snum) || snum < 0) snum = 0
           out.push({
-            speaker: Number(sp),
+            speaker: '화자 ' + (snum + 1),
             startSec: fs,
+            startLabel: ms12FmtHms(fs),
             text: buf.join(' '),
+            source: 'cloud',
           })
           buf = []
           lineStart = null
@@ -3283,10 +3427,13 @@
           if (pr.isFinal) {
             var parts = dgSegmentsFromWords(pr.words || [], dgStreamOffsetSec, fb)
             if (!parts.length && pr.text && String(pr.text).trim()) {
+              var fsOne = dgStreamOffsetSec + fb
               parts.push({
-                speaker: 0,
-                startSec: dgStreamOffsetSec + fb,
+                speaker: '화자 1',
+                startSec: fsOne,
+                startLabel: ms12FmtHms(fsOne),
                 text: String(pr.text).trim(),
+                source: 'cloud',
               })
             }
             for (var pi = 0; pi < parts.length; pi++) {
@@ -3300,10 +3447,16 @@
             if (pr.words && pr.words.length) {
               var w0 = pr.words[0]
               altSp = w0 && w0.speaker != null ? Number(w0.speaker) : 0
+              if (!isFinite(altSp) || altSp < 0) altSp = 0
               if (w0 && w0.start != null) altStart = dgStreamOffsetSec + Number(w0.start)
             }
             ms12RoomTranscriptLive = altTxt
-              ? { speaker: altSp, startSec: altStart, text: altTxt }
+              ? {
+                  speaker: '화자 ' + (altSp + 1),
+                  startSec: altStart,
+                  startLabel: ms12FmtHms(altStart),
+                  text: altTxt,
+                }
               : null
           }
           ms12RoomTranscriptApply({})
@@ -3405,9 +3558,11 @@
                 var spk = wsCurSpeakIdx
                 wsCurSpeakIdx = (wsCurSpeakIdx + 1) % 3
                 ms12RoomTranscriptSegs.push({
-                  speaker: spk,
+                  speaker: '화자 ' + (spk + 1),
                   startSec: stSec,
+                  startLabel: ms12FmtHms(stSec),
                   text: chunk,
+                  source: 'speech',
                 })
                 wsPendingStartMs = null
                 fi++
@@ -3419,9 +3574,11 @@
           var it = String(interim || '').trim()
           if (it) {
             if (!wsPendingStartMs) wsPendingStartMs = Date.now()
+            var livSec = wsStreamOffsetSec + (wsPendingStartMs - wsSessionStartMs) / 1000
             ms12RoomTranscriptLive = {
-              speaker: wsCurSpeakIdx,
-              startSec: wsStreamOffsetSec + (wsPendingStartMs - wsSessionStartMs) / 1000,
+              speaker: '화자 ' + (wsCurSpeakIdx + 1),
+              startSec: livSec,
+              startLabel: ms12FmtHms(livSec),
               text: it,
             }
           } else if (!fi) {
@@ -3546,9 +3703,11 @@
           }
         } else {
           ms12RoomTranscriptSegs.push({
-            speaker: 0,
+            speaker: '화자 1',
             startSec: ms12LastSegEnd(ms12RoomTranscriptSegs),
+            startLabel: ms12FmtHms(ms12LastSegEnd(ms12RoomTranscriptSegs)),
             text: pasted.trim(),
+            source: 'manual',
           })
         }
         if (usingDg) dgStreamOffsetSec = ms12LastSegEnd(ms12RoomTranscriptSegs)
@@ -3583,6 +3742,12 @@
       }
     }
     initMeetingCategoryPickers()
+
+    function ms12MergePersistFinalNotes(existingFinalNotesStr, transcriptSegsRaw) {
+      var base = ms12ParseRecordExtrasFinal(existingFinalNotesStr || '')
+      base.transcriptSegments = ms12NormalizeTranscriptSegmentsArray(transcriptSegsRaw || [], null)
+      return ms12SerializeRecordExtras(base)
+    }
 
     function persistMeetingRecordSnapshot(roomId) {
       var saveTitleEl = document.getElementById('ms12-save-title')
@@ -3620,49 +3785,74 @@
       try {
         existing = sessionStorage.getItem(recKey)
       } catch (e) {}
-      var method = existing ? 'PATCH' : 'POST'
-      var url = existing
-        ? '/api/ms12/meeting-records/' + encodeURIComponent(existing)
-        : '/api/ms12/meeting-records'
-      var body = {
-        title: titleS,
-        meetingDate: saveDateEl.value,
-        category: cat,
-        rawNotes: rawComposed,
-        transcript: trs && trs.value ? String(trs.value) : null,
-        tags: tag || null,
-        visibility: vis,
-        summaryBasic: sba && sba.value ? String(sba.value) : null,
-        summaryAction: sac && sac.value ? String(sac.value) : null,
-        summaryReport: srp && srp.value ? String(srp.value) : null,
-      }
-      if (method === 'POST') {
-        body.roomId = roomId
-      }
-      return ms12Fetch(url, {
-        method: method,
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+      var transcriptPlain =
+        trs && String(trs.value || '').trim()
+          ? String(trs.value).trim()
+          : ms12SegsToPlain(ms12RoomTranscriptSegs || [])
+      var mergedNotesPromise =
+        existing != null && existing !== ''
+          ? ms12Fetch('/api/ms12/meeting-records/' + encodeURIComponent(existing), {
+              credentials: 'include',
+            })
+              .then(function (r) {
+                return jsonFromResponse(r)
+              })
+              .then(function (j) {
+                var curFn =
+                  j && j.success && j.data && j.data.finalNotes != null ? String(j.data.finalNotes) : ''
+                return ms12MergePersistFinalNotes(curFn, ms12RoomTranscriptSegs || [])
+              })
+              .catch(function () {
+                return ms12MergePersistFinalNotes('', ms12RoomTranscriptSegs || [])
+              })
+          : Promise.resolve(ms12MergePersistFinalNotes('', ms12RoomTranscriptSegs || []))
+
+      return mergedNotesPromise.then(function (mergedNotesStr) {
+        var method = existing ? 'PATCH' : 'POST'
+        var url = existing
+          ? '/api/ms12/meeting-records/' + encodeURIComponent(existing)
+          : '/api/ms12/meeting-records'
+        var body = {
+          title: titleS,
+          meetingDate: saveDateEl.value,
+          category: cat,
+          rawNotes: rawComposed,
+          transcript: transcriptPlain || null,
+          finalNotes: mergedNotesStr,
+          tags: tag || null,
+          visibility: vis,
+          summaryBasic: sba && sba.value ? String(sba.value) : null,
+          summaryAction: sac && sac.value ? String(sac.value) : null,
+          summaryReport: srp && srp.value ? String(srp.value) : null,
+        }
+        if (method === 'POST') {
+          body.roomId = roomId
+        }
+        return ms12Fetch(url, {
+          method: method,
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+          .then(function (r) {
+            return jsonFromResponse(r)
+          })
+          .then(function (j) {
+            if (j && j.success && j.data && j.data.id) {
+              try {
+                sessionStorage.setItem(recKey, j.data.id)
+              } catch (e) {}
+              return { ok: true, recordId: String(j.data.id) }
+            }
+            return {
+              ok: false,
+              reason: (j && (j.error || j.message)) || '저장 실패',
+            }
+          })
+          .catch(function () {
+            return { ok: false, reason: '오프라인이거나 요청이 실패했습니다.' }
+          })
       })
-        .then(function (r) {
-          return jsonFromResponse(r)
-        })
-        .then(function (j) {
-          if (j && j.success && j.data && j.data.id) {
-            try {
-              sessionStorage.setItem(recKey, j.data.id)
-            } catch (e) {}
-            return { ok: true, recordId: String(j.data.id) }
-          }
-          return {
-            ok: false,
-            reason: (j && (j.error || j.message)) || '저장 실패',
-          }
-        })
-        .catch(function () {
-          return { ok: false, reason: '오프라인이거나 요청이 실패했습니다.' }
-        })
     }
 
     if (saveBtn) {
@@ -4377,7 +4567,7 @@
     }
     var rawStr = raw != null ? String(raw).trim() : ''
     if (!rawStr) {
-      return { v: 1, actionItems: [], reportSections: emptyReport(), legacyFinalNotes: '' }
+      return { v: 1, actionItems: [], reportSections: emptyReport(), legacyFinalNotes: '', transcriptSegments: [] }
     }
     try {
       var o = JSON.parse(rawStr)
@@ -4395,10 +4585,20 @@
           actionItems: Array.isArray(o.actionItems) ? o.actionItems : [],
           reportSections: rs,
           legacyFinalNotes: typeof o.legacyFinalNotes === 'string' ? o.legacyFinalNotes : '',
+          transcriptSegments: Array.isArray(o.transcriptSegments) ? o.transcriptSegments : [],
+        }
+      }
+      if (o && typeof o === 'object' && Array.isArray(o.transcriptSegments)) {
+        return {
+          v: 1,
+          actionItems: [],
+          reportSections: emptyReport(),
+          legacyFinalNotes: '',
+          transcriptSegments: o.transcriptSegments,
         }
       }
     } catch (e1) {}
-    return { v: 1, actionItems: [], reportSections: emptyReport(), legacyFinalNotes: rawStr }
+    return { v: 1, actionItems: [], reportSections: emptyReport(), legacyFinalNotes: rawStr, transcriptSegments: [] }
   }
 
   function ms12SerializeRecordExtras(ex) {
@@ -4416,6 +4616,7 @@
       actionItems: Array.isArray(ex.actionItems) ? ex.actionItems : [],
       reportSections: rs,
       legacyFinalNotes: ex.legacyFinalNotes != null ? String(ex.legacyFinalNotes) : '',
+      transcriptSegments: Array.isArray(ex.transcriptSegments) ? ex.transcriptSegments : [],
     })
   }
 
@@ -4677,7 +4878,7 @@
       var parts = []
       parts.push('# ' + (d && d.title ? d.title : el('ms12-rec-title').value))
       parts.push('')
-      parts.push('## 전사')
+      parts.push('## 회의록 내용')
       parts.push(el('ms12-rec-tr') ? el('ms12-rec-tr').value.trim() || '—' : '—')
       parts.push('')
       parts.push('## 회의 메모')
@@ -4691,7 +4892,7 @@
       blocks.push('# ' + pay.title)
       blocks.push('날짜: ' + pay.meetingDate + ' · 분류: ' + pay.category)
       blocks.push('')
-      blocks.push('## 전사')
+      blocks.push('## 회의록 내용')
       blocks.push(pay.transcript || '—')
       blocks.push('')
       blocks.push('## 회의 메모')

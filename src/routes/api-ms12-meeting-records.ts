@@ -6,6 +6,7 @@ import { HTTPException } from 'hono/http-exception'
 import { Bindings } from '../types/database'
 import { ms12Access } from '../middleware/ms12-access'
 import { successResponse, errorResponse } from '../utils/helpers'
+import { generateTextGeminiOrOpenAI } from '../utils/ai-text-generation'
 import type { AppActor } from '../utils/actor'
 import { participantKey } from '../utils/actor'
 import { assertIsRoomParticipant } from '../utils/ms12-room-participant-check'
@@ -55,6 +56,18 @@ function randomId(): string {
   const u = new Uint8Array(9)
   crypto.getRandomValues(u)
   return Array.from(u, (b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+const CONTEXT_MAX = 14_000
+
+function clipContextMs12(s: string): string {
+  const t = (s || '').trim()
+  if (t.length <= CONTEXT_MAX) return t
+  return t.slice(0, CONTEXT_MAX) + '\n…(이하 잘림)'
+}
+
+function aiAvailable(env: Bindings): boolean {
+  return !!(env.GEMINI_API_KEY?.trim() || env.OPENAI_API_KEY?.trim())
 }
 
 function rowOut(row: Record<string, unknown>) {
@@ -162,7 +175,7 @@ r.get('/meeting-records/:rid', ms12Access, async (c) => {
   if (!canReadRecord(row, by)) {
     return c.json(errorResponse('열람 권한이 없습니다.'), 403)
   }
-  return c.json(successResponse(rowOut(row)))
+  return c.json(successResponse({ ...rowOut(row), aiAvailable: aiAvailable(c.env) }))
 })
 
 r.post('/meeting-records', ms12Access, async (c) => {
@@ -391,6 +404,145 @@ r.patch('/meeting-records/:rid', ms12Access, async (c) => {
       return c.json(errorResponse('회의 기록 테이블이 없습니다.'), 503)
     }
     return c.json(errorResponse('갱신에 실패했습니다.'), 500)
+  }
+})
+
+/** 회의 기록 상세 화면용 — 전체 요약 3종 생성 (저장본 소유자만) */
+r.post('/meeting-records/:rid/ai-summaries', ms12Access, async (c) => {
+  const by = participantKey(c.get('actor'))
+  const id = c.req.param('rid')
+  if (!/^[a-f0-9]+$/i.test(id)) {
+    return c.json(errorResponse('id가 올바르지 않습니다.'), 400)
+  }
+  if (!aiAvailable(c.env)) {
+    return c.json(errorResponse('AI 키가 설정되어 있지 않습니다.'), 503)
+  }
+  const row = await c.env.DB.prepare(`SELECT * FROM ms12_meeting_records WHERE id = ?`)
+    .bind(id)
+    .first<Record<string, unknown>>()
+  if (!row) {
+    return c.json(errorResponse('회의를 찾을 수 없습니다.'), 404)
+  }
+  if (String(row.created_by_key) !== by) {
+    return c.json(errorResponse('생성 권한이 없습니다.'), 403)
+  }
+  const notes = clipContextMs12(String(row.raw_notes || ''))
+  const transcript = clipContextMs12(String(row.transcript || ''))
+  if (!notes.trim() && !transcript.trim()) {
+    return c.json(errorResponse('메모·회의록 내용이 비어 있습니다.'), 400)
+  }
+  const prevBasic = String(row.summary_basic || '').trim()
+  const prevAction = String(row.summary_action || '').trim()
+  const prevReport = String(row.summary_report || '').trim()
+  const prev = [prevBasic, prevAction, prevReport].filter(Boolean)
+  const block = [
+    notes && `## 현재 메모\n${notes}`,
+    transcript && `## 회의록 내용\n${transcript}`,
+    prev.length ? `## 이전에 적어 둔 요약(참고·갱신)\n${prev.join('\n---\n')}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n\n')
+  const system = `You are a Korean meeting assistant. Read the input and output ONLY a single JSON object with exactly these string keys, no markdown fences:
+{"summaryBasic":"(핵심 3~6문장, 전체 흐름)","summaryAction":"(할 일·책임·일정이 드러나면 불릿, 없으면 항목 1~3개 '검토 필요' 등)","summaryReport":"(기관·대외 보고 톤, 성과·과제 3~5문장)"}
+If information is missing, use short placeholders like [미정] in Korean. Be concise.`
+  try {
+    const raw = await generateTextGeminiOrOpenAI(c.env, block, system)
+    const t = raw.trim()
+    const m = t.match(/\{[\s\S]*\}/)
+    const j = m ? (JSON.parse(m[0]) as Record<string, unknown>) : null
+    if (j && typeof j.summaryBasic === 'string') {
+      return c.json(
+        successResponse({
+          summaryBasic: String(j.summaryBasic).trim(),
+          summaryAction: String(j.summaryAction != null ? j.summaryAction : '').trim(),
+          summaryReport: String(j.summaryReport != null ? j.summaryReport : '').trim(),
+          source: 'json',
+        }),
+      )
+    }
+    return c.json(
+      successResponse({
+        summaryBasic: t.slice(0, 2000),
+        summaryAction: '',
+        summaryReport: '',
+        source: 'fallback',
+      }),
+    )
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    if (msg === 'NO_AI_KEY') {
+      return c.json(errorResponse('AI 키가 없습니다. GEMINI_API_KEY 또는 OPENAI_API_KEY를 설정하세요.'), 503)
+    }
+    console.error('[ms12] meeting-records ai-summaries', msg.slice(0, 200))
+    return c.json(errorResponse('AI 요약을 만들지 못했습니다.'), 502)
+  }
+})
+
+/** 보고서 초안 — 7개 절 상위 JSON (저장본 소유자만) */
+r.post('/meeting-records/:rid/ai-report-sections', ms12Access, async (c) => {
+  const by = participantKey(c.get('actor'))
+  const id = c.req.param('rid')
+  if (!/^[a-f0-9]+$/i.test(id)) {
+    return c.json(errorResponse('id가 올바르지 않습니다.'), 400)
+  }
+  if (!aiAvailable(c.env)) {
+    return c.json(errorResponse('AI 키가 설정되어 있지 않습니다.'), 503)
+  }
+  const row = await c.env.DB.prepare(`SELECT * FROM ms12_meeting_records WHERE id = ?`)
+    .bind(id)
+    .first<Record<string, unknown>>()
+  if (!row) {
+    return c.json(errorResponse('회의를 찾을 수 없습니다.'), 404)
+  }
+  if (String(row.created_by_key) !== by) {
+    return c.json(errorResponse('생성 권한이 없습니다.'), 403)
+  }
+  const notes = clipContextMs12(String(row.raw_notes || ''))
+  const transcript = clipContextMs12(String(row.transcript || ''))
+  const sb = clipContextMs12(String(row.summary_basic || ''))
+  const sa = clipContextMs12(String(row.summary_action || ''))
+  const sr = clipContextMs12(String(row.summary_report || ''))
+  if (![notes, transcript, sb, sa, sr].some((x) => x.trim().length > 0)) {
+    return c.json(errorResponse('메모·회의록 내용·요약 중 최소 하나를 채운 뒤 생성해 주세요.'), 400)
+  }
+  const block = [
+    notes && `## 회의 메모\n${notes}`,
+    transcript && `## 회의록 내용\n${transcript}`,
+    sb && `## 기본 요약\n${sb}`,
+    sa && `## 실행 요약\n${sa}`,
+    sr && `## 보고 요약\n${sr}`,
+  ]
+    .filter(Boolean)
+    .join('\n\n')
+  const system = `당신은 기관 회의 보고서 작성 보조입니다. 입력만 근거로 한국어 보고서 초안을 작성합니다.
+출력은 반드시 다음 키만 가진 단일 JSON 객체이며, 마크다운 코드 펜스 없이 순수 JSON만 출력합니다:
+{"overview":"","purpose":"","discussion":"","decisions":"","execution":"","schedule":"","conclusion":""}
+각 값은 해당 제목의 본문(① 회의 개요 ~ ⑦ 종합 의견에 대응). 근거 없는 사실은 추측하지 말고 [확인 필요]로 표시하세요.`
+
+  try {
+    const raw = await generateTextGeminiOrOpenAI(c.env, block, system)
+    const t = raw.trim()
+    const m = t.match(/\{[\s\S]*\}/)
+    const j = m ? (JSON.parse(m[0]) as Record<string, unknown>) : null
+    const keys = ['overview', 'purpose', 'discussion', 'decisions', 'execution', 'schedule', 'conclusion'] as const
+    const out: Record<string, string> = {}
+    for (const k of keys) {
+      out[k] = ''
+    }
+    if (j) {
+      for (const k of keys) {
+        const v = j[k]
+        out[k] = typeof v === 'string' ? v.trim() : ''
+      }
+    }
+    return c.json(successResponse({ sections: out, source: j ? 'json' : 'empty' }))
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    if (msg === 'NO_AI_KEY') {
+      return c.json(errorResponse('AI 키가 없습니다. GEMINI_API_KEY 또는 OPENAI_API_KEY를 설정하세요.'), 503)
+    }
+    console.error('[ms12] meeting-records ai-report-sections', msg.slice(0, 200))
+    return c.json(errorResponse('보고서 초안을 만들지 못했습니다.'), 502)
   }
 })
 
